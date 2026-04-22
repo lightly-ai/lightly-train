@@ -96,7 +96,7 @@ class InstanceSegmentationDataset(TaskDataset):
         # Load the image.
         image_info = self.image_info[index]
         image_path = Path(image_info["image_path"])
-        polygons = json.loads(image_info["polygons"])
+        segments = json.loads(image_info["segments"])
         bboxes = json.loads(image_info["bboxes"])
         class_labels = json.loads(image_info["class_labels"])
 
@@ -106,15 +106,29 @@ class InstanceSegmentationDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(
             image_path=image_path, mode=self.image_mode
         )
-        polygons_np = [
-            [np.array(segment, dtype=np.float64) for segment in polygon_group]
-            for polygon_group in polygons
-        ]
+
         bboxes_np = np.array(bboxes, dtype=np.float64).reshape(len(bboxes), 4)
         class_labels_np = np.array(class_labels, dtype=np.int64)
 
-        binary_masks_np = yolo_helpers.binary_masks_from_polygons(
-            polygons=polygons_np, height=image_np.shape[0], width=image_np.shape[1]
+        h, w = image_np.shape[0], image_np.shape[1]
+        mask_list: list[np.ndarray[Any, Any]] = []
+        for segment in segments:
+            if isinstance(segment, list):
+                # Polygon format: list of polygon coordinate arrays.
+                polygons_np = [np.array(poly, dtype=np.float64) for poly in segment]
+                mask = yolo_helpers.binary_mask_from_polygon(
+                    polygons_np, height=h, width=w
+                )
+                mask_list.append(mask)
+            elif isinstance(segment, dict):
+                # RLE format.
+                from pycocotools import mask as coco_mask
+
+                mask_list.append(
+                    coco_mask.decode(segment).astype(np.bool_)  # type: ignore[arg-type]
+                )
+        binary_masks_np = (
+            np.stack(mask_list) if mask_list else np.zeros((0, h, w), dtype=np.bool_)
         )
 
         transform_input: InstanceSegmentationTransformInput = {
@@ -255,7 +269,7 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
             label_filepath = self.label_dir / Path(image_filename).with_suffix(".txt")
 
             if label_filepath.exists():
-                polygons, bboxes, class_labels = (
+                segments, bboxes, class_labels = (
                     file_helpers.open_yolo_instance_segmentation_label(
                         label_path=label_filepath
                     )
@@ -265,13 +279,13 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                 #   And keep track of how many files are missing labels.
                 if self.skip_if_label_file_missing:
                     continue
-                polygons = []
+                segments = []
                 bboxes = []
                 class_labels = []
 
             # Remove instances with class IDs that are not in the included classes
             keep = [label in class_id_to_internal_class_id for label in class_labels]
-            polygons = list(itertools.compress(polygons, keep))
+            segments = list(itertools.compress(segments, keep))
             bboxes = list(itertools.compress(bboxes, keep))
             class_labels = list(itertools.compress(class_labels, keep))
 
@@ -282,7 +296,7 @@ class YOLOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
 
             yield {
                 "image_path": str(image_filepath),
-                "polygons": json.dumps(polygons),
+                "segments": json.dumps(segments),
                 "bboxes": json.dumps(bboxes),
                 "class_labels": json.dumps(class_labels),
             }
@@ -410,58 +424,97 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
             image_id = image["id"]
             image_filepath = image_dir / image["file_name"]
 
-            polygons = []
+            segments = []
             bboxes = []
             class_labels = []
             if image_id in annotations_by_image_id:
                 for annotation in annotations_by_image_id[image_id]:
                     segmentation = annotation.get("segmentation", [])
-                    if not segmentation or not isinstance(segmentation, list):
+                    if not segmentation:
                         continue
-                    # Filter to valid polygon segments (list with >= 6
-                    # even-length coordinates, i.e. at least 3 points).
-                    valid_segments = [
-                        segment
-                        for segment in segmentation
-                        if isinstance(segment, list)
-                        and len(segment) >= 6
-                        and len(segment) % 2 == 0
-                    ]
-                    if not valid_segments:
-                        continue
-                    # Normalize each polygon segment to [0, 1].
-                    polygon_group_norm = [
-                        [
-                            coord / image_width_pixel
-                            if i % 2 == 0
-                            else coord / image_height_pixel
-                            for i, coord in enumerate(segment)
+                    if isinstance(segmentation, list):
+                        # Filter to valid polygon segments (list with >= 6
+                        # even-length coordinates, i.e. at least 3 points).
+                        valid_segments = [
+                            segment
+                            for segment in segmentation
+                            if isinstance(segment, list)
+                            and len(segment) >= 6
+                            and len(segment) % 2 == 0
                         ]
-                        for segment in valid_segments
-                    ]
-                    # Convert bbox from [x, y, w, h] pixels to normalized
-                    # [x_center, y_center, w, h]. If bbox is missing, derive it
-                    # from the axis-aligned bounding box of all segments.
-                    if "bbox" in annotation:
-                        left_pixel, top_pixel, width_pixel, height_pixel = annotation[
-                            "bbox"
+                        if not valid_segments:
+                            continue
+                        # Normalize each polygon segment to [0, 1].
+                        polygon_group_norm = [
+                            [
+                                coord / image_width_pixel
+                                if i % 2 == 0
+                                else coord / image_height_pixel
+                                for i, coord in enumerate(segment)
+                            ]
+                            for segment in valid_segments
                         ]
-                    else:
-                        all_px = [
-                            coord for segment in valid_segments for coord in segment
-                        ]
-                        xs = all_px[0::2]
-                        ys = all_px[1::2]
-                        left_pixel = min(xs)
-                        top_pixel = min(ys)
-                        width_pixel = max(xs) - left_pixel
-                        height_pixel = max(ys) - top_pixel
-                    x_center = (left_pixel + width_pixel / 2.0) / image_width_pixel
-                    y_center = (top_pixel + height_pixel / 2.0) / image_height_pixel
-                    width = width_pixel / image_width_pixel
-                    height = height_pixel / image_height_pixel
+                        # Convert bbox from [x, y, w, h] pixels to normalized
+                        # [x_center, y_center, w, h]. If bbox is missing, derive it
+                        # from the axis-aligned bounding box of all segments.
+                        if "bbox" in annotation:
+                            left_pixel, top_pixel, width_pixel, height_pixel = (
+                                annotation["bbox"]
+                            )
+                        else:
+                            all_px = [
+                                coord for segment in valid_segments for coord in segment
+                            ]
+                            xs = all_px[0::2]
+                            ys = all_px[1::2]
+                            left_pixel = min(xs)
+                            top_pixel = min(ys)
+                            width_pixel = max(xs) - left_pixel
+                            height_pixel = max(ys) - top_pixel
+                        x_center = (left_pixel + width_pixel / 2.0) / image_width_pixel
+                        y_center = (top_pixel + height_pixel / 2.0) / image_height_pixel
+                        width = width_pixel / image_width_pixel
+                        height = height_pixel / image_height_pixel
+                        segments.append(polygon_group_norm)
 
-                    polygons.append(polygon_group_norm)
+                    elif isinstance(segmentation, dict):
+                        # RLE encoded segmentation. pycocotools is only
+                        # available for Python >= 3.9.
+                        import sys
+
+                        if sys.version_info < (3, 9):
+                            raise RuntimeError(
+                                "RLE encoded segmentation requires Python >= 3.9 "
+                                "for pycocotools support."
+                            )
+                        from pycocotools import mask as coco_mask
+
+                        # Ensure RLE is in compressed format.
+                        if isinstance(segmentation.get("counts"), list):
+                            rle = coco_mask.frPyObjects(  # type: ignore[call-overload]
+                                segmentation,
+                                image_height_pixel,
+                                image_width_pixel,
+                            )
+                        else:
+                            rle = segmentation  # type: ignore[arg-type]
+
+                        # Extract bbox [x, y, w, h] from RLE and convert
+                        # to normalized [x_center, y_center, w, h].
+                        left_pixel, top_pixel, width_pixel, height_pixel = (
+                            coco_mask.toBbox(rle).flatten().tolist()
+                        )
+                        x_center = (left_pixel + width_pixel / 2.0) / image_width_pixel
+                        y_center = (top_pixel + height_pixel / 2.0) / image_height_pixel
+                        width = width_pixel / image_width_pixel
+                        height = height_pixel / image_height_pixel
+                        # Ensure counts is a string for JSON serialization.
+                        if isinstance(rle["counts"], bytes):
+                            rle["counts"] = rle["counts"].decode("utf-8")
+                        segments.append(rle)  # type: ignore[arg-type]
+                    else:
+                        # TODO this should not be the case
+                        continue
                     bboxes.append([x_center, y_center, width, height])
                     class_labels.append(annotation["category_id"])
             else:
@@ -472,7 +525,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
 
             # Remove instances with class IDs that are not in the included classes.
             keep = [label in class_id_to_internal_class_id for label in class_labels]
-            polygons = list(itertools.compress(polygons, keep))
+            segments = list(itertools.compress(segments, keep))
             bboxes = list(itertools.compress(bboxes, keep))
             class_labels = list(itertools.compress(class_labels, keep))
 
@@ -483,7 +536,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
 
             yield {
                 "image_path": str(image_filepath),
-                "polygons": json.dumps(polygons),
+                "segments": json.dumps(segments),
                 "bboxes": json.dumps(bboxes),
                 "class_labels": json.dumps(class_labels),
             }
