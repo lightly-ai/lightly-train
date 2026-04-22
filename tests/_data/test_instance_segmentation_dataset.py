@@ -314,107 +314,111 @@ class TestCOCOInstanceSegmentationDatasetArgs:
 
         assert len(image_info) == 1
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
-    )
     def test_list_image_info__mixed_polygon_and_rle(self, tmp_path: Path) -> None:
         """Test a single image with polygon, compressed RLE, and uncompressed RLE annotations."""
-        from pycocotools import mask as coco_mask
+        if sys.version_info < (3, 9):
+            pytest.skip("pycocotools requires Python >= 3.9")
+            return
 
-        height, width = 128, 128
+        if sys.version_info >= (3, 9):
+            from pycocotools import mask as coco_mask
 
-        # Create a compressed RLE from a polygon using pycocotools.
-        rle_list = coco_mask.frPyObjects(
-            [[int(v) for v in _COCO_POLYGON_PX]], height, width
-        )
-        compressed_rle = coco_mask.merge(rle_list)
-        # counts is bytes, convert to str for JSON.
-        counts_raw = compressed_rle["counts"]
-        counts_str = (
-            counts_raw.decode("utf-8") if isinstance(counts_raw, bytes) else counts_raw
-        )
-        compressed_rle_annotation = {
-            "counts": counts_str,
-            "size": compressed_rle["size"],
-        }
+            height, width = 128, 128
 
-        # Create an uncompressed RLE (counts as a list of ints).
-        binary_mask = coco_mask.decode(compressed_rle)
-        flat = binary_mask.flatten(order="F")
-        counts: list[int] = []
-        current: int = 0
-        count: int = 0
-        for val in flat:
-            if val == current:
-                count += 1
-            else:
-                counts.append(count)
-                current = int(val)
-                count = 1
-        counts.append(count)
-        uncompressed_rle_annotation = {
-            "counts": counts,
-            "size": [height, width],
-        }
+            # Create a compressed RLE from a polygon using pycocotools.
+            rle_list = coco_mask.frPyObjects(
+                [[int(v) for v in _COCO_POLYGON_PX]], height, width
+            )
+            compressed_rle = coco_mask.merge(rle_list)
+            # counts is bytes, convert to str for JSON.
+            counts_raw = compressed_rle["counts"]
+            counts_str = (
+                counts_raw.decode("utf-8")
+                if isinstance(counts_raw, bytes)
+                else counts_raw
+            )
+            compressed_rle_annotation = {
+                "counts": counts_str,
+                "size": compressed_rle["size"],
+            }
 
-        annotations_per_image = [
-            [
-                {
-                    "category_id": 0,
-                    "bbox": [10, 10, 30, 40],
-                    "segmentation": [_COCO_POLYGON_PX],
-                },
-                {
-                    "category_id": 0,
-                    "segmentation": compressed_rle_annotation,
-                },
-                {
-                    "category_id": 0,
-                    "segmentation": uncompressed_rle_annotation,
-                },
+            # Create an uncompressed RLE (counts as a list of ints).
+            binary_mask = coco_mask.decode(compressed_rle)
+            flat = binary_mask.flatten(order="F")
+            counts: list[int] = []
+            current: int = 0
+            count: int = 0
+            for val in flat:
+                if val == current:
+                    count += 1
+                else:
+                    counts.append(count)
+                    current = int(val)
+                    count = 1
+            counts.append(count)
+            uncompressed_rle_annotation = {
+                "counts": counts,
+                "size": [height, width],
+            }
+
+            annotations_per_image = [
+                [
+                    {
+                        "category_id": 0,
+                        "bbox": [10, 10, 30, 40],
+                        "segmentation": [_COCO_POLYGON_PX],
+                    },
+                    {
+                        "category_id": 0,
+                        "segmentation": compressed_rle_annotation,
+                    },
+                    {
+                        "category_id": 0,
+                        "segmentation": uncompressed_rle_annotation,
+                    },
+                ]
             ]
-        ]
 
-        create_coco_instance_segmentation_dataset(
-            tmp_path=tmp_path,
-            num_files=1,
-            height=height,
-            width=width,
-            num_classes=1,
-            annotations_per_image=annotations_per_image,
-        )
-        args = COCOInstanceSegmentationDatasetArgs(
-            labels=tmp_path / "train.json",
-            data_dir=Path("train"),
-            classes={0: "class_0"},
-            ignore_classes=None,
-            skip_if_annotations_missing=False,
-        )
+            create_coco_instance_segmentation_dataset(
+                tmp_path=tmp_path,
+                num_files=1,
+                height=height,
+                width=width,
+                num_classes=1,
+                annotations_per_image=annotations_per_image,
+            )
+            args = COCOInstanceSegmentationDatasetArgs(
+                labels=tmp_path / "train.json",
+                data_dir=Path("train"),
+                classes={0: "class_0"},
+                ignore_classes=None,
+                skip_if_annotations_missing=False,
+            )
 
-        image_info = list(args.list_image_info())
+            image_info = list(args.list_image_info())
 
-        assert len(image_info) == 1
-        info = image_info[0]
-        segments = json.loads(info["segments"])
-        bboxes = json.loads(info["bboxes"])
-        class_labels = json.loads(info["class_labels"])
+            assert len(image_info) == 1
+            info = image_info[0]
+            segments = json.loads(info["segments"])
+            bboxes = json.loads(info["bboxes"])
+            class_labels = json.loads(info["class_labels"])
 
-        # Three annotations: one polygon, two RLE.
-        assert len(segments) == 3
-        assert len(bboxes) == 3
-        assert len(class_labels) == 3
+            # Three annotations: one polygon, two RLE.
+            assert len(segments) == 3
+            assert len(bboxes) == 3
+            assert len(class_labels) == 3
 
-        # First segment is a polygon (list of lists).
-        assert isinstance(segments[0], list)
-        # Second and third segments are RLE dicts (compressed).
-        assert isinstance(segments[1], dict)
-        assert isinstance(segments[1]["counts"], str)
-        assert isinstance(segments[2], dict)
-        assert isinstance(segments[2]["counts"], str)
+            # First segment is a polygon (list of lists).
+            assert isinstance(segments[0], list)
+            # Second and third segments are RLE dicts (compressed).
+            assert isinstance(segments[1], dict)
+            assert isinstance(segments[1]["counts"], str)
+            assert isinstance(segments[2], dict)
+            assert isinstance(segments[2]["counts"], str)
 
-        # All bboxes should be close (they represent the same shape).
-        for bbox in bboxes:
-            assert len(bbox) == 4
+            # All bboxes should be close (they represent the same shape).
+            for bbox in bboxes:
+                assert len(bbox) == 4
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 9), reason="Test only applies to Python 3.8"
