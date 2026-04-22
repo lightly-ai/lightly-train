@@ -123,16 +123,17 @@ class InstanceSegmentationDataset(TaskDataset):
                 mask_list.append(mask)
             elif isinstance(segment, dict):
                 # RLE format. pycocotools is only available for Python >= 3.9.
-                if sys.version_info < (3, 9):
+                if sys.version_info >= (3, 9):
+                    from pycocotools import mask as coco_mask
+
+                    mask_list.append(
+                        coco_mask.decode(segment).astype(np.bool_)  # type: ignore[arg-type]
+                    )
+                else:
                     raise RuntimeError(
                         "RLE encoded segmentation requires Python >= 3.9 "
                         "for pycocotools support."
                     )
-                from pycocotools import mask as coco_mask
-
-                mask_list.append(
-                    coco_mask.decode(segment).astype(np.bool_)  # type: ignore[arg-type]
-                )
         binary_masks_np = (
             np.stack(mask_list) if mask_list else np.zeros((0, h, w), dtype=np.bool_)
         )
@@ -486,37 +487,41 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     elif isinstance(segmentation, dict):
                         # RLE encoded segmentation. pycocotools is only
                         # available for Python >= 3.9.
+                        if sys.version_info >= (3, 9):
+                            from pycocotools import mask as coco_mask
 
-                        if sys.version_info < (3, 9):
+                            # Ensure RLE is in compressed format.
+                            if isinstance(segmentation.get("counts"), list):
+                                rle = coco_mask.frPyObjects(  # type: ignore[call-overload]
+                                    segmentation,
+                                    image_height_pixel,
+                                    image_width_pixel,
+                                )
+                            else:
+                                rle = segmentation  # type: ignore[arg-type]
+
+                            # Extract bbox [x, y, w, h] from RLE and convert
+                            # to normalized [x_center, y_center, w, h].
+                            left_pixel, top_pixel, width_pixel, height_pixel = (
+                                coco_mask.toBbox(rle).flatten().tolist()
+                            )
+                            x_center = (
+                                left_pixel + width_pixel / 2.0
+                            ) / image_width_pixel
+                            y_center = (
+                                top_pixel + height_pixel / 2.0
+                            ) / image_height_pixel
+                            width = width_pixel / image_width_pixel
+                            height = height_pixel / image_height_pixel
+                            # Ensure counts is a string for JSON serialization.
+                            if isinstance(rle["counts"], bytes):
+                                rle["counts"] = rle["counts"].decode("utf-8")
+                            segments.append(rle)  # type: ignore[arg-type]
+                        else:
                             raise RuntimeError(
                                 "RLE encoded segmentation requires Python >= 3.9 "
                                 "for pycocotools support."
                             )
-                        from pycocotools import mask as coco_mask
-
-                        # Ensure RLE is in compressed format.
-                        if isinstance(segmentation.get("counts"), list):
-                            rle = coco_mask.frPyObjects(  # type: ignore[call-overload]
-                                segmentation,
-                                image_height_pixel,
-                                image_width_pixel,
-                            )
-                        else:
-                            rle = segmentation  # type: ignore[arg-type]
-
-                        # Extract bbox [x, y, w, h] from RLE and convert
-                        # to normalized [x_center, y_center, w, h].
-                        left_pixel, top_pixel, width_pixel, height_pixel = (
-                            coco_mask.toBbox(rle).flatten().tolist()
-                        )
-                        x_center = (left_pixel + width_pixel / 2.0) / image_width_pixel
-                        y_center = (top_pixel + height_pixel / 2.0) / image_height_pixel
-                        width = width_pixel / image_width_pixel
-                        height = height_pixel / image_height_pixel
-                        # Ensure counts is a string for JSON serialization.
-                        if isinstance(rle["counts"], bytes):
-                            rle["counts"] = rle["counts"].decode("utf-8")
-                        segments.append(rle)  # type: ignore[arg-type]
                     else:
                         # TODO this should not be the case
                         continue
