@@ -493,14 +493,12 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     # Get bbox in [x, y, w, h] pixel format. Use annotation
                     # bbox if available, otherwise derive from segmentation.
                     if "bbox" in annotation:
-                        left_pixel, top_pixel, width_pixel, height_pixel = (
-                            annotation["bbox"]
-                        )
+                        left_pixel, top_pixel, width_pixel, height_pixel = annotation[
+                            "bbox"
+                        ]
                     elif isinstance(segmentation, list):
                         all_px = [
-                            coord
-                            for segment in valid_segments
-                            for coord in segment
+                            coord for segment in valid_segments for coord in segment
                         ]
                         xs = all_px[0::2]
                         ys = all_px[1::2]

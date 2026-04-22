@@ -16,7 +16,6 @@ from typing_extensions import Literal
 from lightly_train.types import (
     NDArray4Corners,
     NDArrayBinaryMask,
-    NDArrayBinaryMasks,
     NDArrayOBBoxes,
     NDArrayPolygon,
 )

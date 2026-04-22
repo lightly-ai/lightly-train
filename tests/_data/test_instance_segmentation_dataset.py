@@ -314,13 +314,12 @@ class TestCOCOInstanceSegmentationDatasetArgs:
 
         assert len(image_info) == 1
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
+    )
     def test_list_image_info__mixed_polygon_and_rle(self, tmp_path: Path) -> None:
         """Test a single image with polygon, compressed RLE, and uncompressed RLE annotations."""
-        if sys.version_info < (3, 9):
-            pytest.skip("pycocotools requires Python >= 3.9")
-            return
-
-        if sys.version_info >= (3, 9):
+        if sys.version_info >= (3, 9):  # Needed for Mypy
             from pycocotools import mask as coco_mask
 
             height, width = 128, 128
