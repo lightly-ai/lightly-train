@@ -12,19 +12,22 @@ import sys
 from pathlib import Path
 
 import torch
-from PIL import Image as PILImageClass
-from PIL import ImageDraw, ImageFont
-from PIL.Image import Image as PILImage
+from PIL import ImageFont
+from PIL.ImageDraw import ImageDraw as PILDraw
+from PIL.ImageFont import FreeTypeFont as PILFreeTypeFont
+from PIL.ImageFont import ImageFont as PILImageFont
 from torch import Tensor
 
+PILFont = PILImageFont | PILFreeTypeFont
 
-def draw_label(
-    draw: ImageDraw.ImageDraw,
+
+def _draw_bbox_label(
+    draw: PILDraw,
     x1: float,
     y1: float,
     text: str,
     color: tuple[int, int, int],
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: PILFont,
 ) -> None:
     """Draw a highlighted label rectangle near a bounding box.
 
@@ -65,7 +68,7 @@ def draw_label(
     draw.text((x0 + padding, y0 + padding), text, fill="white", font=font)
 
 
-def denormalize_image(
+def _denormalize_image(
     image: Tensor,
     mean: tuple[float, ...],
     std: tuple[float, ...],
@@ -96,7 +99,7 @@ def denormalize_image(
     return denormalized
 
 
-def get_class_color(class_id: int) -> tuple[int, int, int]:
+def _get_class_color(class_id: int) -> tuple[int, int, int]:
     """Generate a deterministic RGB color for a class ID.
 
     Uses HSV color space with varying hue to ensure the same class ID always gets
@@ -126,52 +129,7 @@ def get_class_color(class_id: int) -> tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def create_image_mosaic(images: list[PILImage], images_per_row: int = 2) -> PILImage:
-    """Create a mosaic of multiple images arranged in a grid.
-
-    Args:
-        images: List of PIL images to arrange in a mosaic.
-        images_per_row: Number of images per row in the mosaic (default: 2 for 2x2).
-
-    Returns:
-        A single PIL image containing the mosaic.
-    """
-    if not images:
-        raise ValueError("At least one image is required to create a mosaic")
-
-    # Calculate grid dimensions
-    num_images = len(images)
-    rows = (num_images + images_per_row - 1) // images_per_row
-    cols = min(num_images, images_per_row)
-
-    # Get image dimensions (assume all images have the same size)
-    first_image = images[0]
-    img_width, img_height = first_image.size
-
-    # Create the mosaic image
-    mosaic_width = cols * img_width
-    mosaic_height = rows * img_height
-    mosaic = PILImageClass.new(
-        "RGB", (mosaic_width, mosaic_height), color=(255, 255, 255)
-    )
-
-    # Paste images into the mosaic
-    for idx, image in enumerate(images):
-        row = idx // images_per_row
-        col = idx % images_per_row
-        x = col * img_width
-        y = row * img_height
-
-        # Convert to RGB if necessary
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-
-        mosaic.paste(image, (x, y))
-
-    return mosaic
-
-
-def load_font(size: int = 14) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+def _load_font(size: int = 14) -> PILFont:
     """Load a high-quality font with fallbacks.
 
     Attempts to load a system font, falling back to default if unavailable.

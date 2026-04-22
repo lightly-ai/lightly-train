@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
@@ -69,14 +70,12 @@ class TrainModel(Module):
     # - predict_step
     # See: https://github.com/Lightning-AI/pytorch-lightning/blob/95f16c12fe23664ffa5198a43266f715717c6f45/src/lightning/fabric/wrappers.py#L47-L48
 
-    def training_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
+    def training_step(self, fabric: Fabric, batch: Any, step: int) -> TaskStepResult:
         # Forward pass for training step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def validation_step(  # type: ignore[no-untyped-def]
-        self, fabric: Fabric, batch
-    ) -> TaskStepResult:
+    def validation_step(self, fabric: Fabric, batch: Any, step: int) -> TaskStepResult:
         # Forward pass for validation step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
@@ -119,8 +118,11 @@ class TrainModel(Module):
     def on_train_batch_end(self) -> None:
         pass
 
-    def on_validation_epoch_start(self) -> None:
-        pass
+
+@dataclass
+class VisualizationResult:
+    # PIL images to save as visualizations.
+    images: list[PILImage]
 
 
 @dataclass
@@ -136,3 +138,6 @@ class TaskStepResult:
     # Dictionary with extra values to log. These values will only be logged to external
     # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
     log_dict: dict[str, float]
+
+    # Optional visualization images to be saved by the training loop.
+    visualization: VisualizationResult | None = None

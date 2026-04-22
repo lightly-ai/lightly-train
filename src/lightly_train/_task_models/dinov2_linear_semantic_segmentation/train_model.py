@@ -170,6 +170,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: MaskSemanticSegmentationBatch,
+        step: int,
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"]

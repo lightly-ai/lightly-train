@@ -351,6 +351,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: MaskSemanticSegmentationBatch,
+        step: int,
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]

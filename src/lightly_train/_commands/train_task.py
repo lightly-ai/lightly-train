@@ -1618,6 +1618,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
 
+            # Save visualization images if produced by the training step.
+            if train_result.visualization is not None:
+                viz = train_result.visualization
+                viz_dir = out_dir / "visualizations_train"
+                viz_dir.mkdir(parents=True, exist_ok=True)
+                for idx, img in enumerate(viz.images):
+                    img.save(viz_dir / f"step{step:03d}_img{idx}.jpg")
+
             timer.end_step("train_step")
             timer.record_gpu_stats("train")
 
@@ -1690,7 +1698,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 # Reset GPU memory tracking before val phase.
                 timer.reset_gpu_max_memory("val")
 
-                train_model.on_validation_epoch_start()
+                # train_model.on_validation_epoch_start()
                 val_dataloader_iter = iter(val_dataloader)
                 # TODO (Lionel, 02/26): Average metrics during validation instead of
                 # only singular metrics at the end of the epoch.
@@ -1711,7 +1719,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         val_result = train_model.validation_step(
                             fabric=fabric,
                             batch=val_batch,
+                            step=val_step,
                         )
+                    # Save visualization images if produced by the validation step.
+                    if val_result.visualization is not None:
+                        viz = val_result.visualization
+                        viz_dir = out_dir / "visualizations_val"
+                        viz_dir.mkdir(parents=True, exist_ok=True)
+                        for idx, img in enumerate(viz.images):
+                            img.save(viz_dir / f"step{val_step:03d}_img{idx}.jpg")
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")

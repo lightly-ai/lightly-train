@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import copy
 import math
-from pathlib import Path
 from typing import Any, ClassVar
 
 import torch
 from lightning_fabric import Fabric
-from PIL import Image
+from PIL.Image import Image as PILImage
 from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
@@ -62,9 +61,10 @@ from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
     TrainModelArgs,
+    VisualizationResult,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize import plot_object_detection_comparison
+from lightly_train._visualize.object_detection import _plot_object_detection_comparison
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -215,9 +215,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             loss_names=self.loss_names,
         )
 
-        self._val_step: int = 0
-        self._val_epoch: int = 0
-
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
     ) -> Any:
@@ -261,10 +258,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
-
-    def on_validation_epoch_start(self) -> None:
-        self._val_step = 0
-        self._val_epoch += 1
 
     def training_step(
         self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
@@ -321,32 +314,31 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             self.train_metrics.update_with_predictions(results, targets)
 
         # Visualization of training labels (first 3 steps only)
+        visualization: VisualizationResult | None = None
         if step < 3:
-            try:
-                save_fname = f"train_step{step}"
-                orig_target_sizes = batch["original_size"]
-                orig_target_sizes_tensor = torch.tensor(
-                    orig_target_sizes, device=samples.device
+            orig_target_sizes = batch["original_size"]
+            orig_target_sizes_tensor = torch.tensor(
+                orig_target_sizes, device=samples.device
+            )
+            results = self.model.postprocessor(
+                outputs, orig_target_sizes=orig_target_sizes_tensor
+            )
+            images = self._prepare_visualization_data(
+                fabric=fabric,
+                batch=batch,
+                results=results,
+                orig_target_sizes=orig_target_sizes,
+            )
+            if images:
+                visualization = VisualizationResult(
+                    images=images,
                 )
-                results = self.model.postprocessor(
-                    outputs, orig_target_sizes=orig_target_sizes_tensor
-                )
-                self._prepare_visualization_data(
-                    fabric=fabric,
-                    batch=batch,
-                    results=results,
-                    orig_target_sizes=orig_target_sizes,
-                    split="train",
-                    save_fname=save_fname,
-                )
-            except Exception as e:
-                # Log the error but don't interrupt training.
-                print(f"Warning: Failed to prepare visualization data: {e}")
 
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
+            visualization=visualization,
         )
 
     def on_train_batch_end(self) -> None:
@@ -354,9 +346,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             self.ema_model.update(self.model)
 
     def validation_step(
-        self,
-        fabric: Fabric,
-        batch: ObjectDetectionBatch,
+        self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes, orig_target_sizes = (
             batch["image"],
@@ -420,28 +410,23 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(results, targets)
 
-        # Track validation steps and epochs for visualization purposes.
-        # Visualize the first 3 validation steps of the first 10 validation epochs.
-        if self._val_epoch < 10 and self._val_step < 3:
-            try:
-                save_fname = f"val_epoch{self._val_epoch}_val_step{self._val_step}"
-                self._prepare_visualization_data(
-                    fabric=fabric,
-                    batch=batch,
-                    results=results,
-                    orig_target_sizes=orig_target_sizes,
-                    split="val",
-                    save_fname=save_fname,
+        visualization: VisualizationResult | None = None
+        if step < 3:
+            images = self._prepare_visualization_data(
+                fabric=fabric,
+                batch=batch,
+                results=results,
+                orig_target_sizes=orig_target_sizes,
+            )
+            if images:
+                visualization = VisualizationResult(
+                    images=images,
                 )
-            except Exception as e:
-                # Log the error but don't interrupt validation.
-                print(f"Warning: Failed to prepare visualization data: {e}")
-
-        self._val_step += 1
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.val_metrics,
+            visualization=visualization,
         )
 
     def get_optimizer(
@@ -541,32 +526,34 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         batch: ObjectDetectionBatch,
         results: Any,
         orig_target_sizes: list[tuple[int, int]],
-        split: str = "val",
-        save_fname: str | None = None,
-    ) -> list[Image.Image]:
-        """Plot and save images. Images are saved to the logger's output directory.
+    ) -> list[PILImage]:
+        """Plot images with ground truth and predicted bounding boxes.
 
         Args:
-            fabric: Fabric instance with attached loggers.
-            batch: The validation batch.
+            fabric: Fabric instance used to check global rank.
+            batch: The batch containing images and ground truth annotations.
             results: Model predictions from postprocessor.
             orig_target_sizes: Original image sizes.
-            split: Dataset split (e.g., "val" or "train").
-            save_fname: Filename for saving the images. If None, images are not saved.
 
         Returns:
-            List of PIL images with labels and predictions.
+            List of PIL images with ground truth and predicted boxes overlaid,
+            or an empty list on non-rank-0 processes.
         """
         if fabric.global_rank != 0:
-            return []  # Only prepare visualization on rank 0 to avoid duplication
+            return []
+
+        # Move to CPU for plotting.
+        results = [
+            {k: v.cpu() if isinstance(v, torch.Tensor) else v for k, v in r.items()}
+            if isinstance(r, dict)
+            else r
+            for r in results
+        ]
 
         # Extract first 4 images for visualization
-        gt_images, gt_bboxes, gt_classes = (
-            batch["image"],
-            batch["bboxes"],
-            batch["classes"],
-        )
-        device = gt_images.device
+        gt_images = batch["image"].cpu()
+        gt_bboxes = [b.cpu() for b in batch["bboxes"]]
+        gt_classes = [c.cpu() for c in batch["classes"]]
         max_images = min(4, gt_images.shape[0])
 
         # Prepare labels visualization
@@ -582,27 +569,21 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 result = results[i]
                 if isinstance(result, dict):
                     # Assuming result has 'boxes', 'labels', 'scores' keys.
-                    pred_bboxes.append(
-                        result.get("boxes", torch.empty(0, 4, device=device))
-                    )
+                    pred_bboxes.append(result.get("boxes", torch.empty(0, 4)))
                     pred_classes.append(
-                        result.get(
-                            "labels", torch.empty(0, dtype=torch.long, device=device)
-                        )
+                        result.get("labels", torch.empty(0, dtype=torch.long))
                     )
-                    pred_scores.append(
-                        result.get("scores", torch.empty(0, device=device))
-                    )
+                    pred_scores.append(result.get("scores", torch.empty(0)))
                 else:
                     # Fallback: create empty tensors.
-                    pred_bboxes.append(torch.empty(0, 4, device=device))
-                    pred_classes.append(torch.empty(0, dtype=torch.long, device=device))
-                    pred_scores.append(torch.empty(0, device=device))
+                    pred_bboxes.append(torch.empty(0, 4))
+                    pred_classes.append(torch.empty(0, dtype=torch.long))
+                    pred_scores.append(torch.empty(0))
             else:
                 # Handle case where batch size is smaller than max_images.
-                pred_bboxes.append(torch.empty(0, 4, device=device))
-                pred_classes.append(torch.empty(0, dtype=torch.long, device=device))
-                pred_scores.append(torch.empty(0, device=device))
+                pred_bboxes.append(torch.empty(0, 4))
+                pred_classes.append(torch.empty(0, dtype=torch.long))
+                pred_scores.append(torch.empty(0))
 
         # Scale predicted boxes from original image size to tensor size.
         _, img_height, img_width = gt_images.shape[1:]
@@ -620,7 +601,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             else:
                 scaled_pred_bboxes.append(pred_bboxes[i])
 
-        debug_images = plot_object_detection_comparison(
+        debug_images = _plot_object_detection_comparison(
             images=gt_images,
             gt_bboxes=gt_bboxes,
             gt_classes=gt_classes,
@@ -634,29 +615,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             mean=mean,
             std=std,
         )
-
-        output_dir = None
-        for logger_instance in fabric.loggers:
-            if (
-                hasattr(logger_instance, "log_dir")
-                and logger_instance.log_dir is not None
-            ):
-                output_dir = Path(logger_instance.log_dir)
-                break
-
-        if output_dir is None:
-            output_dir = Path.cwd()
-
-        # Save predictions
-        try:
-            predictions_dir = output_dir / f"visualizations_{split}"
-            predictions_dir.mkdir(parents=True, exist_ok=True)
-            for idx, pred_image in enumerate(debug_images):
-                pred_output_path = predictions_dir / f"{save_fname}_img{idx}.jpg"
-                pred_image.save(pred_output_path)
-        except Exception as e:
-            # Log the error but don't interrupt training.
-            print(f"Warning: Failed to save visualization images: {e}")
 
         return debug_images
 
