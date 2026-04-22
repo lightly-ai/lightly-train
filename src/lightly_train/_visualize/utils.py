@@ -18,16 +18,13 @@ from PIL.ImageFont import FreeTypeFont as PILFreeTypeFont
 from PIL.ImageFont import ImageFont as PILImageFont
 from torch import Tensor
 
-PILFont = PILImageFont | PILFreeTypeFont
-
-
 def _draw_bbox_label(
     draw: PILDraw,
     x1: float,
     y1: float,
     text: str,
     color: tuple[int, int, int],
-    font: PILFont,
+    font: PILImageFont | PILFreeTypeFont,
 ) -> None:
     """Draw a highlighted label rectangle near a bounding box.
 
@@ -129,7 +126,7 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def _load_font(size: int = 14) -> PILFont:
+def _load_font(size: int = 14) -> PILImageFont | PILFreeTypeFont:
     """Load a high-quality font with fallbacks.
 
     Attempts to load a system font, falling back to default if unavailable.
