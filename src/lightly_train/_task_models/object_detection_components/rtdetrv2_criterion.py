@@ -24,6 +24,7 @@ from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
     box_iou,
     generalized_box_iou,
+    sanitize_boxes_cxcywh_normalized,
 )
 
 
@@ -99,6 +100,7 @@ class RTDETRCriterionv2(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         if values is None:
             src_boxes = outputs["pred_boxes"][idx]
+            src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
             target_boxes = torch.cat(
                 [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
             )
@@ -143,6 +145,7 @@ class RTDETRCriterionv2(nn.Module):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs["pred_boxes"][idx]
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
         )
@@ -299,6 +302,7 @@ class RTDETRCriterionv2(nn.Module):
             return {}
 
         src_boxes = outputs["pred_boxes"][self._get_src_permutation_idx(indices)]
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][j] for t, (_, j) in zip(targets, indices)], dim=0
         )

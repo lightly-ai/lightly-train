@@ -348,27 +348,43 @@ class TransformerDecoder(nn.Module):
                 query_pos_embed,
             )
 
-            inter_ref_bbox = F.sigmoid(
-                bbox_head[i](output) + inverse_sigmoid(ref_points_detach)
-            )
+            # Run the bbox refinement in fp32 to avoid fp16 overflow in the
+            # bbox_head MLP output. The addition of bbox_head(output) and
+            # inverse_sigmoid(ref_points) before sigmoid is a known overflow
+            # hotspot in RTDETR-style decoders, especially with EMA weights
+            # that can drift into regions where the MLP output exceeds fp16's
+            # ~65K range.
+            with torch.amp.autocast(device_type=output.device.type, enabled=False):
+                output_fp32 = output.float()
+                ref_points_detach_fp32 = ref_points_detach.float()
+                bbox_delta_fp32 = bbox_head[i](output_fp32)
 
-            ref_points = inter_ref_bbox
+                inter_ref_bbox_fp32 = F.sigmoid(
+                    bbox_delta_fp32 + inverse_sigmoid(ref_points_detach_fp32)
+                )
+
+            ref_points = inter_ref_bbox_fp32.to(dtype=output.dtype)
 
             if self.training:
                 dec_out_logits.append(score_head[i](output))
                 if i == 0:
-                    dec_out_bboxes.append(inter_ref_bbox)
+                    dec_out_bboxes.append(inter_ref_bbox_fp32)
                 else:
-                    dec_out_bboxes.append(
-                        F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points))
-                    )
+                    with torch.amp.autocast(
+                        device_type=output.device.type, enabled=False
+                    ):
+                        dec_out_bboxes.append(
+                            F.sigmoid(
+                                bbox_delta_fp32 + inverse_sigmoid(inter_ref_bbox_fp32)
+                            )
+                        )  # use FP32 for training
 
             elif i == self.eval_idx:
                 dec_out_logits.append(score_head[i](output))
-                dec_out_bboxes.append(inter_ref_bbox)
+                dec_out_bboxes.append(ref_points)  # use FP16 for evaluation
                 break
 
-            ref_points_detach = inter_ref_bbox.detach()
+            ref_points_detach = ref_points.detach()
 
         return torch.stack(dec_out_bboxes), torch.stack(dec_out_logits)
 
