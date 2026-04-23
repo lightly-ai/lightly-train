@@ -84,6 +84,8 @@ class TestYOLOObjectDetectionDatasetArgs:
             assert bboxes == [[0.375, 0.5, 0.25, 0.5]]
             assert class_labels == [1]
 
+
+class TestYOLOObjectDetectionMmapHash:
     def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
         create_yolo_object_detection_dataset(
             tmp_path=tmp_path, split_first=True, num_files=2

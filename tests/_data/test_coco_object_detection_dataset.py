@@ -56,7 +56,10 @@ class TestCOCOObjectDetectionDatasetArgs:
             ]
             assert json.loads(image_info[2]["class_labels"]) == [0, 1]
 
-    def _make_args(self, tmp_path: Path) -> COCOObjectDetectionDataArgs:
+
+class TestCOCOObjectDetectionMmapHash:
+    @staticmethod
+    def _make_args(tmp_path: Path) -> COCOObjectDetectionDataArgs:
         create_coco_object_detection_dataset(tmp_path=tmp_path)
         return COCOObjectDetectionDataArgs(
             train=SplitArgs(annotations=tmp_path / "train.json", images=Path("train")),
