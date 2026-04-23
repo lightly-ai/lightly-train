@@ -459,6 +459,21 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                             ]
                             for segment in valid_segments
                         ]
+                        # Get bbox in [x, y, w, h] pixel format.
+                        if "bbox" in annotation:
+                            left_pixel, top_pixel, width_pixel, height_pixel = (
+                                annotation["bbox"]
+                            )
+                        else:
+                            all_px = [
+                                coord for segment in valid_segments for coord in segment
+                            ]
+                            xs = all_px[0::2]
+                            ys = all_px[1::2]
+                            left_pixel = min(xs)
+                            top_pixel = min(ys)
+                            width_pixel = max(xs) - left_pixel
+                            height_pixel = max(ys) - top_pixel
                         segments.append(polygon_group_norm)
 
                     elif isinstance(segmentation, dict):
@@ -477,6 +492,16 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                             else:
                                 rle = segmentation  # type: ignore[arg-type]
 
+                            # Get bbox in [x, y, w, h] pixel format.
+                            if "bbox" in annotation:
+                                left_pixel, top_pixel, width_pixel, height_pixel = (
+                                    annotation["bbox"]
+                                )
+                            else:
+                                left_pixel, top_pixel, width_pixel, height_pixel = (
+                                    coco_mask.toBbox(rle).flatten().tolist()
+                                )
+
                             # Ensure counts is a string for JSON serialization.
                             if isinstance(rle["counts"], bytes):
                                 rle["counts"] = rle["counts"].decode("utf-8")
@@ -489,28 +514,6 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     else:
                         # TODO this should not be the case
                         continue
-
-                    # Get bbox in [x, y, w, h] pixel format. Use annotation
-                    # bbox if available, otherwise derive from segmentation.
-                    if "bbox" in annotation:
-                        left_pixel, top_pixel, width_pixel, height_pixel = annotation[
-                            "bbox"
-                        ]
-                    elif isinstance(segmentation, list):
-                        all_px = [
-                            coord for segment in valid_segments for coord in segment
-                        ]
-                        xs = all_px[0::2]
-                        ys = all_px[1::2]
-                        left_pixel = min(xs)
-                        top_pixel = min(ys)
-                        width_pixel = max(xs) - left_pixel
-                        height_pixel = max(ys) - top_pixel
-                    else:
-                        # RLE without bbox: derive from mask.
-                        left_pixel, top_pixel, width_pixel, height_pixel = (
-                            coco_mask.toBbox(rle).flatten().tolist()
-                        )
 
                     # Convert bbox from [x, y, w, h] pixels to normalized
                     # [x_center, y_center, w, h].
