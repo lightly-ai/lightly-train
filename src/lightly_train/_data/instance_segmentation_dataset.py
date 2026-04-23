@@ -19,6 +19,11 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Sequence, cast
 if TYPE_CHECKING and sys.version_info >= (3, 9):
     from pycocotools import _EncodedRLE
 
+if sys.version_info >= (3, 9):
+    from pycocotools import mask as coco_mask
+else:
+    coco_mask: Any = None
+
 import numpy as np
 import pydantic
 import torch
@@ -115,15 +120,6 @@ class InstanceSegmentationDataset(TaskDataset):
         class_labels_np = np.array(class_labels, dtype=np.int64)
 
         h, w = image_np.shape[0], image_np.shape[1]
-        coco_mask_mod = None
-        if any(isinstance(s, dict) for s in segments):
-            if sys.version_info >= (3, 9):
-                from pycocotools import mask as coco_mask_mod
-            else:
-                raise RuntimeError(
-                    "RLE encoded segmentation requires Python >= 3.9 "
-                    "for pycocotools support."
-                )
         mask_list: list[np.ndarray[Any, Any]] = []
         for segment in segments:
             if isinstance(segment, list):
@@ -134,8 +130,12 @@ class InstanceSegmentationDataset(TaskDataset):
                 )
             elif isinstance(segment, dict):
                 # Compressed RLE format.
-                assert coco_mask_mod is not None
-                mask = coco_mask_mod.decode(segment).astype(np.bool_)  # type: ignore[arg-type]
+                if coco_mask is None:
+                    raise RuntimeError(
+                        "RLE encoded segmentation requires Python >= 3.9 "
+                        "for pycocotools support."
+                    )
+                mask = coco_mask.decode(segment).astype(np.bool_)  # type: ignore[arg-type]
             mask_list.append(mask)
         binary_masks_np = (
             np.stack(mask_list) if mask_list else np.zeros((0, h, w), dtype=np.bool_)
@@ -408,10 +408,6 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
         height) format. Images with no annotations are included unless
         ``skip_if_annotations_missing`` is True.
         """
-        coco_mask: Any = None
-        if sys.version_info >= (3, 9):
-            from pycocotools import mask as coco_mask
-
         class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
                 class_ids=self.classes.keys(),
