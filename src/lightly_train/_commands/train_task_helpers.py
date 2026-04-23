@@ -500,7 +500,7 @@ def get_dataset_temp_mmap_path(
     else:
         # Use out as identifier to create a unique mmap file for each run. We assume
         # that only one run is using a specific out directory at a time.
-        identifier = str(Path(out).resolve()) + data_hash
+        identifier = str((str(Path(out).resolve()), data_hash))
 
     mmap_filepath = (cache.get_data_cache_dir() / get_sha256(identifier)).with_suffix(
         ".mmap"
