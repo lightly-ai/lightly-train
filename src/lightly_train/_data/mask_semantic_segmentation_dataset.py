@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, Union, cast
+from typing import Any, ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
@@ -326,7 +326,12 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
         representation is not deterministic across processes due to hash
         randomization. We serialize to JSON with sorted sets and keys instead.
         """
-        classes = cast(Dict[int, ClassInfo], self.classes)
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
+        classes = self.classes
         return json.dumps(
             {str(k): v.model_dump() for k, v in sorted(classes.items())},
             sort_keys=True,
@@ -454,7 +459,12 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
-        classes = cast(Dict[int, ClassInfo], self.classes)
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
+        classes = self.classes
 
         result = {}
         for class_id, class_info in classes.items():
@@ -473,10 +483,15 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_train_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
-            classes=cast(Dict[int, ClassInfo], self.classes),
+            classes=self.classes,
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )
@@ -484,10 +499,15 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_val_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),
-            classes=cast(Dict[int, ClassInfo], self.classes),
+            classes=self.classes,
             ignore_classes=self.ignore_classes,
             ignore_index=self.ignore_index,
         )
