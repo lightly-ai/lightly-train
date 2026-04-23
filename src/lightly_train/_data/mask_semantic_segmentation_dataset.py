@@ -319,12 +319,26 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
+    def _deterministic_classes_str(self) -> str:
+        """Serialize classes deterministically for hashing.
+
+        ClassInfo contains set fields (e.g., labels: set[int]) whose str()
+        representation is not deterministic across processes due to hash
+        randomization. We serialize to JSON with sorted sets and keys instead.
+        """
+        classes = cast(Dict[int, ClassInfo], self.classes)
+        return json.dumps(
+            {str(k): v.model_dump() for k, v in sorted(classes.items())},
+            sort_keys=True,
+            default=lambda x: sorted(x, key=str) if isinstance(x, set) else x,
+        )
+
     def train_data_mmap_hash(self) -> str:
         return str(
             (
                 Path(self.train.images).resolve(),
                 Path(self.train.masks).resolve(),
-                self.classes,
+                self._deterministic_classes_str(),
                 sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )
@@ -334,7 +348,7 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
             (
                 Path(self.val.images).resolve(),
                 Path(self.val.masks).resolve(),
-                self.classes,
+                self._deterministic_classes_str(),
                 sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )

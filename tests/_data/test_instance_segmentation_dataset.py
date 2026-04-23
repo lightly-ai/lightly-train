@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -21,7 +22,10 @@ from lightly_train._data.instance_segmentation_dataset import (
 )
 
 from .. import helpers
-from ..helpers import create_coco_instance_segmentation_dataset
+from ..helpers import (
+    create_coco_instance_segmentation_dataset,
+    create_yolo_instance_segmentation_dataset,
+)
 
 _POLYGON = [0.30, 0.30, 0.45, 0.27, 0.49, 0.50, 0.44, 0.70, 0.31, 0.73, 0.26, 0.50]
 # Bbox is (x_center, y_center, width, height) derived from _POLYGON.
@@ -312,3 +316,45 @@ class TestCOCOInstanceSegmentationDatasetArgs:
         image_info = list(args.list_image_info())
 
         assert len(image_info) == 1
+
+
+class TestYOLOInstanceSegmentationMmapHash:
+    @staticmethod
+    def _make_args(tmp_path: Path) -> YOLOInstanceSegmentationDataArgs:
+        create_yolo_instance_segmentation_dataset(tmp_path=tmp_path, split_first=True)
+        return YOLOInstanceSegmentationDataArgs(
+            path=tmp_path,
+            train="train/images",
+            val="val/images",
+            names=_CLASSES,
+        )
+
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()
+
+
+class TestCOCOInstanceSegmentationMmapHash:
+    @staticmethod
+    def _make_args(tmp_path: Path) -> COCOInstanceSegmentationDataArgs:
+        create_coco_instance_segmentation_dataset(tmp_path)
+        return COCOInstanceSegmentationDataArgs(
+            train=COCOSplitArgs(
+                annotations=tmp_path / "train.json", images=Path("train")
+            ),
+            val=COCOSplitArgs(annotations=tmp_path / "val.json", images=Path("val")),
+        )
+
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()
+
+    def test_mmap_hash_changes_when_annotations_modified(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        hash_before = args.train_data_mmap_hash()
+        annotations_path = tmp_path / "train.json"
+        st = annotations_path.stat()
+        os.utime(annotations_path, (st.st_atime, st.st_mtime + 1))
+        assert args.train_data_mmap_hash() != hash_before

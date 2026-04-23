@@ -83,3 +83,16 @@ class TestYOLOObjectDetectionDatasetArgs:
             class_labels = json.loads(info["class_labels"])
             assert bboxes == [[0.375, 0.5, 0.25, 0.5]]
             assert class_labels == [1]
+
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        create_yolo_object_detection_dataset(
+            tmp_path=tmp_path, split_first=True, num_files=2
+        )
+        args = YOLOObjectDetectionDataArgs(
+            path=tmp_path,
+            train="train/images",
+            val="val/images",
+            names={0: "class_0", 1: "class_1"},
+        )
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()

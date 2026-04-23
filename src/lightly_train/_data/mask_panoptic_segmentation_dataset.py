@@ -322,19 +322,25 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
     def train_data_mmap_hash(self) -> str:
+        annotations_path = Path(self.train.annotations).resolve()
         return str(
             (
                 Path(self.train.images).resolve(),
                 Path(self.train.masks).resolve(),
+                annotations_path,
+                annotations_path.stat().st_mtime,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )
 
     def val_data_mmap_hash(self) -> str:
+        annotations_path = Path(self.val.annotations).resolve()
         return str(
             (
                 Path(self.val.images).resolve(),
                 Path(self.val.masks).resolve(),
+                annotations_path,
+                annotations_path.stat().st_mtime,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
             )
         )

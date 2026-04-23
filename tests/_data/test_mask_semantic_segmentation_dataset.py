@@ -33,6 +33,7 @@ from lightly_train._transforms.transform import (
 )
 
 from .. import helpers
+from ..helpers import create_images, create_semantic_segmentation_masks
 
 
 def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
@@ -863,3 +864,46 @@ class TestMaskSemanticSegmentationDataset:
         )
 
         assert dataset.class_id_to_internal_class_id == expected_mapping
+
+
+class TestMaskSemanticSegmentationDataArgsMmapHash:
+    @staticmethod
+    def _make_args(tmp_path: Path) -> MaskSemanticSegmentationDataArgs:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        create_images(image_dir=image_dir, files=2, height=32, width=32)
+        create_semantic_segmentation_masks(
+            mask_dir=mask_dir, files=2, height=32, width=32, num_classes=2
+        )
+        return MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes={
+                0: SingleChannelClassInfo(name="background", labels={0}),
+                1: SingleChannelClassInfo(name="foreground", labels={1}),
+            },
+        )
+
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()
+
+    def test_mmap_hash_with_set_labels_is_deterministic(self, tmp_path: Path) -> None:
+        """ClassInfo with set fields must produce the same hash across calls."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        create_images(image_dir=image_dir, files=2, height=32, width=32)
+        create_semantic_segmentation_masks(
+            mask_dir=mask_dir, files=2, height=32, width=32, num_classes=3
+        )
+        args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes={
+                0: SingleChannelClassInfo(name="bg", labels={0, 10, 20}),
+                1: SingleChannelClassInfo(name="fg", labels={1, 11, 21}),
+            },
+        )
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()

@@ -118,6 +118,10 @@ class ImageClassificationDataArgs(TaskDataArgs):
                 self.classes,
                 self.label_delimiter,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.classification_task,
+                self.csv_image_column,
+                self.csv_label_column,
+                self.csv_label_type,
             )
         )
 
@@ -128,6 +132,10 @@ class ImageClassificationDataArgs(TaskDataArgs):
                 self.classes,
                 self.label_delimiter,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.classification_task,
+                self.csv_image_column,
+                self.csv_label_column,
+                self.csv_label_type,
             )
         )
 

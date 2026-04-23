@@ -334,15 +334,35 @@ class COCOInstanceSegmentationDataArgs(TaskDataArgs):
         with open(self.train.annotations) as f:
             return {c["id"]: c["name"] for c in json.load(f).get("categories", [])}
 
-    def train_imgs_path(self) -> Path:
-        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
-        #  This might not be the best idea as the contents of the file might change.
-        return Path(self.train.annotations).resolve()
+    def train_data_mmap_hash(self) -> str:
+        annotations_path = Path(self.train.annotations).resolve()
+        images_dir = file_helpers.resolve_coco_images_dir(
+            annotations_path, self.train.images
+        )
+        return str(
+            (
+                annotations_path,
+                annotations_path.stat().st_mtime,
+                images_dir,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.skip_if_annotations_missing,
+            )
+        )
 
-    def val_imgs_path(self) -> Path:
-        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
-        #  This might not be the best idea as the contents of the file might change.
-        return Path(self.val.annotations).resolve()
+    def val_data_mmap_hash(self) -> str:
+        annotations_path = Path(self.val.annotations).resolve()
+        images_dir = file_helpers.resolve_coco_images_dir(
+            annotations_path, self.val.images
+        )
+        return str(
+            (
+                annotations_path,
+                annotations_path.stat().st_mtime,
+                images_dir,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.skip_if_annotations_missing,
+            )
+        )
 
     def get_train_args(self) -> COCOInstanceSegmentationDatasetArgs:
         """Returns dataset args for the training split."""
