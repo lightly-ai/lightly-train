@@ -14,11 +14,7 @@ import sys
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Sequence, cast
-
-if TYPE_CHECKING:
-    if sys.version_info >= (3, 9):
-        from pycocotools import _EncodedRLE
+from typing import Any, ClassVar, Literal, Sequence
 
 if sys.version_info >= (3, 9):
     from pycocotools import mask as coco_mask
@@ -492,15 +488,14 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                             )
 
                         # Ensure RLE is in compressed format.
-                        rle_input = cast("_EncodedRLE", segmentation)
                         if isinstance(segmentation.get("counts"), list):
-                            rle = coco_mask.frPyObjects(
-                                rle_input,
+                            rle = coco_mask.frPyObjects(  # type: ignore[call-overload]
+                                segmentation,
                                 image_height_pixel,
                                 image_width_pixel,
                             )
                         else:
-                            rle = rle_input
+                            rle = segmentation
 
                         # Get bbox in [x, y, w, h] pixel format.
                         if "bbox" in annotation:
