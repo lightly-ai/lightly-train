@@ -46,6 +46,7 @@ dependencies = [
                             # 4.46 is last version that supports Python 3.8.
                             # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
+    "pycocotools>=2.0.11; python_version>='3.9'",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +57,7 @@ dev = [
     "mypy>=1.10.0",
     "pillow>=10.3.0,<12.0.0",  # helpers.create_image currently fails for newer pillow versions
     "pre-commit>=3.5.0",
+    "types-pycocotools>=0.1.1; python_version>='3.9'",
     "pytest-examples>=0.0.13,<0.0.16", # 0.0.16 and 0.0.17 (latest to date) will cause the following failure when running pytest: "TypeError: 'ABCMeta' object is not subscriptable"
     "pytest-mock>=3.14.0",
     "pytest>=8.0.0",

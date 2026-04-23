@@ -16,7 +16,6 @@ from typing_extensions import Literal
 from lightly_train.types import (
     NDArray4Corners,
     NDArrayBinaryMask,
-    NDArrayBinaryMasks,
     NDArrayOBBoxes,
     NDArrayPolygon,
 )
@@ -121,33 +120,6 @@ def binary_mask_from_polygon(
         if len(points) >= 3:
             draw.polygon(points, outline=1, fill=1)
     return np.array(mask, dtype=np.bool_)
-
-
-def binary_masks_from_polygons(
-    polygons: list[list[NDArrayPolygon]], height: int, width: int
-) -> NDArrayBinaryMasks:
-    """Convert a list of per-instance polygon groups to a stack of binary masks.
-
-    Args:
-        polygons:
-            List of polygon groups, one per instance. Each group is a list of
-            numpy arrays of shape (n_points*2,) in normalized coordinates [0, 1].
-        height:
-            Height of the image.
-        width:
-            Width of the image.
-
-    Returns:
-        Stack of binary masks with shape (n_instances, H, W).
-    """
-    binary_masks = [
-        binary_mask_from_polygon(polygon_group, height, width)
-        for polygon_group in polygons
-    ]
-    if binary_masks:
-        return np.stack(binary_masks)
-    else:
-        return np.zeros((0, height, width), dtype=np.bool_)
 
 
 def oriented_bbox_from_corners(corners: NDArray4Corners) -> NDArrayOBBoxes:
