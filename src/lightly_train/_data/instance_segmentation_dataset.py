@@ -490,7 +490,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                                     image_width_pixel,
                                 )
                             else:
-                                rle = segmentation  # type: ignore[arg-type]
+                                rle = segmentation
 
                             # Get bbox in [x, y, w, h] pixel format.
                             if "bbox" in annotation:
@@ -505,15 +505,17 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                             # Ensure counts is a string for JSON serialization.
                             if isinstance(rle["counts"], bytes):
                                 rle["counts"] = rle["counts"].decode("utf-8")
-                            segments.append(rle)  # type: ignore[arg-type]
+                            segments.append(rle)
                         else:
                             raise RuntimeError(
                                 "RLE encoded segmentation requires Python >= 3.9 "
                                 "for pycocotools support."
                             )
                     else:
-                        # TODO this should not be the case
-                        continue
+                        raise ValueError(
+                            f"Unsupported segmentation format: {type(segmentation)}. "
+                            "Expected a list of polygons or an RLE dict."
+                        )
 
                     # Convert bbox from [x, y, w, h] pixels to normalized
                     # [x_center, y_center, w, h].
