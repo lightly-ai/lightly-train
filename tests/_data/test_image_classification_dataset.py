@@ -314,3 +314,22 @@ class TestImageClassificationDataset:
 def _get_transform() -> DummyTaskTransform:
     transform_args = IdentityTaskTransformArgs()
     return DummyTaskTransform(transform_args=transform_args)
+
+
+class TestImageClassificationMmapHash:
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        classes = {0: "class_0", 1: "class_1"}
+        helpers.create_multiclass_image_classification_dataset(
+            tmp_path=tmp_path,
+            class_names=list(classes.values()),
+            num_files_per_class=2,
+            height=32,
+            width=32,
+        )
+        args = ImageClassificationMulticlassDataArgs(
+            train=tmp_path / "train",
+            val=tmp_path / "val",
+            classes=classes,
+        )
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()

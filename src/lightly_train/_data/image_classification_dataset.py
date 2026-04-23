@@ -111,11 +111,33 @@ class ImageClassificationDataArgs(TaskDataArgs):
 
     classification_task: Literal["multiclass", "multilabel"]
 
-    def train_imgs_path(self) -> Path:
-        return Path(self.train)
+    def train_data_mmap_hash(self) -> str:
+        return str(
+            (
+                Path(self.train).resolve(),
+                self.classes,
+                self.label_delimiter,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.classification_task,
+                self.csv_image_column,
+                self.csv_label_column,
+                self.csv_label_type,
+            )
+        )
 
-    def val_imgs_path(self) -> Path:
-        return Path(self.val)
+    def val_data_mmap_hash(self) -> str:
+        return str(
+            (
+                Path(self.val).resolve(),
+                self.classes,
+                self.label_delimiter,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.classification_task,
+                self.csv_image_column,
+                self.csv_label_column,
+                self.csv_label_type,
+            )
+        )
 
     def get_train_args(
         self,

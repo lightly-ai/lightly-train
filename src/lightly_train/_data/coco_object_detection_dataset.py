@@ -18,7 +18,7 @@ from typing import Literal
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import label_helpers
+from lightly_train._data import file_helpers, label_helpers
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDatasetArgs
@@ -54,15 +54,37 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
         with open(self.train.annotations) as f:
             return {c["id"]: c["name"] for c in json.load(f).get("categories", [])}
 
-    def train_imgs_path(self) -> Path:
-        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
-        #  This might not be the best idea as the contents of the file might change.
-        return Path(self.train.annotations).resolve()
+    def train_data_mmap_hash(self) -> str:
+        annotations_path = Path(self.train.annotations).resolve()
+        images_dir = file_helpers.resolve_coco_images_dir(
+            annotations_path, self.train.images
+        )
 
-    def val_imgs_path(self) -> Path:
-        # TODO (simon 03/26): We currently only need this to calculate a hash for the mmap file for the dataset.
-        #  This might not be the best idea as the contents of the file might change.
-        return Path(self.val.annotations).resolve()
+        return str(
+            (
+                annotations_path,
+                annotations_path.stat().st_mtime,
+                images_dir,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.skip_if_annotations_missing,
+            )
+        )
+
+    def val_data_mmap_hash(self) -> str:
+        annotations_path = Path(self.val.annotations).resolve()
+        images_dir = file_helpers.resolve_coco_images_dir(
+            annotations_path, self.val.images
+        )
+
+        return str(
+            (
+                annotations_path,
+                annotations_path.stat().st_mtime,
+                images_dir,
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+                self.skip_if_annotations_missing,
+            )
+        )
 
     def get_train_args(
         self,
@@ -129,9 +151,7 @@ class COCOObjectDetectionDatasetArgs(TaskDatasetArgs):
         for annotation in annotations:
             annotations_by_image_id[annotation["image_id"]].append(annotation)
 
-        image_dir = self.labels.resolve().parent
-        if self.data_dir is not None:
-            image_dir /= self.data_dir
+        image_dir = file_helpers.resolve_coco_images_dir(self.labels, self.data_dir)
 
         for image in labels_dict["images"]:
             image_width_pixel = image["width"]

@@ -7,8 +7,6 @@
 #
 from __future__ import annotations
 
-from pathlib import Path
-
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_dataset import TaskDatasetArgs
 
@@ -18,10 +16,20 @@ class TaskDataArgs(PydanticConfig):
     def included_classes(self) -> dict[int, str]:
         raise NotImplementedError()
 
-    def train_imgs_path(self) -> Path:
+    def train_data_mmap_hash(self) -> str:
+        """Return a str that can be hashed that should identify the train dataset so that image_info
+        does not need to be recomputed on restarts.
+
+        Should be fast and not read the whole dataset while still trying to be as accurate as possible.
+        """
         raise NotImplementedError()
 
-    def val_imgs_path(self) -> Path:
+    def val_data_mmap_hash(self) -> str:
+        """Return a str that can be hashed that should identify the val dataset so that image_info
+        does not need to be recomputed on restarts.
+
+        Should be fast and not read the whole dataset while still trying to be as accurate as possible.
+        """
         raise NotImplementedError()
 
     def get_train_args(
