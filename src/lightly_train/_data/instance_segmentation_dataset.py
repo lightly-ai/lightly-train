@@ -432,7 +432,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
             image_id = image["id"]
             image_filepath = image_dir / image["file_name"]
 
-            segments = []
+            segments: list[Any] = []
             bboxes = []
             class_labels = []
             if image_id in annotations_by_image_id:
