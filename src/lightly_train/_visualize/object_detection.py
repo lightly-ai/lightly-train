@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+import math
+
 import torch
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -20,6 +22,7 @@ from lightly_train._visualize.utils import (
     _get_class_color,
     _load_font,
 )
+from lightly_train.types import ObjectDetectionBatch
 
 
 def _cxcywh_to_xyxy(boxes: Tensor, w: int, h: int) -> Tensor:
@@ -43,88 +46,122 @@ def _cxcywh_to_xyxy(boxes: Tensor, w: int, h: int) -> Tensor:
     return boxes_xyxy
 
 
-def _plot_object_detection_comparison(
-    images: Tensor,
-    gt_bboxes: list[Tensor],
-    gt_classes: list[Tensor],
-    pred_bboxes: list[Tensor],
-    pred_classes: list[Tensor],
-    pred_scores: list[Tensor],
+def plot_object_detection_labels(
+    batch: ObjectDetectionBatch,
     included_classes: dict[int, str],
-    score_threshold: float,
-    max_pred_boxes: int,
-    max_images: int | None = None,
+    max_images: int,
     mean: tuple[float, ...] | None = None,
     std: tuple[float, ...] | None = None,
-) -> list[PILImage]:
-    """Plot side-by-side comparison of ground truth labels and predictions.
-
-    For each image, the left side shows all ground truth boxes and the right side
-    shows predictions filtered by score threshold and limited to the top boxes by
-    confidence score.
+) -> PILImage:
+    """Render a grid of images annotated with ground truth bounding boxes.
 
     Args:
-        images: Batch of images with shape (batch_size, 3, H, W).
-        gt_bboxes: List of ground truth bounding box tensors. Each tensor has shape
-            (n_boxes, 4) with coordinates in cxcywh format normalized to [0, 1].
-        gt_classes: List of ground truth class label tensors. Each tensor has shape
-            (n_boxes,).
-        pred_bboxes: List of predicted bounding box tensors. Each tensor has shape
-            (n_boxes, 4) with coordinates in xyxy format scaled to image tensor
-            dimensions.
-        pred_classes: List of predicted class label tensors. Each tensor has shape
-            (n_boxes,).
-        pred_scores: List of confidence score tensors. Each tensor has shape
-            (n_boxes,).
-        included_classes: Dictionary mapping class IDs to class names.
-        score_threshold: Minimum confidence score to draw a prediction box.
-        max_pred_boxes: Maximum number of prediction boxes to draw per image,
-            selected by highest confidence score.
-        max_images: Maximum number of images to process. If None, processes all.
-        mean: Tuple of mean values for denormalization.
-        std: Tuple of std values for denormalization.
+        batch: Object detection batch with images, bboxes (cxcywh normalized), and
+            classes.
+        included_classes: Mapping from class ID to class name.
+        mean: Per-channel mean used for image normalization (for denormalization).
+        std: Per-channel std used for image normalization (for denormalization).
+        max_images: Maximum number of images to include in the grid.
 
     Returns:
-        List of PIL images, each showing GT on the left and predictions on the right.
+        A single PIL image containing up to max_images annotated images arranged
+        in a grid.
     """
     font = _load_font(size=18)
-    pil_images: list[PILImage] = []
-    batch_size = images.shape[0]
-    n = min(max_images or batch_size, batch_size)
+    gt_images = batch["image"].cpu()
+    gt_bboxes = [b.cpu() for b in batch["bboxes"]]
+    gt_classes = [c.cpu() for c in batch["classes"]]
+    n = min(max_images, gt_images.shape[0])
 
+    pil_images: list[PILImage] = []
     for i in range(n):
-        image_tensor = images[i].clone()
+        image_tensor = gt_images[i].clone()
         if mean is not None and std is not None:
             image_tensor = _denormalize_image(image_tensor, mean, std)
 
         _, img_height, img_width = image_tensor.shape
-
-        # --- Ground truth side (left) ---
-        gt_image = torchvision_functional.to_pil_image(image_tensor)
-        gt_draw = PILDraw(gt_image)
+        img = torchvision_functional.to_pil_image(image_tensor)
+        draw = PILDraw(img)
 
         boxes = gt_bboxes[i]
         class_ids = gt_classes[i]
-
         if len(boxes) > 0:
             boxes_xyxy = _cxcywh_to_xyxy(boxes, img_width, img_height)
             for box, class_id in zip(boxes_xyxy, class_ids):
                 x1, y1, x2, y2 = box.tolist()
                 class_name = included_classes.get(int(class_id), f"Class {class_id}")
                 color = _get_class_color(int(class_id))
-                gt_draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                _draw_bbox_label(gt_draw, x1, y1, class_name, color, font)
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
+                _draw_bbox_label(draw, x1, y1, class_name, color, font)
+        pil_images.append(img)
 
-        # --- Prediction side (right) ---
-        pred_image = torchvision_functional.to_pil_image(image_tensor)
-        pred_draw = PILDraw(pred_image)
+    return _render_grid(pil_images)
 
-        boxes = pred_bboxes[i]
-        class_ids = pred_classes[i]
-        scores = pred_scores[i]
+
+def plot_object_detection_predictions(
+    batch: ObjectDetectionBatch,
+    results: list[dict[str, Tensor]],
+    included_classes: dict[int, str],
+    max_images: int,
+    score_threshold: float,
+    max_pred_boxes: int,
+    mean: tuple[float, ...] | None = None,
+    std: tuple[float, ...] | None = None,
+
+) -> PILImage:
+    """Render a grid of images annotated with predicted bounding boxes.
+
+    Predictions are filtered by score_threshold and capped at max_pred_boxes per
+    image, selecting the highest-confidence detections.
+
+    Args:
+        batch: Object detection batch with images and original_size.
+        results: Postprocessor outputs, each a dict with 'boxes' (xyxy in original
+            image coordinates), 'labels', and 'scores'.
+        included_classes: Mapping from class ID to class name.
+        mean: Per-channel mean used for image normalization (for denormalization).
+        std: Per-channel std used for image normalization (for denormalization).
+        score_threshold: Minimum score for a predicted box to be shown.
+        max_pred_boxes: Maximum number of predicted boxes to show per image.
+
+    Returns:
+        A single PIL image containing up to max_images annotated images arranged
+        in a grid.
+    """
+    font = _load_font(size=18)
+    results = [
+        {k: v.cpu() if isinstance(v, Tensor) else v for k, v in r.items()}
+        for r in results
+    ]
+    gt_images = batch["image"].cpu()
+    orig_target_sizes = batch["original_size"]
+    n = min(max_images, gt_images.shape[0])
+
+    _, img_height, img_width = gt_images.shape[1:]
+
+    pil_images: list[PILImage] = []
+    for i in range(n):
+        image_tensor = gt_images[i].clone()
+        if mean is not None and std is not None:
+            image_tensor = _denormalize_image(image_tensor, mean, std)
+
+        img = torchvision_functional.to_pil_image(image_tensor)
+        draw = PILDraw(img)
+
+        result = results[i]
+        boxes = result["boxes"]
+        class_ids = result["labels"]
+        scores = result["scores"]
 
         if len(boxes) > 0:
-            # Filter by threshold, then sort by score descending, take top N
+            # Scale predicted boxes from original image coordinates to tensor dimensions.
+            orig_width, orig_height = orig_target_sizes[i]
+            boxes = boxes.clone()
+            boxes[:, 0] = boxes[:, 0] * img_width / orig_width
+            boxes[:, 1] = boxes[:, 1] * img_height / orig_height
+            boxes[:, 2] = boxes[:, 2] * img_width / orig_width
+            boxes[:, 3] = boxes[:, 3] * img_height / orig_height
+
             mask = scores >= score_threshold
             boxes = boxes[mask]
             class_ids = class_ids[mask]
@@ -142,16 +179,32 @@ def _plot_object_detection_comparison(
                         int(class_id), f"Class {class_id}"
                     )
                     color = _get_class_color(int(class_id))
-                    pred_draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
+                    draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                     _draw_bbox_label(
-                        pred_draw, x1, y1, f"{class_name} {score:.2f}", color, font
+                        draw, x1, y1, f"{class_name} {score:.2f}", color, font
                     )
+        pil_images.append(img)
 
-        # Combine side by side
-        combined_width = gt_image.width + pred_image.width
-        combined = Image.new("RGB", (combined_width, gt_image.height))
-        combined.paste(gt_image, (0, 0))
-        combined.paste(pred_image, (gt_image.width, 0))
+    return _render_grid(pil_images)
 
-        pil_images.append(combined)
-    return pil_images
+
+def _render_grid(pil_images: list[PILImage]) -> PILImage:
+    """Arrange PIL images into a square-ish grid.
+
+    Args:
+        pil_images: List of PIL images, all the same size.
+
+    Returns:
+        Single PIL image with all inputs tiled into a grid.
+    """
+    n = len(pil_images)
+    if n == 0:
+        return Image.new("RGB", (1, 1))
+    n_cols = math.ceil(math.sqrt(n))
+    n_rows = math.ceil(n / n_cols)
+    w, h = pil_images[0].size
+    grid = Image.new("RGB", (n_cols * w, n_rows * h))
+    for idx, img in enumerate(pil_images):
+        row, col = divmod(idx, n_cols)
+        grid.paste(img, (col * w, row * h))
+    return grid
