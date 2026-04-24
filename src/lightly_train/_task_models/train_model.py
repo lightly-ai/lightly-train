@@ -70,12 +70,12 @@ class TrainModel(Module):
     # - predict_step
     # See: https://github.com/Lightning-AI/pytorch-lightning/blob/95f16c12fe23664ffa5198a43266f715717c6f45/src/lightning/fabric/wrappers.py#L47-L48
 
-    def training_step(self, fabric: Fabric, batch: Any, step: int) -> TaskStepResult:
+    def training_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
         # Forward pass for training step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def validation_step(self, fabric: Fabric, batch: Any, step: int) -> TaskStepResult:
+    def validation_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
         # Forward pass for validation step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
@@ -120,12 +120,6 @@ class TrainModel(Module):
 
 
 @dataclass
-class VisualizationResult:
-    # PIL images to save as visualizations.
-    images: list[PILImage]
-
-
-@dataclass
 class TaskStepResult:
     # Loss value on which backwards will be called.
     loss: Tensor
@@ -139,5 +133,7 @@ class TaskStepResult:
     # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
     log_dict: dict[str, float]
 
-    # Optional visualization images to be saved by the training loop.
-    visualization: VisualizationResult | None = None
+    # Grid of label images for debugging purposes.
+    label_image: PILImage | None = None
+    # Grid of prediction images for debugging purposes.
+    prediction_image: PILImage | None = None
