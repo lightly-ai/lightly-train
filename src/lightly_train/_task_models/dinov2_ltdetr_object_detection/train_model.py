@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
@@ -75,6 +75,7 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
     backbone_freeze: bool = False
+    decoder: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -163,6 +164,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             backbone_freeze=model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
+            decoder=model_args.decoder,
             load_weights=load_weights,
         )
 
