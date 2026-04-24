@@ -267,7 +267,7 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: MaskSemanticSegmentationBatch,
-        step: int,
+        step: int = 0,
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"]

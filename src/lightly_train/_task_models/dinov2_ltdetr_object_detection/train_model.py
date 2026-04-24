@@ -321,7 +321,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self,
         fabric: Fabric,
         batch: ObjectDetectionBatch,
-        step: int,
+        step: int = 0,
     ) -> TaskStepResult:
         samples, boxes, classes, orig_target_sizes = (
             batch["image"],
