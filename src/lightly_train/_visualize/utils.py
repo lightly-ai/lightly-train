@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import colorsys
+import logging
 import sys
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from PIL.ImageDraw import ImageDraw as PILDraw
 from PIL.ImageFont import FreeTypeFont as PILFreeTypeFont
 from PIL.ImageFont import ImageFont as PILImageFont
 from torch import Tensor
+
 
 def _draw_bbox_label(
     draw: PILDraw,
@@ -169,8 +171,8 @@ def _load_font(size: int = 14) -> PILImageFont | PILFreeTypeFont:
         if Path(font_path).exists():
             try:
                 return ImageFont.truetype(font_path, size=size)
-            except Exception:
-                pass
+            except OSError as e:
+                logging.debug("Failed to load font %s: %s", font_path, e)
 
     # Fallback: use default font with size if available
     try:
