@@ -13,6 +13,7 @@ from typing import Any, ClassVar
 
 import torch
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
@@ -62,6 +63,10 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize.object_detection import (
+    plot_object_detection_labels,
+    plot_object_detection_predictions,
+)
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -145,10 +150,13 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         super().__init__()
 
         self.model_args = model_args
+        self.data_args = data_args
 
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
         normalize_dict: dict[str, Any] | None
+        self._normalize = normalize
+
         if normalize is None:
             normalize_dict = None
         else:
@@ -208,6 +216,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             box_format="xyxy",
             loss_names=self.loss_names,
         )
+
+        self.viz_score_threshold = 0.1
+        self.viz_max_pred_boxes = 32
+        self.viz_max_images = 4
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -307,10 +319,26 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
             self.train_metrics.update_with_predictions(results, targets)
 
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            normalize_mean = (
+                tuple(self._normalize.mean) if self._normalize is not None else None
+            )
+            normalize_std = (
+                tuple(self._normalize.std) if self._normalize is not None else None
+            )
+            label_image = plot_object_detection_labels(
+                batch=batch,
+                included_classes=self.data_args.included_classes,
+                mean=normalize_mean,
+                std=normalize_std,
+                max_images=self.viz_max_images,
+            )
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
+            label_image=label_image,
         )
 
     def on_train_batch_end(self) -> None:
@@ -318,9 +346,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             self.ema_model.update(self.model)
 
     def validation_step(
-        self,
-        fabric: Fabric,
-        batch: ObjectDetectionBatch,
+        self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
     ) -> TaskStepResult:
         samples, boxes, classes, orig_target_sizes = (
             batch["image"],
@@ -368,7 +394,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         orig_target_sizes_tensor = torch.tensor(
             orig_target_sizes, device=samples.device
         )
-        results = self.model.postprocessor(
+        results: list[dict[str, Tensor]] = self.model.postprocessor(
             outputs, orig_target_sizes=orig_target_sizes_tensor
         )
 
@@ -384,10 +410,38 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(results, targets)
 
+        label_image: PILImage | None = None
+        prediction_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            normalize_mean = (
+                tuple(self._normalize.mean) if self._normalize is not None else None
+            )
+            normalize_std = (
+                tuple(self._normalize.std) if self._normalize is not None else None
+            )
+            label_image = plot_object_detection_labels(
+                batch=batch,
+                included_classes=self.data_args.included_classes,
+                mean=normalize_mean,
+                std=normalize_std,
+                max_images=self.viz_max_images,
+            )
+            prediction_image = plot_object_detection_predictions(
+                batch=batch,
+                results=results,
+                included_classes=self.data_args.included_classes,
+                mean=normalize_mean,
+                std=normalize_std,
+                score_threshold=self.viz_score_threshold,
+                max_pred_boxes=self.viz_max_pred_boxes,
+                max_images=self.viz_max_images,
+            )
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.val_metrics,
+            label_image=label_image,
+            prediction_image=prediction_image,
         )
 
     def get_optimizer(

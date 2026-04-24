@@ -1592,6 +1592,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 train_collate_fn.mark_dataloader_as_reinitialized()
 
             # Training data loading, forward passes, and gradient accumulation.
+            label_image = None
             for acc_step in range(config.gradient_accumulation_steps):
                 is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
@@ -1609,6 +1610,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         train_result.loss / config.gradient_accumulation_steps
                     )
 
+                if acc_step == 0:
+                    label_image = train_result.label_image
+
             # Optimizer step and scheduler step.
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
             optimizer.step()
@@ -1617,6 +1621,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
+
+            # Save label grid from the first microbatch of the training step.
+            if label_image is not None:
+                viz_dir = out_dir / "image_examples"
+                viz_dir.mkdir(parents=True, exist_ok=True)
+                label_image.save(viz_dir / f"train_labels_{step}.jpg")
 
             timer.end_step("train_step")
             timer.record_gpu_stats("train")
@@ -1708,7 +1718,22 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     # Validation forward pass.
                     with torch.no_grad():
                         val_result = train_model.validation_step(
-                            fabric=fabric, batch=val_batch
+                            fabric=fabric,
+                            batch=val_batch,
+                            step=val_step,
+                        )
+                    # Save label and prediction grids produced by the validation step.
+                    if (
+                        val_result.label_image is not None
+                        and val_result.prediction_image is not None
+                    ):
+                        viz_dir = out_dir / "image_examples"
+                        viz_dir.mkdir(parents=True, exist_ok=True)
+                        val_result.label_image.save(
+                            viz_dir / f"val_labels_{val_step}.jpg"
+                        )
+                        val_result.prediction_image.save(
+                            viz_dir / f"val_predictions_{val_step}.jpg"
                         )
 
                     timer.end_step("val_step")

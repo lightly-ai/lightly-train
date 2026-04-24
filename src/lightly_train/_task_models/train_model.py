@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
@@ -74,7 +75,7 @@ class TrainModel(Module):
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def validation_step(self, fabric: Fabric, batch) -> TaskStepResult:  # type: ignore[no-untyped-def]
+    def validation_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
         # Forward pass for validation step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
@@ -131,3 +132,8 @@ class TaskStepResult:
     # Dictionary with extra values to log. These values will only be logged to external
     # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
     log_dict: dict[str, float]
+
+    # Grid of label images for debugging purposes.
+    label_image: PILImage | None = None
+    # Grid of prediction images for debugging purposes.
+    prediction_image: PILImage | None = None
