@@ -128,7 +128,7 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def _load_font(size: int = 14) -> PILImageFont | PILFreeTypeFont:
+def _load_font(size: int) -> PILImageFont | PILFreeTypeFont:
     """Load a high-quality font with fallbacks.
 
     Attempts to load a system font, falling back to default if unavailable.

@@ -89,7 +89,9 @@ def plot_object_detection_labels(
             boxes_xyxy = _cxcywh_to_xyxy(boxes, img_width, img_height)
             for box, class_id in zip(boxes_xyxy, class_ids):
                 x1, y1, x2, y2 = box.tolist()
-                class_name = included_classes.get(int(class_id), f"Class {class_id}")
+                class_name = included_classes.get(
+                    int(class_id), f"Class {int(class_id)}"
+                )
                 color = _get_class_color(int(class_id))
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                 _draw_bbox_label(draw, x1, y1, class_name, color, font)
@@ -107,7 +109,6 @@ def plot_object_detection_predictions(
     max_pred_boxes: int,
     mean: tuple[float, ...] | None = None,
     std: tuple[float, ...] | None = None,
-
 ) -> PILImage:
     """Render a grid of images annotated with predicted bounding boxes.
 
@@ -176,7 +177,7 @@ def plot_object_detection_predictions(
                 for box, class_id, score in zip(boxes, class_ids, scores):
                     x1, y1, x2, y2 = box.tolist()
                     class_name = included_classes.get(
-                        int(class_id), f"Class {class_id}"
+                        int(class_id), f"Class {int(class_id)}"
                     )
                     color = _get_class_color(int(class_id))
                     draw.rectangle([x1, y1, x2, y2], outline=color, width=2)

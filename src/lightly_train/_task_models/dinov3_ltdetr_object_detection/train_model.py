@@ -125,6 +125,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
+
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = DINOv3LTDETRObjectDetectionTrainArgs
@@ -150,7 +151,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         self.model_args = model_args
         self.data_args = data_args
-
 
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
