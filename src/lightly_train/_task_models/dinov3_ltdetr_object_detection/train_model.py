@@ -61,10 +61,12 @@ from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
     TrainModelArgs,
-    VisualizationResult,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.object_detection import _plot_object_detection_comparison
+from lightly_train._visualize.object_detection import (
+    plot_object_detection_labels,
+    plot_object_detection_predictions,
+)
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -123,7 +125,6 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
-
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = DINOv3LTDETRObjectDetectionTrainArgs
@@ -149,6 +150,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         self.model_args = model_args
         self.data_args = data_args
+
 
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
@@ -214,6 +216,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             box_format="xyxy",
             loss_names=self.loss_names,
         )
+
+        self.viz_score_threshold = 0.1
+        self.viz_max_pred_boxes = 32
+        self.viz_max_images = 4
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -313,32 +319,26 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
             self.train_metrics.update_with_predictions(results, targets)
 
-        # Visualization of training labels (first 3 steps only)
-        visualization: VisualizationResult | None = None
-        if step < 3:
-            orig_target_sizes = batch["original_size"]
-            orig_target_sizes_tensor = torch.tensor(
-                orig_target_sizes, device=samples.device
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            normalize_mean = (
+                tuple(self._normalize.mean) if self._normalize is not None else None
             )
-            results = self.model.postprocessor(
-                outputs, orig_target_sizes=orig_target_sizes_tensor
+            normalize_std = (
+                tuple(self._normalize.std) if self._normalize is not None else None
             )
-            images = self._prepare_visualization_data(
-                fabric=fabric,
+            label_image = plot_object_detection_labels(
                 batch=batch,
-                results=results,
-                orig_target_sizes=orig_target_sizes,
+                included_classes=self.data_args.included_classes,
+                mean=normalize_mean,
+                std=normalize_std,
+                max_images=self.viz_max_images,
             )
-            if images:
-                visualization = VisualizationResult(
-                    images=images,
-                )
-
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
-            visualization=visualization,
+            label_image=label_image,
         )
 
     def on_train_batch_end(self) -> None:
@@ -394,7 +394,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         orig_target_sizes_tensor = torch.tensor(
             orig_target_sizes, device=samples.device
         )
-        results = self.model.postprocessor(
+        results: list[dict[str, Tensor]] = self.model.postprocessor(
             outputs, orig_target_sizes=orig_target_sizes_tensor
         )
 
@@ -410,23 +410,38 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(results, targets)
 
-        visualization: VisualizationResult | None = None
-        if step < 3:
-            images = self._prepare_visualization_data(
-                fabric=fabric,
+        label_image: PILImage | None = None
+        prediction_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            normalize_mean = (
+                tuple(self._normalize.mean) if self._normalize is not None else None
+            )
+            normalize_std = (
+                tuple(self._normalize.std) if self._normalize is not None else None
+            )
+            label_image = plot_object_detection_labels(
+                batch=batch,
+                included_classes=self.data_args.included_classes,
+                mean=normalize_mean,
+                std=normalize_std,
+                max_images=self.viz_max_images,
+            )
+            prediction_image = plot_object_detection_predictions(
                 batch=batch,
                 results=results,
-                orig_target_sizes=orig_target_sizes,
+                included_classes=self.data_args.included_classes,
+                mean=normalize_mean,
+                std=normalize_std,
+                score_threshold=self.viz_score_threshold,
+                max_pred_boxes=self.viz_max_pred_boxes,
+                max_images=self.viz_max_images,
             )
-            if images:
-                visualization = VisualizationResult(
-                    images=images,
-                )
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.val_metrics,
-            visualization=visualization,
+            label_image=label_image,
+            prediction_image=prediction_image,
         )
 
     def get_optimizer(
@@ -519,104 +534,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
     def get_task_model(self) -> TaskModel:
         return self.model
-
-    def _prepare_visualization_data(
-        self,
-        fabric: Fabric,
-        batch: ObjectDetectionBatch,
-        results: Any,
-        orig_target_sizes: list[tuple[int, int]],
-    ) -> list[PILImage]:
-        """Plot images with ground truth and predicted bounding boxes.
-
-        Args:
-            fabric: Fabric instance used to check global rank.
-            batch: The batch containing images and ground truth annotations.
-            results: Model predictions from postprocessor.
-            orig_target_sizes: Original image sizes.
-
-        Returns:
-            List of PIL images with ground truth and predicted boxes overlaid,
-            or an empty list on non-rank-0 processes.
-        """
-        if fabric.global_rank != 0:
-            return []
-
-        # Move to CPU for plotting.
-        results = [
-            {k: v.cpu() if isinstance(v, torch.Tensor) else v for k, v in r.items()}
-            if isinstance(r, dict)
-            else r
-            for r in results
-        ]
-
-        # Extract first 4 images for visualization
-        gt_images = batch["image"].cpu()
-        gt_bboxes = [b.cpu() for b in batch["bboxes"]]
-        gt_classes = [c.cpu() for c in batch["classes"]]
-        max_images = min(4, gt_images.shape[0])
-
-        # Prepare labels visualization
-        mean = tuple(self._normalize.mean) if self._normalize is not None else None
-        std = tuple(self._normalize.std) if self._normalize is not None else None
-        # Prepare predictions visualization.
-        pred_bboxes = []
-        pred_classes = []
-        pred_scores = []
-
-        for i in range(max_images):
-            if i < len(results):
-                result = results[i]
-                if isinstance(result, dict):
-                    # Assuming result has 'boxes', 'labels', 'scores' keys.
-                    pred_bboxes.append(result.get("boxes", torch.empty(0, 4)))
-                    pred_classes.append(
-                        result.get("labels", torch.empty(0, dtype=torch.long))
-                    )
-                    pred_scores.append(result.get("scores", torch.empty(0)))
-                else:
-                    # Fallback: create empty tensors.
-                    pred_bboxes.append(torch.empty(0, 4))
-                    pred_classes.append(torch.empty(0, dtype=torch.long))
-                    pred_scores.append(torch.empty(0))
-            else:
-                # Handle case where batch size is smaller than max_images.
-                pred_bboxes.append(torch.empty(0, 4))
-                pred_classes.append(torch.empty(0, dtype=torch.long))
-                pred_scores.append(torch.empty(0))
-
-        # Scale predicted boxes from original image size to tensor size.
-        _, img_height, img_width = gt_images.shape[1:]
-        scaled_pred_bboxes = []
-        for i in range(max_images):
-            if len(pred_bboxes[i]) > 0:
-                boxes = pred_bboxes[i].clone()
-                orig_width, orig_height = orig_target_sizes[i]
-                # Scale from original image coordinates to tensor coordinates.
-                boxes[:, 0] = boxes[:, 0] * img_width / orig_width
-                boxes[:, 1] = boxes[:, 1] * img_height / orig_height
-                boxes[:, 2] = boxes[:, 2] * img_width / orig_width
-                boxes[:, 3] = boxes[:, 3] * img_height / orig_height
-                scaled_pred_bboxes.append(boxes)
-            else:
-                scaled_pred_bboxes.append(pred_bboxes[i])
-
-        debug_images = _plot_object_detection_comparison(
-            images=gt_images,
-            gt_bboxes=gt_bboxes,
-            gt_classes=gt_classes,
-            pred_bboxes=scaled_pred_bboxes,
-            pred_classes=pred_classes,
-            pred_scores=pred_scores,
-            included_classes=self.data_args.included_classes,
-            score_threshold=0.6,
-            max_pred_boxes=32,
-            max_images=max_images,
-            mean=mean,
-            std=std,
-        )
-
-        return debug_images
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
         if self.model_args.gradient_clip_val > 0:
