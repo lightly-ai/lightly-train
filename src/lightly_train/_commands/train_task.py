@@ -1592,6 +1592,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 train_collate_fn.mark_dataloader_as_reinitialized()
 
             # Training data loading, forward passes, and gradient accumulation.
+            label_image = None
             for acc_step in range(config.gradient_accumulation_steps):
                 is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
@@ -1609,6 +1610,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         train_result.loss / config.gradient_accumulation_steps
                     )
 
+                if acc_step == 0:
+                    label_image = train_result.label_image
+
             # Optimizer step and scheduler step.
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
             optimizer.step()
@@ -1618,13 +1622,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
 
-            # Save visualization images if produced by the training step.
-            if train_result.visualization is not None:
-                viz = train_result.visualization
-                viz_dir = out_dir / "visualizations_train"
+            # Save label grid from the first microbatch of the training step.
+            if label_image is not None:
+                viz_dir = out_dir / "image_examples"
                 viz_dir.mkdir(parents=True, exist_ok=True)
-                for idx, img in enumerate(viz.images):
-                    img.save(viz_dir / f"step{step:03d}_img{idx}.jpg")
+                label_image.save(viz_dir / f"train_labels_{step}.jpg")
 
             timer.end_step("train_step")
             timer.record_gpu_stats("train")
@@ -1698,7 +1700,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 # Reset GPU memory tracking before val phase.
                 timer.reset_gpu_max_memory("val")
 
-                # train_model.on_validation_epoch_start()
                 val_dataloader_iter = iter(val_dataloader)
                 # TODO (Lionel, 02/26): Average metrics during validation instead of
                 # only singular metrics at the end of the epoch.
@@ -1721,13 +1722,19 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             batch=val_batch,
                             step=val_step,
                         )
-                    # Save visualization images if produced by the validation step.
-                    if val_result.visualization is not None:
-                        viz = val_result.visualization
-                        viz_dir = out_dir / "visualizations_val"
+                    # Save label and prediction grids produced by the validation step.
+                    if (
+                        val_result.label_image is not None
+                        and val_result.prediction_image is not None
+                    ):
+                        viz_dir = out_dir / "image_examples"
                         viz_dir.mkdir(parents=True, exist_ok=True)
-                        for idx, img in enumerate(viz.images):
-                            img.save(viz_dir / f"step{val_step:03d}_img{idx}.jpg")
+                        val_result.label_image.save(
+                            viz_dir / f"val_labels_{val_step}.jpg"
+                        )
+                        val_result.prediction_image.save(
+                            viz_dir / f"val_predictions_{val_step}.jpg"
+                        )
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")
