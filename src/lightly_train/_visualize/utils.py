@@ -11,7 +11,7 @@ import colorsys
 import math
 
 import torch
-from PIL import Image
+from PIL import Image, ImageFont
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
@@ -33,7 +33,8 @@ def _draw_bbox_label(
     padding = 4
 
     # Measure text
-    bbox = draw.textbbox((0, 0), text, font=draw.font)
+    font = ImageFont.load_default(size=20)
+    bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
 
@@ -60,7 +61,7 @@ def _draw_bbox_label(
     y0, y1_rect = sorted((rect_top, rect_bottom))
 
     draw.rectangle([x0, y0, x1_rect, y1_rect], fill=color, outline=color)
-    draw.text((x0 + padding, y0 + padding), text, fill="white", font=draw.font)
+    draw.text((x0 + padding, y0 + padding), text, fill="white", font=font)
 
 
 def _denormalize_image(
