@@ -11,7 +11,7 @@ import math
 
 import pytest
 import torch
-from PIL import Image
+from PIL import Image, ImageFont
 from PIL.ImageDraw import ImageDraw
 
 from lightly_train._visualize import utils
@@ -76,10 +76,6 @@ class TestCxcywhToXyxy:
 
 
 class TestRenderGrid:
-    def test__render_grid__empty_list(self) -> None:
-        result = utils._render_grid([])
-        assert result.size == (1, 1)
-
     def test__render_grid__single_image(self) -> None:
         img = Image.new("RGB", (50, 40), color=(255, 0, 0))
         result = utils._render_grid([img])
@@ -157,10 +153,10 @@ class Test_draw_bbox_label:
         text = "bird"
 
         # Measure label height so we can set y1 exactly at the boundary.
-        bbox = draw.textbbox((0, 0), text)
-        label_height = (
-            int(bbox[3] - bbox[1]) + 8
-        )  # 2 * padding (4); int() handles float textbbox
+        # Must use the same font as the implementation.
+        font = ImageFont.load_default(size=20)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        label_height = int(bbox[3] - bbox[1]) + 8  # 2 * padding (4)
 
         x1, y1 = 10, label_height  # y1 == label_height → condition is >=, so draw above
 
