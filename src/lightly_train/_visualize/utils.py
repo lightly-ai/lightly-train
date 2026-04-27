@@ -7,17 +7,14 @@
 #
 from __future__ import annotations
 
-import math
-
 import colorsys
+import math
 
 import torch
 from PIL import Image
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
-
-
 
 
 def _draw_bbox_label(

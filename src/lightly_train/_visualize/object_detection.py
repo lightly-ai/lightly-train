@@ -14,11 +14,11 @@ from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize.utils import (
+    _cxcywh_to_xyxy,
     _denormalize_image,
     _draw_bbox_label,
     _get_class_color,
     _render_grid,
-    _cxcywh_to_xyxy,
 )
 from lightly_train.types import ObjectDetectionBatch
 
@@ -156,9 +156,7 @@ def plot_object_detection_predictions(
                     )
                     color = _get_class_color(int(class_id))
                     draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                    _draw_bbox_label(
-                        draw, x1, y1, f"{class_name} {score:.2f}", color
-                    )
+                    _draw_bbox_label(draw, x1, y1, f"{class_name} {score:.2f}", color)
         pil_images.append(img)
 
     return _render_grid(pil_images)
