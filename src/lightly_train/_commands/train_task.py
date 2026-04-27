@@ -1722,19 +1722,16 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             batch=val_batch,
                             step=val_step,
                         )
-                    # Save label and prediction grids produced by the validation step.
-                    if (
-                        val_result.label_image is not None
-                        and val_result.prediction_image is not None
-                    ):
+                    if val_result.prediction_image is not None:
                         viz_dir = out_dir / "image_examples"
                         viz_dir.mkdir(parents=True, exist_ok=True)
-                        val_result.label_image.save(
-                            viz_dir / f"val_labels_{val_step}.jpg"
-                        )
                         val_result.prediction_image.save(
                             viz_dir / f"val_predictions_{val_step}.jpg"
                         )
+                        if val_result.label_image is not None:
+                            label_path = viz_dir / f"val_labels_{val_step}.jpg"
+                            if not label_path.exists():
+                                val_result.label_image.save(label_path)
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")
