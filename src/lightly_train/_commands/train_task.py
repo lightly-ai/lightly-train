@@ -1722,16 +1722,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             batch=val_batch,
                             step=val_step,
                         )
+
+                    viz_dir = out_dir / "image_examples"
                     if val_result.prediction_image is not None:
-                        viz_dir = out_dir / "image_examples"
                         viz_dir.mkdir(parents=True, exist_ok=True)
                         val_result.prediction_image.save(
                             viz_dir / f"val_predictions_{val_step}.jpg"
                         )
-                        if val_result.label_image is not None:
-                            label_path = viz_dir / f"val_labels_{val_step}.jpg"
-                            if not label_path.exists():
-                                val_result.label_image.save(label_path)
+                    if val_result.label_image is not None:
+                        label_path = viz_dir / f"val_labels_{val_step}.jpg"
+                        if not label_path.exists():
+                            viz_dir.mkdir(parents=True, exist_ok=True)
+                            val_result.label_image.save(label_path)
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")

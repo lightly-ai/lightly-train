@@ -134,12 +134,11 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
         Single PIL image with all inputs tiled into a grid.
     """
     n = len(pil_images)
-    if n == 0:
-        return Image.new("RGB", (1, 1))
     n_cols = math.ceil(math.sqrt(n))
     n_rows = math.ceil(n / n_cols)
     w, h = pil_images[0].size
-    grid = Image.new("RGB", (n_cols * w, n_rows * h))
+    mode = pil_images[0].mode
+    grid = Image.new(mode, (n_cols * w, n_rows * h))
     for idx, img in enumerate(pil_images):
         row, col = divmod(idx, n_cols)
         grid.paste(img, (col * w, row * h))
