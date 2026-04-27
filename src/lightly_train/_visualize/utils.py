@@ -7,17 +7,17 @@
 #
 from __future__ import annotations
 
+import math
+
 import colorsys
-import logging
-import sys
-from pathlib import Path
 
 import torch
-from PIL import ImageFont
+from PIL import Image
+from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
-from PIL.ImageFont import FreeTypeFont as PILFreeTypeFont
-from PIL.ImageFont import ImageFont as PILImageFont
 from torch import Tensor
+
+
 
 
 def _draw_bbox_label(
@@ -26,7 +26,6 @@ def _draw_bbox_label(
     y1: float,
     text: str,
     color: tuple[int, int, int],
-    font: PILImageFont | PILFreeTypeFont,
 ) -> None:
     """Draw a highlighted label rectangle near a bounding box.
 
@@ -37,7 +36,7 @@ def _draw_bbox_label(
     padding = 4
 
     # Measure text
-    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox = draw.textbbox((0, 0), text, font=draw.font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
 
@@ -64,7 +63,7 @@ def _draw_bbox_label(
     y0, y1_rect = sorted((rect_top, rect_bottom))
 
     draw.rectangle([x0, y0, x1_rect, y1_rect], fill=color, outline=color)
-    draw.text((x0 + padding, y0 + padding), text, fill="white", font=font)
+    draw.text((x0 + padding, y0 + padding), text, fill="white", font=draw.font)
 
 
 def _denormalize_image(
@@ -128,55 +127,44 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def _load_font(size: int) -> PILImageFont | PILFreeTypeFont:
-    """Load a high-quality font with fallbacks.
-
-    Attempts to load a system font, falling back to default if unavailable.
+def _render_grid(pil_images: list[PILImage]) -> PILImage:
+    """Arrange PIL images into a square-ish grid.
 
     Args:
-        size: Font size in pixels.
+        pil_images: List of PIL images, all the same size.
 
     Returns:
-        A PIL font object.
+        Single PIL image with all inputs tiled into a grid.
     """
-    # List of font paths to try on different systems
-    font_paths = []
+    n = len(pil_images)
+    if n == 0:
+        return Image.new("RGB", (1, 1))
+    n_cols = math.ceil(math.sqrt(n))
+    n_rows = math.ceil(n / n_cols)
+    w, h = pil_images[0].size
+    grid = Image.new("RGB", (n_cols * w, n_rows * h))
+    for idx, img in enumerate(pil_images):
+        row, col = divmod(idx, n_cols)
+        grid.paste(img, (col * w, row * h))
+    return grid
 
-    if sys.platform == "darwin":  # macOS
-        font_paths.extend(
-            [
-                "/System/Library/Fonts/Helvetica.ttc",
-                "/Library/Fonts/Arial.ttf",
-                "/System/Library/Fonts/Arial.ttf",
-            ]
-        )
-    elif sys.platform.startswith("linux"):
-        font_paths.extend(
-            [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-            ]
-        )
-    elif sys.platform == "win32":
-        font_paths.extend(
-            [
-                "C:\\Windows\\Fonts\\arial.ttf",
-                "C:\\Windows\\Fonts\\segoeui.ttf",
-            ]
-        )
 
-    # Try to load the first available font
-    for font_path in font_paths:
-        if Path(font_path).exists():
-            try:
-                return ImageFont.truetype(font_path, size=size)
-            except OSError as e:
-                logging.debug("Failed to load font %s: %s", font_path, e)
+def _cxcywh_to_xyxy(boxes: Tensor, w: int, h: int) -> Tensor:
+    """Convert bounding boxes from cxcywh format to xyxy format.
 
-    # Fallback: use default font with size if available
-    try:
-        return ImageFont.load_default(size=size)
-    except TypeError:
-        # Size argument was added in Pillow 10.1.0
-        return ImageFont.load_default()
+    Args:
+        boxes: Tensor of shape (n_boxes, 4) in cxcywh format (center_x, center_y,
+            width, height). Values are normalized to [0, 1].
+        w: Width of the image.
+        h: Height of the image.
+
+    Returns:
+        Tensor of shape (n_boxes, 4) in xyxy format (x1, y1, x2, y2).
+    """
+    boxes_xyxy = boxes.clone()
+    cx, cy, bw, bh = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    boxes_xyxy[:, 0] = (cx - bw / 2) * w
+    boxes_xyxy[:, 1] = (cy - bh / 2) * h
+    boxes_xyxy[:, 2] = (cx + bw / 2) * w
+    boxes_xyxy[:, 3] = (cy + bh / 2) * h
+    return boxes_xyxy

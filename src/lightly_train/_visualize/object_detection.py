@@ -7,10 +7,7 @@
 #
 from __future__ import annotations
 
-import math
-
 import torch
-from PIL import Image
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
@@ -20,30 +17,10 @@ from lightly_train._visualize.utils import (
     _denormalize_image,
     _draw_bbox_label,
     _get_class_color,
-    _load_font,
+    _render_grid,
+    _cxcywh_to_xyxy,
 )
 from lightly_train.types import ObjectDetectionBatch
-
-
-def _cxcywh_to_xyxy(boxes: Tensor, w: int, h: int) -> Tensor:
-    """Convert bounding boxes from cxcywh format to xyxy format.
-
-    Args:
-        boxes: Tensor of shape (n_boxes, 4) in cxcywh format (center_x, center_y,
-            width, height). Values are normalized to [0, 1].
-        w: Width of the image.
-        h: Height of the image.
-
-    Returns:
-        Tensor of shape (n_boxes, 4) in xyxy format (x1, y1, x2, y2).
-    """
-    boxes_xyxy = boxes.clone()
-    cx, cy, bw, bh = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
-    boxes_xyxy[:, 0] = (cx - bw / 2) * w
-    boxes_xyxy[:, 1] = (cy - bh / 2) * h
-    boxes_xyxy[:, 2] = (cx + bw / 2) * w
-    boxes_xyxy[:, 3] = (cy + bh / 2) * h
-    return boxes_xyxy
 
 
 def plot_object_detection_labels(
@@ -67,7 +44,6 @@ def plot_object_detection_labels(
         A single PIL image containing up to max_images annotated images arranged
         in a grid.
     """
-    font = _load_font(size=18)
     gt_images = batch["image"].cpu()
     gt_bboxes = [b.cpu() for b in batch["bboxes"]]
     gt_classes = [c.cpu() for c in batch["classes"]]
@@ -94,7 +70,7 @@ def plot_object_detection_labels(
                 )
                 color = _get_class_color(int(class_id))
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                _draw_bbox_label(draw, x1, y1, class_name, color, font)
+                _draw_bbox_label(draw, x1, y1, class_name, color)
         pil_images.append(img)
 
     return _render_grid(pil_images)
@@ -129,7 +105,6 @@ def plot_object_detection_predictions(
         A single PIL image containing up to max_images annotated images arranged
         in a grid.
     """
-    font = _load_font(size=18)
     results = [
         {k: v.cpu() if isinstance(v, Tensor) else v for k, v in r.items()}
         for r in results
@@ -182,30 +157,8 @@ def plot_object_detection_predictions(
                     color = _get_class_color(int(class_id))
                     draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                     _draw_bbox_label(
-                        draw, x1, y1, f"{class_name} {score:.2f}", color, font
+                        draw, x1, y1, f"{class_name} {score:.2f}", color
                     )
         pil_images.append(img)
 
     return _render_grid(pil_images)
-
-
-def _render_grid(pil_images: list[PILImage]) -> PILImage:
-    """Arrange PIL images into a square-ish grid.
-
-    Args:
-        pil_images: List of PIL images, all the same size.
-
-    Returns:
-        Single PIL image with all inputs tiled into a grid.
-    """
-    n = len(pil_images)
-    if n == 0:
-        return Image.new("RGB", (1, 1))
-    n_cols = math.ceil(math.sqrt(n))
-    n_rows = math.ceil(n / n_cols)
-    w, h = pil_images[0].size
-    grid = Image.new("RGB", (n_cols * w, n_rows * h))
-    for idx, img in enumerate(pil_images):
-        row, col = divmod(idx, n_cols)
-        grid.paste(img, (col * w, row * h))
-    return grid

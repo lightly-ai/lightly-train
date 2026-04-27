@@ -19,12 +19,11 @@ class Test_draw_bbox_label:
     def test__draw_bbox_label_label_above_when_space(self) -> None:
         image = Image.new("RGB", (200, 200), color=(255, 255, 255))
         draw = ImageDraw(image)
-        font = utils._load_font(12)
         color = (255, 0, 0)
         x1, y1 = 10, 100  # plenty of space above
 
         utils._draw_bbox_label(
-            draw=draw, x1=x1, y1=y1, text="dog", color=color, font=font
+            draw=draw, x1=x1, y1=y1, text="dog", color=color
         )
 
         # Label is drawn above y1: pixel just inside the top-left of the label rect is colored.
@@ -35,12 +34,11 @@ class Test_draw_bbox_label:
     def test__draw_bbox_label_label_below_when_no_space(self) -> None:
         image = Image.new("RGB", (200, 200), color=(255, 255, 255))
         draw = ImageDraw(image)
-        font = utils._load_font(12)
         color = (0, 255, 0)
         x1, y1 = 10, 2  # y1 too small to draw above
 
         utils._draw_bbox_label(
-            draw=draw, x1=x1, y1=y1, text="cat", color=color, font=font
+            draw=draw, x1=x1, y1=y1, text="cat", color=color
         )
 
         # Label is drawn below y1: pixel just inside the top-left of the label rect is colored.
@@ -51,12 +49,11 @@ class Test_draw_bbox_label:
     def test__draw_bbox_label_at_boundary(self) -> None:
         image = Image.new("RGB", (200, 200), color=(255, 255, 255))
         draw = ImageDraw(image)
-        font = utils._load_font(12)
         color = (0, 0, 255)
         text = "bird"
 
         # Measure label height so we can set y1 exactly at the boundary.
-        bbox = draw.textbbox((0, 0), text, font=font)
+        bbox = draw.textbbox((0, 0), text)
         label_height = (
             int(bbox[3] - bbox[1]) + 8
         )  # 2 * padding (4); int() handles float textbbox
@@ -64,7 +61,7 @@ class Test_draw_bbox_label:
         x1, y1 = 10, label_height  # y1 == label_height → condition is >=, so draw above
 
         utils._draw_bbox_label(
-            draw=draw, x1=x1, y1=y1, text=text, color=color, font=font
+            draw=draw, x1=x1, y1=y1, text=text, color=color
         )
 
         # Should draw above: pixel just above y1 is within the label rect and colored.
@@ -158,14 +155,3 @@ class Test_get_class_color:
         assert 0 <= r <= 255
         assert 0 <= g <= 255
         assert 0 <= b <= 255
-
-
-class Test_load_font:
-    def test__load_font_returns_pil_font(self) -> None:
-        font = utils._load_font(12)
-        assert font is not None
-
-    def test__load_font_different_sizes(self) -> None:
-        for size in [8, 12, 16, 24]:
-            font = utils._load_font(size)
-            assert font is not None
