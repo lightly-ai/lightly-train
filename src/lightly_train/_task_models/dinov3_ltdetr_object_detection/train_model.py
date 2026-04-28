@@ -217,7 +217,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             loss_names=self.loss_names,
         )
 
-        # TODO (Nauryz, 04/26): These visualization thresholds are currently hardcoded, but we may want to make them configurable in the future (with logger_args).
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
 
         self.viz_score_threshold = 0.1
         self.viz_max_pred_boxes = 32
