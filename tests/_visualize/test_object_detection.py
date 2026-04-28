@@ -144,9 +144,7 @@ class TestPlotObjectDetectionPredictions:
         batch = _make_batch(image=torch.zeros(1, 3, 32, 32))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
-            results=_make_results(
-                batch_size=1, boxes_per_image=0, img_h=32, img_w=32
-            ),
+            results=_make_results(batch_size=1, boxes_per_image=0, img_h=32, img_w=32),
             included_classes={},
             max_images=1,
             score_threshold=0.5,
@@ -205,7 +203,7 @@ class TestPlotObjectDetectionPredictions:
             max_pred_boxes=3,
         )
         # Only the first 3 boxes should be drawn; the last 2 should be suppressed.
-        assert result.getpixel((5, 0)) != (0, 0, 0) 
+        assert result.getpixel((5, 0)) != (0, 0, 0)
         assert result.getpixel((25, 0)) != (0, 0, 0)
         assert result.getpixel((45, 0)) != (0, 0, 0)
         assert result.getpixel((305, 0)) == (0, 0, 0)
