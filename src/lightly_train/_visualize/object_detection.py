@@ -102,10 +102,10 @@ def plot_object_detection_predictions(
         results: Postprocessor outputs, each a dict with 'boxes' (xyxy in original
             image coordinates), 'labels', and 'scores'.
         included_classes: Mapping from class ID to class name.
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
         score_threshold: Minimum score for a predicted box to be shown.
         max_pred_boxes: Maximum number of predicted boxes to show per image.
+        mean: Per-channel mean used for image normalization (for denormalization).
+        std: Per-channel std used for image normalization (for denormalization).
 
     Returns:
         A single PIL image containing up to max_images annotated images arranged

@@ -52,7 +52,6 @@ def _draw_bbox_label(
     rect_left = x1
     rect_right = x1 + label_width
 
-    # Ensure valid ordering for PIL.
     x0, x1_rect = sorted((rect_left, rect_right))
     y0, y1_rect = sorted((rect_top, rect_bottom))
 
@@ -82,10 +81,7 @@ def _denormalize_image(
         -1, 1, 1
     )
 
-    # Denormalize: x_denorm = x_norm * std + mean
     denormalized = image * std_tensor + mean_tensor
-
-    # Clamp to valid range [0, 1]
     denormalized = torch.clamp(denormalized, 0, 1)
 
     return denormalized
@@ -104,7 +100,6 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     Returns:
         RGB tuple with values in range [0, 255].
     """
-    # Generate hue based on class_id (0-1 range)
     # Use modulo to cycle through hue values with good distribution
     hue = (
         class_id * 0.618033988749895
@@ -114,10 +109,7 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     saturation = 0.9
     value = 0.95
 
-    # Convert HSV to RGB
     r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
-
-    # Convert to 0-255 range
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
