@@ -16,6 +16,8 @@ from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
 
+_DEFAULT_FONT = ImageFont.load_default(size=20)
+
 
 def _draw_bbox_label(
     draw: PILDraw,
@@ -26,26 +28,20 @@ def _draw_bbox_label(
 ) -> None:
     """Draw a highlighted label rectangle near a bounding box.
 
-    The label is drawn above the box when there is enough space; otherwise it is
-    drawn below. Coordinates are normalized so PIL always receives a valid
-    rectangle.
+    Draws above the box when there is enough space; otherwise draws below.
     """
     padding = 4
 
-    # Measure text
-    font = ImageFont.load_default(size=20)
-    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox = draw.textbbox((0, 0), text, font=_DEFAULT_FONT)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
 
-    # Normalize anchor coordinates
     x1 = float(x1)
     y1 = float(y1)
 
     label_width = text_width + 2 * padding
     label_height = text_height + 2 * padding
 
-    # Prefer drawing above the box; if that would go out of bounds, draw below.
     if y1 >= label_height:
         rect_top = y1 - label_height
         rect_bottom = y1
@@ -56,12 +52,12 @@ def _draw_bbox_label(
     rect_left = x1
     rect_right = x1 + label_width
 
-    # Ensure valid ordering for PIL
+    # Ensure valid ordering for PIL.
     x0, x1_rect = sorted((rect_left, rect_right))
     y0, y1_rect = sorted((rect_top, rect_bottom))
 
     draw.rectangle([x0, y0, x1_rect, y1_rect], fill=color, outline=color)
-    draw.text((x0 + padding, y0 + padding), text, fill="white", font=font)
+    draw.text((x0 + padding, y0 + padding), text, fill="white", font=_DEFAULT_FONT)
 
 
 def _denormalize_image(
@@ -77,7 +73,7 @@ def _denormalize_image(
         std: Tuple of std values used for normalization.
 
     Returns:
-        Denormalized tensor with values in [0, 1] or [0, 255] range depending on input.
+        Denormalized tensor with values clamped to the [0, 1] range.
     """
     mean_tensor = torch.tensor(mean, device=image.device, dtype=image.dtype).view(
         -1, 1, 1

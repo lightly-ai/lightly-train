@@ -53,9 +53,7 @@ def plot_object_detection_labels(
     for i in range(n):
         image_tensor = gt_images[i].clone()
         if mean is not None and std is not None:
-            image_tensor = _denormalize_image(
-                image=image_tensor, mean=mean, std=std
-            )
+            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
 
         _, img_height, img_width = image_tensor.shape
         img = torchvision_functional.to_pil_image(image_tensor)
@@ -64,7 +62,7 @@ def plot_object_detection_labels(
         boxes = gt_bboxes[i]
         class_ids = gt_classes[i]
         if len(boxes) > 0:
-            boxes_xyxy = _cxcywh_to_xyxy(boxes, img_width, img_height)
+            boxes_xyxy = _cxcywh_to_xyxy(boxes=boxes, w=img_width, h=img_height)
             for box, class_id in zip(boxes_xyxy, class_ids):
                 x1, y1, x2, y2 = box.tolist()
                 class_name = included_classes.get(
@@ -72,7 +70,13 @@ def plot_object_detection_labels(
                 )
                 color = _get_class_color(int(class_id))
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                _draw_bbox_label(draw, x1, y1, class_name, color)
+                _draw_bbox_label(
+                    draw=draw,
+                    x1=x1,
+                    y1=y1,
+                    text=class_name,
+                    color=color,
+                )
         pil_images.append(img)
 
     return _render_grid(pil_images)
@@ -164,8 +168,8 @@ def plot_object_detection_predictions(
                     draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                     _draw_bbox_label(
                         draw=draw,
-                        x=x1,
-                        y=y1,
+                        x1=x1,
+                        y1=y1,
                         text=f"{class_name} {score:.2f}",
                         color=color,
                     )
