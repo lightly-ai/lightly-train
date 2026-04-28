@@ -200,12 +200,12 @@ def _reuse_or_reinit(
     device = head_module.weight.device
 
     if num_classes_checkpoint > num_classes_module:
-        # Checkpoint has more classes: truncate to module's expected size
-        adjusted_weights = checkpoint_weight[:num_classes_module, :]
+        # Checkpoint has more classes: truncate to module's expected size.
+        adjusted_weights = checkpoint_weight[:num_classes_module, :].to(device)
         if checkpoint_bias is not None:
-            adjusted_biases = checkpoint_bias[:num_classes_module]
+            adjusted_biases = checkpoint_bias[:num_classes_module].to(device)
     else:
-        # Checkpoint has fewer classes: pad with module's initialized weights
+        # Checkpoint has fewer classes: pad with module's initialized weights.
         adjusted_weights = torch.cat(
             [
                 checkpoint_weight.to(device),
