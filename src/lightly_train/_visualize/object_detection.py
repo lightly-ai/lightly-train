@@ -121,7 +121,11 @@ def plot_object_detection_predictions(
     for i in range(n):
         image_tensor = gt_images[i].clone()
         if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image_tensor, mean, std)
+            image_tensor = _denormalize_image(
+                image=image_tensor,
+                mean=mean,
+                std=std,
+            )
 
         img = torchvision_functional.to_pil_image(image_tensor)
         draw = PILDraw(img)
