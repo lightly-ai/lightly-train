@@ -7,8 +7,6 @@
 #
 from __future__ import annotations
 
-import math
-
 import pytest
 import torch
 from torch import Tensor
@@ -22,16 +20,32 @@ def _make_batch(
     batch_size: int = 1,
     height: int = 32,
     width: int = 32,
-    image: Tensor | None = None,
     bboxes: list[Tensor] | None = None,
     classes: list[Tensor] | None = None,
 ) -> ObjectDetectionBatch:
-    if image is None:
-        image = torch.rand(batch_size, 3, height, width)
-    else:
-        batch_size = image.shape[0]
-        height = image.shape[2]
-        width = image.shape[3]
+    image = torch.rand(batch_size, 3, height, width)
+    if bboxes is None:
+        bboxes = [torch.zeros(0, 4) for _ in range(batch_size)]
+    if classes is None:
+        classes = [torch.zeros(0, dtype=torch.long) for _ in range(batch_size)]
+    return ObjectDetectionBatch(
+        image_path=[f"img_{i}.jpg" for i in range(batch_size)],
+        image=image,
+        bboxes=bboxes,
+        classes=classes,
+        original_size=[(width, height)] * batch_size,
+    )
+
+
+def _make_batch_from_image(
+    *,
+    image: Tensor,
+    bboxes: list[Tensor] | None = None,
+    classes: list[Tensor] | None = None,
+) -> ObjectDetectionBatch:
+    batch_size = image.shape[0]
+    height = image.shape[2]
+    width = image.shape[3]
     if bboxes is None:
         bboxes = [torch.zeros(0, 4) for _ in range(batch_size)]
     if classes is None:
@@ -82,15 +96,13 @@ class TestPlotObjectDetectionLabels:
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={}, max_images=2
         )
-        n_cols = math.ceil(math.sqrt(2))
-        n_rows = math.ceil(2 / n_cols)
-        assert result.size == (n_cols * 16, n_rows * 16)
+        assert result.size == (32, 16)
 
     def test_plot_object_detection_labels_bboxes_drawn(self) -> None:
         # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 16, 16] on a 32×32 image.
         bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]])]
         classes = [torch.tensor([1], dtype=torch.long)]
-        batch = _make_batch(
+        batch = _make_batch_from_image(
             image=torch.zeros(1, 3, 32, 32), bboxes=bboxes, classes=classes
         )
         result = object_detection.plot_object_detection_labels(
@@ -102,7 +114,7 @@ class TestPlotObjectDetectionLabels:
         # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 16, 16] on a 32×32 image.
         bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]])]
         classes = [torch.tensor([99], dtype=torch.long)]
-        batch = _make_batch(
+        batch = _make_batch_from_image(
             image=torch.zeros(1, 3, 32, 32), bboxes=bboxes, classes=classes
         )
         result = object_detection.plot_object_detection_labels(
@@ -111,7 +123,7 @@ class TestPlotObjectDetectionLabels:
         assert result.getpixel((0, 0)) != (0, 0, 0)
 
     def test_plot_object_detection_labels_mean_std_denormalizes_image(self) -> None:
-        batch = _make_batch(image=torch.zeros(1, 3, 32, 32))
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
         result = object_detection.plot_object_detection_labels(
             batch=batch,
             included_classes={},
@@ -120,6 +132,26 @@ class TestPlotObjectDetectionLabels:
             std=(0.5, 0.5, 0.5),
         )
         assert result.getextrema() != ((0, 0), (0, 0), (0, 0))
+
+    def test_plot_object_detection_labels_mixed_empty_nonempty_annotations(
+        self,
+    ) -> None:
+        # Image 0 has one box; image 1 has none.
+        # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 16, 16] on a 32×32 image.
+        bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]]), torch.zeros(0, 4)]
+        classes = [
+            torch.tensor([0], dtype=torch.long),
+            torch.zeros(0, dtype=torch.long),
+        ]
+        batch = _make_batch_from_image(
+            image=torch.zeros(2, 3, 32, 32), bboxes=bboxes, classes=classes
+        )
+        result = object_detection.plot_object_detection_labels(
+            batch=batch, included_classes={0: "cat"}, max_images=2
+        )
+        # Grid is 2×1 (64 wide, 32 tall): image 0 at x=0..31, image 1 at x=32..63.
+        assert result.getpixel((0, 0)) != (0, 0, 0)  # box edge drawn on image 0
+        assert result.getpixel((32, 0)) == (0, 0, 0)  # image 1 is clean
 
 
 class TestPlotObjectDetectionPredictions:
@@ -134,14 +166,12 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        n_cols = math.ceil(math.sqrt(2))
-        n_rows = math.ceil(2 / n_cols)
-        assert result.size == (n_cols * 16, n_rows * 16)
+        assert result.size == (32, 16)
 
     def test_plot_object_detection_predictions_empty_boxes_produces_clean_image(
         self,
     ) -> None:
-        batch = _make_batch(image=torch.zeros(1, 3, 32, 32))
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_results(batch_size=1, boxes_per_image=0, img_h=32, img_w=32),
@@ -152,11 +182,40 @@ class TestPlotObjectDetectionPredictions:
         )
         assert result.getextrema() == ((0, 0), (0, 0), (0, 0))
 
+    def test_plot_object_detection_predictions_mixed_empty_nonempty_annotations(
+        self,
+    ) -> None:
+        # Image 0 has one predicted box; image 1 has none.
+        batch = _make_batch_from_image(image=torch.zeros(2, 3, 32, 32))
+        results = [
+            {
+                "boxes": torch.tensor([[0.0, 0.0, 16.0, 16.0]]),
+                "labels": torch.zeros(1, dtype=torch.long),
+                "scores": torch.tensor([0.9]),
+            },
+            {
+                "boxes": torch.zeros(0, 4),
+                "labels": torch.zeros(0, dtype=torch.long),
+                "scores": torch.zeros(0),
+            },
+        ]
+        result = object_detection.plot_object_detection_predictions(
+            batch=batch,
+            results=results,
+            included_classes={0: "cat"},
+            max_images=2,
+            score_threshold=0.5,
+            max_pred_boxes=10,
+        )
+        # Grid is 2×1 (64 wide, 32 tall): image 0 at x=0..31, image 1 at x=32..63.
+        assert result.getpixel((0, 0)) != (0, 0, 0)  # box edge drawn on image 0
+        assert result.getpixel((32, 0)) == (0, 0, 0)  # image 1 is clean
+
     @pytest.mark.parametrize("score,drawn", [(0.9, True), (0.3, False)])
     def test_plot_object_detection_predictions_score_threshold(
         self, score: float, drawn: bool
     ) -> None:
-        batch = _make_batch(image=torch.zeros(1, 3, 64, 64))
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 64, 64))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=[
@@ -176,7 +235,7 @@ class TestPlotObjectDetectionPredictions:
     def test_plot_object_detection_predictions_max_pred_boxes_limits_drawn_boxes(
         self,
     ) -> None:
-        batch = _make_batch(image=torch.zeros(1, 3, 10, 400))
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 10, 400))
         # Generate 5 boxes (xyxy) with descending scores; only the top 3 should be drawn.
         # Boxes are 10×10 (square), spaced 20 pixels apart, starting at x=0.
         boxes = torch.tensor(
@@ -210,8 +269,8 @@ class TestPlotObjectDetectionPredictions:
         assert result.getpixel((355, 0)) == (0, 0, 0)
 
     def test_plot_object_detection_predictions_unknown_class_draws_box(self) -> None:
-        # check that a box is drawn even when the class ID isn't in included_classes; the label will just show the numeric class ID.
-        batch = _make_batch(image=torch.zeros(1, 3, 32, 32))
+        # Check that a box is drawn even when the class ID isn't in included_classes; the label will just show the numeric class ID.
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=[
@@ -231,8 +290,8 @@ class TestPlotObjectDetectionPredictions:
     def test_plot_object_detection_predictions_mean_std_denormalizes_image(
         self,
     ) -> None:
-        # check that the image is denormalized when mean and std are provided, by verifying that the output image isn't all black.
-        batch = _make_batch(image=torch.zeros(1, 3, 32, 32))
+        # Check that the image is denormalized when mean and std are provided, by verifying that the output image isn't all black.
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_results(batch_size=1, boxes_per_image=0, img_h=32, img_w=32),
@@ -246,7 +305,7 @@ class TestPlotObjectDetectionPredictions:
         assert result.getextrema() != ((0, 0), (0, 0), (0, 0))
 
     def test_plot_object_detection_predictions_bbox_scaling_uniform(self) -> None:
-        # check that bounding boxes are correctly scaled from original image coordinates to tensor coordinates, when the scaling is uniform (same factor for x and y).
+        # Check that bounding boxes are correctly scaled from original image coordinates to tensor coordinates, when the scaling is uniform (same factor for x and y).
         # Original image is 128×128; tensor is 64×64 (uniform 2× downscale).
         # Box at [64, 64, 128, 128] in original coords maps to [32, 32, 64, 64].
         batch = ObjectDetectionBatch(
@@ -274,7 +333,7 @@ class TestPlotObjectDetectionPredictions:
         assert result.getpixel((0, 0)) == (0, 0, 0)  # outside the scaled box
 
     def test_plot_object_detection_predictions_bbox_scaling_asymmetric(self) -> None:
-        # check that bounding boxes are correctly scaled from original image coordinates to tensor coordinates, when the scaling is asymmetric (different factors for x and y).
+        # Check that bounding boxes are correctly scaled from original image coordinates to tensor coordinates, when the scaling is asymmetric (different factors for x and y).
         # Original image is 128 wide × 64 tall; tensor is 64×64.
         # x-coords are halved, y-coords are unchanged.
         # Box at [96, 32, 128, 64] in original → [48, 32, 64, 64] in tensor.

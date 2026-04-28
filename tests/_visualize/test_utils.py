@@ -11,7 +11,7 @@ import math
 
 import pytest
 import torch
-from PIL import Image, ImageFont
+from PIL import Image
 from PIL.ImageDraw import ImageDraw
 
 from lightly_train._visualize import utils
@@ -99,9 +99,7 @@ class TestDrawBboxLabel:
         draw = ImageDraw(image)
         color = (0, 0, 255)
         text = "bird"
-        # Must use the same font as the implementation.
-        font = ImageFont.load_default(size=20)
-        bbox = draw.textbbox((0, 0), text, font=font)
+        bbox = draw.textbbox((0, 0), text, font=utils._DEFAULT_FONT)
         label_height = int(bbox[3] - bbox[1]) + 8  # text height + 2 * padding(4)
         utils._draw_bbox_label(
             draw=draw, x1=10, y1=label_height, text=text, color=color
