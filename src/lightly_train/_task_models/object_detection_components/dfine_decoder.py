@@ -27,6 +27,7 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 #     are not written into checkpoints.
 #  - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor that helper expects rather
 #     than a pre-split per-level tuple to reuse existing `deformable_attention_core_func_v2` in `utils.py` without modification.
+#  - Added FP32 guards around bbox refinement for stability in mixed precision
 from __future__ import annotations
 
 import copy
@@ -486,34 +487,64 @@ class TransformerDecoder(nn.Module):
                 query_pos_embed,
             )
 
-            if i == 0:
-                # Initial bounding box predictions with inverse sigmoid refinement
-                pre_bboxes = F.sigmoid(
-                    pre_bbox_head(output) + inverse_sigmoid(ref_points_detach)
-                )
-                pre_scores = score_head[0](output)
-                ref_points_initial = pre_bboxes.detach()
+            # Run the bbox refinement in fp32 to avoid fp16 overflow in the
+            # bbox_head / pre_bbox_head MLP outputs. The addition of MLP
+            # output and inverse_sigmoid(ref_points) before sigmoid is a
+            # known overflow hotspot in RTDETR-style decoders, especially
+            # with EMA weights that can drift into regions where the MLP
+            # output exceeds fp16's ~65K range.
+            with torch.amp.autocast(device_type=output.device.type, enabled=False):
+                output_fp32 = output.float()
 
-            # Refine bounding box corners using FDR, integrating previous layer's corrections
-            pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
-            inter_ref_bbox = distance2bbox(
-                ref_points_initial, integral(pred_corners, project), reg_scale
-            )
+                if i == 0:
+                    # Initial bounding box predictions with inverse sigmoid refinement
+                    ref_points_detach_fp32 = ref_points_detach.float()
+                    pre_bboxes_fp32 = F.sigmoid(
+                        pre_bbox_head(output_fp32)
+                        + inverse_sigmoid(ref_points_detach_fp32)
+                    )
+                    ref_points_initial_fp32 = pre_bboxes_fp32.detach()
+
+                    pre_scores = score_head[0](output)
+
+                # Refine bounding box corners using FDR, integrating previous
+                # layer's corrections.
+                bbox_head_input_fp32 = output_fp32
+                if isinstance(output_detach, torch.Tensor):
+                    output_detach_fp32 = output_detach.float()
+                    bbox_head_input_fp32 = bbox_head_input_fp32 + output_detach_fp32
+                pred_corners_fp32 = bbox_head[i](bbox_head_input_fp32)
+                if isinstance(pred_corners_undetach, torch.Tensor):
+                    pred_corners_undetach_fp32 = pred_corners_undetach.float()
+                    pred_corners_fp32 = pred_corners_fp32 + pred_corners_undetach_fp32
+
+                inter_ref_bbox_fp32 = distance2bbox(
+                    ref_points_initial_fp32,
+                    integral(pred_corners_fp32, project),
+                    reg_scale,
+                )
 
             if self.training or i == self.eval_idx:
                 scores = score_head[i](output)
+                pred_corners = pred_corners_fp32.to(output.dtype)
                 # Lqe does not affect the performance here.
                 scores = self.lqe_layers[i](scores, pred_corners)
-                dec_out_logits.append(scores)
-                dec_out_bboxes.append(inter_ref_bbox)
-                dec_out_pred_corners.append(pred_corners)
-                dec_out_refs.append(ref_points_initial)
 
-                if not self.training:
+                dec_out_logits.append(scores)
+                if self.training:
+                    # Use FP32 for training (loss numerical stability).
+                    dec_out_bboxes.append(inter_ref_bbox_fp32)
+                    dec_out_pred_corners.append(pred_corners_fp32)
+                    dec_out_refs.append(ref_points_initial_fp32)
+                else:
+                    # Use FP16 for evaluation.
+                    dec_out_bboxes.append(inter_ref_bbox_fp32.to(output.dtype))
+                    dec_out_pred_corners.append(pred_corners)
+                    dec_out_refs.append(ref_points_initial_fp32.to(output.dtype))
                     break
 
-            pred_corners_undetach = pred_corners
-            ref_points_detach = inter_ref_bbox.detach()
+            pred_corners_undetach = pred_corners_fp32
+            ref_points_detach = inter_ref_bbox_fp32.detach().to(dtype=output.dtype)
             output_detach = output.detach()
 
         return (
@@ -521,7 +552,7 @@ class TransformerDecoder(nn.Module):
             torch.stack(dec_out_logits),
             torch.stack(dec_out_pred_corners),
             torch.stack(dec_out_refs),
-            pre_bboxes,
+            pre_bboxes_fp32,
             pre_scores,
         )
 
