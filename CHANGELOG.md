@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Added decoder and losses from [D-FINE](https://github.com/Peterande/D-FINE).
+
 ### Changed
 
 ### Deprecated

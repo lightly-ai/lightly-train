@@ -988,7 +988,7 @@ class DFINETransformer(nn.Module):
         )
 
         # decoder
-        out_bboxes, out_logits, _out_corners, _out_refs, _pre_bboxes, _pre_logits = (
+        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = (
             self.decoder(
                 init_ref_contents,
                 init_ref_points_unact,
@@ -1007,40 +1007,69 @@ class DFINETransformer(nn.Module):
         )
 
         if self.training and dn_meta is not None:
+            dn_pre_logits, pre_logits = torch.split(
+                pre_logits, dn_meta["dn_num_split"], dim=1
+            )
+            dn_pre_bboxes, pre_bboxes = torch.split(
+                pre_bboxes, dn_meta["dn_num_split"], dim=1
+            )
             dn_out_bboxes, out_bboxes = torch.split(
                 out_bboxes, dn_meta["dn_num_split"], dim=2
             )
             dn_out_logits, out_logits = torch.split(
                 out_logits, dn_meta["dn_num_split"], dim=2
             )
-            # TODO (Yutong, 04/26): D-FINE loss also requires splitting ``_out_corners`` /
-            # ``_out_refs`` and ``_pre_logits`` / ``_pre_bboxes`` here, and
-            # returning the denoising halves as ``dn_outputs`` /
-            # ``dn_pre_outputs`` in ``out`` below.
 
-        out = {
-            "pred_logits": out_logits[-1],
-            "pred_boxes": out_bboxes[-1],
-        }
-        # TODO (Yutong, 04/26): For the D-FINE loss, also expose ``pred_corners``,
-        # ``ref_points``, ``up``, and ``reg_scale`` here during training so that
-        # the FGL/DDF terms can be computed.
+            dn_out_corners, out_corners = torch.split(
+                out_corners, dn_meta["dn_num_split"], dim=2
+            )
+            dn_out_refs, out_refs = torch.split(
+                out_refs, dn_meta["dn_num_split"], dim=2
+            )
+
+        if self.training:
+            out = {
+                "pred_logits": out_logits[-1],
+                "pred_boxes": out_bboxes[-1],
+                "pred_corners": out_corners[-1],
+                "ref_points": out_refs[-1],
+                "up": self.up,
+                "reg_scale": self.reg_scale,
+            }
+        else:
+            out = {
+                "pred_logits": out_logits[-1],
+                "pred_boxes": out_bboxes[-1],
+            }
 
         if self.training and self.aux_loss:
-            # TODO (Yutong, 04/26): For the D-FINE loss, ``aux_outputs`` / ``dn_outputs`` should
-            # be built with ``_set_aux_loss2`` to also carry ``pred_corners``,
-            # ``ref_points`` and the last-layer teacher distributions
-            # (``teacher_corners`` / ``teacher_logits``) used by the DDF
-            # distillation term. The ``pre_outputs`` / ``dn_pre_outputs`` dicts
-            # (from ``_pre_bboxes`` / ``_pre_logits``) are also missing.
-            out["aux_outputs"] = self._set_aux_loss(out_logits[:-1], out_bboxes[:-1])
+            out["aux_outputs"] = self._set_aux_loss2(
+                out_logits[:-1],
+                out_bboxes[:-1],
+                out_corners[:-1],
+                out_refs[:-1],
+                out_corners[-1],
+                out_logits[-1],
+            )
             out["enc_aux_outputs"] = self._set_aux_loss(
                 enc_topk_logits_list, enc_topk_bboxes_list
             )
+            out["pre_outputs"] = {"pred_logits": pre_logits, "pred_boxes": pre_bboxes}
             out["enc_meta"] = {"class_agnostic": self.query_select_method == "agnostic"}
 
             if dn_meta is not None:
-                out["dn_aux_outputs"] = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
+                out["dn_outputs"] = self._set_aux_loss2(
+                    dn_out_logits,
+                    dn_out_bboxes,
+                    dn_out_corners,
+                    dn_out_refs,
+                    dn_out_corners[-1],
+                    dn_out_logits[-1],
+                )
+                out["dn_pre_outputs"] = {
+                    "pred_logits": dn_pre_logits,
+                    "pred_boxes": dn_pre_bboxes,
+                }
                 out["dn_meta"] = dn_meta
 
         return out
@@ -1055,9 +1084,29 @@ class DFINETransformer(nn.Module):
             for a, b in zip(outputs_class, outputs_coord)
         ]
 
-
-# TODO (Yutong, 04/26):
-# Replace the ``_set_aux_loss`` call for ``aux_outputs`` / ``dn_outputs``
-#     with the ``_set_aux_loss2`` variant that forwards ``out_corners``,
-#     ``out_refs``, and the last-layer ``teacher_corners``/``teacher_logits``
-#     used for self-distillation (DDF).
+    @torch.jit.unused
+    def _set_aux_loss2(
+        self,
+        outputs_class,
+        outputs_coord,
+        outputs_corners,
+        outputs_ref,
+        teacher_corners=None,
+        teacher_logits=None,
+    ):
+        # this is a workaround to make torchscript happy, as torchscript
+        # doesn't support dictionary with non-homogeneous values, such
+        # as a dict having both a Tensor and a list.
+        return [
+            {
+                "pred_logits": a,
+                "pred_boxes": b,
+                "pred_corners": c,
+                "ref_points": d,
+                "teacher_corners": teacher_corners,
+                "teacher_logits": teacher_logits,
+            }
+            for a, b, c, d in zip(
+                outputs_class, outputs_coord, outputs_corners, outputs_ref
+            )
+        ]
