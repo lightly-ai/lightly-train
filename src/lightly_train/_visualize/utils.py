@@ -16,7 +16,10 @@ from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
 
-_DEFAULT_FONT = ImageFont.load_default(size=20)
+try:
+    _DEFAULT_FONT = ImageFont.load_default(size=20)
+except TypeError:
+    _DEFAULT_FONT = ImageFont.load_default()
 
 
 def _draw_bbox_label(
