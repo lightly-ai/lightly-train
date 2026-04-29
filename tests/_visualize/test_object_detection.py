@@ -15,10 +15,6 @@ from torch import Tensor
 from lightly_train._visualize import object_detection, utils
 from lightly_train.types import ObjectDetectionBatch
 
-# Tensor channel value and corresponding PIL pixel for black-background images.
-# The exact RGB tuples produced by `_get_class_color` are pinned once in
-# test_utils.py; visualizer tests below call `utils._get_class_color` so a wrong
-# class ID, channel swap, or missing color lookup still fails loudly.
 _BACKGROUND_COLOR: float = 0.0
 _BACKGROUND_PIXEL: tuple[int, int, int] = (0, 0, 0)
 
@@ -84,8 +80,6 @@ def _assert_bbox_corners_have_color(
     xyxy: tuple[int, int, int, int],
     color: tuple[int, int, int],
 ) -> None:
-    # PIL's `draw.rectangle` with an outline paints both endpoint pixels, so the
-    # four corner pixels of a box drawn at `xyxy` must equal the class color.
     x1, y1, x2, y2 = xyxy
     assert image.getpixel((x1, y1)) == color
     assert image.getpixel((x2, y1)) == color
@@ -271,7 +265,7 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0..63, image 1 at x=64..127.
+        # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0...63, image 1 at x=64...127.
         _assert_bbox_corners_have_color(
             image=result, xyxy=(8, 8, 56, 56), color=utils._get_class_color(0)
         )
