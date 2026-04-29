@@ -102,7 +102,9 @@ class TestPlotObjectDetectionLabels:
         bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]])]
         classes = [torch.tensor([1], dtype=torch.long)]
         batch = _make_batch_from_image(
-            image=torch.zeros(1, 3, 128, 128), bboxes=bboxes, classes=classes
+            image=torch.full((1, 3, 128, 128), _BACKGROUND_COLOR),
+            bboxes=bboxes,
+            classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={1: "dog"}, max_images=1
@@ -124,7 +126,9 @@ class TestPlotObjectDetectionLabels:
         bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]])]
         classes = [torch.tensor([99], dtype=torch.long)]
         batch = _make_batch_from_image(
-            image=torch.zeros(1, 3, 128, 128), bboxes=bboxes, classes=classes
+            image=torch.full((1, 3, 128, 128), _BACKGROUND_COLOR),
+            bboxes=bboxes,
+            classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={}, max_images=1
@@ -197,7 +201,9 @@ class TestPlotObjectDetectionLabels:
             torch.zeros(0, dtype=torch.long),
         ]
         batch = _make_batch_from_image(
-            image=torch.zeros(2, 3, 64, 64), bboxes=bboxes, classes=classes
+            image=torch.full((2, 3, 64, 64), _BACKGROUND_COLOR),
+            bboxes=bboxes,
+            classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={0: "cat"}, max_images=2
@@ -228,7 +234,9 @@ class TestPlotObjectDetectionPredictions:
     def test_plot_object_detection_predictions_empty_boxes_produces_clean_image(
         self,
     ) -> None:
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
+        batch = _make_batch_from_image(
+            image=torch.full((1, 3, 32, 32), _BACKGROUND_COLOR)
+        )
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_empty_results(batch_size=1),
@@ -244,7 +252,9 @@ class TestPlotObjectDetectionPredictions:
         self,
     ) -> None:
         # Image 0 has one predicted box; image 1 has none.
-        batch = _make_batch_from_image(image=torch.zeros(2, 3, 64, 64))
+        batch = _make_batch_from_image(
+            image=torch.full((2, 3, 64, 64), _BACKGROUND_COLOR)
+        )
         results = [
             {
                 "boxes": torch.tensor([[8.0, 8.0, 56.0, 56.0]]),
@@ -277,7 +287,9 @@ class TestPlotObjectDetectionPredictions:
     def test_plot_object_detection_predictions_score_threshold(
         self, score: float, drawn: bool
     ) -> None:
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 128, 128))
+        batch = _make_batch_from_image(
+            image=torch.full((1, 3, 128, 128), _BACKGROUND_COLOR)
+        )
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=[
@@ -362,7 +374,9 @@ class TestPlotObjectDetectionPredictions:
     def test_plot_object_detection_predictions_unknown_class_draws_box(self) -> None:
         # Check that a box is drawn even when the class ID isn't in included_classes;
         # the label shows the numeric class ID.
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 128, 128))
+        batch = _make_batch_from_image(
+            image=torch.full((1, 3, 128, 128), _BACKGROUND_COLOR)
+        )
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=[
@@ -443,7 +457,7 @@ class TestPlotObjectDetectionPredictions:
         # Box at [8, 8, 120, 120] in original coords maps to [4, 4, 60, 60] in tensor.
         batch = ObjectDetectionBatch(
             image_path=["img_0.jpg"],
-            image=torch.zeros(1, 3, 64, 64),
+            image=torch.full((1, 3, 64, 64), _BACKGROUND_COLOR),
             bboxes=[torch.zeros(0, 4)],
             classes=[torch.zeros(0, dtype=torch.long)],
             original_size=[(128, 128)],
@@ -475,7 +489,7 @@ class TestPlotObjectDetectionPredictions:
         # Box at [8, 8, 120, 48] in original -> [4, 8, 60, 48] in tensor.
         batch = ObjectDetectionBatch(
             image_path=["img_0.jpg"],
-            image=torch.zeros(1, 3, 64, 64),
+            image=torch.full((1, 3, 64, 64), _BACKGROUND_COLOR),
             bboxes=[torch.zeros(0, 4)],
             classes=[torch.zeros(0, dtype=torch.long)],
             original_size=[(128, 64)],
