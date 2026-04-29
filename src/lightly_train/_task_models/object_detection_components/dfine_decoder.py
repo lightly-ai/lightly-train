@@ -525,21 +525,23 @@ class TransformerDecoder(nn.Module):
                 )
 
             if self.training or i == self.eval_idx:
-                scores = score_head[i](output)
-                pred_corners = pred_corners_fp32.to(output.dtype)
-                # Lqe does not affect the performance here.
-                scores = self.lqe_layers[i](scores, pred_corners)
+                with torch.amp.autocast(device_type=output.device.type, enabled=False):
+                    output_fp32 = output.float()
+                    scores_fp32 = score_head[i](output_fp32)
+                    # Lqe does not affect the performance here.
+                    scores_fp32 = self.lqe_layers[i](scores_fp32, pred_corners_fp32)
 
-                dec_out_logits.append(scores)
                 if self.training:
                     # Use FP32 for training (loss numerical stability).
+                    dec_out_logits.append(scores_fp32)
                     dec_out_bboxes.append(inter_ref_bbox_fp32)
                     dec_out_pred_corners.append(pred_corners_fp32)
                     dec_out_refs.append(ref_points_initial_fp32)
                 else:
                     # Use FP16 for evaluation.
+                    dec_out_logits.append(scores_fp32.to(output.dtype))
                     dec_out_bboxes.append(inter_ref_bbox_fp32.to(output.dtype))
-                    dec_out_pred_corners.append(pred_corners)
+                    dec_out_pred_corners.append(pred_corners_fp32.to(output.dtype))
                     dec_out_refs.append(ref_points_initial_fp32.to(output.dtype))
                     break
 
