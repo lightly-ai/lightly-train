@@ -9,10 +9,18 @@ from __future__ import annotations
 
 import pytest
 import torch
+from PIL.Image import Image as PILImage
 from torch import Tensor
 
-from lightly_train._visualize import object_detection
+from lightly_train._visualize import object_detection, utils
 from lightly_train.types import ObjectDetectionBatch
+
+# Tensor channel value and corresponding PIL pixel for black-background images.
+# The exact RGB tuples produced by `_get_class_color` are pinned once in
+# test_utils.py; visualizer tests below call `utils._get_class_color` so a wrong
+# class ID, channel swap, or missing color lookup still fails loudly.
+_BACKGROUND_COLOR: float = 0.0
+_BACKGROUND_PIXEL: tuple[int, int, int] = (0, 0, 0)
 
 
 def _make_batch(
@@ -59,35 +67,30 @@ def _make_batch_from_image(
     )
 
 
-def _make_results(
+def _make_empty_results(*, batch_size: int = 1) -> list[dict[str, Tensor]]:
+    return [
+        {
+            "boxes": torch.zeros(0, 4),
+            "labels": torch.zeros(0, dtype=torch.long),
+            "scores": torch.zeros(0),
+        }
+        for _ in range(batch_size)
+    ]
+
+
+def _assert_bbox_corners_have_color(
     *,
-    batch_size: int = 1,
-    boxes_per_image: int = 0,
-    score: float = 1.0,
-    img_h: int = 32,
-    img_w: int = 32,
-) -> list[dict[str, Tensor]]:
-    results = []
-    for _ in range(batch_size):
-        if boxes_per_image == 0:
-            results.append(
-                {
-                    "boxes": torch.zeros(0, 4),
-                    "labels": torch.zeros(0, dtype=torch.long),
-                    "scores": torch.zeros(0),
-                }
-            )
-        else:
-            results.append(
-                {
-                    "boxes": torch.tensor(
-                        [[0.0, 0.0, img_w / 2, img_h / 2]] * boxes_per_image
-                    ),
-                    "labels": torch.zeros(boxes_per_image, dtype=torch.long),
-                    "scores": torch.full((boxes_per_image,), score),
-                }
-            )
-    return results
+    image: PILImage,
+    xyxy: tuple[int, int, int, int],
+    color: tuple[int, int, int],
+) -> None:
+    # PIL's `draw.rectangle` with an outline paints both endpoint pixels, so the
+    # four corner pixels of a box drawn at `xyxy` must equal the class color.
+    x1, y1, x2, y2 = xyxy
+    assert image.getpixel((x1, y1)) == color
+    assert image.getpixel((x2, y1)) == color
+    assert image.getpixel((x1, y2)) == color
+    assert image.getpixel((x2, y2)) == color
 
 
 class TestPlotObjectDetectionLabels:
@@ -99,65 +102,125 @@ class TestPlotObjectDetectionLabels:
         assert result.size == (32, 16)
 
     def test_plot_object_detection_labels_bboxes_drawn(self) -> None:
-        # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 16, 16] on a 32×32 image.
+        # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 64, 64] on a 128×128 image.
+        # The image is large enough that the box interior (center) is clear of both
+        # the outline and the label rectangle, so it stays background color.
         bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]])]
         classes = [torch.tensor([1], dtype=torch.long)]
         batch = _make_batch_from_image(
-            image=torch.zeros(1, 3, 32, 32), bboxes=bboxes, classes=classes
+            image=torch.zeros(1, 3, 128, 128), bboxes=bboxes, classes=classes
         )
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={1: "dog"}, max_images=1
         )
-        assert result.getpixel((0, 0)) != (0, 0, 0)
+        # All four corners of the bbox outline must be painted with class 1's color.
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(0, 0, 64, 64), color=utils._get_class_color(1)
+        )
+        # The label rectangle fills its interior with the class color. (2, 2) sits
+        # in the top-left padding of the label — off the outline, before any glyph.
+        assert result.getpixel((2, 2)) == utils._get_class_color(1)
+        # The box interior is not filled — only the outline and label are drawn.
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
+        # A pixel outside the box stays untouched.
+        assert result.getpixel((127, 127)) == _BACKGROUND_PIXEL
 
     def test_plot_object_detection_labels_unknown_class_draws_box(self) -> None:
-        # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 16, 16] on a 32×32 image.
+        # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 64, 64] on a 128×128 image.
         bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]])]
         classes = [torch.tensor([99], dtype=torch.long)]
         batch = _make_batch_from_image(
-            image=torch.zeros(1, 3, 32, 32), bboxes=bboxes, classes=classes
+            image=torch.zeros(1, 3, 128, 128), bboxes=bboxes, classes=classes
         )
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={}, max_images=1
         )
-        assert result.getpixel((0, 0)) != (0, 0, 0)
+        # Unknown class IDs still get a deterministic color from `_get_class_color`.
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(0, 0, 64, 64), color=utils._get_class_color(99)
+        )
+        assert result.getpixel((2, 2)) == utils._get_class_color(99)
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
+        assert result.getpixel((127, 127)) == _BACKGROUND_PIXEL
 
-    def test_plot_object_detection_labels_mean_std_denormalizes_image(self) -> None:
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
+    @pytest.mark.parametrize(
+        "image_value, mean, std, expected_pixel",
+        [
+            # image=0 -> denormalized = mean. Per-channel means verify channel order.
+            # (0.2, 0.4, 0.6) * 255 = (51, 102, 153).
+            (0.0, (0.2, 0.4, 0.6), (0.5, 0.5, 0.5), (51, 102, 153)),
+            # Non-zero image: pixel = image * std + mean.
+            # 0.4 * 0.5 + 0.5 = 0.7 -> 178 (PIL truncates 0.7 * 255 = 178.5).
+            (0.4, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (178, 178, 178)),
+            # Per-channel std with zero mean: 0.5 * (0.2, 0.4, 0.6) = (0.1, 0.2, 0.3)
+            # -> (25, 51, 76).
+            (0.5, (0.0, 0.0, 0.0), (0.2, 0.4, 0.6), (25, 51, 76)),
+            # Values > 1 are clamped to 1 -> 255.
+            (5.0, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (255, 255, 255)),
+            # Values < 0 are clamped to 0.
+            (-5.0, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0, 0, 0)),
+        ],
+    )
+    def test_plot_object_detection_labels_mean_std_denormalizes_image(
+        self,
+        image_value: float,
+        mean: tuple[float, float, float],
+        std: tuple[float, float, float],
+        expected_pixel: tuple[int, int, int],
+    ) -> None:
+        batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), image_value))
         result = object_detection.plot_object_detection_labels(
             batch=batch,
             included_classes={},
             max_images=1,
-            mean=(0.5, 0.5, 0.5),
-            std=(0.5, 0.5, 0.5),
+            mean=mean,
+            std=std,
         )
-        assert result.getextrema() != ((0, 0), (0, 0), (0, 0))
+        # No bboxes are drawn, so every pixel reflects the denormalized image.
+        assert result.getpixel((0, 0)) == expected_pixel
+        assert result.getpixel((31, 31)) == expected_pixel
+
+    def test_plot_object_detection_labels_no_mean_std_skips_denormalization(
+        self,
+    ) -> None:
+        # Without mean/std, the image tensor is passed through unchanged.
+        # Uniform 0.4 -> 102.
+        batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), 0.4))
+        result = object_detection.plot_object_detection_labels(
+            batch=batch, included_classes={}, max_images=1
+        )
+        assert result.getpixel((0, 0)) == (102, 102, 102)
+        assert result.getpixel((31, 31)) == (102, 102, 102)
 
     def test_plot_object_detection_labels_mixed_empty_nonempty_annotations(
         self,
     ) -> None:
         # Image 0 has one box; image 1 has none.
-        # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 16, 16] on a 32×32 image.
-        bboxes = [torch.tensor([[0.25, 0.25, 0.5, 0.5]]), torch.zeros(0, 4)]
+        # cxcywh [0.5, 0.5, 0.75, 0.75] maps to xyxy [8, 8, 56, 56] on a 64×64 image.
+        bboxes = [torch.tensor([[0.5, 0.5, 0.75, 0.75]]), torch.zeros(0, 4)]
         classes = [
             torch.tensor([0], dtype=torch.long),
             torch.zeros(0, dtype=torch.long),
         ]
         batch = _make_batch_from_image(
-            image=torch.zeros(2, 3, 32, 32), bboxes=bboxes, classes=classes
+            image=torch.zeros(2, 3, 64, 64), bboxes=bboxes, classes=classes
         )
         result = object_detection.plot_object_detection_labels(
             batch=batch, included_classes={0: "cat"}, max_images=2
         )
-        # Grid is 2×1 (64 wide, 32 tall): image 0 at x=0..31, image 1 at x=32..63.
-        assert result.getpixel((0, 0)) != (0, 0, 0)  # box edge drawn on image 0
-        assert result.getpixel((32, 0)) == (0, 0, 0)  # image 1 is clean
+        # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0..63, image 1 at x=64..127.
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(8, 8, 56, 56), color=utils._get_class_color(0)
+        )
+        assert result.getpixel((60, 60)) == _BACKGROUND_PIXEL
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
+        assert result.getpixel((64, 0)) == _BACKGROUND_PIXEL
 
 
 class TestPlotObjectDetectionPredictions:
     def test_plot_object_detection_predictions_grid_caps_at_max_images(self) -> None:
         batch = _make_batch(batch_size=4, height=16, width=16)
-        results = _make_results(batch_size=4, img_h=16, img_w=16)
+        results = _make_empty_results(batch_size=4)
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=results,
@@ -174,22 +237,23 @@ class TestPlotObjectDetectionPredictions:
         batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
-            results=_make_results(batch_size=1, boxes_per_image=0, img_h=32, img_w=32),
+            results=_make_empty_results(batch_size=1),
             included_classes={},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        assert result.getextrema() == ((0, 0), (0, 0), (0, 0))
+        assert result.getpixel((0, 0)) == _BACKGROUND_PIXEL
+        assert result.getpixel((31, 31)) == _BACKGROUND_PIXEL
 
     def test_plot_object_detection_predictions_mixed_empty_nonempty_annotations(
         self,
     ) -> None:
         # Image 0 has one predicted box; image 1 has none.
-        batch = _make_batch_from_image(image=torch.zeros(2, 3, 32, 32))
+        batch = _make_batch_from_image(image=torch.zeros(2, 3, 64, 64))
         results = [
             {
-                "boxes": torch.tensor([[0.0, 0.0, 16.0, 16.0]]),
+                "boxes": torch.tensor([[8.0, 8.0, 56.0, 56.0]]),
                 "labels": torch.zeros(1, dtype=torch.long),
                 "scores": torch.tensor([0.9]),
             },
@@ -207,20 +271,24 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        # Grid is 2×1 (64 wide, 32 tall): image 0 at x=0..31, image 1 at x=32..63.
-        assert result.getpixel((0, 0)) != (0, 0, 0)  # box edge drawn on image 0
-        assert result.getpixel((32, 0)) == (0, 0, 0)  # image 1 is clean
+        # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0..63, image 1 at x=64..127.
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(8, 8, 56, 56), color=utils._get_class_color(0)
+        )
+        assert result.getpixel((60, 60)) == _BACKGROUND_PIXEL
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
+        assert result.getpixel((64, 0)) == _BACKGROUND_PIXEL
 
     @pytest.mark.parametrize("score,drawn", [(0.9, True), (0.3, False)])
     def test_plot_object_detection_predictions_score_threshold(
         self, score: float, drawn: bool
     ) -> None:
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 64, 64))
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 128, 128))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=[
                 {
-                    "boxes": torch.tensor([[0.0, 0.0, 32.0, 32.0]]),
+                    "boxes": torch.tensor([[0.0, 0.0, 64.0, 64.0]]),
                     "labels": torch.zeros(1, dtype=torch.long),
                     "scores": torch.tensor([score]),
                 }
@@ -230,21 +298,38 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        assert (result.getpixel((0, 0)) != (0, 0, 0)) == drawn
+        # When the score is above threshold, the four bbox corners must be
+        # painted with class 0's color; when below, the box is filtered out and
+        # all four corner pixels stay black.
+        expected = utils._get_class_color(0) if drawn else _BACKGROUND_PIXEL
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(0, 0, 64, 64), color=expected
+        )
+        # The box interior is never filled — only the outline is drawn.
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
 
     def test_plot_object_detection_predictions_max_pred_boxes_limits_drawn_boxes(
         self,
     ) -> None:
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 10, 400))
-        # Generate 5 boxes (xyxy) with descending scores; only the top 3 should be drawn.
-        # Boxes are 10×10 (square), spaced 20 pixels apart, starting at x=0.
+        # Each box gets a distinct class (and therefore a distinct color), and
+        # scores are scrambled so the kept set is determined by score rank rather
+        # than insertion order. Scores: top-3 are box 1 (0.95), box 3 (0.85),
+        # box 4 (0.75). Boxes 0 (0.60) and 2 (0.55) are dropped, even though box
+        # 0 comes first and box 2 sits between two kept boxes.
+        # All scores are > score_threshold=0.5, so the only filter is max_pred_boxes.
+        # Boxes are 24 px tall so the label rectangle (~19 px tall with the default
+        # font) does not reach the bottom corners. Boxes are spaced 120 px apart so
+        # each kept box's label (~80 px wide) cannot reach the next box's region.
+        batch = _make_batch_from_image(
+            image=torch.full((1, 3, 32, 600), _BACKGROUND_COLOR)
+        )
         boxes = torch.tensor(
             [
-                [0.0, 0.0, 10.0, 10.0],
-                [20.0, 0.0, 30.0, 10.0],
-                [40.0, 0.0, 50.0, 10.0],
-                [300.0, 0.0, 310.0, 10.0],  # suppressed by max_pred_boxes=3
-                [350.0, 0.0, 360.0, 10.0],  # suppressed by max_pred_boxes=3
+                [0.0, 0.0, 10.0, 24.0],  # class 0, score 0.60 -> suppressed
+                [120.0, 0.0, 130.0, 24.0],  # class 1, score 0.95 -> kept
+                [240.0, 0.0, 250.0, 24.0],  # class 2, score 0.55 -> suppressed
+                [360.0, 0.0, 370.0, 24.0],  # class 3, score 0.85 -> kept
+                [480.0, 0.0, 490.0, 24.0],  # class 4, score 0.75 -> kept
             ]
         )
         result = object_detection.plot_object_detection_predictions(
@@ -252,30 +337,43 @@ class TestPlotObjectDetectionPredictions:
             results=[
                 {
                     "boxes": boxes,
-                    "labels": torch.zeros(5, dtype=torch.long),
-                    "scores": torch.tensor([0.90, 0.80, 0.70, 0.60, 0.55]),
+                    "labels": torch.tensor([0, 1, 2, 3, 4], dtype=torch.long),
+                    "scores": torch.tensor([0.60, 0.95, 0.55, 0.85, 0.75]),
                 }
             ],
-            included_classes={0: "cat"},
+            included_classes={i: f"c{i}" for i in range(5)},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=3,
         )
-        # Only the first 3 boxes should be drawn; the last 2 should be suppressed.
-        assert result.getpixel((5, 0)) != (0, 0, 0)
-        assert result.getpixel((25, 0)) != (0, 0, 0)
-        assert result.getpixel((45, 0)) != (0, 0, 0)
-        assert result.getpixel((305, 0)) == (0, 0, 0)
-        assert result.getpixel((355, 0)) == (0, 0, 0)
+        # Suppressed boxes leave all four corners black.
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(0, 0, 10, 24), color=_BACKGROUND_PIXEL
+        )
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(240, 0, 250, 24), color=_BACKGROUND_PIXEL
+        )
+        # Kept boxes paint all four corners with their own class color, so a
+        # color regression (e.g. all boxes drawn in class 0's color) fails here.
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(120, 0, 130, 24), color=utils._get_class_color(1)
+        )
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(360, 0, 370, 24), color=utils._get_class_color(3)
+        )
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(480, 0, 490, 24), color=utils._get_class_color(4)
+        )
 
     def test_plot_object_detection_predictions_unknown_class_draws_box(self) -> None:
-        # Check that a box is drawn even when the class ID isn't in included_classes; the label will just show the numeric class ID.
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
+        # Check that a box is drawn even when the class ID isn't in included_classes;
+        # the label shows the numeric class ID.
+        batch = _make_batch_from_image(image=torch.zeros(1, 3, 128, 128))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=[
                 {
-                    "boxes": torch.tensor([[0.0, 0.0, 16.0, 16.0]]),
+                    "boxes": torch.tensor([[0.0, 0.0, 64.0, 64.0]]),
                     "labels": torch.tensor([42], dtype=torch.long),
                     "scores": torch.tensor([0.9]),
                 }
@@ -285,29 +383,70 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        assert result.getpixel((0, 0)) != (0, 0, 0)
+        # Class 42 is not in `included_classes` but still gets its deterministic
+        # color from `_get_class_color` (label shows "Class 42" in white).
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(0, 0, 64, 64), color=utils._get_class_color(42)
+        )
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
 
+    @pytest.mark.parametrize(
+        "image_value, mean, std, expected_pixel",
+        [
+            # image=0 -> denormalized = mean.
+            (0.0, (0.2, 0.4, 0.6), (0.5, 0.5, 0.5), (51, 102, 153)),
+            # Non-zero image: pixel = image * std + mean = 0.7 -> 178.
+            (0.4, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (178, 178, 178)),
+            # Per-channel std: 0.5 * (0.2, 0.4, 0.6) = (0.1, 0.2, 0.3) -> (25, 51, 76).
+            (0.5, (0.0, 0.0, 0.0), (0.2, 0.4, 0.6), (25, 51, 76)),
+            # Clamping above 1 -> 255 and below 0 -> 0.
+            (5.0, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (255, 255, 255)),
+            (-5.0, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0, 0, 0)),
+        ],
+    )
     def test_plot_object_detection_predictions_mean_std_denormalizes_image(
         self,
+        image_value: float,
+        mean: tuple[float, float, float],
+        std: tuple[float, float, float],
+        expected_pixel: tuple[int, int, int],
     ) -> None:
-        # Check that the image is denormalized when mean and std are provided, by verifying that the output image isn't all black.
-        batch = _make_batch_from_image(image=torch.zeros(1, 3, 32, 32))
+        batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), image_value))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
-            results=_make_results(batch_size=1, boxes_per_image=0, img_h=32, img_w=32),
+            results=_make_empty_results(batch_size=1),
             included_classes={},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
-            mean=(0.5, 0.5, 0.5),
-            std=(0.5, 0.5, 0.5),
+            mean=mean,
+            std=std,
         )
-        assert result.getextrema() != ((0, 0), (0, 0), (0, 0))
+        # No predicted boxes pass the threshold, so every pixel reflects the
+        # denormalized image.
+        assert result.getpixel((0, 0)) == expected_pixel
+        assert result.getpixel((31, 31)) == expected_pixel
+
+    def test_plot_object_detection_predictions_no_mean_std_skips_denormalization(
+        self,
+    ) -> None:
+        # Without mean/std, the image tensor is passed through unchanged.
+        # Uniform 0.4 -> 102.
+        batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), 0.4))
+        result = object_detection.plot_object_detection_predictions(
+            batch=batch,
+            results=_make_empty_results(batch_size=1),
+            included_classes={},
+            max_images=1,
+            score_threshold=0.5,
+            max_pred_boxes=10,
+        )
+        assert result.getpixel((0, 0)) == (102, 102, 102)
+        assert result.getpixel((31, 31)) == (102, 102, 102)
 
     def test_plot_object_detection_predictions_bbox_scaling_uniform(self) -> None:
-        # Check that bounding boxes are correctly scaled from original image coordinates to tensor coordinates, when the scaling is uniform (same factor for x and y).
         # Original image is 128×128; tensor is 64×64 (uniform 2× downscale).
-        # Box at [64, 64, 128, 128] in original coords maps to [32, 32, 64, 64].
+        # Box at [8, 8, 120, 120] in original coords maps to [4, 4, 60, 60] in tensor.
         batch = ObjectDetectionBatch(
             image_path=["img_0.jpg"],
             image=torch.zeros(1, 3, 64, 64),
@@ -319,7 +458,7 @@ class TestPlotObjectDetectionPredictions:
             batch=batch,
             results=[
                 {
-                    "boxes": torch.tensor([[64.0, 64.0, 128.0, 128.0]]),
+                    "boxes": torch.tensor([[8.0, 8.0, 120.0, 120.0]]),
                     "labels": torch.zeros(1, dtype=torch.long),
                     "scores": torch.tensor([0.9]),
                 }
@@ -329,14 +468,17 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        assert result.getpixel((32, 32)) != (0, 0, 0)  # scaled box top-left corner
-        assert result.getpixel((0, 0)) == (0, 0, 0)  # outside the scaled box
+        assert result.size == (64, 64)
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(4, 4, 60, 60), color=utils._get_class_color(0)
+        )
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL  # box interior not filled
+        assert result.getpixel((0, 0)) == _BACKGROUND_PIXEL  # outside the scaled box
 
     def test_plot_object_detection_predictions_bbox_scaling_asymmetric(self) -> None:
-        # Check that bounding boxes are correctly scaled from original image coordinates to tensor coordinates, when the scaling is asymmetric (different factors for x and y).
         # Original image is 128 wide × 64 tall; tensor is 64×64.
-        # x-coords are halved, y-coords are unchanged.
-        # Box at [96, 32, 128, 64] in original → [48, 32, 64, 64] in tensor.
+        # x-coords are halved (scale 0.5), y-coords are unchanged (scale 1.0).
+        # Box at [8, 8, 120, 48] in original -> [4, 8, 60, 48] in tensor.
         batch = ObjectDetectionBatch(
             image_path=["img_0.jpg"],
             image=torch.zeros(1, 3, 64, 64),
@@ -348,7 +490,7 @@ class TestPlotObjectDetectionPredictions:
             batch=batch,
             results=[
                 {
-                    "boxes": torch.tensor([[96.0, 32.0, 128.0, 64.0]]),
+                    "boxes": torch.tensor([[8.0, 8.0, 120.0, 48.0]]),
                     "labels": torch.zeros(1, dtype=torch.long),
                     "scores": torch.tensor([0.9]),
                 }
@@ -358,5 +500,9 @@ class TestPlotObjectDetectionPredictions:
             score_threshold=0.5,
             max_pred_boxes=10,
         )
-        assert result.getpixel((48, 40)) != (0, 0, 0)  # left edge of scaled box
-        assert result.getpixel((20, 40)) == (0, 0, 0)  # left of the scaled box
+        assert result.size == (64, 64)
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(4, 8, 60, 48), color=utils._get_class_color(0)
+        )
+        assert result.getpixel((32, 38)) == _BACKGROUND_PIXEL  # box interior not filled
+        assert result.getpixel((0, 0)) == _BACKGROUND_PIXEL  # outside the scaled box

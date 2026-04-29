@@ -16,6 +16,8 @@ from PIL.ImageDraw import ImageDraw
 
 from lightly_train._visualize import utils
 
+_BACKGROUND_PIXEL: tuple[int, int, int] = (0, 0, 0)
+
 
 class TestCxcywhToXyxy:
     def test__cxcywh_to_xyxy_center_box(self) -> None:
@@ -52,15 +54,15 @@ class TestRenderGrid:
         assert utils._render_grid([img]).size == (50, 40)
 
     def test__render_grid_four_images_form_2x2(self) -> None:
-        images = [Image.new("RGB", (10, 10)) for _ in range(4)]
+        images = [Image.new("RGB", (10, 10), color=_BACKGROUND_PIXEL) for _ in range(4)]
         assert utils._render_grid(images).size == (20, 20)
 
     def test__render_grid_nine_images_form_3x3(self) -> None:
-        images = [Image.new("RGB", (8, 6)) for _ in range(9)]
+        images = [Image.new("RGB", (8, 6), color=_BACKGROUND_PIXEL) for _ in range(9)]
         assert utils._render_grid(images).size == (24, 18)
 
     def test__render_grid_five_images_grid_dimensions(self) -> None:
-        images = [Image.new("RGB", (10, 10)) for _ in range(5)]
+        images = [Image.new("RGB", (10, 10), color=_BACKGROUND_PIXEL) for _ in range(5)]
         n_cols = math.ceil(math.sqrt(5))
         n_rows = math.ceil(5 / n_cols)
         assert utils._render_grid(images).size == (n_cols * 10, n_rows * 10)
@@ -77,25 +79,23 @@ class TestRenderGrid:
 
 class TestDrawBboxLabel:
     def test__draw_bbox_label_label_above_when_space(self) -> None:
-        image = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        image = Image.new("RGB", (200, 200), color=_BACKGROUND_PIXEL)
         draw = ImageDraw(image)
         color = (255, 0, 0)
         utils._draw_bbox_label(draw=draw, x1=10, y1=100, text="dog", color=color)
-        px = image.getpixel((11, 99))
-        assert isinstance(px, tuple)
-        assert px[:3] == color
+        assert image.getpixel((11, 99)) == color
+        assert image.getpixel((150, 150)) == _BACKGROUND_PIXEL
 
     def test__draw_bbox_label_label_below_when_no_space(self) -> None:
-        image = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        image = Image.new("RGB", (200, 200), color=_BACKGROUND_PIXEL)
         draw = ImageDraw(image)
         color = (0, 255, 0)
         utils._draw_bbox_label(draw=draw, x1=10, y1=2, text="cat", color=color)
-        px = image.getpixel((11, 3))
-        assert isinstance(px, tuple)
-        assert px[:3] == color
+        assert image.getpixel((11, 3)) == color
+        assert image.getpixel((150, 150)) == _BACKGROUND_PIXEL
 
     def test__draw_bbox_label_at_boundary(self) -> None:
-        image = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        image = Image.new("RGB", (200, 200), color=_BACKGROUND_PIXEL)
         draw = ImageDraw(image)
         color = (0, 0, 255)
         text = "bird"
@@ -104,9 +104,8 @@ class TestDrawBboxLabel:
         utils._draw_bbox_label(
             draw=draw, x1=10, y1=label_height, text=text, color=color
         )
-        px = image.getpixel((11, label_height - 1))
-        assert isinstance(px, tuple)
-        assert px[:3] == color
+        assert image.getpixel((11, label_height - 1)) == color
+        assert image.getpixel((150, 150)) == _BACKGROUND_PIXEL
 
 
 class TestDenormalizeImage:
@@ -171,3 +170,23 @@ class TestGetClassColor:
         assert 0 <= r <= 255
         assert 0 <= g <= 255
         assert 0 <= b <= 255
+
+    @pytest.mark.parametrize(
+        "class_id, expected",
+        [
+            (0, (242, 24, 24)),
+            (1, (24, 87, 242)),
+            (2, (151, 242, 24)),
+            (3, (242, 24, 215)),
+            (4, (24, 242, 205)),
+            (42, (242, 24, 79)),
+            (99, (217, 242, 24)),
+        ],
+    )
+    def test__get_class_color_exact_rgb(
+        self, class_id: int, expected: tuple[int, int, int]
+    ) -> None:
+        # Pinned values guard against drift in the HSV → RGB math, channel
+        # order, or the golden-ratio hue stepping. Visualizer tests rely on
+        # `_get_class_color` returning exactly these tuples.
+        assert utils._get_class_color(class_id) == expected
