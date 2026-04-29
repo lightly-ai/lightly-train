@@ -186,7 +186,4 @@ class TestGetClassColor:
     def test__get_class_color_exact_rgb(
         self, class_id: int, expected: tuple[int, int, int]
     ) -> None:
-        # Pinned values guard against drift in the HSV → RGB math, channel
-        # order, or the golden-ratio hue stepping. Visualizer tests rely on
-        # `_get_class_color` returning exactly these tuples.
         assert utils._get_class_color(class_id) == expected
