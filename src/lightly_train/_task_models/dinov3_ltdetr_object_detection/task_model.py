@@ -53,32 +53,7 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
-_LTDETRDecoder = Literal["rtdetrv2", "dfine"]
-
-
-def _build_decoder(
-    *,
-    config: _DINOv3LTDETRObjectDetectionConfig,
-    decoder: _LTDETRDecoder,
-    num_classes: int,
-    image_size: tuple[int, int],
-) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    elif decoder == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return DFINETransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder}")
+_LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
 
 
 class _HybridEncoderConfig(PydanticConfig):
@@ -316,7 +291,7 @@ class _DFINETransformerConfig(PydanticConfig):
     num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
     cross_attn_method: str = "default"
-    dim_feedforward: int = 1024
+    dim_feedforward: int = 2048
     reg_max: int = 32
     reg_scale: float = 4.0
     layer_scale: float = 1.0
@@ -324,32 +299,57 @@ class _DFINETransformerConfig(PydanticConfig):
 
 class _DFINETransformerConvNextConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [384, 384, 384]
-    hidden_dim: int = 384
+
+
+class _DFINETransformerConvNextTinyConfig(_DFINETransformerConvNextConfig):
+    num_layers: int = 3
+
+
+class _DFINETransformerConvNextSmallConfig(_DFINETransformerConvNextConfig):
+    num_layers: int = 3
+
+
+class _DFINETransformerConvNextBaseConfig(_DFINETransformerConvNextConfig):
+    num_layers: int = 4
+
+
+class _DFINETransformerConvNextLargeConfig(_DFINETransformerConvNextConfig):
+    reg_scale: float = 8.0
 
 
 class _DFINETransformerViTTConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [192, 192, 192]
     hidden_dim: int = 192
+    num_layers: int = 4
+    dim_feedforward: int = 512
 
 
 class _DFINETransformerViTTPlusConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [256, 256, 256]
     hidden_dim: int = 256
+    num_layers: int = 4
+    dim_feedforward: int = 512
 
 
 class _DFINETransformerViTSConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [224, 224, 224]
     hidden_dim: int = 224
+    num_layers: int = 4
+    dim_feedforward: int = 1792
 
 
 class _DFINETransformerViTBConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [768, 768, 768]
     hidden_dim: int = 768
+    num_layers: int = 4
+    dim_feedforward: int = 6144
 
 
 class _DFINETransformerViTLConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [1024, 1024, 1024]
     hidden_dim: int = 1024
+    num_layers: int = 4
+    dim_feedforward: int = 8192
 
 
 class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
@@ -392,7 +392,7 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
-    decoder: _LTDETRDecoder = "rtdetrv2"
+    decoder_name: _LTDETRDecoderName = "rtdetrv2"
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     dfine_transformer: _DFINETransformerConfig
@@ -406,8 +406,8 @@ class _DINOv3LTDETRObjectDetectionLargeConfig(_DINOv3LTDETRObjectDetectionConfig
     rtdetr_transformer: _RTDETRTransformerv2LargeConfig = Field(
         default_factory=_RTDETRTransformerv2LargeConfig
     )
-    dfine_transformer: _DFINETransformerConvNextConfig = Field(
-        default_factory=_DFINETransformerConvNextConfig
+    dfine_transformer: _DFINETransformerConvNextLargeConfig = Field(
+        default_factory=_DFINETransformerConvNextLargeConfig
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
@@ -421,8 +421,8 @@ class _DINOv3LTDETRObjectDetectionBaseConfig(_DINOv3LTDETRObjectDetectionConfig)
     rtdetr_transformer: _RTDETRTransformerv2BaseConfig = Field(
         default_factory=_RTDETRTransformerv2BaseConfig
     )
-    dfine_transformer: _DFINETransformerConvNextConfig = Field(
-        default_factory=_DFINETransformerConvNextConfig
+    dfine_transformer: _DFINETransformerConvNextBaseConfig = Field(
+        default_factory=_DFINETransformerConvNextBaseConfig
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
@@ -436,8 +436,8 @@ class _DINOv3LTDETRObjectDetectionSmallConfig(_DINOv3LTDETRObjectDetectionConfig
     rtdetr_transformer: _RTDETRTransformerv2SmallConfig = Field(
         default_factory=_RTDETRTransformerv2SmallConfig
     )
-    dfine_transformer: _DFINETransformerConvNextConfig = Field(
-        default_factory=_DFINETransformerConvNextConfig
+    dfine_transformer: _DFINETransformerConvNextSmallConfig = Field(
+        default_factory=_DFINETransformerConvNextSmallConfig
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
@@ -451,8 +451,8 @@ class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig)
     rtdetr_transformer: _RTDETRTransformerv2TinyConfig = Field(
         default_factory=_RTDETRTransformerv2TinyConfig
     )
-    dfine_transformer: _DFINETransformerConvNextConfig = Field(
-        default_factory=_DFINETransformerConvNextConfig
+    dfine_transformer: _DFINETransformerConvNextTinyConfig = Field(
+        default_factory=_DFINETransformerConvNextTinyConfig
     )
     rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
         default_factory=_RTDETRPostProcessorConfig
@@ -562,7 +562,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder: _LTDETRDecoder = "rtdetrv2",
+        decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
     ) -> None:
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
@@ -637,7 +637,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         config_name = config_name.replace("-eupe", "")
         config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
-        config.decoder = decoder
+        config.decoder_name = decoder_name
 
         if hasattr(config, "backbone_wrapper"):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
@@ -659,7 +659,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.decoder = _build_decoder(
             config=config,
-            decoder=config.decoder,
+            decoder_name=config.decoder_name,
             num_classes=len(self.classes),
             image_size=self.image_size,
         )
@@ -1237,3 +1237,28 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             fp32_attention_scores=True,
             verbose=verbose,
         )
+
+
+def _build_decoder(
+    *,
+    config: _DINOv3LTDETRObjectDetectionConfig,
+    decoder_name: _LTDETRDecoderName,
+    num_classes: int,
+    image_size: tuple[int, int],
+) -> RTDETRTransformerv2 | DFINETransformer:
+    if decoder_name == "rtdetrv2":
+        decoder_config = config.rtdetr_transformer.model_dump()
+        decoder_config.update({"num_classes": num_classes})
+        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+            **decoder_config,
+            eval_spatial_size=image_size,
+        )
+    elif decoder_name == "dfine":
+        decoder_config = config.dfine_transformer.model_dump()
+        decoder_config.update({"num_classes": num_classes})
+        return DFINETransformer(  # type: ignore[no-untyped-call]
+            **decoder_config,
+            eval_spatial_size=image_size,
+        )
+    else:
+        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")

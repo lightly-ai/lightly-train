@@ -44,37 +44,7 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
-_LTDETRDecoder = Literal["rtdetrv2", "dfine"]
-
-
-def _build_decoder(
-    *,
-    config: _DINOv2LTDETRObjectDetectionConfig,
-    decoder: _LTDETRDecoder,
-    num_classes: int,
-    image_size: tuple[int, int],
-    cross_attn_method: str | None = None,
-) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        if cross_attn_method is not None:
-            decoder_config["cross_attn_method"] = cross_attn_method
-        decoder_config.update({"num_classes": num_classes})
-        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    elif decoder == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        if cross_attn_method is not None:
-            decoder_config["cross_attn_method"] = cross_attn_method
-        decoder_config.update({"num_classes": num_classes})
-        return DFINETransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder}")
+_LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
 
 
 class _HybridEncoderConfig(PydanticConfig):
@@ -261,7 +231,7 @@ class _DFINETransformerConfig(PydanticConfig):
     num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
     cross_attn_method: str = "default"
-    dim_feedforward: int = 1024
+    dim_feedforward: int = 2048
     reg_max: int = 32
     reg_scale: float = 4.0
     layer_scale: float = 1.0
@@ -271,24 +241,32 @@ class _DFINETransformerViTSConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [224, 224, 224]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 224
+    num_layers: int = 4
+    dim_feedforward: int = 1792
 
 
 class _DFINETransformerViTBConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [768, 768, 768]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 768
+    num_layers: int = 4
+    dim_feedforward: int = 6144
 
 
 class _DFINETransformerViTLConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [1024, 1024, 1024]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1024
+    num_layers: int = 4
+    dim_feedforward: int = 8192
 
 
 class _DFINETransformerViTGConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [1536, 1536, 1536]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1536
+    num_layers: int = 4
+    dim_feedforward: int = 12288
 
 
 class _BackboneWrapperViTSConfig(PydanticConfig):
@@ -324,7 +302,7 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class _DINOv2LTDETRObjectDetectionConfig(PydanticConfig):
-    decoder: _LTDETRDecoder = "rtdetrv2"
+    decoder_name: _LTDETRDecoderName = "rtdetrv2"
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     dfine_transformer: _DFINETransformerConfig
@@ -416,7 +394,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder: _LTDETRDecoder = "rtdetrv2",
+        decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
     ) -> None:
         super().__init__(
@@ -467,7 +445,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         config_name = config_name.replace("-noreg", "")
         config_cls = config_mapping[config_name]
         config = config_cls()
-        config.decoder = decoder
+        config.decoder_name = decoder_name
 
         # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
         dinov2.mask_token.requires_grad = False  # type: ignore
@@ -485,7 +463,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
         self.decoder = _build_decoder(
             config=config,
-            decoder=config.decoder,
+            decoder_name=config.decoder_name,
             num_classes=len(self.classes),
             image_size=self.image_size,
         )
@@ -836,7 +814,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder: _LTDETRDecoder = "rtdetrv2",
+        decoder_name: _LTDETRDecoderName = "rtdetrv2",
     ) -> None:
         super(DINOv2LTDETRObjectDetection, self).__init__(
             init_args=locals(), ignore_args={"backbone_weights"}
@@ -878,7 +856,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         config_name = parsed_name["backbone_name"]
         config_cls = config_mapping[config_name]
         config = config_cls()
-        config.decoder = decoder
+        config.decoder_name = decoder_name
 
         self.backbone: DINOv2STAs = DINOv2STAs(
             model=dinov2,
@@ -893,7 +871,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
 
         self.decoder = _build_decoder(
             config=config,
-            decoder=config.decoder,
+            decoder_name=config.decoder_name,
             num_classes=len(self.classes),
             image_size=self.image_size,
             cross_attn_method="discrete",
@@ -903,3 +881,33 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             **postprocessor_config
         )
+
+
+def _build_decoder(
+    *,
+    config: _DINOv2LTDETRObjectDetectionConfig,
+    decoder_name: _LTDETRDecoderName,
+    num_classes: int,
+    image_size: tuple[int, int],
+    cross_attn_method: str | None = None,
+) -> RTDETRTransformerv2 | DFINETransformer:
+    if decoder_name == "rtdetrv2":
+        decoder_config = config.rtdetr_transformer.model_dump()
+        if cross_attn_method is not None:
+            decoder_config["cross_attn_method"] = cross_attn_method
+        decoder_config.update({"num_classes": num_classes})
+        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+            **decoder_config,
+            eval_spatial_size=image_size,
+        )
+    elif decoder_name == "dfine":
+        decoder_config = config.dfine_transformer.model_dump()
+        if cross_attn_method is not None:
+            decoder_config["cross_attn_method"] = cross_attn_method
+        decoder_config.update({"num_classes": num_classes})
+        return DFINETransformer(  # type: ignore[no-untyped-call]
+            **decoder_config,
+            eval_spatial_size=image_size,
+        )
+    else:
+        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")

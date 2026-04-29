@@ -43,6 +43,20 @@ This project incorporates the following third-party components:
   - Remove `de_parallel` usage and `ExponentialMovingAverage` class in `ema.py`.
   - Let `ModelEMA` inherit from `torch.nn.Module` in `ema.py`.
   - Remove `to`, `state_dict`, and `load_state_dict` methods from `ModelEMA` in `ema.py`.
+  - Registered `score_head_reuse_or_reinit_hook` and (when denoising is enabled) `denoising_class_embed_reuse_or_reinit_hook` as load-state-dict pre-hooks in `rtdetrv2_decoder.py`, so pretrained RT-DETR checkpoints can be adapted to a new `num_classes` at load time. The hook implementations have been extracted into a shared `hooks.py` module so they can be reused by D-FINE.
+  - Added FP32 guards around bbox refinement in `rtdetrv2_decoder.py` for stability in mixed precision.
+
+**D-FINE**
+- Source: https://github.com/Peterande/D-FINE
+- License: Apache License 2.0
+- License file: licences/DFINE_LICENSE.txt
+- Modifications:
+  - Removed upstream registry hooks and adapted imports for LightlyTrain. Affected file: .../dfine_decoder.py
+  - Registered ``score_head_reuse_or_reinit_hook`` and (when denoising is enabled) ``denoising_class_embed_reuse_or_reinit_hook`` as load-state-dict pre-hooks, so pretrained D-FINE checkpoints can be adapted to a new ``num_classes`` at load time. Affected file: .../dfine_decoder.py
+  - Registered ``anchors`` / ``valid_mask`` for evaluation as non-persistent buffers so they are not written into checkpoints. Affected file: .../dfine_decoder.py
+  - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor to reuse existing ``deformable_attention_core_func_v2`` in ``utils.py``. Affected file: .../dfine_decoder.py
+  - Added FP32 guards around bbox refinement for stability in mixed precision. Affected file: .../dfine_decoder.py
+  - Added type annotations. Affected file: .../dfine_utils.py
 
 **PicoDet (Picodet_Pytorch)**
 - Source: https://github.com/Bo396543018/Picodet_Pytorch
