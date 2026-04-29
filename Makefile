@@ -128,6 +128,7 @@ add-header:
 		-x src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
+		   src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
 		-E py
 
 	# Apply Lightly's header to tiling_utils.py
@@ -139,6 +140,7 @@ add-header:
 	licenseheaders -t dev_tools/dfine_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
+		src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
 		-E py
 
 	# Apply the PicoDet license header to PicoDet-derived files

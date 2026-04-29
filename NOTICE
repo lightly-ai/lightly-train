@@ -57,6 +57,7 @@ This project incorporates the following third-party components:
   - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor to reuse existing ``deformable_attention_core_func_v2`` in ``utils.py``. Affected file: .../dfine_decoder.py
   - Added FP32 guards around bbox refinement for stability in mixed precision. Affected file: .../dfine_decoder.py
   - Added type annotations. Affected file: .../dfine_utils.py
+  - Adapted criterion for LightlyTrain: removed upstream registry hooks, added explicit ``world_size`` forwarding for the Fabric training loop, supports validation-time loss computation when auxiliary outputs are absent, and added FP32 guards around bbox refinement for stability in mixed precision. Affected file: .../dfine_criterion.py
 
 **PicoDet (Picodet_Pytorch)**
 - Source: https://github.com/Bo396543018/Picodet_Pytorch
