@@ -100,7 +100,7 @@ def plot_image_classification_predictions(
         in a grid.
     """
     images = batch["image"].cpu()
-    gt_classes = batch["classes"]
+    gt_classes = [c.cpu() for c in batch["classes"]]
     logits = logits.detach().to(device="cpu", dtype=torch.float32)
     n = min(max_images, images.shape[0])
 

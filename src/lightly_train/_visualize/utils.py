@@ -141,12 +141,11 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     Returns:
         RGB tuple with values in range [0, 255].
     """
-    # Use modulo to cycle through hue values with good distribution
     hue = (
         class_id * 0.618033988749895
-    ) % 1.0  # Golden ratio for good color distribution
+    ) % 1.0  # Use the golden ratio for good hue distribution.
 
-    # Use high saturation and value for vibrant, distinct colors
+    # Use high saturation and value for vibrant, distinct colors.
     saturation = 0.9
     value = 0.95
 
