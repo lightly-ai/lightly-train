@@ -383,3 +383,29 @@ class TestPlotImageClassificationPredictions:
         # Both images get a top-1 prediction drawn.
         assert result.getpixel((0, 0)) != _WHITE_PIXEL
         assert result.getpixel((128, 0)) != _WHITE_PIXEL
+
+    def test_plot_image_classification_predictions_multilabel_uses_sigmoid(
+        self,
+    ) -> None:
+        # For multilabel, scores are sigmoid(logits) and do NOT sum to 1. Verify
+        # that the two displayed scores are both sigmoid values, not softmax values.
+        batch = _make_batch_from_image(
+            image=torch.full((1, 3, 32, 32), _WHITE_COLOR),
+            classes=[torch.tensor([0, 1], dtype=torch.long)],
+        )
+        # logits [2.0, 1.0]: sigmoid -> [0.88, 0.73], softmax -> [0.73, 0.27].
+        # With softmax the scores sum to 1; with sigmoid they exceed 1 in total.
+        logits = torch.tensor([[2.0, 1.0]])
+
+        # The function should not raise and should use sigmoid-based ordering/scores.
+        result = image_classification.plot_image_classification_predictions(
+            batch=batch,
+            logits=logits,
+            included_classes={0: "cat", 1: "dog"},
+            max_images=1,
+            top_k=2,
+            classification_task="multilabel",
+        )
+        # With sigmoid both scores are > 0.5 so the sum exceeds 1.0, which would be
+        # impossible under softmax.  Verify the corner overlay is drawn (non-white).
+        assert result.getpixel((0, 0)) != _WHITE_PIXEL

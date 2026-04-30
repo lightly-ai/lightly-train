@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Literal
+
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -73,6 +75,7 @@ def plot_image_classification_predictions(
     included_classes: dict[int, str],
     max_images: int,
     top_k: int,
+    classification_task: Literal["multiclass", "multilabel"] = "multiclass",
     mean: tuple[float, ...] | None = None,
     std: tuple[float, ...] | None = None,
 ) -> PILImage:
@@ -87,6 +90,8 @@ def plot_image_classification_predictions(
         included_classes: Mapping from class ID to class name.
         max_images: Maximum number of images to include in the grid.
         top_k: Number of top predictions to display per image.
+        classification_task: Whether the task is "multiclass" (softmax scores) or
+            "multilabel" (sigmoid scores).
         mean: Per-channel mean used for image normalization (for denormalization).
         std: Per-channel std used for image normalization (for denormalization).
 
@@ -99,7 +104,10 @@ def plot_image_classification_predictions(
     logits = logits.detach().to(device="cpu", dtype=torch.float32)
     n = min(max_images, images.shape[0])
 
-    probs = torch.softmax(logits[:n], dim=-1)
+    if classification_task == "multilabel":
+        probs = torch.sigmoid(logits[:n])
+    else:
+        probs = torch.softmax(logits[:n], dim=-1)
     num_classes = probs.shape[1]
     max_gt_labels = max((len(gt_classes[i]) for i in range(n)), default=0)
     topk_k = min(num_classes, max(top_k, max_gt_labels))

@@ -286,6 +286,7 @@ class ImageClassificationTrain(TrainModel):
                 std=normalize_std,
                 top_k=self.viz_top_k,
                 max_images=self.viz_max_images,
+                classification_task=self.model.classification_task,
             )
         return TaskStepResult(
             loss=loss,
