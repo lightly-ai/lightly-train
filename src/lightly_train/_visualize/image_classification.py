@@ -96,7 +96,7 @@ def plot_image_classification_predictions(
     """
     images = batch["image"].cpu()
     gt_classes = batch["classes"]
-    logits = logits.cpu()
+    logits = logits.detach().to(device="cpu", dtype=torch.float32)
     n = min(max_images, images.shape[0])
 
     probs = torch.softmax(logits[:n], dim=-1)
