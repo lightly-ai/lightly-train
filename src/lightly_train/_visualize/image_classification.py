@@ -100,7 +100,10 @@ def plot_image_classification_predictions(
     n = min(max_images, images.shape[0])
 
     probs = torch.softmax(logits[:n], dim=-1)
-    top_scores, top_class_ids = torch.topk(probs, k=probs.shape[1], dim=-1)
+    num_classes = probs.shape[1]
+    max_gt_labels = max((len(gt_classes[i]) for i in range(n)), default=0)
+    topk_k = min(num_classes, max(top_k, max_gt_labels))
+    top_scores, top_class_ids = torch.topk(probs, k=topk_k, dim=-1)
 
     pil_images: list[PILImage] = []
     for i in range(n):
@@ -111,8 +114,8 @@ def plot_image_classification_predictions(
         img = torchvision_functional.to_pil_image(image_tensor)
 
         # Ensure we show at least as many predictions as there are ground truth
-        # labels (in case of multi-label classification).
-        effective_k = max(top_k, len(gt_classes[i]))
+        # labels (in case of multi-label classification), but never exceed num_classes.
+        effective_k = min(num_classes, max(top_k, len(gt_classes[i])))
 
         y_offset = 0
         for rank in range(effective_k):
