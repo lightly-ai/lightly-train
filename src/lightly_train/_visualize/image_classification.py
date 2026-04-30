@@ -42,7 +42,7 @@ def plot_image_classification_labels(
         in a grid.
     """
     images = batch["image"].cpu()
-    classes = [c.cpu() for c in batch["classes"]]
+    gt_classes = [c.cpu() for c in batch["classes"]]
     n = min(max_images, images.shape[0])
 
     pil_images: list[PILImage] = []
@@ -53,7 +53,7 @@ def plot_image_classification_labels(
 
         img = torchvision_functional.to_pil_image(image_tensor)
 
-        class_ids = classes[i]
+        class_ids = gt_classes[i]
         y_offset = 0
         for cid in class_ids:
             class_name = included_classes.get(int(cid), f"Class {int(cid)}")
