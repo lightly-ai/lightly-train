@@ -22,6 +22,45 @@ except TypeError:
     _DEFAULT_FONT = ImageFont.load_default()
 
 
+def _draw_corner_label(
+    img: PILImage,
+    text: str,
+    color: tuple[int, int, int],
+    y_offset: int = 0,
+) -> int:
+    """Draw a label in the top-left corner with a semi-transparent black background.
+
+    The text is drawn in the given class color over a semi-transparent black highlight.
+
+    Args:
+        img: PIL image to draw on (modified in place).
+        text: Label text to draw.
+        color: RGB text color.
+        y_offset: Vertical offset from the top of the image in pixels.
+
+    Returns:
+        Height of the drawn label, so callers can stack subsequent labels.
+    """
+    padding = 4
+    probe = PILDraw(img)
+    bbox = probe.textbbox((0, 0), text, font=_DEFAULT_FONT)
+    text_width = math.ceil(bbox[2] - bbox[0])
+    text_height = math.ceil(bbox[3] - bbox[1])
+    label_height = text_height + 2 * padding
+
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    overlay_draw = PILDraw(overlay)
+    overlay_draw.rectangle(
+        [0, y_offset, text_width + 2 * padding, y_offset + label_height - 1],
+        fill=(0, 0, 0, 120),
+    )
+    img.paste(Image.alpha_composite(img.convert("RGBA"), overlay).convert(img.mode))
+
+    draw = PILDraw(img)
+    draw.text((padding, y_offset + padding), text, fill=color, font=_DEFAULT_FONT)
+    return label_height
+
+
 def _draw_bbox_label(
     draw: PILDraw,
     x1: float,
