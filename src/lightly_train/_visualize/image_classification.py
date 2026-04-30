@@ -95,7 +95,7 @@ def plot_image_classification_predictions(
         in a grid.
     """
     images = batch["image"].cpu()
-    classes = [c.cpu() for c in batch["classes"]]
+    gt_classes = batch["classes"]
     logits = logits.cpu()
     n = min(max_images, images.shape[0])
 
@@ -110,9 +110,10 @@ def plot_image_classification_predictions(
 
         img = torchvision_functional.to_pil_image(image_tensor)
 
-        effective_k = max(
-            top_k, len(classes[i])
-        )  # Ensure we show at least as many predictions as there are ground truth labels (in case of multi-label classification)
+        # Ensure we show at least as many predictions as there are ground truth
+        # labels (in case of multi-label classification).
+        effective_k = max(top_k, len(gt_classes[i]))
+
         y_offset = 0
         for rank in range(effective_k):
             class_id = int(top_class_ids[i, rank].item())

@@ -181,7 +181,6 @@ class ImageClassificationTrain(TrainModel):
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
-        self.viz_max_pred_boxes = 32
         self.viz_max_images = 16
         self.viz_top_k = 3
 
@@ -215,7 +214,7 @@ class ImageClassificationTrain(TrainModel):
         self.train_metrics.update_with_losses(
             {"loss": loss.detach()}, weight=len(images)
         )
-        # return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
+
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
             normalize_mean = (

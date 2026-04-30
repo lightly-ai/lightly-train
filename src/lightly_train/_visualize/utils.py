@@ -42,8 +42,8 @@ def _draw_corner_label(
         Height of the drawn label, so callers can stack subsequent labels.
     """
     padding = 4
-    probe = PILDraw(img)
-    bbox = probe.textbbox((0, 0), text, font=_DEFAULT_FONT)
+    draw = PILDraw(img)
+    bbox = draw.textbbox((0, 0), text, font=_DEFAULT_FONT)
     text_width = math.ceil(bbox[2] - bbox[0])
     text_height = math.ceil(bbox[3] - bbox[1])
     label_height = text_height + 2 * padding
@@ -56,7 +56,6 @@ def _draw_corner_label(
     )
     img.paste(Image.alpha_composite(img.convert("RGBA"), overlay).convert(img.mode))
 
-    draw = PILDraw(img)
     draw.text((padding, y_offset + padding), text, fill=color, font=_DEFAULT_FONT)
     return label_height
 
