@@ -47,7 +47,7 @@ def plot_image_classification_labels(
 
     pil_images: list[PILImage] = []
     for i in range(n):
-        image_tensor = images[i].clone()
+        image_tensor = images[i].clone().to(dtype=torch.float32)
         if mean is not None and std is not None:
             image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
 
@@ -104,7 +104,7 @@ def plot_image_classification_predictions(
 
     pil_images: list[PILImage] = []
     for i in range(n):
-        image_tensor = images[i].clone()
+        image_tensor = images[i].clone().to(dtype=torch.float32)
         if mean is not None and std is not None:
             image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
 
