@@ -25,7 +25,7 @@ from lightly_train.types import ImageClassificationBatch
 
 def plot_image_classification_labels(
     batch: ImageClassificationBatch,
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     mean: tuple[float, ...] | None = None,
     std: tuple[float, ...] | None = None,
@@ -58,7 +58,7 @@ def plot_image_classification_labels(
         class_ids = gt_classes[i]
         y_offset = 0
         for cid in class_ids:
-            class_name = included_classes.get(int(cid), f"Class {int(cid)}")
+            class_name = class_names.get(int(cid), f"Class {int(cid)}")
             color = _get_class_color(int(cid))
             y_offset += _draw_corner_label(
                 img=img, text=class_name, color=color, y_offset=y_offset

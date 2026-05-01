@@ -178,6 +178,9 @@ class ImageClassificationTrain(TrainModel):
             train_loss_running_mean_window=gradient_accumulation_steps,
         )
 
+        self._internal_class_names: dict[int, str] = {
+            i: name for i, name in enumerate(data_args.included_classes.values())
+        }
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
@@ -225,7 +228,7 @@ class ImageClassificationTrain(TrainModel):
             )
             label_image = plot_image_classification_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self._internal_class_names,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
@@ -273,7 +276,7 @@ class ImageClassificationTrain(TrainModel):
             )
             label_image = plot_image_classification_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self._internal_class_names,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
@@ -281,7 +284,7 @@ class ImageClassificationTrain(TrainModel):
             prediction_image = plot_image_classification_predictions(
                 batch=batch,
                 logits=logits,
-                included_classes=self.data_args.included_classes,
+                included_classes=self._internal_class_names,
                 mean=normalize_mean,
                 std=normalize_std,
                 top_k=self.viz_top_k,

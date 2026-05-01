@@ -54,7 +54,7 @@ class TestPlotImageClassificationLabels:
     def test_plot_image_classification_labels_grid_caps_at_max_images(self) -> None:
         batch = _make_batch(batch_size=4, height=16, width=16)
         result = image_classification.plot_image_classification_labels(
-            batch=batch, included_classes={}, max_images=2
+            batch=batch, class_names={}, max_images=2
         )
         assert result.size == (32, 16)
 
@@ -66,7 +66,7 @@ class TestPlotImageClassificationLabels:
             classes=[torch.tensor([1], dtype=torch.long)],
         )
         result = image_classification.plot_image_classification_labels(
-            batch=batch, included_classes={1: "dog"}, max_images=1
+            batch=batch, class_names={1: "dog"}, max_images=1
         )
         assert result.getpixel((0, 0)) != _WHITE_PIXEL
         # Far corner is untouched by the label overlay.
@@ -80,7 +80,7 @@ class TestPlotImageClassificationLabels:
             classes=[torch.tensor([99], dtype=torch.long)],
         )
         result = image_classification.plot_image_classification_labels(
-            batch=batch, included_classes={}, max_images=1
+            batch=batch, class_names={}, max_images=1
         )
         assert result.getpixel((0, 0)) != _WHITE_PIXEL
         assert result.getpixel((127, 127)) == _WHITE_PIXEL
@@ -94,7 +94,7 @@ class TestPlotImageClassificationLabels:
             classes=[torch.zeros(0, dtype=torch.long)],
         )
         result = image_classification.plot_image_classification_labels(
-            batch=batch, included_classes={}, max_images=1
+            batch=batch, class_names={}, max_images=1
         )
         assert result.getpixel((0, 0)) == _WHITE_PIXEL
         assert result.getpixel((31, 31)) == _WHITE_PIXEL
@@ -131,7 +131,7 @@ class TestPlotImageClassificationLabels:
         )
         result = image_classification.plot_image_classification_labels(
             batch=batch,
-            included_classes={},
+            class_names={},
             max_images=1,
             mean=mean,
             std=std,
@@ -149,7 +149,7 @@ class TestPlotImageClassificationLabels:
             classes=[torch.zeros(0, dtype=torch.long)],
         )
         result = image_classification.plot_image_classification_labels(
-            batch=batch, included_classes={}, max_images=1
+            batch=batch, class_names={}, max_images=1
         )
         assert result.getpixel((0, 0)) == (102, 102, 102)
         assert result.getpixel((31, 31)) == (102, 102, 102)
@@ -165,7 +165,7 @@ class TestPlotImageClassificationLabels:
                 image=image,
                 classes=[torch.tensor([0], dtype=torch.long)],
             ),
-            included_classes={0: "cat", 1: "dog"},
+            class_names={0: "cat", 1: "dog"},
             max_images=1,
         )
         result_two = image_classification.plot_image_classification_labels(
@@ -173,7 +173,7 @@ class TestPlotImageClassificationLabels:
                 image=image,
                 classes=[torch.tensor([0, 1], dtype=torch.long)],
             ),
-            included_classes={0: "cat", 1: "dog"},
+            class_names={0: "cat", 1: "dog"},
             max_images=1,
         )
         # Scan downward to find the first row below the single-label overlay.
@@ -199,7 +199,7 @@ class TestPlotImageClassificationLabels:
             ],
         )
         result = image_classification.plot_image_classification_labels(
-            batch=batch, included_classes={0: "cat"}, max_images=2
+            batch=batch, class_names={0: "cat"}, max_images=2
         )
         # Image 0's top-left is darkened by the label overlay.
         assert result.getpixel((0, 0)) != _WHITE_PIXEL
