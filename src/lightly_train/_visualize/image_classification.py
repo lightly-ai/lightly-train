@@ -16,8 +16,7 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize.utils import (
     _denormalize_image,
-    _draw_corner_label,
-    _get_class_color,
+    _draw_class_legend,
     _render_grid,
 )
 from lightly_train.types import ImageClassificationBatch
@@ -55,14 +54,10 @@ def plot_image_classification_labels(
 
         img = torchvision_functional.to_pil_image(image_tensor)
 
-        class_ids = gt_classes[i]
-        y_offset = 0
-        for cid in class_ids:
-            class_name = class_names.get(int(cid), f"Class {int(cid)}")
-            color = _get_class_color(int(cid))
-            y_offset += _draw_corner_label(
-                img=img, text=class_name, color=color, y_offset=y_offset
-            )
+        labels = [
+            class_names.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
+        ]
+        img = _draw_class_legend(image=img, labels=labels)
 
         pil_images.append(img)
 
@@ -125,18 +120,13 @@ def plot_image_classification_predictions(
         # labels (in case of multi-label classification), but never exceed num_classes.
         effective_k = min(num_classes, max(top_k, len(gt_classes[i])))
 
-        y_offset = 0
+        labels: list[str] = []
         for rank in range(effective_k):
             class_id = int(top_class_ids[i, rank].item())
             score = float(top_scores[i, rank].item())
             class_name = class_names.get(class_id, f"Class {class_id}")
-            color = _get_class_color(class_id)
-            y_offset += _draw_corner_label(
-                img=img,
-                text=f"{class_name} {score:.2f}",
-                color=color,
-                y_offset=y_offset,
-            )
+            labels.append(f"{class_name}: {score:.2f}")
+        img = _draw_class_legend(image=img, labels=labels)
 
         pil_images.append(img)
 

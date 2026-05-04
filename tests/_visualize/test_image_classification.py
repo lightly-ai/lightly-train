@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pytest
 import torch
+from PIL import Image, ImageChops
+from PIL.Image import Image as PILImage
 from torch import Tensor
 
 from lightly_train._visualize import image_classification
@@ -16,6 +18,17 @@ from lightly_train.types import ImageClassificationBatch
 
 _WHITE_COLOR: float = 1.0
 _WHITE_PIXEL: tuple[int, int, int] = (255, 255, 255)
+
+
+def _non_white_bbox(image: PILImage) -> tuple[int, int, int, int] | None:
+    """Bounding box of pixels that differ from pure white, or None if all white."""
+    white = Image.new(image.mode, image.size, _WHITE_PIXEL)
+    return ImageChops.difference(image, white).getbbox()
+
+
+def _has_legend(image: PILImage) -> bool:
+    """Return True if the image has any pixel that differs from pure white."""
+    return _non_white_bbox(image) is not None
 
 
 def _make_batch(
@@ -59,8 +72,8 @@ class TestPlotImageClassificationLabels:
         assert result.size == (32, 16)
 
     def test_plot_image_classification_labels_label_drawn(self) -> None:
-        # The corner label draws a semi-transparent black overlay at (0, 0);
-        # on a white background the top-left pixel becomes noticeably darker.
+        # The legend renders text in the upper-left corner; on a white background
+        # the legend area contains non-white pixels.
         batch = _make_batch_from_image(
             image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
             classes=[torch.tensor([1], dtype=torch.long)],
@@ -68,13 +81,13 @@ class TestPlotImageClassificationLabels:
         result = image_classification.plot_image_classification_labels(
             batch=batch, class_names={1: "dog"}, max_images=1
         )
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
-        # Far corner is untouched by the label overlay.
+        assert _has_legend(result)
+        # Far corner is untouched by the legend overlay.
         assert result.getpixel((127, 127)) == _WHITE_PIXEL
 
     def test_plot_image_classification_labels_unknown_class_draws_label(self) -> None:
-        # A class ID absent from included_classes falls back to "Class {id}" text
-        # but still draws the corner label overlay.
+        # A class ID absent from class_names falls back to "Class {id}" text
+        # but still renders the legend.
         batch = _make_batch_from_image(
             image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
             classes=[torch.tensor([99], dtype=torch.long)],
@@ -82,7 +95,7 @@ class TestPlotImageClassificationLabels:
         result = image_classification.plot_image_classification_labels(
             batch=batch, class_names={}, max_images=1
         )
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
+        assert _has_legend(result)
         assert result.getpixel((127, 127)) == _WHITE_PIXEL
 
     def test_plot_image_classification_labels_empty_classes_produces_clean_image(
@@ -157,8 +170,8 @@ class TestPlotImageClassificationLabels:
     def test_plot_image_classification_labels_multiple_classes_stack_vertically(
         self,
     ) -> None:
-        # Two labels are drawn stacked vertically. The second label extends the
-        # darkened overlay area further down compared to a single label.
+        # Two labels are stacked vertically in the legend. The second label extends
+        # the legend further down compared to a single label.
         image = torch.full((1, 3, 256, 256), _WHITE_COLOR)
         result_one = image_classification.plot_image_classification_labels(
             batch=_make_batch_from_image(
@@ -176,15 +189,12 @@ class TestPlotImageClassificationLabels:
             class_names={0: "cat", 1: "dog"},
             max_images=1,
         )
-        # Scan downward to find the first row below the single-label overlay.
-        _, height = result_one.size
-        first_white_y = next(
-            y for y in range(height) if result_one.getpixel((0, y)) == _WHITE_PIXEL
-        )
-        # That row is untouched in result_one (first label ends above it).
-        assert result_one.getpixel((0, first_white_y)) == _WHITE_PIXEL
-        # With two stacked labels, the second overlay extends into that row.
-        assert result_two.getpixel((0, first_white_y)) != _WHITE_PIXEL
+        bbox_one = _non_white_bbox(result_one)
+        bbox_two = _non_white_bbox(result_two)
+        assert bbox_one is not None
+        assert bbox_two is not None
+        # The two-label legend extends further down than the one-label legend.
+        assert bbox_two[3] > bbox_one[3]
 
     def test_plot_image_classification_labels_mixed_empty_nonempty_annotations(
         self,
@@ -201,10 +211,9 @@ class TestPlotImageClassificationLabels:
         result = image_classification.plot_image_classification_labels(
             batch=batch, class_names={0: "cat"}, max_images=2
         )
-        # Image 0's top-left is darkened by the label overlay.
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
-        # Image 1 has no labels, so its top-left stays white.
-        assert result.getpixel((128, 0)) == _WHITE_PIXEL
+        # Image 0 has a legend; image 1 stays fully white.
+        assert _has_legend(result.crop((0, 0, 128, 128)))
+        assert not _has_legend(result.crop((128, 0, 256, 128)))
 
 
 class TestPlotImageClassificationPredictions:
@@ -223,7 +232,7 @@ class TestPlotImageClassificationPredictions:
         assert result.size == (32, 16)
 
     def test_plot_image_classification_predictions_label_drawn(self) -> None:
-        # Top-1 prediction draws a corner label overlay, darkening the top-left pixel.
+        # Top-1 prediction renders a legend in the upper-left corner.
         batch = _make_batch_from_image(
             image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
             classes=[torch.tensor([0], dtype=torch.long)],
@@ -236,7 +245,7 @@ class TestPlotImageClassificationPredictions:
             max_images=1,
             top_k=1,
         )
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
+        assert _has_legend(result)
         assert result.getpixel((127, 127)) == _WHITE_PIXEL
 
     def test_plot_image_classification_predictions_unknown_class_draws_label(
@@ -255,7 +264,7 @@ class TestPlotImageClassificationPredictions:
             max_images=1,
             top_k=1,
         )
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
+        assert _has_legend(result)
         assert result.getpixel((127, 127)) == _WHITE_PIXEL
 
     @pytest.mark.parametrize(
@@ -324,7 +333,7 @@ class TestPlotImageClassificationPredictions:
         self,
     ) -> None:
         # With top_k=1 but two ground-truth labels, effective_k=max(1,2)=2 predictions
-        # are drawn. This results in a larger overlay area than top_k=1 alone.
+        # are drawn. The legend extends further down with two entries than with one.
         image = torch.full((1, 3, 256, 256), _WHITE_COLOR)
         logits = torch.tensor([[10.0, 5.0, 1.0]])
         result_one_gt = image_classification.plot_image_classification_predictions(
@@ -347,16 +356,11 @@ class TestPlotImageClassificationPredictions:
             max_images=1,
             top_k=1,
         )
-        # Scan downward to find the first row below the single-prediction overlay.
-        # This is robust to changes in font size or padding.
-        _, height = result_one_gt.size
-        first_white_y = next(
-            y for y in range(height) if result_one_gt.getpixel((0, y)) == _WHITE_PIXEL
-        )
-        # That row is untouched in result_one_gt (one prediction ends above it).
-        assert result_one_gt.getpixel((0, first_white_y)) == _WHITE_PIXEL
-        # With effective_k=2, the second prediction overlay extends into that row.
-        assert result_two_gt.getpixel((0, first_white_y)) != _WHITE_PIXEL
+        bbox_one = _non_white_bbox(result_one_gt)
+        bbox_two = _non_white_bbox(result_two_gt)
+        assert bbox_one is not None
+        assert bbox_two is not None
+        assert bbox_two[3] > bbox_one[3]
 
     def test_plot_image_classification_predictions_mixed_empty_nonempty_annotations(
         self,
@@ -380,9 +384,9 @@ class TestPlotImageClassificationPredictions:
             top_k=1,
         )
         assert result.size == (256, 128)
-        # Both images get a top-1 prediction drawn.
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
-        assert result.getpixel((128, 0)) != _WHITE_PIXEL
+        # Both images get a top-1 prediction drawn as a legend.
+        assert _has_legend(result.crop((0, 0, 128, 128)))
+        assert _has_legend(result.crop((128, 0, 256, 128)))
 
     def test_plot_image_classification_predictions_multilabel_uses_sigmoid(
         self,
@@ -407,5 +411,5 @@ class TestPlotImageClassificationPredictions:
             classification_task="multilabel",
         )
         # With sigmoid both scores are > 0.5 so the sum exceeds 1.0, which would be
-        # impossible under softmax.  Verify the corner overlay is drawn (non-white).
-        assert result.getpixel((0, 0)) != _WHITE_PIXEL
+        # impossible under softmax. Verify the legend is drawn.
+        assert _has_legend(result)

@@ -8,9 +8,14 @@
 from __future__ import annotations
 
 import colorsys
+import io
 import math
+from collections.abc import Sequence
 
+import matplotlib.patches as mpatches
 import torch
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 from PIL import Image, ImageFont
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
@@ -22,42 +27,66 @@ except TypeError:
     _DEFAULT_FONT = ImageFont.load_default()
 
 
-def _draw_corner_label(
-    img: PILImage,
-    text: str,
-    color: tuple[int, int, int],
-    y_offset: int = 0,
-) -> int:
-    """Draw a label in the top-left corner with a semi-transparent black background.
+def _draw_class_legend(
+    image: PILImage,
+    labels: Sequence[str],
+) -> PILImage:
+    """Composite a text-only legend onto the upper-left of ``image``.
 
-    The text is drawn in the given class color over a semi-transparent black highlight.
+    Each label is rendered as one row in a framed text box anchored to the
+    top-left corner of the axes. The legend is rendered on a transparent
+    canvas via matplotlib's headless Agg backend and composited onto the
+    image, so pixels outside the legend area are preserved unchanged.
+    Returns the image unchanged when ``labels`` is empty.
 
     Args:
-        img: PIL image to draw on (modified in place).
-        text: Label text to draw.
-        color: RGB text color.
-        y_offset: Vertical offset from the top of the image in pixels.
+        image: Base PIL image to render on.
+        labels: Legend lines to display, in order.
 
     Returns:
-        Height of the drawn label, so callers can stack subsequent labels.
+        A new RGB PIL image with the legend baked in (or the input image when
+        ``labels`` is empty).
     """
-    padding = 4
-    draw = PILDraw(img)
-    bbox = draw.textbbox((0, 0), text, font=_DEFAULT_FONT)
-    text_width = math.ceil(bbox[2] - bbox[0])
-    text_height = math.ceil(bbox[3] - bbox[1])
-    label_height = text_height + 2 * padding
+    if not labels:
+        return image
 
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    overlay_draw = PILDraw(overlay)
-    overlay_draw.rectangle(
-        [0, y_offset, text_width + 2 * padding, y_offset + label_height - 1],
-        fill=(0, 0, 0, 120),
+    handles = [
+        mpatches.Patch(facecolor="none", edgecolor="none", label=label)
+        for label in labels
+    ]
+
+    img_width, img_height = image.size
+    dpi = 100
+    fig = Figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
+    fig.patch.set_alpha(0)
+    FigureCanvasAgg(fig)
+    ax = fig.add_axes((0, 0, 1, 1))
+    ax.set_axis_off()
+    ax.patch.set_alpha(0)
+    ax.legend(
+        handles=handles,
+        loc="upper left",
+        framealpha=0.7,
+        fontsize=10,
+        borderpad=0.4,
+        borderaxespad=0,
+        labelspacing=0.3,
+        handlelength=0,
+        handletextpad=0,
     )
-    img.paste(Image.alpha_composite(img.convert("RGBA"), overlay).convert(img.mode))
 
-    draw.text((padding, y_offset + padding), text, fill=color, font=_DEFAULT_FONT)
-    return label_height
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, transparent=True, pad_inches=0)
+    buf.seek(0)
+    overlay = Image.open(buf).convert("RGBA")
+    if overlay.size != (img_width, img_height):
+        overlay = overlay.resize(
+            (img_width, img_height), resample=Image.Resampling.BILINEAR
+        )
+
+    base = image.convert("RGBA")
+    base.alpha_composite(overlay)
+    return base.convert("RGB")
 
 
 def _draw_bbox_label(
