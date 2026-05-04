@@ -284,7 +284,7 @@ class ImageClassificationTrain(TrainModel):
             prediction_image = plot_image_classification_predictions(
                 batch=batch,
                 logits=logits,
-                included_classes=self._internal_class_names,
+                class_names=self._internal_class_names,
                 mean=normalize_mean,
                 std=normalize_std,
                 top_k=self.viz_top_k,

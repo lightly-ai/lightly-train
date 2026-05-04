@@ -34,7 +34,7 @@ def plot_image_classification_labels(
 
     Args:
         batch: Image classification batch with images and class IDs.
-        included_classes: Mapping from class ID to class name.
+        class_names: Mapping from class ID to class name.
         max_images: Maximum number of images to include in the grid.
         mean: Per-channel mean used for image normalization (for denormalization).
         std: Per-channel std used for image normalization (for denormalization).
@@ -72,7 +72,7 @@ def plot_image_classification_labels(
 def plot_image_classification_predictions(
     batch: ImageClassificationBatch,
     logits: Tensor,
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     top_k: int,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
@@ -87,7 +87,7 @@ def plot_image_classification_predictions(
     Args:
         batch: Image classification batch with images.
         logits: Model output logits of shape (batch_size, num_classes).
-        included_classes: Mapping from class ID to class name.
+        class_names: Mapping from class ID to class name.
         max_images: Maximum number of images to include in the grid.
         top_k: Number of top predictions to display per image.
         classification_task: Whether the task is "multiclass" (softmax scores) or
@@ -129,7 +129,7 @@ def plot_image_classification_predictions(
         for rank in range(effective_k):
             class_id = int(top_class_ids[i, rank].item())
             score = float(top_scores[i, rank].item())
-            class_name = included_classes.get(class_id, f"Class {class_id}")
+            class_name = class_names.get(class_id, f"Class {class_id}")
             color = _get_class_color(class_id)
             y_offset += _draw_corner_label(
                 img=img,

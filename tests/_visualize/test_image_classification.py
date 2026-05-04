@@ -216,7 +216,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={},
+            class_names={},
             max_images=2,
             top_k=1,
         )
@@ -232,7 +232,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={0: "cat", 1: "dog"},
+            class_names={0: "cat", 1: "dog"},
             max_images=1,
             top_k=1,
         )
@@ -242,7 +242,7 @@ class TestPlotImageClassificationPredictions:
     def test_plot_image_classification_predictions_unknown_class_draws_label(
         self,
     ) -> None:
-        # Class IDs absent from included_classes get a "Class {id}" fallback label.
+        # Class IDs absent from class_names get a "Class {id}" fallback label.
         batch = _make_batch_from_image(
             image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
             classes=[torch.tensor([0], dtype=torch.long)],
@@ -251,7 +251,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={},
+            class_names={},
             max_images=1,
             top_k=1,
         )
@@ -293,7 +293,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={},
+            class_names={},
             max_images=1,
             top_k=1,
             mean=mean,
@@ -314,7 +314,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={},
+            class_names={},
             max_images=1,
             top_k=1,
         )
@@ -333,7 +333,7 @@ class TestPlotImageClassificationPredictions:
                 classes=[torch.tensor([0], dtype=torch.long)],
             ),
             logits=logits,
-            included_classes={0: "cat", 1: "dog", 2: "bird"},
+            class_names={0: "cat", 1: "dog", 2: "bird"},
             max_images=1,
             top_k=1,
         )
@@ -343,7 +343,7 @@ class TestPlotImageClassificationPredictions:
                 classes=[torch.tensor([0, 1], dtype=torch.long)],
             ),
             logits=logits,
-            included_classes={0: "cat", 1: "dog", 2: "bird"},
+            class_names={0: "cat", 1: "dog", 2: "bird"},
             max_images=1,
             top_k=1,
         )
@@ -375,7 +375,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={0: "cat"},
+            class_names={0: "cat"},
             max_images=2,
             top_k=1,
         )
@@ -401,7 +401,7 @@ class TestPlotImageClassificationPredictions:
         result = image_classification.plot_image_classification_predictions(
             batch=batch,
             logits=logits,
-            included_classes={0: "cat", 1: "dog"},
+            class_names={0: "cat", 1: "dog"},
             max_images=1,
             top_k=2,
             classification_task="multilabel",
