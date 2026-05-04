@@ -15,6 +15,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -53,6 +54,9 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize.semantic_segmentation import (
+    plot_semantic_segmentation_labels,
+)
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 logger = logging.getLogger(__name__)
@@ -213,10 +217,14 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
         self.model_args = model_args
         self.metric_args = metric_args
+        self.data_args = data_args
+
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         image_size = no_auto(val_transform_args.image_size)
+
         normalize = no_auto(val_transform_args.normalize)
+        self._normalize = normalize
 
         # Prepare backbone args.
         backbone_args = {"patch_size": model_args.patch_size}
@@ -270,6 +278,15 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.criterion_empty_weight_reinit_hook
         )
+
+        self._internal_class_names: dict[int, str] = {
+            i: name for i, name in enumerate(data_args.included_classes.values())
+        }
+
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
 
     def get_task_model(self) -> DINOv3EoMTSemanticSegmentation:
         return self.model
@@ -326,12 +343,12 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                         pred[None, ...], targ[None, ...]
                     )
 
-        mask_prob_dict = {}
-        if self.model_args.metric_log_debug:
-            mask_prob_dict = {
-                f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": value
-                for block_idx, value in enumerate(self.model.attn_mask_probs)
-            }
+        # mask_prob_dict = {}
+        # if self.model_args.metric_log_debug:
+        #     mask_prob_dict = {
+        #         f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": value
+        #         for block_idx, value in enumerate(self.model.attn_mask_probs)
+        #     }
 
         # Mask annealing.
         for i in range(len(self.model.attn_mask_probs)):
@@ -341,10 +358,26 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            normalize_mean = (
+                tuple(self._normalize.mean) if self._normalize is not None else None
+            )
+            normalize_std = (
+                tuple(self._normalize.std) if self._normalize is not None else None
+            )
+            label_image = plot_semantic_segmentation_labels(
+                batch=batch,
+                class_names=self._internal_class_names,
+                mean=normalize_mean,
+                std=normalize_std,
+                max_images=self.viz_max_images,
+            )
         return TaskStepResult(
             loss=loss,
-            log_dict=mask_prob_dict,
+            log_dict={},
             metrics=self.train_metrics,
+            label_image=label_image,
         )
 
     def validation_step(
