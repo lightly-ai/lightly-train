@@ -138,6 +138,7 @@ module = [
     "albumentations.*",
     "fsspec.*",
     "lightly.*",
+    "matplotlib.*",
     "lightning_fabric.*",
     "lightning_fabric.loggers.logger",
     "pydicom.*",
