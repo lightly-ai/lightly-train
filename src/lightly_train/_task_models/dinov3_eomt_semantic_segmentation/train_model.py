@@ -224,7 +224,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         image_size = no_auto(val_transform_args.image_size)
 
         normalize = no_auto(val_transform_args.normalize)
-        self._normalize = normalize
 
         # Prepare backbone args.
         backbone_args = {"patch_size": model_args.patch_size}
@@ -360,17 +359,10 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
         return TaskStepResult(
@@ -468,18 +460,16 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             )
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
             if pred_logits is not None:
                 prediction_image = plot_semantic_segmentation_predictions(
                     batch=batch,
                     predictions=pred_logits,
-                    class_names=self._internal_class_names,
-                    mean=normalize_mean,
-                    std=normalize_std,
+                    included_classes=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
                 )
 

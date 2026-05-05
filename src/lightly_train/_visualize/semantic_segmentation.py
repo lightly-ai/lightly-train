@@ -27,10 +27,9 @@ from lightly_train.types import MaskSemanticSegmentationBatch
 
 def plot_semantic_segmentation_labels(
     batch: MaskSemanticSegmentationBatch,
-    class_names: dict[int, str],
+    included_classes: dict[int, str],
     max_images: int,
-    mean: tuple[float, ...] | None = None,
-    std: tuple[float, ...] | None = None,
+    image_normalize: dict[str, tuple[float, ...]] | None,
     alpha: float = 0.6,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth semantic segmentation masks.
@@ -38,10 +37,11 @@ def plot_semantic_segmentation_labels(
     Args:
         batch: Semantic segmentation batch with images and masks. Mask pixel values
             are internal contiguous class indices, not original class ids.
-        class_names: Mapping from internal class id to class name.
+        included_classes: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
         alpha: Blending factor for the mask overlay in [0, 1]. 0 shows only the
             image, 1 shows only the mask.
 
@@ -60,9 +60,12 @@ def plot_semantic_segmentation_labels(
     pil_images: list[PILImage] = []
     for i in range(n):
         image_tensor = gt_images[i].clone()
-        if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
-
+        if image_normalize is not None:
+            image_tensor = _denormalize_image(
+                image=image_tensor,
+                mean=image_normalize["mean"],
+                std=image_normalize["std"],
+            )
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
         mask = gt_masks[i]
 
@@ -71,7 +74,7 @@ def plot_semantic_segmentation_labels(
         blended = _draw_mask_contours(image=blended, mask=mask)
 
         blended = _draw_class_legend(
-            image=blended, mask=mask, class_names=class_names
+            image=blended, mask=mask, class_names=included_classes
         )
 
         pil_images.append(blended)
@@ -82,10 +85,9 @@ def plot_semantic_segmentation_labels(
 def plot_semantic_segmentation_predictions(
     batch: MaskSemanticSegmentationBatch,
     predictions: list[Tensor],
-    class_names: dict[int, str],
+    included_classes: dict[int, str],
     max_images: int,
-    mean: tuple[float, ...] | None = None,
-    std: tuple[float, ...] | None = None,
+    image_normalize: dict[str, tuple[float, ...]] | None,
     alpha: float = 0.6,
 ) -> PILImage:
     """Render a grid of images annotated with predicted semantic segmentation masks.
@@ -93,10 +95,11 @@ def plot_semantic_segmentation_predictions(
     Args:
         batch: Semantic segmentation batch with images.
         predictions: List of per-image logit tensors of shape (C, H, W).
-        class_names: Mapping from internal class id to class name.
+        included_classes: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
         alpha: Blending factor for the mask overlay in [0, 1]. 0 shows only the
             image, 1 shows only the mask.
 
@@ -113,8 +116,12 @@ def plot_semantic_segmentation_predictions(
     pil_images: list[PILImage] = []
     for i in range(n):
         image_tensor = gt_images[i].clone()
-        if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
+        if image_normalize is not None:
+            image_tensor = _denormalize_image(
+                image=image_tensor,
+                mean=image_normalize["mean"],
+                std=image_normalize["std"],
+            )
 
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
         pred_logits_i = predictions[i].cpu()
