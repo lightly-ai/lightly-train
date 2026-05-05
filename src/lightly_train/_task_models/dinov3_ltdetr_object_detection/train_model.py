@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, ClassVar
+import re
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
@@ -24,6 +25,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
 )
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -76,6 +78,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    patch_size: int | Literal["auto"] = "auto"
     backbone_freeze: bool = False
 
     use_ema_model: bool = True
@@ -122,6 +125,25 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
+    def resolve_auto(
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
+    ) -> None:
+        if self.patch_size == "auto":
+            patch_size = model_init_args.get("patch_size", None)
+            if patch_size is not None:
+                self.patch_size = int(patch_size)
+            else:
+                match = re.match(
+                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
+                    model_name,
+                )
+                if match is not None:
+                    self.patch_size = int(match.group("patch_size"))
+
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
@@ -149,6 +171,17 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.data_args = data_args
 
+        parsed_name = DINOv3LTDETRObjectDetection.parse_model_name(
+            model_name=model_name
+        )
+        backbone_args: dict[str, Any] | None = copy.deepcopy(model_args.backbone_args)
+        if backbone_args is not None and parsed_name["backbone_name"].startswith("vit") and isinstance(
+            model_args.patch_size, int
+        ):
+            backbone_args["patch_size"] = model_args.patch_size
+        if not backbone_args:
+            backbone_args = None
+
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
         normalize_dict: dict[str, Any] | None
@@ -165,7 +198,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             classes=data_args.included_classes,
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
-            backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
+            backbone_args=backbone_args,
             backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )
