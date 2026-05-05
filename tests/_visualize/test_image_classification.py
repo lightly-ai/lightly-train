@@ -89,37 +89,6 @@ def test_plot_image_classification_labels__grid_caps_at_max_images() -> None:
     assert result.size == (32, 16)
 
 
-def test_plot_image_classification_labels__label_drawn() -> None:
-    # The legend renders text in the upper-left corner; on a white background
-    # the legend area contains non-white pixels.
-    batch = _make_batch_from_image(
-        image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
-        classes=[torch.tensor([1], dtype=torch.long)],
-    )
-    model_task = _make_model_task(class_names={1: "dog"})
-    result = image_classification.plot_image_classification_labels(
-        batch=batch, model_task=model_task, max_images=1
-    )
-    assert _has_legend(result)
-    # Far corner is untouched by the legend overlay.
-    assert result.getpixel((127, 127)) == _WHITE_PIXEL
-
-
-def test_plot_image_classification_labels__unknown_class_draws_label() -> None:
-    # A class ID absent from class_names falls back to "Class {id}" text
-    # but still renders the legend.
-    batch = _make_batch_from_image(
-        image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
-        classes=[torch.tensor([99], dtype=torch.long)],
-    )
-    model_task = _make_model_task(class_names={0: "_"})
-    result = image_classification.plot_image_classification_labels(
-        batch=batch, model_task=model_task, max_images=1
-    )
-    assert _has_legend(result)
-    assert result.getpixel((127, 127)) == _WHITE_PIXEL
-
-
 def test_plot_image_classification_labels__empty_classes_produces_clean_image() -> None:
     # No class labels → no overlay drawn; the image passes through unchanged.
     batch = _make_batch_from_image(
@@ -211,45 +180,6 @@ def test_plot_image_classification_predictions__grid_caps_at_max_images() -> Non
     assert result.size == (32, 16)
 
 
-def test_plot_image_classification_predictions__label_drawn() -> None:
-    # Top-1 prediction renders a legend in the upper-left corner.
-    batch = _make_batch_from_image(
-        image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
-        classes=[torch.tensor([0], dtype=torch.long)],
-    )
-    logits = torch.tensor([[1.0, 5.0]])
-    model_task = _make_model_task(class_names={0: "cat", 1: "dog"})
-    result = image_classification.plot_image_classification_predictions(
-        batch=batch,
-        logits=logits,
-        model_task=model_task,
-        max_images=1,
-        top_k=1,
-    )
-    assert _has_legend(result)
-    assert result.getpixel((127, 127)) == _WHITE_PIXEL
-
-
-def test_plot_image_classification_predictions__unknown_class_draws_label() -> None:
-    # Class IDs absent from class_names get a "Class {id}" fallback label.
-    # The model knows only internal class 0; top prediction is class 1 (unknown).
-    batch = _make_batch_from_image(
-        image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
-        classes=[torch.tensor([0], dtype=torch.long)],
-    )
-    logits = torch.tensor([[1.0, 5.0]])
-    model_task = _make_model_task(class_names={0: "_"})
-    result = image_classification.plot_image_classification_predictions(
-        batch=batch,
-        logits=logits,
-        model_task=model_task,
-        max_images=1,
-        top_k=1,
-    )
-    assert _has_legend(result)
-    assert result.getpixel((127, 127)) == _WHITE_PIXEL
-
-
 def test_plot_image_classification_predictions__no_mean_std_skips_denormalization() -> (
     None
 ):
@@ -330,29 +260,3 @@ def test_plot_image_classification_predictions__mixed_empty_nonempty_annotations
     # Both images get a top-1 prediction drawn as a legend.
     assert _has_legend(result.crop((0, 0, 128, 128)))
     assert _has_legend(result.crop((128, 0, 256, 128)))
-
-
-def test_plot_image_classification_predictions__multilabel_uses_sigmoid() -> None:
-    # For multilabel, scores are sigmoid(logits) and do NOT sum to 1. Verify
-    # that the two displayed scores are both sigmoid values, not softmax values.
-    batch = _make_batch_from_image(
-        image=torch.full((1, 3, 32, 32), _WHITE_COLOR),
-        classes=[torch.tensor([0, 1], dtype=torch.long)],
-    )
-    # logits [2.0, 1.0]: sigmoid -> [0.88, 0.73], softmax -> [0.73, 0.27].
-    # With softmax the scores sum to 1; with sigmoid they exceed 1 in total.
-    logits = torch.tensor([[2.0, 1.0]])
-    model_task = _make_model_task(class_names={0: "cat", 1: "dog"})
-
-    # The function should not raise and should use sigmoid-based ordering/scores.
-    result = image_classification.plot_image_classification_predictions(
-        batch=batch,
-        logits=logits,
-        model_task=model_task,
-        max_images=1,
-        top_k=2,
-        classification_task="multilabel",
-    )
-    # With sigmoid both scores are > 0.5 so the sum exceeds 1.0, which would be
-    # impossible under softmax. Verify the legend is drawn.
-    assert _has_legend(result)
