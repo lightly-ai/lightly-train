@@ -210,7 +210,8 @@ class ImageClassificationTrain(TrainModel):
         if step < 3 and fabric.global_rank == 0:
             label_image = plot_image_classification_labels(
                 batch=batch,
-                model_task=self.model,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
         return TaskStepResult(
@@ -250,13 +251,15 @@ class ImageClassificationTrain(TrainModel):
         if step < 3 and fabric.global_rank == 0:
             label_image = plot_image_classification_labels(
                 batch=batch,
-                model_task=self.model,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
             prediction_image = plot_image_classification_predictions(
                 batch=batch,
                 logits=logits,
-                model_task=self.model,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 top_k=self.viz_top_k,
                 max_images=self.viz_max_images,
                 classification_task=self.model.classification_task,

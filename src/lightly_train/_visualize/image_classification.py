@@ -14,9 +14,6 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
-from lightly_train._task_models.image_classification.task_model import (
-    ImageClassification,
-)
 from lightly_train._visualize.utils import (
     _denormalize_image,
     _draw_class_legend,
@@ -27,15 +24,19 @@ from lightly_train.types import ImageClassificationBatch
 
 def plot_image_classification_labels(
     batch: ImageClassificationBatch,
-    model_task: ImageClassification,
+    included_classes: dict[int, str],
     max_images: int,
+    image_normalize: dict[str, tuple[float, ...]] | None = None,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth class labels.
 
     Args:
         batch: Image classification batch with images and class IDs.
-        model_task: The model task containing class information.
+        included_classes: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
 
     Returns:
         A single PIL image containing up to max_images annotated images arranged
@@ -44,24 +45,21 @@ def plot_image_classification_labels(
     images = batch["image"].cpu()
     gt_classes = [c.cpu() for c in batch["classes"]]
     n = min(max_images, images.shape[0])
-    class_names = _get_class_names(model_task)
-
-    mean = None
-    std = None
-    if model_task.image_normalize:
-        mean = model_task.image_normalize["mean"]
-        std = model_task.image_normalize["std"]
 
     pil_images: list[PILImage] = []
     for i in range(n):
         image_tensor = images[i].clone().to(dtype=torch.float32)
-        if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
+        if image_normalize is not None:
+            image_tensor = _denormalize_image(
+                image=image_tensor,
+                mean=image_normalize["mean"],
+                std=image_normalize["std"],
+            )
 
         img = torchvision_functional.to_pil_image(image_tensor)
 
         labels = [
-            class_names.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
+            included_classes.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
         ]
         img = _draw_class_legend(image=img, labels=labels)
 
@@ -72,10 +70,11 @@ def plot_image_classification_labels(
 
 def plot_image_classification_predictions(
     batch: ImageClassificationBatch,
+    included_classes: dict[int, str],
     logits: Tensor,
-    model_task: ImageClassification,
     max_images: int,
     top_k: int,
+    image_normalize: dict[str, tuple[float, ...]] | None = None,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
 ) -> PILImage:
     """Render a grid of images annotated with top-k predicted class labels and scores.
@@ -85,10 +84,13 @@ def plot_image_classification_predictions(
 
     Args:
         batch: Image classification batch with images.
+        included_classes: A dict mapping internal class IDs to class names.
         logits: Model output logits of shape (batch_size, num_classes).
-        model_task: The model task containing class information.
         max_images: Maximum number of images to include in the grid.
         top_k: Number of top predictions to display per image.
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
         classification_task: Whether the task is "multiclass" (softmax scores) or
             "multilabel" (sigmoid scores).
 
@@ -96,7 +98,6 @@ def plot_image_classification_predictions(
         A single PIL image containing up to max_images annotated images arranged
         in a grid.
     """
-    class_names = _get_class_names(model_task)
     images = batch["image"].cpu()
     gt_classes = [c.cpu() for c in batch["classes"]]
     logits = logits.detach().to(device="cpu", dtype=torch.float32)
@@ -111,17 +112,15 @@ def plot_image_classification_predictions(
     topk_k = min(num_classes, max(top_k, max_gt_labels))
     top_scores, top_class_ids = torch.topk(probs, k=topk_k, dim=-1)
 
-    mean = None
-    std = None
-    if model_task.image_normalize:
-        mean = model_task.image_normalize["mean"]
-        std = model_task.image_normalize["std"]
-
     pil_images: list[PILImage] = []
     for i in range(n):
         image_tensor = images[i].clone().to(dtype=torch.float32)
-        if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
+        if image_normalize is not None:
+            image_tensor = _denormalize_image(
+                image=image_tensor,
+                mean=image_normalize["mean"],
+                std=image_normalize["std"],
+            )
 
         img = torchvision_functional.to_pil_image(image_tensor)
 
@@ -133,17 +132,10 @@ def plot_image_classification_predictions(
         for rank in range(effective_k):
             class_id = int(top_class_ids[i, rank].item())
             score = float(top_scores[i, rank].item())
-            class_name = class_names.get(class_id, f"Class {class_id}")
+            class_name = included_classes.get(class_id, f"Class {class_id}")
             labels.append(f"{class_name}: {score:.2f}")
         img = _draw_class_legend(image=img, labels=labels)
 
         pil_images.append(img)
 
     return _render_grid(pil_images)
-
-
-def _get_class_names(model_task: ImageClassification) -> dict[int, str]:
-    return {
-        internal_class_id: model_task.classes[int(class_id)]
-        for internal_class_id, class_id in enumerate(model_task.internal_class_to_class)
-    }

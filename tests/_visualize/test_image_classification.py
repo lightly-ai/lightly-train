@@ -12,9 +12,6 @@ from PIL import Image, ImageChops
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
-from lightly_train._task_models.image_classification.task_model import (
-    ImageClassification,
-)
 from lightly_train._visualize import image_classification
 from lightly_train.types import ImageClassificationBatch
 
@@ -65,26 +62,10 @@ def _make_batch_from_image(
     )
 
 
-def _make_model_task(
-    class_names: dict[int, str],
-    image_normalize: dict[str, tuple[float, ...]] | None = None,
-) -> ImageClassification:
-    return ImageClassification(
-        model="torchvision/resnet18",
-        classes=class_names,
-        classification_task="multiclass",
-        image_size=(32, 32),
-        image_normalize=image_normalize,
-        backbone_freeze=False,
-        load_weights=False,
-    )
-
-
 def test_plot_image_classification_labels__grid_caps_at_max_images() -> None:
     batch = _make_batch(batch_size=4, height=16, width=16)
-    model_task = _make_model_task(class_names={0: "_"})
     result = image_classification.plot_image_classification_labels(
-        batch=batch, model_task=model_task, max_images=2
+        batch=batch, included_classes={0: "_"}, max_images=2
     )
     assert result.size == (32, 16)
 
@@ -95,24 +76,24 @@ def test_plot_image_classification_labels__empty_classes_produces_clean_image() 
         image=torch.full((1, 3, 32, 32), _WHITE_COLOR),
         classes=[torch.zeros(0, dtype=torch.long)],
     )
-    model_task = _make_model_task(class_names={0: "_"})
     result = image_classification.plot_image_classification_labels(
-        batch=batch, model_task=model_task, max_images=1
+        batch=batch, included_classes={0: "_"}, max_images=1
     )
     assert result.getpixel((0, 0)) == _WHITE_PIXEL
     assert result.getpixel((31, 31)) == _WHITE_PIXEL
 
 
-def test_plot_image_classification_labels__no_mean_std_skips_denormalization() -> None:
-    # Without mean/std the image tensor passes through unchanged.
+def test_plot_image_classification_labels__no_image_normalize_skips_denormalization() -> (
+    None
+):
+    # Without image_normalize the image tensor passes through unchanged.
     # Uniform 0.4 -> 102, no labels drawn.
     batch = _make_batch_from_image(
         image=torch.full((1, 3, 32, 32), 0.4),
         classes=[torch.zeros(0, dtype=torch.long)],
     )
-    model_task = _make_model_task(class_names={0: "_"})
     result = image_classification.plot_image_classification_labels(
-        batch=batch, model_task=model_task, max_images=1
+        batch=batch, included_classes={0: "_"}, max_images=1
     )
     assert result.getpixel((0, 0)) == (102, 102, 102)
     assert result.getpixel((31, 31)) == (102, 102, 102)
@@ -122,13 +103,13 @@ def test_plot_image_classification_labels__multiple_classes_stack_vertically() -
     # Two labels are stacked vertically in the legend. The second label extends
     # the legend further down compared to a single label.
     image = torch.full((1, 3, 256, 256), _WHITE_COLOR)
-    model_task = _make_model_task(class_names={0: "cat", 1: "dog"})
+    included_classes = {0: "cat", 1: "dog"}
     result_one = image_classification.plot_image_classification_labels(
         batch=_make_batch_from_image(
             image=image,
             classes=[torch.tensor([0], dtype=torch.long)],
         ),
-        model_task=model_task,
+        included_classes=included_classes,
         max_images=1,
     )
     result_two = image_classification.plot_image_classification_labels(
@@ -136,7 +117,7 @@ def test_plot_image_classification_labels__multiple_classes_stack_vertically() -
             image=image,
             classes=[torch.tensor([0, 1], dtype=torch.long)],
         ),
-        model_task=model_task,
+        included_classes=included_classes,
         max_images=1,
     )
     bbox_one = _non_white_bbox(result_one)
@@ -157,9 +138,8 @@ def test_plot_image_classification_labels__mixed_empty_nonempty_annotations() ->
             torch.zeros(0, dtype=torch.long),
         ],
     )
-    model_task = _make_model_task(class_names={0: "cat"})
     result = image_classification.plot_image_classification_labels(
-        batch=batch, model_task=model_task, max_images=2
+        batch=batch, included_classes={0: "cat"}, max_images=2
     )
     # Image 0 has a legend; image 1 stays fully white.
     assert _has_legend(result.crop((0, 0, 128, 128)))
@@ -169,32 +149,30 @@ def test_plot_image_classification_labels__mixed_empty_nonempty_annotations() ->
 def test_plot_image_classification_predictions__grid_caps_at_max_images() -> None:
     batch = _make_batch(batch_size=4, height=16, width=16)
     logits = torch.zeros(4, 2)
-    model_task = _make_model_task(class_names={0: "_", 1: "_"})
     result = image_classification.plot_image_classification_predictions(
         batch=batch,
         logits=logits,
-        model_task=model_task,
+        included_classes={0: "_", 1: "_"},
         max_images=2,
         top_k=1,
     )
     assert result.size == (32, 16)
 
 
-def test_plot_image_classification_predictions__no_mean_std_skips_denormalization() -> (
+def test_plot_image_classification_predictions__no_image_normalize_skips_denormalization() -> (
     None
 ):
-    # Without mean/std the image tensor passes through unchanged.
+    # Without image_normalize the image tensor passes through unchanged.
     # Check the far corner to avoid the corner-label overlay area.
     batch = _make_batch_from_image(
         image=torch.full((1, 3, 128, 128), 0.4),
         classes=[torch.zeros(0, dtype=torch.long)],
     )
     logits = torch.zeros(1, 2)
-    model_task = _make_model_task(class_names={0: "_", 1: "_"})
     result = image_classification.plot_image_classification_predictions(
         batch=batch,
         logits=logits,
-        model_task=model_task,
+        included_classes={0: "_", 1: "_"},
         max_images=1,
         top_k=1,
     )
@@ -206,14 +184,14 @@ def test_plot_image_classification_predictions__effective_k_multi_label() -> Non
     # are drawn. The legend extends further down with two entries than with one.
     image = torch.full((1, 3, 256, 256), _WHITE_COLOR)
     logits = torch.tensor([[10.0, 5.0, 1.0]])
-    model_task = _make_model_task(class_names={0: "cat", 1: "dog", 2: "bird"})
+    included_classes = {0: "cat", 1: "dog", 2: "bird"}
     result_one_gt = image_classification.plot_image_classification_predictions(
         batch=_make_batch_from_image(
             image=image,
             classes=[torch.tensor([0], dtype=torch.long)],
         ),
         logits=logits,
-        model_task=model_task,
+        included_classes=included_classes,
         max_images=1,
         top_k=1,
     )
@@ -223,7 +201,7 @@ def test_plot_image_classification_predictions__effective_k_multi_label() -> Non
             classes=[torch.tensor([0, 1], dtype=torch.long)],
         ),
         logits=logits,
-        model_task=model_task,
+        included_classes=included_classes,
         max_images=1,
         top_k=1,
     )
@@ -248,11 +226,10 @@ def test_plot_image_classification_predictions__mixed_empty_nonempty_annotations
         ],
     )
     logits = torch.zeros(2, 2)
-    model_task = _make_model_task(class_names={0: "cat", 1: "_"})
     result = image_classification.plot_image_classification_predictions(
         batch=batch,
         logits=logits,
-        model_task=model_task,
+        included_classes={0: "cat", 1: "_"},
         max_images=2,
         top_k=1,
     )
