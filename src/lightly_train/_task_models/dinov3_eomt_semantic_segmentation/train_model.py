@@ -218,7 +218,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
         self.model_args = model_args
         self.metric_args = metric_args
-        self.data_args = data_args
 
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
