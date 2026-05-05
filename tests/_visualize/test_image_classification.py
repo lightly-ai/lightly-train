@@ -99,6 +99,24 @@ def test_plot_image_classification_labels__no_image_normalize_skips_denormalizat
     assert result.getpixel((31, 31)) == (102, 102, 102)
 
 
+def test_plot_image_classification_labels__image_normalize_denormalizes() -> None:
+    # With image_normalize, the image is denormalized before rendering.
+    # Input tensor of 0.0 with mean=0.5, std=0.5 -> denormalized to 0.5 -> pixel 127.
+    # Without denormalization, 0.0 would render as black (0).
+    batch = _make_batch_from_image(
+        image=torch.zeros(1, 3, 32, 32),
+        classes=[torch.zeros(0, dtype=torch.long)],
+    )
+    result = image_classification.plot_image_classification_labels(
+        batch=batch,
+        included_classes={0: "_"},
+        max_images=1,
+        image_normalize={"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)},
+    )
+    assert result.getpixel((0, 0)) == (127, 127, 127)
+    assert result.getpixel((31, 31)) == (127, 127, 127)
+
+
 def test_plot_image_classification_labels__multiple_classes_stack_vertically() -> None:
     # Two labels are stacked vertically in the legend. The second label extends
     # the legend further down compared to a single label.
@@ -177,6 +195,27 @@ def test_plot_image_classification_predictions__no_image_normalize_skips_denorma
         top_k=1,
     )
     assert result.getpixel((127, 127)) == (102, 102, 102)
+
+
+def test_plot_image_classification_predictions__image_normalize_denormalizes() -> None:
+    # With image_normalize, the image is denormalized before rendering.
+    # Input tensor of 0.0 with mean=0.5, std=0.5 -> denormalized to 0.5 -> pixel 127.
+    # Without denormalization, 0.0 would render as black (0).
+    # Check the far corner to avoid the corner-label overlay area.
+    batch = _make_batch_from_image(
+        image=torch.zeros(1, 3, 128, 128),
+        classes=[torch.zeros(0, dtype=torch.long)],
+    )
+    logits = torch.zeros(1, 2)
+    result = image_classification.plot_image_classification_predictions(
+        batch=batch,
+        logits=logits,
+        included_classes={0: "_", 1: "_"},
+        max_images=1,
+        top_k=1,
+        image_normalize={"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)},
+    )
+    assert result.getpixel((127, 127)) == (127, 127, 127)
 
 
 def test_plot_image_classification_predictions__effective_k_multi_label() -> None:
