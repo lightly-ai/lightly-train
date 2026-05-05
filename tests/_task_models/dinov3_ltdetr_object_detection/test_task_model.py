@@ -130,21 +130,6 @@ def test_resolve_auto__keeps_convnext_auto(monkeypatch: pytest.MonkeyPatch) -> N
     assert "patch_size" not in calls[0]["model_args"]
 
 
-def test_resolve_auto__uses_explicit_patch_size_for_convnext(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
-    train_model, calls = _create_train_model_with_capture(
-        model_args,
-        model_name="dinov3/convnext-small-ltdetr",
-        monkeypatch=monkeypatch,
-    )
-
-    assert model_args.patch_size == 14
-    assert calls[0]["model_args"]["patch_size"] == 14
-    assert train_model.model.backbone.patch_size == 14
-
-
 def _create_train_model(
     train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
     *,
@@ -196,10 +181,7 @@ def _create_train_model_with_capture(
         model_args = kwargs.get("model_args", {}) or {}
 
         if str(model_name).startswith("convnext"):
-            convnext_kwargs: dict[str, Any] = {"pretrained": False}
-            if "patch_size" in model_args:
-                convnext_kwargs["patch_size"] = int(model_args["patch_size"])
-            return backbones._dinov3_convnext_test(**convnext_kwargs)
+            return backbones._dinov3_convnext_test(pretrained=False)
 
         return backbones._dinov3_vit_test(
             pretrained=False,

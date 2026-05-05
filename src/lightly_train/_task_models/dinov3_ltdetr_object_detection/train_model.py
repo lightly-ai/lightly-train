@@ -171,14 +171,14 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.data_args = data_args
 
-        model_args_backbone_args_copy: dict[str, Any] = copy.deepcopy(
-            model_args.backbone_args
+        parsed_name = DINOv3LTDETRObjectDetection.parse_model_name(
+            model_name=model_name
         )
-        if isinstance(model_args.patch_size, int):
-            model_args_backbone_args_copy["patch_size"] = model_args.patch_size
-
-        backbone_args: dict[str, Any] | None = model_args_backbone_args_copy
-
+        backbone_args: dict[str, Any] | None = copy.deepcopy(model_args.backbone_args)
+        if backbone_args is not None and parsed_name["backbone_name"].startswith("vit") and isinstance(
+            model_args.patch_size, int
+        ):
+            backbone_args["patch_size"] = model_args.patch_size
         if not backbone_args:
             backbone_args = None
 
