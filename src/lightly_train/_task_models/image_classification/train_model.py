@@ -127,17 +127,9 @@ class ImageClassificationTrain(TrainModel):
         super().__init__()
 
         self.model_args = model_args
-        self.data_args = data_args
 
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
-        normalize_dict: dict[str, Any] | None
-        self._normalize = normalize
-
-        if normalize is None:
-            normalize_dict = None
-        else:
-            normalize_dict = normalize.model_dump()
 
         self.model = ImageClassification(
             model=model_name,
@@ -145,7 +137,7 @@ class ImageClassificationTrain(TrainModel):
             classification_task=data_args.classification_task,
             # TODO(Guarin, 02/26): Check drop path rate for DINO models.
             image_size=image_size,
-            image_normalize=normalize_dict,
+            image_normalize=normalize.model_dump() if normalize is not None else None,
             backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,
@@ -177,10 +169,6 @@ class ImageClassificationTrain(TrainModel):
             loss_names=["loss"],
             train_loss_running_mean_window=gradient_accumulation_steps,
         )
-
-        self._internal_class_names: dict[int, str] = {
-            i: name for i, name in enumerate(data_args.included_classes.values())
-        }
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
@@ -220,17 +208,9 @@ class ImageClassificationTrain(TrainModel):
 
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = plot_image_classification_labels(
                 batch=batch,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                model_task=self.model,
                 max_images=self.viz_max_images,
             )
         return TaskStepResult(
@@ -268,25 +248,15 @@ class ImageClassificationTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = plot_image_classification_labels(
                 batch=batch,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                model_task=self.model,
                 max_images=self.viz_max_images,
             )
             prediction_image = plot_image_classification_predictions(
                 batch=batch,
                 logits=logits,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                model_task=self.model,
                 top_k=self.viz_top_k,
                 max_images=self.viz_max_images,
                 classification_task=self.model.classification_task,

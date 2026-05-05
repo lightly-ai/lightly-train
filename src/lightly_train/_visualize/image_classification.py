@@ -14,6 +14,9 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
+from lightly_train._task_models.image_classification.task_model import (
+    ImageClassification,
+)
 from lightly_train._visualize.utils import (
     _denormalize_image,
     _draw_class_legend,
@@ -24,19 +27,15 @@ from lightly_train.types import ImageClassificationBatch
 
 def plot_image_classification_labels(
     batch: ImageClassificationBatch,
-    class_names: dict[int, str],
+    model_task: ImageClassification,
     max_images: int,
-    mean: tuple[float, ...] | None = None,
-    std: tuple[float, ...] | None = None,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth class labels.
 
     Args:
         batch: Image classification batch with images and class IDs.
-        class_names: Mapping from class ID to class name.
+        model_task: The model task containing class information.
         max_images: Maximum number of images to include in the grid.
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
 
     Returns:
         A single PIL image containing up to max_images annotated images arranged
@@ -45,6 +44,13 @@ def plot_image_classification_labels(
     images = batch["image"].cpu()
     gt_classes = [c.cpu() for c in batch["classes"]]
     n = min(max_images, images.shape[0])
+    class_names = _get_class_names(model_task)
+
+    mean = None
+    std = None
+    if model_task.image_normalize:
+        mean = model_task.image_normalize["mean"]
+        std = model_task.image_normalize["std"]
 
     pil_images: list[PILImage] = []
     for i in range(n):
@@ -67,12 +73,10 @@ def plot_image_classification_labels(
 def plot_image_classification_predictions(
     batch: ImageClassificationBatch,
     logits: Tensor,
-    class_names: dict[int, str],
+    model_task: ImageClassification,
     max_images: int,
     top_k: int,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
-    mean: tuple[float, ...] | None = None,
-    std: tuple[float, ...] | None = None,
 ) -> PILImage:
     """Render a grid of images annotated with top-k predicted class labels and scores.
 
@@ -82,18 +86,17 @@ def plot_image_classification_predictions(
     Args:
         batch: Image classification batch with images.
         logits: Model output logits of shape (batch_size, num_classes).
-        class_names: Mapping from class ID to class name.
+        model_task: The model task containing class information.
         max_images: Maximum number of images to include in the grid.
         top_k: Number of top predictions to display per image.
         classification_task: Whether the task is "multiclass" (softmax scores) or
             "multilabel" (sigmoid scores).
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
 
     Returns:
         A single PIL image containing up to max_images annotated images arranged
         in a grid.
     """
+    class_names = _get_class_names(model_task)
     images = batch["image"].cpu()
     gt_classes = [c.cpu() for c in batch["classes"]]
     logits = logits.detach().to(device="cpu", dtype=torch.float32)
@@ -107,6 +110,12 @@ def plot_image_classification_predictions(
     max_gt_labels = max((len(gt_classes[i]) for i in range(n)), default=0)
     topk_k = min(num_classes, max(top_k, max_gt_labels))
     top_scores, top_class_ids = torch.topk(probs, k=topk_k, dim=-1)
+
+    mean = None
+    std = None
+    if model_task.image_normalize:
+        mean = model_task.image_normalize["mean"]
+        std = model_task.image_normalize["std"]
 
     pil_images: list[PILImage] = []
     for i in range(n):
@@ -131,3 +140,10 @@ def plot_image_classification_predictions(
         pil_images.append(img)
 
     return _render_grid(pil_images)
+
+
+def _get_class_names(model_task: ImageClassification) -> dict[int, str]:
+    return {
+        internal_class_id: model_task.classes[int(class_id)]
+        for internal_class_id, class_id in enumerate(model_task.internal_class_to_class)
+    }
