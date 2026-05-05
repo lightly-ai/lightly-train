@@ -26,7 +26,7 @@ def plot_image_classification_labels(
     batch: ImageClassificationBatch,
     included_classes: dict[int, str],
     max_images: int,
-    image_normalize: dict[str, tuple[float, ...]] | None = None,
+    image_normalize: dict[str, tuple[float, ...]] | None,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth class labels.
 
@@ -74,7 +74,7 @@ def plot_image_classification_predictions(
     logits: Tensor,
     max_images: int,
     top_k: int,
-    image_normalize: dict[str, tuple[float, ...]] | None = None,
+    image_normalize: dict[str, tuple[float, ...]] | None,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
 ) -> PILImage:
     """Render a grid of images annotated with top-k predicted class labels and scores.

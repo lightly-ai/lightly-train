@@ -65,7 +65,7 @@ def _make_batch_from_image(
 def test_plot_image_classification_labels__grid_caps_at_max_images() -> None:
     batch = _make_batch(batch_size=4, height=16, width=16)
     result = image_classification.plot_image_classification_labels(
-        batch=batch, included_classes={0: "_"}, max_images=2
+        batch=batch, included_classes={0: "_"}, max_images=2, image_normalize=None
     )
     assert result.size == (32, 16)
 
@@ -77,7 +77,7 @@ def test_plot_image_classification_labels__empty_classes_produces_clean_image() 
         classes=[torch.zeros(0, dtype=torch.long)],
     )
     result = image_classification.plot_image_classification_labels(
-        batch=batch, included_classes={0: "_"}, max_images=1
+        batch=batch, included_classes={0: "_"}, max_images=1, image_normalize=None
     )
     assert result.getpixel((0, 0)) == _WHITE_PIXEL
     assert result.getpixel((31, 31)) == _WHITE_PIXEL
@@ -93,7 +93,7 @@ def test_plot_image_classification_labels__no_image_normalize_skips_denormalizat
         classes=[torch.zeros(0, dtype=torch.long)],
     )
     result = image_classification.plot_image_classification_labels(
-        batch=batch, included_classes={0: "_"}, max_images=1
+        batch=batch, included_classes={0: "_"}, max_images=1, image_normalize=None
     )
     assert result.getpixel((0, 0)) == (102, 102, 102)
     assert result.getpixel((31, 31)) == (102, 102, 102)
@@ -129,6 +129,7 @@ def test_plot_image_classification_labels__multiple_classes_stack_vertically() -
         ),
         included_classes=included_classes,
         max_images=1,
+        image_normalize=None,
     )
     result_two = image_classification.plot_image_classification_labels(
         batch=_make_batch_from_image(
@@ -137,6 +138,7 @@ def test_plot_image_classification_labels__multiple_classes_stack_vertically() -
         ),
         included_classes=included_classes,
         max_images=1,
+        image_normalize=None,
     )
     bbox_one = _non_white_bbox(result_one)
     bbox_two = _non_white_bbox(result_two)
@@ -157,7 +159,7 @@ def test_plot_image_classification_labels__mixed_empty_nonempty_annotations() ->
         ],
     )
     result = image_classification.plot_image_classification_labels(
-        batch=batch, included_classes={0: "cat"}, max_images=2
+        batch=batch, included_classes={0: "cat"}, max_images=2, image_normalize=None
     )
     # Image 0 has a legend; image 1 stays fully white.
     assert _has_legend(result.crop((0, 0, 128, 128)))
@@ -173,6 +175,7 @@ def test_plot_image_classification_predictions__grid_caps_at_max_images() -> Non
         included_classes={0: "_", 1: "_"},
         max_images=2,
         top_k=1,
+        image_normalize=None,
     )
     assert result.size == (32, 16)
 
@@ -193,6 +196,7 @@ def test_plot_image_classification_predictions__no_image_normalize_skips_denorma
         included_classes={0: "_", 1: "_"},
         max_images=1,
         top_k=1,
+        image_normalize=None,
     )
     assert result.getpixel((127, 127)) == (102, 102, 102)
 
@@ -233,6 +237,7 @@ def test_plot_image_classification_predictions__effective_k_multi_label() -> Non
         included_classes=included_classes,
         max_images=1,
         top_k=1,
+        image_normalize=None,
     )
     result_two_gt = image_classification.plot_image_classification_predictions(
         batch=_make_batch_from_image(
@@ -243,6 +248,7 @@ def test_plot_image_classification_predictions__effective_k_multi_label() -> Non
         included_classes=included_classes,
         max_images=1,
         top_k=1,
+        image_normalize=None,
     )
     bbox_one = _non_white_bbox(result_one_gt)
     bbox_two = _non_white_bbox(result_two_gt)
@@ -271,6 +277,7 @@ def test_plot_image_classification_predictions__mixed_empty_nonempty_annotations
         included_classes={0: "cat", 1: "_"},
         max_images=2,
         top_k=1,
+        image_normalize=None,
     )
     assert result.size == (256, 128)
     # Both images get a top-1 prediction drawn as a legend.
