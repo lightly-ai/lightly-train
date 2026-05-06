@@ -105,8 +105,8 @@ class ImageClassification(TaskModel):
         )
 
         self.included_classes: dict[int, str] = {
-            internal_class_id: self.classes[class_id]
-            for internal_class_id, class_id in enumerate(internal_class_to_class)
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
         }
 
         num_input_channels = (
