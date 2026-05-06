@@ -1,3 +1,10 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 from __future__ import annotations
 
 import pytest
@@ -35,27 +42,29 @@ def test_flat_cosine_scheduler_phases() -> None:
     optimizer, scheduler = _make_scheduler()
 
     assert scheduler.has_cosine_phase
-    assert scheduler.get_last_lr()[0] == pytest.approx(0.010099)
+    assert scheduler.flat_steps == 402
+    assert scheduler.no_aug_steps == 111
+    assert scheduler.get_last_lr()[0] == pytest.approx(0.01)
 
-    _advance(scheduler, 99)
+    _advance(scheduler, 100)
+    assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
+
+    _advance(scheduler, 301)
     assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
 
     _advance(scheduler, 1)
-    assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
-
-    _advance(scheduler, 454)
     assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
 
     _advance(scheduler, 1)
     cosine_lr = scheduler.get_last_lr()[0]
-    assert 0.001 < cosine_lr < 1.0
+    assert 0.5 < cosine_lr < 1.0
 
-    _advance(scheduler, 278)
-    assert scheduler.get_last_lr()[0] == pytest.approx(0.001)
+    _advance(scheduler, 486)
+    assert scheduler.get_last_lr()[0] == pytest.approx(0.5)
 
     _advance(scheduler, 100)
-    assert scheduler.get_last_lr()[0] == pytest.approx(0.001)
-    assert optimizer.param_groups[0]["lr"] == pytest.approx(0.001)
+    assert scheduler.get_last_lr()[0] == pytest.approx(0.5)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(0.5)
 
 
 def test_flat_cosine_scheduler_state_dict_roundtrip() -> None:
