@@ -262,20 +262,24 @@ class TestDrawClassLegend:
 class TestBuildMaskOverlay:
     def test__build_mask_overlay__returns_rgb_image_of_requested_size(self) -> None:
         mask = torch.zeros(8, 8, dtype=torch.long)
-        result = utils._build_mask_overlay(mask=mask, size=(16, 12))
+        result = utils._build_mask_overlay(
+            mask=mask, size=(16, 12), class_names={0: "a"}
+        )
         assert result.mode == "RGB"
         assert result.size == (16, 12)
 
     def test__build_mask_overlay__class_pixels_get_expected_color(self) -> None:
         mask = torch.zeros(4, 4, dtype=torch.long)
-        result = utils._build_mask_overlay(mask=mask, size=(4, 4))
+        result = utils._build_mask_overlay(mask=mask, size=(4, 4), class_names={0: "a"})
         assert result.getpixel((0, 0)) == _CLASS_0_COLOR
         assert result.getpixel((3, 3)) == _CLASS_0_COLOR
 
     def test__build_mask_overlay__two_classes_get_distinct_colors(self) -> None:
         mask = torch.zeros(4, 4, dtype=torch.long)
         mask[2:, :] = 1
-        result = utils._build_mask_overlay(mask=mask, size=(4, 4))
+        result = utils._build_mask_overlay(
+            mask=mask, size=(4, 4), class_names={0: "a", 1: "b"}
+        )
         assert result.getpixel((0, 0)) == _CLASS_0_COLOR
         assert result.getpixel((0, 3)) == _CLASS_1_COLOR
 
@@ -283,8 +287,15 @@ class TestBuildMaskOverlay:
         self,
     ) -> None:
         mask = torch.zeros(4, 4, dtype=torch.long)
-        result = utils._build_mask_overlay(mask=mask, size=(8, 8))
+        result = utils._build_mask_overlay(mask=mask, size=(8, 8), class_names={0: "a"})
         assert result.size == (8, 8)
+
+    def test__build_mask_overlay__ids_not_in_class_names_are_black(self) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        mask[2:, :] = 1
+        result = utils._build_mask_overlay(mask=mask, size=(4, 4), class_names={0: "a"})
+        assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+        assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
 
 
 class TestDrawMaskContours:

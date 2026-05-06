@@ -137,25 +137,26 @@ def test_plot_semantic_segmentation_labels__alpha_one_replaces_image_with_mask_c
 def test_plot_semantic_segmentation_labels__contours_drawn_at_class_boundary() -> None:
     # Top half class 0, bottom half class 1. The two rows straddling the
     # boundary are part of the contour and rendered black, regardless of the
-    # underlying overlay color.
-    mask = torch.zeros(1, 32, 32, dtype=torch.long)
-    mask[0, 16:, :] = 1
+    # underlying overlay color. Probe pixels are taken near the right edge to
+    # avoid the upper-left legend region.
+    mask = torch.zeros(1, 128, 128, dtype=torch.long)
+    mask[0, 64:, :] = 1
     batch = _make_batch(
-        image=torch.full((1, 3, 32, 32), _WHITE_COLOR),
+        image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
         mask=mask,
     )
     result = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={},
+        included_classes={0: "cat", 1: "dog"},
         max_images=1,
         image_normalize=None,
         alpha=1.0,
     )
-    # Pixel at (col=20, row=15) and (col=20, row=16) are on the contour.
-    assert result.getpixel((20, 15)) == _BLACK_PIXEL
-    assert result.getpixel((20, 16)) == _BLACK_PIXEL
+    # Pixel at (col=120, row=63) and (col=120, row=64) are on the contour.
+    assert result.getpixel((120, 63)) == _BLACK_PIXEL
+    assert result.getpixel((120, 64)) == _BLACK_PIXEL
     # Pixel well inside the bottom region keeps its class-1 overlay color.
-    assert result.getpixel((20, 25)) == _CLASS_1_COLOR
+    assert result.getpixel((120, 100)) == _CLASS_1_COLOR
 
 
 def test_plot_semantic_segmentation_labels__legend_skips_class_not_in_included_classes() -> (
