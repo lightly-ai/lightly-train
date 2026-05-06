@@ -99,27 +99,36 @@ class TestRenderGrid:
         result = utils._render_grid(images)
         assert result.size == (20, 20)
 
-    def test__render_grid__heterogeneous_sizes_tiles_do_not_overlap(self) -> None:
-        # Tiles of different sizes are pasted top-left into a uniform cell, so
-        # later tiles must not overlap or be cropped by earlier ones.
+    def test__render_grid__heterogeneous_sizes_tiles_centered_in_cell(self) -> None:
+        # Tiles of different sizes are centered within a uniform cell, with
+        # background padding around them.
         red = (255, 0, 0)
         green = (0, 255, 0)
         blue = (0, 0, 255)
         yellow = (128, 128, 0)
         images = [
-            Image.new("RGB", (10, 6), color=red),
-            Image.new("RGB", (4, 8), color=green),
-            Image.new("RGB", (6, 10), color=blue),
-            Image.new("RGB", (8, 4), color=yellow),
+            Image.new("RGB", (10, 6), color=red),  # cell 0: 10x6 → centered y offset 2
+            Image.new(
+                "RGB", (4, 8), color=green
+            ),  # cell 1: 4x8 → centered x offset 3, y offset 1
+            Image.new("RGB", (6, 10), color=blue),  # cell 2: 6x10 → centered x offset 2
+            Image.new(
+                "RGB", (8, 4), color=yellow
+            ),  # cell 3: 8x4 → centered x offset 1, y offset 3
         ]
         result = utils._render_grid(images)
         # Cell size is (10, 10); grid is 2x2 → (20, 20).
-        assert result.getpixel((0, 0)) == red  # top-left tile origin
-        assert result.getpixel((10, 0)) == green  # top-right tile origin
-        assert result.getpixel((0, 10)) == blue  # bottom-left tile origin
-        assert result.getpixel((10, 10)) == yellow  # bottom-right tile origin
-        # Padding between tiles is filled with the default (black) background.
-        assert result.getpixel((19, 19)) == _BACKGROUND_PIXEL
+        assert result.size == (20, 20)
+        # Center pixel of each cell should be the tile color.
+        assert result.getpixel((5, 5)) == red  # top-left cell center
+        assert result.getpixel((15, 5)) == green  # top-right cell center
+        assert result.getpixel((5, 15)) == blue  # bottom-left cell center
+        assert result.getpixel((15, 15)) == yellow  # bottom-right cell center
+        # Corners of cells (outside centered tiles) should be background.
+        # Top-left cell: red is 10x6, centered with y offset 2 → row 0 is padding.
+        assert result.getpixel((0, 0)) == _BACKGROUND_PIXEL
+        # Top-right cell: green is 4x8, x offset 3 → column 10 is padding.
+        assert result.getpixel((10, 5)) == _BACKGROUND_PIXEL
 
 
 class TestDrawBboxLabel:

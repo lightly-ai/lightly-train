@@ -208,7 +208,7 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
     """Arrange PIL images into a square-ish grid.
 
     Tiles may have different sizes. The cell size is the maximum width and
-    height across all tiles, and each tile is pasted top-left into its cell.
+    height across all tiles, and each tile is centered within its cell.
 
     Args:
         pil_images: List of PIL images.
@@ -225,7 +225,10 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
     grid = Image.new(mode, (n_cols * w, n_rows * h))
     for idx, img in enumerate(pil_images):
         row, col = divmod(idx, n_cols)
-        grid.paste(img, (col * w, row * h))
+        img_w, img_h = img.size
+        x = col * w + (w - img_w) // 2
+        y = row * h + (h - img_h) // 2
+        grid.paste(img, (x, y))
     return grid
 
 
