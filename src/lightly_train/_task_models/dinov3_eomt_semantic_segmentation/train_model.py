@@ -338,12 +338,12 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                         pred[None, ...], targ[None, ...]
                     )
 
-        # mask_prob_dict = {}
-        # if self.model_args.metric_log_debug:
-        #     mask_prob_dict = {
-        #         f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": value
-        #         for block_idx, value in enumerate(self.model.attn_mask_probs)
-        #     }
+        mask_prob_dict = {}
+        if self.model_args.metric_log_debug:
+            mask_prob_dict = {
+                f"attention_mask_probability/block{block_idx + num_blocks - num_joint_blocks}": value
+                for block_idx, value in enumerate(self.model.attn_mask_probs)
+            }
 
         # Mask annealing.
         for i in range(len(self.model.attn_mask_probs)):
@@ -363,7 +363,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             )
         return TaskStepResult(
             loss=loss,
-            log_dict={},
+            log_dict=mask_prob_dict,
             metrics=self.train_metrics,
             label_image=label_image,
         )
