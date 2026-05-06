@@ -201,7 +201,7 @@ lightly_train.train_object_detection(
 Scheduler mode for LTDETR object detection training. Supported values are:
 
 - `"linear"`: linear warmup via `LinearLR`
-- `"flat-cosine"`: warmup followed by cosine decay via `CosineWarmupScheduler`
+- `"flat-cosine"`: LT-DETR-style warmup, flat, cosine decay, and final low-LR tail
 
 Any other value raises a `ValueError`.
 

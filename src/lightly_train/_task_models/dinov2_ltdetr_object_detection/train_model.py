@@ -24,8 +24,6 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LRScheduler,
 )
 
-from lightly.utils.scheduler import CosineWarmupScheduler
-
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -49,6 +47,9 @@ from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import
     DINOv2LTDETRObjectDetectionValTransformArgs,
 )
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
+from lightly_train._task_models.object_detection_components.flat_cosine import (
+    FlatCosineLRScheduler,
+)
 from lightly_train._task_models.object_detection_components.matcher import (
     HungarianMatcher,
 )
@@ -532,25 +533,28 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             weight_decay=self.model_args.weight_decay,
         )
         if self.model_args.scheduler == "linear":
+            if self.model_args.lr_warmup_steps > total_steps:
+                logger.warning(
+                    f"linear scheduler has lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"> total_steps={total_steps}; the warmup will not complete."
+                )
             scheduler = LinearLR(
                 optimizer=optim,
                 total_iters=self.model_args.lr_warmup_steps,
                 start_factor=self.model_args.scheduler_start_factor,
             )
         elif self.model_args.scheduler == "flat-cosine":
-            warmup_epochs = min(total_steps, self.model_args.lr_warmup_steps)
-            if self.model_args.lr_warmup_steps >= total_steps:
+            scheduler = FlatCosineLRScheduler(
+                optimizer=optim,
+                total_steps=total_steps,
+                warmup_steps=self.model_args.lr_warmup_steps,
+                warmup_start_factor=self.model_args.scheduler_start_factor,
+            )
+            if not scheduler.has_cosine_phase:
                 logger.warning(
                     f"flat-cosine scheduler has lr_warmup_steps={self.model_args.lr_warmup_steps} "
-                    f">= total_steps={total_steps}; the cosine phase will not run."
+                    f"and total_steps={total_steps}; the cosine phase will not run."
                 )
-            scheduler = CosineWarmupScheduler(
-                optimizer=optim,
-                warmup_epochs=warmup_epochs,
-                max_epochs=total_steps,
-                start_value=1.0,
-                warmup_start_value=self.model_args.scheduler_start_factor,
-            )
         else:
             raise ValueError(
                 f"Unknown scheduler: {self.model_args.scheduler!r}. "

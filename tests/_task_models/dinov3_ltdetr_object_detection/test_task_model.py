@@ -11,7 +11,6 @@ import logging
 from pathlib import Path
 
 import pytest
-from lightly.utils.scheduler import CosineWarmupScheduler
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 
@@ -26,6 +25,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
     DINOv3LTDETRObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.object_detection_components.flat_cosine import (
+    FlatCosineLRScheduler,
 )
 
 
@@ -111,12 +113,12 @@ def _create_train_model(
     ("scheduler_name", "scheduler_cls"),
     [
         ("linear", LinearLR),
-        ("flat-cosine", CosineWarmupScheduler),
+        ("flat-cosine", FlatCosineLRScheduler),
     ],
 )
 def test_get_optimizer__scheduler_modes(
     scheduler_name: str,
-    scheduler_cls: type[LinearLR] | type[CosineWarmupScheduler],
+    scheduler_cls: type[LinearLR] | type[FlatCosineLRScheduler],
 ) -> None:
     train_model = _create_train_model(
         DINOv3LTDETRObjectDetectionTrainArgs(
@@ -153,3 +155,22 @@ def test_get_optimizer__flat_cosine_warns_when_warmup_covers_training(
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
     assert "the cosine phase will not run" in caplog.text
+
+
+def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    train_model = _create_train_model(
+        DINOv3LTDETRObjectDetectionTrainArgs(
+            scheduler="linear",
+            lr_warmup_steps=1001,
+        )
+    )
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="lightly_train._task_models.dinov3_ltdetr_object_detection.train_model",
+    ):
+        train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+
+    assert "the warmup will not complete" in caplog.text
