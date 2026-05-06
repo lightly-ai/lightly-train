@@ -104,6 +104,11 @@ class ImageClassification(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
+        self.included_classes: dict[int, str] = {
+            internal_class_id: self.classes[class_id]
+            for internal_class_id, class_id in enumerate(internal_class_to_class)
+        }
+
         num_input_channels = (
             3 if self.image_normalize is None else len(self.image_normalize["mean"])
         )

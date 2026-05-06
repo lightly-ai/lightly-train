@@ -30,6 +30,7 @@ dependencies = [
     "filelock>=3.0.0",     # Cross-platform file locking
     "fsspec>=2023.1.0",
     "lightly>=1.5.20",
+    "matplotlib>=3.5",
     "omegaconf>=2.3",
     "psutil>=5.0",
     "pyarrow>=15.0.0",
@@ -137,6 +138,7 @@ module = [
     "albumentations.*",
     "fsspec.*",
     "lightly.*",
+    "matplotlib.*",
     "lightning_fabric.*",
     "lightning_fabric.loggers.logger",
     "pydicom.*",

@@ -86,6 +86,13 @@ def test_train_image_classification__multiclass(tmp_path: Path) -> None:
     assert results["labels"].shape == (1,)
     assert results["scores"].shape == (1,)
 
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
+
 
 def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     out = tmp_path / "out"
@@ -124,6 +131,13 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     results = model.predict(torch.randn(3, 224, 224), threshold=-1)  # type: ignore[call-arg]
     assert results["labels"].shape == (3,)
     assert results["scores"].shape == (3,)
+
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")

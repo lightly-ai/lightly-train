@@ -8,9 +8,14 @@
 from __future__ import annotations
 
 import colorsys
+import io
 import math
+from collections.abc import Sequence
 
+import matplotlib.patches as mpatches
 import torch
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 from PIL import Image, ImageFont
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
@@ -20,6 +25,68 @@ try:
     _DEFAULT_FONT = ImageFont.load_default(size=20)
 except TypeError:
     _DEFAULT_FONT = ImageFont.load_default()
+
+
+def _draw_class_legend(
+    image: PILImage,
+    labels: Sequence[str],
+) -> PILImage:
+    """Composite a text-only legend onto the upper-left of ``image``.
+
+    Each label is rendered as one row in a framed text box anchored to the
+    top-left corner of the axes. The legend is rendered on a transparent
+    canvas via matplotlib's headless Agg backend and composited onto the
+    image, so pixels outside the legend area are preserved unchanged.
+    Returns the image unchanged when ``labels`` is empty.
+
+    Args:
+        image: Base PIL image to render on.
+        labels: Legend lines to display, in order.
+
+    Returns:
+        A new RGB PIL image with the legend baked in (or the input image when
+        ``labels`` is empty).
+    """
+    if not labels:
+        return image
+
+    handles = [
+        mpatches.Patch(facecolor="none", edgecolor="none", label=label)
+        for label in labels
+    ]
+
+    img_width, img_height = image.size
+    dpi = 100
+    fig = Figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
+    fig.patch.set_alpha(0)
+    FigureCanvasAgg(fig)
+    ax = fig.add_axes((0, 0, 1, 1))
+    ax.set_axis_off()
+    ax.patch.set_alpha(0)
+    ax.legend(
+        handles=handles,
+        loc="upper left",
+        framealpha=0.7,
+        fontsize=10,
+        borderpad=0.4,
+        borderaxespad=0,
+        labelspacing=0.3,
+        handlelength=0,
+        handletextpad=0,
+    )
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, transparent=True, pad_inches=0)
+    buf.seek(0)
+    overlay = Image.open(buf).convert("RGBA")
+    if overlay.size != (img_width, img_height):
+        overlay = overlay.resize(
+            (img_width, img_height), resample=Image.Resampling.BILINEAR
+        )
+
+    base = image.convert("RGBA")
+    base.alpha_composite(overlay)
+    return base.convert("RGB")
 
 
 def _draw_bbox_label(
@@ -103,12 +170,11 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
     Returns:
         RGB tuple with values in range [0, 255].
     """
-    # Use modulo to cycle through hue values with good distribution
     hue = (
         class_id * 0.618033988749895
-    ) % 1.0  # Golden ratio for good color distribution
+    ) % 1.0  # Use the golden ratio for good hue distribution.
 
-    # Use high saturation and value for vibrant, distinct colors
+    # Use high saturation and value for vibrant, distinct colors.
     saturation = 0.9
     value = 0.95
 
