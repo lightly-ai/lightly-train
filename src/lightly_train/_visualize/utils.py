@@ -297,7 +297,7 @@ def _draw_mask_contours(
     boundary[:, :-1] |= diff_h
     boundary[:, 1:] |= diff_h
 
-    boundary_img = Image.fromarray((boundary.to(torch.uint8) * 255).numpy(), mode="L")
+    boundary_img = Image.fromarray((boundary.to(torch.uint8) * 255).numpy())
     if boundary_img.size != image.size:
         boundary_img = boundary_img.resize(
             image.size, resample=Image.Resampling.NEAREST
