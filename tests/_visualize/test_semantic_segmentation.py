@@ -155,7 +155,9 @@ def test_plot_semantic_segmentation_labels__contours_drawn_at_class_boundary() -
     # Pixel at (col=120, row=63) and (col=120, row=64) are on the contour.
     assert result.getpixel((120, 63)) == _BLACK_PIXEL
     assert result.getpixel((120, 64)) == _BLACK_PIXEL
-    # Pixel well inside the bottom region keeps its class-1 overlay color.
+    # Pixel inside the top region keeps its class-0 overlay color.
+    assert result.getpixel((120, 30)) == _CLASS_0_COLOR
+    # Pixel inside the bottom region keeps its class-1 overlay color.
     assert result.getpixel((120, 100)) == _CLASS_1_COLOR
 
 

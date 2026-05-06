@@ -232,8 +232,10 @@ def _build_mask_overlay(
 ) -> PILImage:
     """Build an RGB overlay image where each pixel is colored by its class id.
 
-    Pixels whose class id is not a key of ``class_names`` (e.g.
-    ignore_index) are left black.
+    Only ids that appear as keys of ``class_names`` are colored; pixels with
+    any other id are left black. Note that the ignore index is colored when
+    callers include it as a key in ``class_names`` (e.g. mapped to
+    ``"ignored"``) and left black otherwise.
 
     Args:
         mask: Tensor of shape (H, W) with internal contiguous class indices.

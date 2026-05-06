@@ -376,6 +376,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
         num_blocks = self.model.backbone.n_blocks
         losses = {}
+        pred_logits: list[Tensor] | None = None
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
                 # Add +1 to num_blocks for final output.

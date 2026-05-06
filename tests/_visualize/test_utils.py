@@ -297,6 +297,26 @@ class TestBuildMaskOverlay:
         assert result.getpixel((0, 0)) == _CLASS_0_COLOR
         assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
 
+    def test__build_mask_overlay__ignore_index_colored_when_in_class_names(
+        self,
+    ) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        mask[2:, :] = -100
+        result = utils._build_mask_overlay(
+            mask=mask, size=(4, 4), class_names={0: "a", -100: "ignored"}
+        )
+        assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+        assert result.getpixel((0, 3)) == utils._get_class_color(-100)
+
+    def test__build_mask_overlay__ignore_index_black_when_not_in_class_names(
+        self,
+    ) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        mask[2:, :] = -100
+        result = utils._build_mask_overlay(mask=mask, size=(4, 4), class_names={0: "a"})
+        assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+        assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
+
 
 class TestDrawMaskContours:
     def test__draw_mask_contours__uniform_mask_has_no_contours(self) -> None:
