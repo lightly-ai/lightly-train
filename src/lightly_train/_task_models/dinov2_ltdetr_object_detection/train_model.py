@@ -535,8 +535,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         if self.model_args.scheduler == "linear":
             if self.model_args.lr_warmup_steps > total_steps:
                 logger.warning(
-                    f"linear scheduler has lr_warmup_steps={self.model_args.lr_warmup_steps} "
-                    f"> total_steps={total_steps}; the warmup will not complete."
+                    f"{self.model_args.scheduler} scheduler has "
+                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"and total_steps={total_steps}; the schedule will not complete "
+                    "as intended."
                 )
             scheduler = LinearLR(
                 optimizer=optim,
@@ -552,8 +554,10 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             )
             if not scheduler.has_cosine_phase:
                 logger.warning(
-                    f"flat-cosine scheduler has lr_warmup_steps={self.model_args.lr_warmup_steps} "
-                    f"and total_steps={total_steps}; the cosine phase will not run."
+                    f"{self.model_args.scheduler} scheduler has "
+                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"and total_steps={total_steps}; the schedule will not complete "
+                    "as intended."
                 )
         else:
             raise ValueError(

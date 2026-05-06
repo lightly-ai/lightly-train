@@ -153,7 +153,7 @@ def test_get_optimizer__flat_cosine_warns_when_warmup_covers_training(
     ):
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
-    assert "the cosine phase will not run" in caplog.text
+    assert "the schedule will not complete as intended" in caplog.text
 
 
 def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
@@ -172,4 +172,4 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
     ):
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
-    assert "the warmup will not complete" in caplog.text
+    assert "the schedule will not complete as intended" in caplog.text
