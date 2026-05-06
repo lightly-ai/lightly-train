@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from torch import nn
@@ -117,7 +118,7 @@ def _create_train_model(
     ],
 )
 def test_get_optimizer__scheduler_modes(
-    scheduler_name: str,
+    scheduler_name: Literal["linear", "flat-cosine"],
     scheduler_cls: type[LinearLR] | type[FlatCosineLRScheduler],
 ) -> None:
     train_model = _create_train_model(

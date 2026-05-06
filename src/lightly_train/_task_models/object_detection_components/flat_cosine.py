@@ -19,6 +19,8 @@ import math
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
+# TODO: Replace these hardcoded reference values with public config when the
+# LT-DETR / DEIMv2 recipe is published.
 _REFERENCE_TOTAL_PHASE = 72
 _REFERENCE_FLAT_PHASE = 29
 _REFERENCE_NO_AUG_PHASE = 8
