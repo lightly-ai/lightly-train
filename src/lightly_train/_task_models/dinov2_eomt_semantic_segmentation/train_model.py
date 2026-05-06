@@ -14,9 +14,9 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import ModuleList
-from PIL.Image import Image as PILImage
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
@@ -199,7 +199,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         image_size = no_auto(val_transform_args.image_size)
 
         normalize = no_auto(val_transform_args.normalize)
-        self._normalize = normalize
 
         self.model = DINOv2EoMTSemanticSegmentation(
             # TODO(Guarin, 10/25): Make configurable and pass all args.
@@ -252,9 +251,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
-        self._internal_class_names: dict[int, str] = {
-            i: name for i, name in enumerate(data_args.included_classes.values())
-        }
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
@@ -331,17 +327,10 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             )
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
         return TaskStepResult(
@@ -431,26 +420,18 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
-                class_names=self._internal_class_names,
-                mean=normalize_mean,
-                std=normalize_std,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
             if pred_logits is not None:
                 prediction_image = plot_semantic_segmentation_predictions(
                     batch=batch,
-                    predictions=pred_logits,
-                    class_names=self._internal_class_names,
-                    mean=normalize_mean,
-                    std=normalize_std,
+                    logits=pred_logits,
+                    included_classes=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
                 )
 
@@ -461,7 +442,6 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             label_image=label_image,
             prediction_image=prediction_image,
         )
-
 
     def mask_annealing(
         self,

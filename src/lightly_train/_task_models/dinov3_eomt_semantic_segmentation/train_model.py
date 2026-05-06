@@ -278,10 +278,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
-        self._internal_class_names: dict[int, str] = {
-            i: name for i, name in enumerate(data_args.included_classes.values())
-        }
-
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
@@ -452,12 +448,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
                 included_classes=self.model.included_classes,
@@ -467,7 +457,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             if pred_logits is not None:
                 prediction_image = plot_semantic_segmentation_predictions(
                     batch=batch,
-                    predictions=pred_logits,
+                    logits=pred_logits,
                     included_classes=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
