@@ -35,8 +35,12 @@ def plot_semantic_segmentation_labels(
 
     Args:
         batch: Semantic segmentation batch with images and masks. Mask pixel values
-            are internal contiguous class indices, not original class ids.
-        included_classes: A dict mapping internal class IDs to class names.
+            are internal contiguous class indices, not original class ids. Masks
+            may also contain the raw class_ignore_index value (e.g. -100), which
+            is not a contiguous internal class id.
+        included_classes: A dict mapping internal class IDs to class names. May
+            also contain class_ignore_index mapped to "ignored" when masks
+            include ignored pixels.
         max_images: Maximum number of images to include in the grid.
         image_normalize: Optional dict with "mean" and "std" tuples used to
             denormalize images before rendering. If None, images pass through
@@ -68,7 +72,9 @@ def plot_semantic_segmentation_labels(
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
         mask = gt_masks[i]
 
-        overlay = _build_mask_overlay(mask=mask, size=img.size)
+        overlay = _build_mask_overlay(
+            mask=mask, size=img.size, class_names=included_classes
+        )
         blended = Image.blend(img, overlay, alpha=alpha)
         blended = _draw_mask_contours(image=blended, mask=mask)
 
@@ -127,7 +133,9 @@ def plot_semantic_segmentation_predictions(
         logits_i = logits[i].cpu()
         pred_mask = torch.argmax(logits_i, dim=0)
 
-        overlay = _build_mask_overlay(mask=pred_mask, size=img.size)
+        overlay = _build_mask_overlay(
+            mask=pred_mask, size=img.size, class_names=included_classes
+        )
         blended = Image.blend(img, overlay, alpha=alpha)
         blended = _draw_mask_contours(image=blended, mask=pred_mask)
 

@@ -228,15 +228,18 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
 def _build_mask_overlay(
     mask: Tensor,
     size: tuple[int, int],
+    class_names: dict[int, str],
 ) -> PILImage:
     """Build an RGB overlay image where each pixel is colored by its class id.
 
-    Pixels whose class id is not present in the mapping (e.g.
+    Pixels whose class id is not a key of ``class_names`` (e.g.
     ignore_index) are left black.
 
     Args:
         mask: Tensor of shape (H, W) with internal contiguous class indices.
         size: Target (width, height) of the overlay.
+        class_names: Mapping from class id to class name. Only ids that appear
+            as keys are colored; other ids are left black.
 
     Returns:
         RGB PIL image of the requested size.
@@ -245,6 +248,8 @@ def _build_mask_overlay(
     overlay = torch.zeros((3, h, w), dtype=torch.uint8)
     for class_id in torch.unique(mask).tolist():
         class_id = int(class_id)
+        if class_id not in class_names:
+            continue
         color = _get_class_color(class_id)
         class_pixels = mask == class_id
         for c in range(3):
