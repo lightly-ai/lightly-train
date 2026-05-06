@@ -29,7 +29,7 @@ def plot_instance_segmentation_labels(
     included_classes: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
-    alpha: float = 0.6,
+    alpha: float = 0.3,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth instance segmentation masks.
 
@@ -91,9 +91,7 @@ def plot_instance_segmentation_labels(
             for box, class_id in zip(bboxes_xyxy, labels):
                 x1, y1, x2, y2 = box.tolist()
                 class_id_int = int(class_id)
-                class_name = included_classes.get(
-                    class_id_int, f"Class {class_id_int}"
-                )
+                class_name = included_classes.get(class_id_int, f"Class {class_id_int}")
                 color = _get_class_color(class_id_int)
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                 _draw_bbox_label(
@@ -115,9 +113,9 @@ def plot_instance_segmentation_predictions(
     included_classes: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
-    score_threshold: float = 0.5,
+    score_threshold: float = 0.1,
     max_predictions: int = 100,
-    alpha: float = 0.6,
+    alpha: float = 0.3,
 ) -> PILImage:
     """Render a grid of images annotated with predicted instance segmentation masks.
 
@@ -197,9 +195,7 @@ def plot_instance_segmentation_predictions(
                 x2 = int(xs.max())
                 y2 = int(ys.max())
                 class_id_int = int(class_id)
-                class_name = included_classes.get(
-                    class_id_int, f"Class {class_id_int}"
-                )
+                class_name = included_classes.get(class_id_int, f"Class {class_id_int}")
                 color = _get_class_color(class_id_int)
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
                 _draw_bbox_label(

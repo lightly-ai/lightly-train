@@ -244,7 +244,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
-
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
@@ -433,7 +432,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             target=binary_masks,
         )
 
-
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
@@ -457,7 +455,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             label_image=label_image,
             prediction_image=prediction_image,
         )
-
 
     def mask_annealing(
         self,

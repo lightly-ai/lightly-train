@@ -306,7 +306,6 @@ def test_train_instance_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
     is_self_hosted_docker_runner,
