@@ -11,12 +11,23 @@ import math
 
 import pytest
 import torch
-from PIL import Image
+from PIL import Image, ImageChops
+from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw
 
 from lightly_train._visualize import utils
 
 _BACKGROUND_PIXEL: tuple[int, int, int] = (0, 0, 0)
+_WHITE_PIXEL: tuple[int, int, int] = (255, 255, 255)
+# These come from the deterministic golden-ratio palette in utils._get_class_color.
+_CLASS_0_COLOR: tuple[int, int, int] = (242, 24, 24)
+_CLASS_1_COLOR: tuple[int, int, int] = (24, 87, 242)
+
+
+def _non_white_bbox(image: PILImage) -> tuple[int, int, int, int] | None:
+    """Bounding box of pixels that differ from pure white, or None if all white."""
+    white = Image.new(image.mode, image.size, _WHITE_PIXEL)
+    return ImageChops.difference(image, white).getbbox()
 
 
 class TestCxcywhToXyxy:
@@ -187,3 +198,141 @@ class TestGetClassColor:
         self, class_id: int, expected: tuple[int, int, int]
     ) -> None:
         assert utils._get_class_color(class_id) == expected
+
+
+class TestDrawClassLegend:
+    def test__draw_class_legend_empty_labels_returns_input_unchanged(self) -> None:
+        image = Image.new("RGB", (64, 64), color=(0, 200, 100))
+        result = utils._draw_class_legend(image=image, labels=[], colors=None)
+        # Empty labels short-circuits and returns the image untouched.
+        assert ImageChops.difference(result, image).getbbox() is None
+
+    def test__draw_class_legend_text_only_anchored_to_upper_left(self) -> None:
+        # Text-only legend (colors=None) draws into the upper-left corner and
+        # leaves the rest of the image untouched.
+        image = Image.new("RGB", (256, 256), color=_WHITE_PIXEL)
+        result = utils._draw_class_legend(image=image, labels=["cat"], colors=None)
+        bbox = _non_white_bbox(result)
+        assert bbox is not None
+        # Legend stays in the upper-left half of the image.
+        assert bbox[2] <= 128 and bbox[3] <= 128
+        # Far corner is preserved.
+        assert result.getpixel((255, 255)) == _WHITE_PIXEL
+
+    def test__draw_class_legend_with_colors_renders_patch_color(self) -> None:
+        # A red color patch must produce red-dominant pixels in the legend area.
+        image = Image.new("RGB", (256, 256), color=_WHITE_PIXEL)
+        result = utils._draw_class_legend(
+            image=image, labels=["cat"], colors=[(255, 0, 0)]
+        )
+        pixels = result.load()
+        assert pixels is not None
+        has_red = any(
+            isinstance(pixel := pixels[x, y], tuple)
+            and pixel[0] > 200
+            and pixel[1] < 80
+            and pixel[2] < 80
+            for x in range(128)
+            for y in range(128)
+        )
+        assert has_red
+
+    def test__draw_class_legend_more_labels_extends_legend_downward(self) -> None:
+        # Stacking a second label extends the legend further down the image.
+        image = Image.new("RGB", (256, 256), color=_WHITE_PIXEL)
+        result_one = utils._draw_class_legend(
+            image=image, labels=["a"], colors=[(255, 0, 0)]
+        )
+        result_two = utils._draw_class_legend(
+            image=image, labels=["a", "b"], colors=[(255, 0, 0), (0, 255, 0)]
+        )
+        bbox_one = _non_white_bbox(result_one)
+        bbox_two = _non_white_bbox(result_two)
+        assert bbox_one is not None and bbox_two is not None
+        assert bbox_two[3] > bbox_one[3]
+
+    def test__draw_class_legend_mismatched_colors_and_labels_raises(self) -> None:
+        image = Image.new("RGB", (64, 64), color=_WHITE_PIXEL)
+        with pytest.raises(ValueError, match="must have the same length"):
+            utils._draw_class_legend(
+                image=image, labels=["a", "b"], colors=[(255, 0, 0)]
+            )
+
+
+class TestBuildMaskOverlay:
+    def test__build_mask_overlay__returns_rgb_image_of_requested_size(self) -> None:
+        mask = torch.zeros(8, 8, dtype=torch.long)
+        result = utils._build_mask_overlay(mask=mask, size=(16, 12))
+        assert result.mode == "RGB"
+        assert result.size == (16, 12)
+
+    def test__build_mask_overlay__class_pixels_get_expected_color(self) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        result = utils._build_mask_overlay(mask=mask, size=(4, 4))
+        assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+        assert result.getpixel((3, 3)) == _CLASS_0_COLOR
+
+    def test__build_mask_overlay__two_classes_get_distinct_colors(self) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        mask[2:, :] = 1
+        result = utils._build_mask_overlay(mask=mask, size=(4, 4))
+        assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+        assert result.getpixel((0, 3)) == _CLASS_1_COLOR
+
+    def test__build_mask_overlay__resizes_when_size_differs_from_mask_shape(
+        self,
+    ) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        result = utils._build_mask_overlay(mask=mask, size=(8, 8))
+        assert result.size == (8, 8)
+
+
+class TestDrawMaskContours:
+    def test__draw_mask_contours__uniform_mask_has_no_contours(self) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        image = Image.new("RGB", (4, 4), color=_WHITE_PIXEL)
+        result = utils._draw_mask_contours(image=image, mask=mask)
+        assert result.getpixel((0, 0)) == _WHITE_PIXEL
+        assert result.getpixel((3, 3)) == _WHITE_PIXEL
+
+    def test__draw_mask_contours__boundary_pixels_are_black(self) -> None:
+        mask = torch.zeros(8, 8, dtype=torch.long)
+        mask[4:, :] = 1
+        image = Image.new("RGB", (8, 8), color=_WHITE_PIXEL)
+        result = utils._draw_mask_contours(image=image, mask=mask)
+        assert result.getpixel((4, 3)) == _BACKGROUND_PIXEL
+        assert result.getpixel((4, 4)) == _BACKGROUND_PIXEL
+        # Pixels well inside each region are not touched.
+        assert result.getpixel((4, 1)) == _WHITE_PIXEL
+        assert result.getpixel((4, 6)) == _WHITE_PIXEL
+
+
+class TestLegendEntriesForMask:
+    def test__legend_entries_for_mask__returns_labels_and_colors(self) -> None:
+        mask = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+        labels, colors = utils._legend_entries_for_mask(
+            mask=mask, class_names={0: "cat", 1: "dog"}
+        )
+        assert labels == ["cat", "dog"]
+        assert colors == [_CLASS_0_COLOR, _CLASS_1_COLOR]
+
+    def test__legend_entries_for_mask__skips_classes_not_in_class_names(self) -> None:
+        mask = torch.tensor([[255]], dtype=torch.long)
+        labels, colors = utils._legend_entries_for_mask(
+            mask=mask, class_names={0: "cat"}
+        )
+        assert labels == []
+        assert colors == []
+
+    def test__legend_entries_for_mask__sorted_by_class_id(self) -> None:
+        mask = torch.tensor([[1, 0]], dtype=torch.long)
+        labels, _ = utils._legend_entries_for_mask(
+            mask=mask, class_names={0: "a", 1: "b"}
+        )
+        assert labels == ["a", "b"]
+
+    def test__legend_entries_for_mask__empty_when_no_matching_classes(self) -> None:
+        mask = torch.zeros(4, 4, dtype=torch.long)
+        labels, colors = utils._legend_entries_for_mask(mask=mask, class_names={})
+        assert labels == []
+        assert colors == []

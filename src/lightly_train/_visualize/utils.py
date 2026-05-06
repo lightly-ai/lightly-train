@@ -225,6 +225,96 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
     return grid
 
 
+def _build_mask_overlay(
+    mask: Tensor,
+    size: tuple[int, int],
+) -> PILImage:
+    """Build an RGB overlay image where each pixel is colored by its class id.
+
+    Pixels whose class id is not present in the mapping (e.g.
+    ignore_index) are left black.
+
+    Args:
+        mask: Tensor of shape (H, W) with internal contiguous class indices.
+        size: Target (width, height) of the overlay.
+
+    Returns:
+        RGB PIL image of the requested size.
+    """
+    h, w = mask.shape[-2:]
+    overlay = torch.zeros((3, h, w), dtype=torch.uint8)
+    for class_id in torch.unique(mask).tolist():
+        class_id = int(class_id)
+        color = _get_class_color(class_id)
+        class_pixels = mask == class_id
+        for c in range(3):
+            overlay[c][class_pixels] = color[c]
+
+    overlay_img: PILImage = Image.fromarray(overlay.permute(1, 2, 0).numpy()).convert(
+        "RGB"
+    )
+    if overlay_img.size != size:
+        overlay_img = overlay_img.resize(size, resample=Image.Resampling.NEAREST)
+    return overlay_img
+
+
+def _draw_mask_contours(
+    image: PILImage,
+    mask: Tensor,
+) -> PILImage:
+    """Overlay thin black contours along class boundaries of ``mask`` onto ``image``.
+
+    The contours are drawn after blending so that they remain solid black and
+    are not faded by the overlay alpha.
+
+    Args:
+        image: RGB PIL image to draw contours on.
+        mask: Tensor of shape (H, W) with internal contiguous class indices.
+
+    Returns:
+        A new RGB PIL image with class boundaries marked in black.
+    """
+    h, w = mask.shape[-2:]
+    boundary = torch.zeros((h, w), dtype=torch.bool)
+    diff_v = mask[:-1, :] != mask[1:, :]
+    boundary[:-1, :] |= diff_v
+    boundary[1:, :] |= diff_v
+    diff_h = mask[:, :-1] != mask[:, 1:]
+    boundary[:, :-1] |= diff_h
+    boundary[:, 1:] |= diff_h
+
+    boundary_img = Image.fromarray((boundary.to(torch.uint8) * 255).numpy(), mode="L")
+    if boundary_img.size != image.size:
+        boundary_img = boundary_img.resize(
+            image.size, resample=Image.Resampling.NEAREST
+        )
+
+    result = image.copy()
+    black = Image.new("RGB", image.size, (0, 0, 0))
+    result.paste(black, mask=boundary_img)
+    return result
+
+
+def _legend_entries_for_mask(
+    mask: Tensor,
+    class_names: dict[int, str],
+) -> tuple[list[str], list[tuple[int, int, int]]]:
+    """Build legend labels and colors for the unique classes present in ``mask``.
+
+    Entries are sorted by class id and skip classes that are not in
+    ``class_names`` (e.g. ignore_index).
+    """
+    labels: list[str] = []
+    colors: list[tuple[int, int, int]] = []
+    for class_id in sorted(int(c) for c in torch.unique(mask).tolist()):
+        class_name = class_names.get(class_id)
+        if class_name is None:
+            continue
+        labels.append(str(class_name))
+        colors.append(_get_class_color(class_id))
+    return labels, colors
+
+
 def _cxcywh_to_xyxy(boxes: Tensor, w: int, h: int) -> Tensor:
     """Convert bounding boxes from cxcywh format to xyxy format.
 

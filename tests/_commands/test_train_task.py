@@ -484,6 +484,7 @@ def test_train_semantic_segmentation(
     assert (image_examples_dir / "val_labels_0.jpg").exists()
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
+
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.parametrize(
@@ -651,6 +652,7 @@ def test_train_semantic_segmentation__export(
     assert (image_examples_dir / "val_labels_0.jpg").exists()
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
+
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
@@ -768,6 +770,7 @@ def test_train_semantic_segmentation__checkpoint(
     assert (image_examples_dir / "val_labels_0.jpg").exists()
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
+
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
@@ -855,7 +858,8 @@ def test_train_semantic_segmentation__resume_interrupted(
     assert (image_examples_dir / "train_labels_0.jpg").exists()
     assert (image_examples_dir / "val_labels_0.jpg").exists()
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
-    
+
+
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
     reason=(
