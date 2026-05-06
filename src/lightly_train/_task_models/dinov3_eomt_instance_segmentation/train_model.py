@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -50,6 +51,10 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize.instance_segmentation import (
+    plot_instance_segmentation_labels,
+    plot_instance_segmentation_predictions,
+)
 from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
@@ -239,6 +244,12 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
+
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
+
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
         return self.model
 
@@ -312,10 +323,20 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = plot_instance_segmentation_labels(
+                batch=batch,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+            )
+
         return TaskStepResult(
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
+            label_image=label_image,
         )
 
     def validation_step(
@@ -412,11 +433,31 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             target=binary_masks,
         )
 
+
+        label_image: PILImage | None = None
+        prediction_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = plot_instance_segmentation_labels(
+                batch=batch,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+            )
+            prediction_image = plot_instance_segmentation_predictions(
+                batch=batch,
+                predictions=predictions,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+            )
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
+            label_image=label_image,
+            prediction_image=prediction_image,
         )
+
 
     def mask_annealing(
         self,
