@@ -207,4 +207,3 @@ def test_get_best_metrics__different_watch_metric_raises() -> None:
             step=1,
             metric_args=TaskMetricArgs(watch_metric="val_metric/acc"),
         )
-
