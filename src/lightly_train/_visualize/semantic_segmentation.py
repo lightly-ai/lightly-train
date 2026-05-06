@@ -7,11 +7,7 @@
 #
 from __future__ import annotations
 
-import io
-import matplotlib.patches as mpatches
 import torch
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
 from PIL import Image
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -19,6 +15,7 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize.utils import (
     _denormalize_image,
+    _draw_class_legend,
     _get_class_color,
     _render_grid,
 )
@@ -73,9 +70,10 @@ def plot_semantic_segmentation_labels(
         blended = Image.blend(img, overlay, alpha=alpha)
         blended = _draw_mask_contours(image=blended, mask=mask)
 
-        blended = _draw_class_legend(
-            image=blended, mask=mask, class_names=included_classes
+        labels, colors = _legend_entries_for_mask(
+            mask=mask, class_names=included_classes
         )
+        blended = _draw_class_legend(image=blended, labels=labels, colors=colors)
 
         pil_images.append(blended)
 
@@ -84,7 +82,7 @@ def plot_semantic_segmentation_labels(
 
 def plot_semantic_segmentation_predictions(
     batch: MaskSemanticSegmentationBatch,
-    predictions: list[Tensor],
+    logits: list[Tensor],
     included_classes: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
@@ -94,7 +92,7 @@ def plot_semantic_segmentation_predictions(
 
     Args:
         batch: Semantic segmentation batch with images.
-        predictions: List of per-image logit tensors of shape (C, H, W).
+        logits: List of per-image logit tensors of shape (C, H, W).
         included_classes: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
         image_normalize: Optional dict with "mean" and "std" tuples used to
@@ -124,16 +122,17 @@ def plot_semantic_segmentation_predictions(
             )
 
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
-        pred_logits_i = predictions[i].cpu()
-        pred_mask = torch.argmax(pred_logits_i, dim=0)
+        logits_i = logits[i].cpu()
+        pred_mask = torch.argmax(logits_i, dim=0)
 
         overlay = _build_mask_overlay(mask=pred_mask, size=img.size)
         blended = Image.blend(img, overlay, alpha=alpha)
         blended = _draw_mask_contours(image=blended, mask=pred_mask)
 
-        blended = _draw_class_legend(
-            image=blended, mask=pred_mask, class_names=class_names
+        labels, colors = _legend_entries_for_mask(
+            mask=pred_mask, class_names=included_classes
         )
+        blended = _draw_class_legend(image=blended, labels=labels, colors=colors)
 
         pil_images.append(blended)
 
@@ -196,9 +195,7 @@ def _draw_mask_contours(
     boundary[:, :-1] |= diff_h
     boundary[:, 1:] |= diff_h
 
-    boundary_img = torchvision_functional.to_pil_image(
-        boundary.to(torch.uint8) * 255
-    )
+    boundary_img = torchvision_functional.to_pil_image(boundary.to(torch.uint8) * 255)
     if boundary_img.size != image.size:
         boundary_img = boundary_img.resize(
             image.size, resample=Image.Resampling.NEAREST
@@ -210,55 +207,21 @@ def _draw_mask_contours(
     return result
 
 
-def _draw_class_legend(
-    image: PILImage,
+def _legend_entries_for_mask(
     mask: Tensor,
     class_names: dict[int, str],
-) -> PILImage:
-    """Render the image with a matplotlib legend of class colors and names.
+) -> tuple[list[str], list[tuple[int, int, int]]]:
+    """Build legend labels and colors for the unique classes present in ``mask``.
 
-    Builds one legend entry per unique class id present in ``mask``, sorted by
-    class id, with the patch color matching the mask overlay. Returns a new
-    PIL image with the legend baked in.
+    Entries are sorted by class id and skip classes that are not in
+    ``class_names`` (e.g. ignore_index).
     """
-    handles = []
+    labels: list[str] = []
+    colors: list[tuple[int, int, int]] = []
     for class_id in sorted(int(c) for c in torch.unique(mask).tolist()):
         class_name = class_names.get(class_id)
         if class_name is None:
             continue
-        r, g, b = _get_class_color(class_id)
-        handles.append(
-            mpatches.Patch(
-                color=(r / 255, g / 255, b / 255),
-                label=str(class_name),
-            )
-        )
-
-    if not handles:
-        return image
-
-    img_width, img_height = image.size
-    dpi = 100
-    fig = Figure(figsize=(img_width / dpi, img_height / dpi), dpi=dpi)
-    FigureCanvasAgg(fig)
-    ax = fig.add_axes((0, 0, 1, 1))
-    ax.imshow(image)
-    ax.set_axis_off()
-    ax.legend(
-        handles=handles,
-        loc="upper left",
-        framealpha=0.7,
-        fontsize=10,
-        borderpad=0.4,
-        labelspacing=0.3,
-    )
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=dpi, pad_inches=0)
-    buf.seek(0)
-    rendered = Image.open(buf).convert("RGB")
-    if rendered.size != (img_width, img_height):
-        rendered = rendered.resize(
-            (img_width, img_height), resample=Image.Resampling.BILINEAR
-        )
-    return rendered
+        labels.append(str(class_name))
+        colors.append(_get_class_color(class_id))
+    return labels, colors

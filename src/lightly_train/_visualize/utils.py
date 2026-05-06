@@ -30,18 +30,22 @@ except TypeError:
 def _draw_class_legend(
     image: PILImage,
     labels: Sequence[str],
+    colors: Sequence[tuple[int, int, int]] | None,
 ) -> PILImage:
-    """Composite a text-only legend onto the upper-left of ``image``.
+    """Composite a legend onto the upper-left of ``image``.
 
-    Each label is rendered as one row in a framed text box anchored to the
-    top-left corner of the axes. The legend is rendered on a transparent
-    canvas via matplotlib's headless Agg backend and composited onto the
-    image, so pixels outside the legend area are preserved unchanged.
-    Returns the image unchanged when ``labels`` is empty.
+    The legend is rendered on a transparent canvas via matplotlib's headless
+    Agg backend and composited onto the image, so pixels outside the legend
+    area are preserved unchanged. Returns the image unchanged when ``labels``
+    is empty.
 
     Args:
         image: Base PIL image to render on.
         labels: Legend lines to display, in order.
+        colors: Optional per-label RGB colors in [0, 255]. When provided, each
+            entry is rendered as a colored patch next to its label; must have
+            the same length as ``labels``. When None, labels are rendered as
+            text only.
 
     Returns:
         A new RGB PIL image with the legend baked in (or the input image when
@@ -50,10 +54,30 @@ def _draw_class_legend(
     if not labels:
         return image
 
-    handles = [
-        mpatches.Patch(facecolor="none", edgecolor="none", label=label)
-        for label in labels
-    ]
+    if colors is None:
+        handles = [
+            mpatches.Patch(facecolor="none", edgecolor="none", label=label)
+            for label in labels
+        ]
+        legend_kwargs: dict[str, object] = dict(
+            borderaxespad=0,
+            handlelength=0,
+            handletextpad=0,
+        )
+    else:
+        if len(colors) != len(labels):
+            raise ValueError(
+                f"colors and labels must have the same length, got "
+                f"{len(colors)} and {len(labels)}."
+            )
+        handles = [
+            mpatches.Patch(
+                color=(r / 255, g / 255, b / 255),
+                label=label,
+            )
+            for label, (r, g, b) in zip(labels, colors)
+        ]
+        legend_kwargs = {}
 
     img_width, img_height = image.size
     dpi = 100
@@ -69,10 +93,8 @@ def _draw_class_legend(
         framealpha=0.7,
         fontsize=10,
         borderpad=0.4,
-        borderaxespad=0,
         labelspacing=0.3,
-        handlelength=0,
-        handletextpad=0,
+        **legend_kwargs,
     )
 
     buf = io.BytesIO()
