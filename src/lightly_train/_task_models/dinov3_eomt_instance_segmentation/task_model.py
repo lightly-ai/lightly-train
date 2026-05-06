@@ -116,6 +116,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+
+
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
         backbone_model_args: dict[str, Any] = {}
