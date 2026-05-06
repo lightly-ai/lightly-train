@@ -29,7 +29,7 @@ def plot_semantic_segmentation_labels(
     included_classes: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
-    alpha: float = 0.6,
+    alpha: float,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth semantic segmentation masks.
 
@@ -94,7 +94,7 @@ def plot_semantic_segmentation_predictions(
     included_classes: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
-    alpha: float = 0.6,
+    alpha: float,
 ) -> PILImage:
     """Render a grid of images annotated with predicted semantic segmentation masks.
 

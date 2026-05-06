@@ -282,6 +282,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
         self.viz_max_images = 4
+        self.viz_alpha = 0.6
 
     def get_task_model(self) -> DINOv3EoMTSemanticSegmentation:
         return self.model
@@ -360,6 +361,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 included_classes=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
             )
         return TaskStepResult(
             loss=loss,
@@ -453,6 +455,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 included_classes=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
             )
             if pred_logits is not None:
                 prediction_image = plot_semantic_segmentation_predictions(
@@ -461,6 +464,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                     included_classes=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
                 )
 
         return TaskStepResult(
