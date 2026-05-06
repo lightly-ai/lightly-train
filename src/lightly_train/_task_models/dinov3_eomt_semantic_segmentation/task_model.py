@@ -131,10 +131,15 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
+        # GT masks contain the raw `class_ignore_index` value (e.g. -100) for
+        # ignored pixels, so we register that key directly for the legend.
+        # Predictions drop the ignore channel, so this key never appears in them.
         self.included_classes: dict[int, str] = {
-            internal_class_id: self.classes[class_id]
-            for internal_class_id, class_id in enumerate(internal_class_to_class)
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
         }
+        if self.class_ignore_index is not None:
+            self.included_classes[self.class_ignore_index] = "ignored"
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
