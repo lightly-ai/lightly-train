@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from typing import Any, ClassVar, Literal
 
@@ -70,6 +71,8 @@ from lightly_train._visualize.object_detection import (
     plot_object_detection_predictions,
 )
 from lightly_train.types import ObjectDetectionBatch, PathLike
+
+logger = logging.getLogger(__name__)
 
 
 class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
@@ -535,9 +538,15 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 start_factor=self.model_args.scheduler_start_factor,
             )
         elif self.model_args.scheduler == "flat-cosine":
+            warmup_epochs = min(total_steps, self.model_args.lr_warmup_steps)
+            if self.model_args.lr_warmup_steps >= total_steps:
+                logger.warning(
+                    f"flat-cosine scheduler has lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f">= total_steps={total_steps}; the cosine phase will not run."
+                )
             scheduler = CosineWarmupScheduler(
                 optimizer=optim,
-                warmup_epochs=min(total_steps, self.model_args.lr_warmup_steps),
+                warmup_epochs=warmup_epochs,
                 max_epochs=total_steps,
                 start_value=1.0,
                 warmup_start_value=self.model_args.scheduler_start_factor,

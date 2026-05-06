@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -117,7 +118,10 @@ def test_get_optimizer__scheduler_modes(
     scheduler_cls: type[LinearLR] | type[CosineWarmupScheduler],
 ) -> None:
     train_model = _create_train_model(
-        DINOv2LTDETRObjectDetectionTrainArgs(scheduler=scheduler_name)
+        DINOv2LTDETRObjectDetectionTrainArgs(
+            scheduler=scheduler_name,
+            lr_warmup_steps=500,
+        )
     )
     optimizer, scheduler = train_model.get_optimizer(
         total_steps=1000,
@@ -129,3 +133,22 @@ def test_get_optimizer__scheduler_modes(
     scheduler.step()
     assert len(scheduler.get_last_lr()) == len(optimizer.param_groups)
     scheduler.load_state_dict(scheduler.state_dict())
+
+
+def test_get_optimizer__flat_cosine_warns_when_warmup_covers_training(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    train_model = _create_train_model(
+        DINOv2LTDETRObjectDetectionTrainArgs(
+            scheduler="flat-cosine",
+            lr_warmup_steps=1000,
+        )
+    )
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="lightly_train._task_models.dinov2_ltdetr_object_detection.train_model",
+    ):
+        train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+
+    assert "the cosine phase will not run" in caplog.text
