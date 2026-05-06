@@ -87,6 +87,40 @@ class TestRenderGrid:
         assert result.getpixel((5, 15)) == colors[2]  # bottom-left
         assert result.getpixel((15, 15)) == colors[3]  # bottom-right
 
+    def test__render_grid__heterogeneous_sizes_use_max_cell(self) -> None:
+        # Cell size should be max(w), max(h) across all tiles. With 4 tiles
+        # the grid is 2x2, so the result is (2 * max_w, 2 * max_h).
+        images = [
+            Image.new("RGB", (10, 6), color=(255, 0, 0)),
+            Image.new("RGB", (4, 8), color=(0, 255, 0)),
+            Image.new("RGB", (6, 10), color=(0, 0, 255)),
+            Image.new("RGB", (8, 4), color=(128, 128, 0)),
+        ]
+        result = utils._render_grid(images)
+        assert result.size == (20, 20)
+
+    def test__render_grid__heterogeneous_sizes_tiles_do_not_overlap(self) -> None:
+        # Tiles of different sizes are pasted top-left into a uniform cell, so
+        # later tiles must not overlap or be cropped by earlier ones.
+        red = (255, 0, 0)
+        green = (0, 255, 0)
+        blue = (0, 0, 255)
+        yellow = (128, 128, 0)
+        images = [
+            Image.new("RGB", (10, 6), color=red),
+            Image.new("RGB", (4, 8), color=green),
+            Image.new("RGB", (6, 10), color=blue),
+            Image.new("RGB", (8, 4), color=yellow),
+        ]
+        result = utils._render_grid(images)
+        # Cell size is (10, 10); grid is 2x2 → (20, 20).
+        assert result.getpixel((0, 0)) == red  # top-left tile origin
+        assert result.getpixel((10, 0)) == green  # top-right tile origin
+        assert result.getpixel((0, 10)) == blue  # bottom-left tile origin
+        assert result.getpixel((10, 10)) == yellow  # bottom-right tile origin
+        # Padding between tiles is filled with the default (black) background.
+        assert result.getpixel((19, 19)) == _BACKGROUND_PIXEL
+
 
 class TestDrawBboxLabel:
     def test__draw_bbox_label_label_above_when_space(self) -> None:
