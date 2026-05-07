@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -128,6 +129,23 @@ def test_resolve_auto__keeps_convnext_auto(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert model_args.patch_size == "auto"
     assert "patch_size" not in calls[0]["model_args"]
+
+
+def test_warns_when_patch_size_is_ignored_for_convnext(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
+    with caplog.at_level(logging.WARNING):
+        _, calls = _create_train_model_with_capture(
+            model_args,
+            model_name="dinov3/convnext-small-ltdetr",
+            monkeypatch=monkeypatch,
+        )
+
+    assert model_args.patch_size == 14
+    assert "patch_size" not in calls[0]["model_args"]
+    assert "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'" in caplog.text
 
 
 def _create_train_model(
