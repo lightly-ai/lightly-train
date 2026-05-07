@@ -31,21 +31,14 @@ def flat_cosine_schedule(
     warmup_steps: int,
     cosine_start_step: int,
     cosine_end_step: int,
-    has_cosine_phase: bool,
     current_step: int,
     init_lr: float,
     min_lr: float,
-    warmup_start_factor: float,
 ) -> float:
     """Compute the learning rate using a warm-up, flat, cosine, and tail schedule."""
     if warmup_steps > 0 and current_step <= warmup_steps:
         warmup_progress = current_step / float(warmup_steps)
-        warmup_factor = warmup_start_factor + (1.0 - warmup_start_factor) * (
-            warmup_progress**2
-        )
-        return init_lr * warmup_factor
-    if not has_cosine_phase:
-        return min_lr
+        return init_lr * (warmup_progress**2)
     if current_step < cosine_start_step:
         return init_lr
     if current_step >= cosine_end_step:
@@ -74,7 +67,6 @@ class FlatCosineLRScheduler(LRScheduler):
         total_steps: int,
         warmup_steps: int,
         *,
-        warmup_start_factor: float = 0.01,
         min_factor: float = _REFERENCE_LR_GAMMA,
         last_epoch: int = -1,
     ) -> None:
@@ -82,16 +74,11 @@ class FlatCosineLRScheduler(LRScheduler):
             raise ValueError(f"total_steps must be positive, got {total_steps}.")
         if warmup_steps < 0:
             raise ValueError(f"warmup_steps must be non-negative, got {warmup_steps}.")
-        if not 0.0 <= warmup_start_factor <= 1.0:
-            raise ValueError(
-                f"warmup_start_factor must be between 0 and 1, got {warmup_start_factor}."
-            )
         if not 0.0 <= min_factor <= 1.0:
             raise ValueError(f"min_factor must be between 0 and 1, got {min_factor}.")
 
         self.total_steps = total_steps
         self.warmup_steps = min(warmup_steps, total_steps)
-        self.warmup_start_factor = warmup_start_factor
         self.min_factor = min_factor
 
         self.flat_steps = min(
@@ -116,7 +103,14 @@ class FlatCosineLRScheduler(LRScheduler):
         self.cosine_end_step = max(
             self.cosine_start_step, total_steps - self.no_aug_steps
         )
-        self.has_cosine_phase = self.cosine_start_step < self.cosine_end_step
+        if self.cosine_start_step >= self.cosine_end_step:
+            raise ValueError(
+                "flat-cosine scheduler requires a non-empty cosine phase, "
+                f"but got total_steps={total_steps}, warmup_steps={warmup_steps}, "
+                f"flat_steps={self.flat_steps}, no_aug_steps={self.no_aug_steps}, "
+                f"cosine_start_step={self.cosine_start_step}, "
+                f"cosine_end_step={self.cosine_end_step}."
+            )
 
         self.min_lrs = [
             group["lr"] * self.min_factor for group in optimizer.param_groups
@@ -134,11 +128,9 @@ class FlatCosineLRScheduler(LRScheduler):
                 warmup_steps=self.warmup_steps,
                 cosine_start_step=self.cosine_start_step,
                 cosine_end_step=self.cosine_end_step,
-                has_cosine_phase=self.has_cosine_phase,
                 current_step=self.last_epoch,
                 init_lr=base_lr,
                 min_lr=min_lr,
-                warmup_start_factor=self.warmup_start_factor,
             )
             for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)
         ]

@@ -553,20 +553,11 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 start_factor=self.model_args.scheduler_start_factor,
             )
         elif self.model_args.scheduler == "flat-cosine":
-            flat_cosine_scheduler = FlatCosineLRScheduler(
+            scheduler = FlatCosineLRScheduler(
                 optimizer=optim,
                 total_steps=total_steps,
                 warmup_steps=self.model_args.lr_warmup_steps,
-                warmup_start_factor=self.model_args.scheduler_start_factor,
             )
-            if not flat_cosine_scheduler.has_cosine_phase:
-                logger.warning(
-                    f"{self.model_args.scheduler} scheduler has "
-                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
-                    f"and total_steps={total_steps}; the schedule will not complete "
-                    "as intended."
-                )
-            scheduler = flat_cosine_scheduler
         else:
             raise ValueError(
                 f"Unknown scheduler: {self.model_args.scheduler!r}. "

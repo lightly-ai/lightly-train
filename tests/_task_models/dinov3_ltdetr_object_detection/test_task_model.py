@@ -141,9 +141,7 @@ def test_get_optimizer__scheduler_modes(
     scheduler.load_state_dict(scheduler.state_dict())  # type: ignore[no-untyped-call]
 
 
-def test_get_optimizer__flat_cosine_warns_when_warmup_covers_training(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+def test_get_optimizer__flat_cosine_raises_when_cosine_phase_collapses() -> None:
     train_model = _create_train_model(
         DINOv3LTDETRObjectDetectionTrainArgs(
             scheduler="flat-cosine",
@@ -151,13 +149,8 @@ def test_get_optimizer__flat_cosine_warns_when_warmup_covers_training(
         )
     )
 
-    with caplog.at_level(
-        logging.WARNING,
-        logger="lightly_train._task_models.dinov3_ltdetr_object_detection.train_model",
-    ):
+    with pytest.raises(ValueError, match="non-empty cosine phase"):
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
-
-    assert "the schedule will not complete as intended" in caplog.text
 
 
 def test_get_optimizer__linear_warns_when_warmup_exceeds_training(

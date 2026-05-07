@@ -22,7 +22,6 @@ def _make_scheduler(
     *,
     total_steps: int = 1000,
     warmup_steps: int = 100,
-    warmup_start_factor: float = 0.01,
 ) -> tuple[Optimizer, FlatCosineLRScheduler]:
     param = nn.Parameter(torch.ones(()))
     optimizer = SGD([param], lr=1.0)
@@ -30,7 +29,6 @@ def _make_scheduler(
         optimizer=optimizer,
         total_steps=total_steps,
         warmup_steps=warmup_steps,
-        warmup_start_factor=warmup_start_factor,
     )
     return optimizer, scheduler
 
@@ -43,10 +41,9 @@ def _advance(scheduler: FlatCosineLRScheduler, steps: int) -> None:
 def test_flat_cosine_scheduler_phases() -> None:
     optimizer, scheduler = _make_scheduler()
 
-    assert scheduler.has_cosine_phase
     assert scheduler.flat_steps == 402
     assert scheduler.no_aug_steps == 111
-    assert scheduler.get_last_lr()[0] == pytest.approx(0.01)
+    assert scheduler.get_last_lr()[0] == pytest.approx(0.0)
 
     _advance(scheduler, 100)
     assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
@@ -67,6 +64,11 @@ def test_flat_cosine_scheduler_phases() -> None:
     _advance(scheduler, 100)
     assert scheduler.get_last_lr()[0] == pytest.approx(0.5)
     assert optimizer.param_groups[0]["lr"] == pytest.approx(0.5)
+
+
+def test_flat_cosine_scheduler_rejects_collapsed_cosine_phase() -> None:
+    with pytest.raises(ValueError, match="non-empty cosine phase"):
+        _make_scheduler(total_steps=1000, warmup_steps=1000)
 
 
 def test_flat_cosine_scheduler_state_dict_roundtrip() -> None:
