@@ -108,6 +108,7 @@ class PicoDetObjectDetection(TaskModel):
         self.register_buffer(
             "internal_class_to_class",
             torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,
         )
 
         config = _MODEL_CONFIGS.get(model_name)
@@ -324,7 +325,7 @@ class PicoDetObjectDetection(TaskModel):
         has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
         has_model_weights = any(k.startswith("model.") for k in state_dict)
 
-        new_state_dict = {}
+        new_state_dict: dict[str, Any] = {}
         if has_ema_weights:
             for name, param in state_dict.items():
                 if name.startswith("ema_model.model."):
@@ -336,12 +337,12 @@ class PicoDetObjectDetection(TaskModel):
                     new_name = name[len("model.") :]
                     new_state_dict[new_name] = param
         else:
-            new_state_dict = state_dict
+            new_state_dict = dict(state_dict)
 
-        if "internal_class_to_class" not in new_state_dict:
-            new_state_dict["internal_class_to_class"] = (
-                self.internal_class_to_class.detach().clone()
-            )
+        # Drop the legacy persistent buffer so checkpoints saved before
+        # internal_class_to_class became non-persistent still load cleanly,
+        # even when num_classes differs from the checkpoint.
+        new_state_dict.pop("internal_class_to_class", None)
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
