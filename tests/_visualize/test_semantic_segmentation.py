@@ -187,3 +187,34 @@ def test_plot_semantic_segmentation_labels__legend_skips_class_not_in_included_c
     )
     assert _has_legend(with_known_class)
     assert not _has_legend(with_unknown_class)
+
+
+def test_plot_semantic_segmentation_predictions__overlay_matches_argmax_class() -> None:
+    # Logits are non-uniform across regions and across classes, so each pixel's
+    # argmax depends on which class has the larger logit there. Top half:
+    # class 0 wins (2.0 > -2.0). Bottom half: class 1 wins (2.0 > -2.0).
+    # alpha=1.0 makes the blended image equal to the overlay, which paints
+    # each pixel with its predicted class color. Probe pixels are taken near
+    # the right edge to avoid the upper-left legend region, and away from the
+    # boundary to avoid the contour.
+    logits = torch.zeros(2, 128, 128)
+    logits[0, :64, :] = 2.0
+    logits[1, :64, :] = -2.0
+    logits[0, 64:, :] = -2.0
+    logits[1, 64:, :] = 2.0
+    batch = _make_batch(
+        image=torch.full((1, 3, 128, 128), _WHITE_COLOR),
+        mask=torch.zeros(1, 128, 128, dtype=torch.long),
+    )
+    result = semantic_segmentation.plot_semantic_segmentation_predictions(
+        batch=batch,
+        logits=[logits],
+        included_classes={0: "cat", 1: "dog"},
+        max_images=1,
+        image_normalize=None,
+        alpha=1.0,
+    )
+    # Top region argmax == 0, so overlay must paint the class-0 color.
+    assert result.getpixel((120, 30)) == _CLASS_0_COLOR
+    # Bottom region argmax == 1, so overlay must paint the class-1 color.
+    assert result.getpixel((120, 100)) == _CLASS_1_COLOR
