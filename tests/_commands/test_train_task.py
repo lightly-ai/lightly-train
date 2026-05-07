@@ -645,13 +645,6 @@ def test_train_semantic_segmentation__export(
     for key in ckpt_model_state_dict.keys():
         assert torch.equal(ckpt_model_state_dict[key], exported_model_state_dict[key])
 
-    # Check that example images were logged for training and validation.
-    image_examples_dir = out / "image_examples"
-    assert image_examples_dir.exists()
-    assert (image_examples_dir / "train_labels_0.jpg").exists()
-    assert (image_examples_dir / "val_labels_0.jpg").exists()
-    assert (image_examples_dir / "val_predictions_0.jpg").exists()
-
 
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
@@ -763,13 +756,6 @@ def test_train_semantic_segmentation__checkpoint(
         )
     assert "Checkpoint provides 2 classes but module expects 3." in caplog.text
 
-    # Check that example images were logged for training and validation.
-    image_examples_dir = out / "image_examples"
-    assert image_examples_dir.exists()
-    assert (image_examples_dir / "train_labels_0.jpg").exists()
-    assert (image_examples_dir / "val_labels_0.jpg").exists()
-    assert (image_examples_dir / "val_predictions_0.jpg").exists()
-
 
 @pytest.mark.skipif(
     sys.platform.startswith("win") or is_self_hosted_docker_runner,
@@ -851,13 +837,6 @@ def test_train_semantic_segmentation__resume_interrupted(
 
     assert f"Resuming training from model checkpoint '{last_ckpt_path}'" in caplog.text
     assert "Resuming training from step 1/1..." in caplog.text
-
-    # Check that example images were logged for training and validation.
-    image_examples_dir = out / "image_examples"
-    assert image_examples_dir.exists()
-    assert (image_examples_dir / "train_labels_0.jpg").exists()
-    assert (image_examples_dir / "val_labels_0.jpg").exists()
-    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(

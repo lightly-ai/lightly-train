@@ -14,6 +14,7 @@ import torch
 from PIL import Image, ImageChops
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw
+from torch import Tensor
 
 from lightly_train._visualize import utils
 
@@ -30,29 +31,39 @@ def _non_white_bbox(image: PILImage) -> tuple[int, int, int, int] | None:
     return ImageChops.difference(image, white).getbbox()
 
 
-def test__cxcywh_to_xyxy__center_box() -> None:
-    boxes = torch.tensor([[0.5, 0.5, 0.5, 0.5]])
-    result = utils._cxcywh_to_xyxy(boxes=boxes, w=100, h=80)
-    assert torch.allclose(result, torch.tensor([[25.0, 20.0, 75.0, 60.0]]))
-
-
-def test__cxcywh_to_xyxy__full_image_box() -> None:
-    boxes = torch.tensor([[0.5, 0.5, 1.0, 1.0]])
-    result = utils._cxcywh_to_xyxy(boxes=boxes, w=200, h=100)
-    assert torch.allclose(result, torch.tensor([[0.0, 0.0, 200.0, 100.0]]))
-
-
-def test__cxcywh_to_xyxy__multiple_boxes() -> None:
-    boxes = torch.tensor([[0.25, 0.25, 0.5, 0.5], [0.75, 0.75, 0.5, 0.5]])
-    result = utils._cxcywh_to_xyxy(boxes=boxes, w=100, h=100)
-    expected = torch.tensor([[0.0, 0.0, 50.0, 50.0], [50.0, 50.0, 100.0, 100.0]])
+@pytest.mark.parametrize(
+    "boxes, w, h, expected",
+    [
+        (
+            torch.tensor([[0.5, 0.5, 0.5, 0.5]]),
+            100,
+            80,
+            torch.tensor([[25.0, 20.0, 75.0, 60.0]]),
+        ),
+        (
+            torch.tensor([[0.5, 0.5, 1.0, 1.0]]),
+            200,
+            100,
+            torch.tensor([[0.0, 0.0, 200.0, 100.0]]),
+        ),
+        (
+            torch.tensor([[0.25, 0.25, 0.5, 0.5], [0.75, 0.75, 0.5, 0.5]]),
+            100,
+            100,
+            torch.tensor([[0.0, 0.0, 50.0, 50.0], [50.0, 50.0, 100.0, 100.0]]),
+        ),
+        (
+            torch.tensor([[0.5, 0.5, 1.0, 1.0]]),
+            400,
+            200,
+            torch.tensor([[0.0, 0.0, 400.0, 200.0]]),
+        ),
+    ],
+    ids=["center_box", "full_image_box", "multiple_boxes", "non_square_image"],
+)
+def test__cxcywh_to_xyxy(boxes: Tensor, w: int, h: int, expected: Tensor) -> None:
+    result = utils._cxcywh_to_xyxy(boxes=boxes, w=w, h=h)
     assert torch.allclose(result, expected)
-
-
-def test__cxcywh_to_xyxy__non_square_image() -> None:
-    boxes = torch.tensor([[0.5, 0.5, 1.0, 1.0]])
-    result = utils._cxcywh_to_xyxy(boxes=boxes, w=400, h=200)
-    assert torch.allclose(result, torch.tensor([[0.0, 0.0, 400.0, 200.0]]))
 
 
 def test__cxcywh_to_xyxy__does_not_modify_input() -> None:
