@@ -223,9 +223,11 @@ if __name__ == "__main__":
 ```
 
 As shown above, the patch size can be set to a value different from the one used in the
-pretrained model without harming compatibility of the pretrained weights. Internally,
-the patch embedding weights are automatically resized to the requested patch size using
-the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
+pretrained model without harming compatibility of the pretrained weights. For DINOv3 ViT
+models, the patch size encoded in the model name is just the default;
+`model_args["patch_size"]` overrides it and LightlyTrain logs a warning if they differ.
+Internally, the patch embedding weights are automatically resized to the requested patch
+size using the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
 
 As illustrated in this {ref}`figure <fig-miou-latency>`, increasing the patch size leads
 to a significant speed-up with only a moderate impact on performance.

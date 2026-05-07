@@ -281,7 +281,8 @@ class DINOv3Package(Package):
         load_weights: bool = True,
     ) -> DinoVisionTransformer | ConvNeXt:
         """
-        Get a DINOv3 ViT model by name. Here the student version is build.
+        Get a DINOv3 model by name. Can be either a ConvNeXt or ViT.
+        Here the student version is build.
         """
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
@@ -295,9 +296,18 @@ class DINOv3Package(Package):
         model_builder = model_info["builder"]
 
         # Update the patch size argument from the model_builder.
-        # If patch_size is None the model is not a ViT and the patch_size must not be set.
+        # If patch_size is None the model is not a ViT and the patch_size should only be set if explicitly given.
         if patch_size is not None:
-            args["patch_size"] = int(patch_size)
+            if "patch_size" not in args:
+                args["patch_size"] = patch_size
+            elif int(args["patch_size"]) != int(patch_size):
+                logger.warning(
+                    f"Patch size from model name {patch_size} got overwritten by patch size argument {args['patch_size']}"
+                )
+
+        if "patch_size" in args:
+            args["patch_size"] = int(args["patch_size"])
+
         if (
             load_weights
             and ("weights" not in args)
@@ -305,11 +315,14 @@ class DINOv3Package(Package):
         ):
             weight_path = _maybe_download_weights(model_getter=model_info)
             args["weights"] = str(weight_path)
+
         if not load_weights:
             args["weights"] = None
             args["pretrained"] = False
+
         if load_weights and args.get("weights") is not None:
             args["pretrained"] = True
+
         model = model_builder(**args)
         assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
         return model
