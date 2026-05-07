@@ -135,7 +135,7 @@ def test_get_optimizer__scheduler_modes(
     optimizer.step()
     scheduler.step()
     assert len(scheduler.get_last_lr()) == len(optimizer.param_groups)
-    scheduler.load_state_dict(scheduler.state_dict())
+    scheduler.load_state_dict(scheduler.state_dict())  # type: ignore[no-untyped-call]
 
 
 def test_get_optimizer__flat_cosine_warns_when_warmup_covers_training(

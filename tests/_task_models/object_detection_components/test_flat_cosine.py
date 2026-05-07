@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 import torch
 from torch import nn
+from torch.optim.optimizer import Optimizer
 
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -21,9 +22,9 @@ def _make_scheduler(
     total_steps: int = 1000,
     warmup_steps: int = 100,
     warmup_start_factor: float = 0.01,
-) -> tuple[torch.optim.Optimizer, FlatCosineLRScheduler]:
+) -> tuple[Optimizer, FlatCosineLRScheduler]:
     param = nn.Parameter(torch.ones(()))
-    optimizer = torch.optim.SGD([param], lr=1.0)
+    optimizer = torch.optim.sgd.SGD([param], lr=1.0)
     scheduler = FlatCosineLRScheduler(
         optimizer=optimizer,
         total_steps=total_steps,
@@ -70,7 +71,7 @@ def test_flat_cosine_scheduler_phases() -> None:
 def test_flat_cosine_scheduler_state_dict_roundtrip() -> None:
     _, scheduler = _make_scheduler()
     _advance(scheduler, 123)
-    state_dict = scheduler.state_dict()
+    state_dict = scheduler.state_dict()  # type: ignore[no-untyped-call]
 
     _, clone = _make_scheduler()
     clone.load_state_dict(state_dict)
