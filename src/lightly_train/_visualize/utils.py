@@ -157,12 +157,17 @@ def _denormalize_image(
     return denormalized
 
 
-def _get_class_color(class_id: int) -> tuple[int, int, int]:
+def _get_class_color(class_id: float) -> tuple[int, int, int]:
     """Generate a deterministic RGB color for a class ID.
 
-    Uses HSV color space with varying hue to ensure the same class ID always gets
-    the same color, with good visual distinction between different classes.
-    This maintains color consistency throughout the training process.
+    The integer part of ``class_id`` selects a base hue using the golden ratio
+    (so different classes are well-separated). The fractional part adds an
+    amplified hue offset, so callers can pass ``class_id + small_offset`` to
+    derive instance-specific colors that are clearly distinct yet still in the
+    same color region as the base class.
+
+    Integer class IDs reproduce the original per-class colors exactly, so
+    existing callers (e.g. object detection) are unaffected.
 
     Args:
         class_id: The class ID to generate a color for.
@@ -185,8 +190,11 @@ def _get_class_color(class_id: int) -> tuple[int, int, int]:
 def _render_grid(pil_images: list[PILImage]) -> PILImage:
     """Arrange PIL images into a square-ish grid.
 
+    Tiles may have different sizes. The cell size is the maximum width and
+    height across all tiles, and each tile is centered within its cell.
+
     Args:
-        pil_images: List of PIL images, all the same size.
+        pil_images: List of PIL images.
 
     Returns:
         Single PIL image with all inputs tiled into a grid.
@@ -194,12 +202,16 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
     n = len(pil_images)
     n_cols = math.ceil(math.sqrt(n))
     n_rows = math.ceil(n / n_cols)
-    w, h = pil_images[0].size
+    w = max(img.size[0] for img in pil_images)
+    h = max(img.size[1] for img in pil_images)
     mode = pil_images[0].mode
     grid = Image.new(mode, (n_cols * w, n_rows * h))
     for idx, img in enumerate(pil_images):
         row, col = divmod(idx, n_cols)
-        grid.paste(img, (col * w, row * h))
+        img_w, img_h = img.size
+        x = col * w + (w - img_w) // 2
+        y = row * h + (h - img_h) // 2
+        grid.paste(img, (x, y))
     return grid
 
 

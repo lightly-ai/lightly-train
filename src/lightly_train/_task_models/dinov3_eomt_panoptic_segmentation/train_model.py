@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -50,6 +51,10 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize.panoptic_segmentation import (
+    plot_panoptic_segmentation_labels,
+    plot_panoptic_segmentation_predictions,
+)
 from lightly_train.types import (
     MaskPanopticSegmentationBatch,
     PathLike,
@@ -279,6 +284,12 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
+        self.viz_alpha = 0.5
+
     def get_task_model(self) -> DINOv3EoMTPanopticSegmentation:
         return self.model
 
@@ -359,10 +370,21 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = plot_panoptic_segmentation_labels(
+                batch=batch,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
+
         return TaskStepResult(
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
+            label_image=label_image,
         )
 
     def validation_step(
@@ -433,6 +455,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
         # Revert resize and pad for mask logits.
+        pred_masks: list[Tensor] = []
         for logits, class_logits, target_masks, target_binary_mask, (crop_h, crop_w), (
             image_h,
             image_w,
@@ -460,6 +483,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 mask_threshold=self.model_args.mask_threshold,
                 mask_overlap_threshold=self.model_args.mask_overlap_threshold,
             )
+            pred_masks.append(masks)
             _mark_ignore_regions(
                 target_masks=target_masks,
                 ignore_class_id=self.model.internal_ignore_class_id,
@@ -470,10 +494,31 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
 
+        label_image: PILImage | None = None
+        prediction_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = plot_panoptic_segmentation_labels(
+                batch=batch,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
+            prediction_image = plot_panoptic_segmentation_predictions(
+                batch=batch,
+                pred_masks=pred_masks,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
+
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
+            label_image=label_image,
+            prediction_image=prediction_image,
         )
 
     def mask_annealing(
