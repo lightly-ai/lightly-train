@@ -79,14 +79,14 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
 
 def test_resolve_auto__uses_vit_model_name() -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs()
-    train_model = _create_train_model(model_args)
+    _create_train_model(model_args)
 
     assert model_args.patch_size == 16
 
 
 def test_resolve_auto__uses_model_init_args_patch_size() -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs()
-    train_model = _create_train_model(
+    _create_train_model(
         model_args,
         model_init_args={"patch_size": 14},
     )
@@ -96,7 +96,7 @@ def test_resolve_auto__uses_model_init_args_patch_size() -> None:
 
 def test_resolve_auto__uses_explicit_patch_size() -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
-    train_model = _create_train_model(model_args)
+    _create_train_model(model_args)
 
     assert model_args.patch_size == 14
 
@@ -126,7 +126,10 @@ def test_warns_when_patch_size_is_ignored_for_convnext(
         )
 
     assert train_model.model.backbone.backbone.patch_size is None
-    assert "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'" in caplog.text
+    assert (
+        "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'"
+        in caplog.text
+    )
 
 
 def _create_train_model(
