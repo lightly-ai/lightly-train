@@ -11,6 +11,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,6 +21,10 @@ from lightly_train._data.instance_segmentation_dataset import (
     COCOSplitArgs,
     YOLOInstanceSegmentationDataArgs,
     YOLOInstanceSegmentationDatasetArgs,
+    _bbox_from_polygon_segments,
+    _filter_valid_polygon_segments,
+    _normalize_polygon_segments,
+    _process_polygon_segmentation,
 )
 
 from .. import helpers
@@ -148,6 +153,48 @@ _COCO_POLYGON_NORM = [v / 128 for v in _COCO_POLYGON_PX]
 _COCO_BBOX = [25 / 128, 30 / 128, 30 / 128, 40 / 128]
 # Bbox derived from polygon (same rectangle, so same result).
 _COCO_BBOX_FROM_POLYGON = [25 / 128, 30 / 128, 30 / 128, 40 / 128]
+
+
+def _create_rle_annotations_from_polygon(
+    polygon_px: list[float], height: int, width: int
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if sys.version_info >= (3, 9):  # Needed for Mypy
+        from pycocotools import mask as coco_mask
+
+        # Create a compressed RLE from a polygon using pycocotools.
+        rle_list = coco_mask.frPyObjects([[int(v) for v in polygon_px]], height, width)
+        compressed_rle = coco_mask.merge(rle_list)
+        # counts is bytes, convert to str for JSON.
+        counts_raw = compressed_rle["counts"]
+        counts_str = (
+            counts_raw.decode("utf-8") if isinstance(counts_raw, bytes) else counts_raw
+        )
+        compressed_rle_annotation = {
+            "counts": counts_str,
+            "size": compressed_rle["size"],
+        }
+
+        # Create an uncompressed RLE (counts as a list of ints).
+        binary_mask = coco_mask.decode(compressed_rle)
+        flat = binary_mask.flatten(order="F")
+        counts: list[int] = []
+        current: int = 0
+        count: int = 0
+        for val in flat:
+            if val == current:
+                count += 1
+            else:
+                counts.append(count)
+                current = int(val)
+                count = 1
+        counts.append(count)
+        uncompressed_rle_annotation = {
+            "counts": counts,
+            "size": [height, width],
+        }
+
+        return compressed_rle_annotation, uncompressed_rle_annotation
+    raise RuntimeError("pycocotools requires Python >= 3.9")
 
 
 class TestCOCOInstanceSegmentationDataArgs:
@@ -366,45 +413,12 @@ class TestCOCOInstanceSegmentationMmapHash:
     def test_list_image_info__mixed_polygon_and_rle(self, tmp_path: Path) -> None:
         """Test a single image with polygon, compressed RLE, and uncompressed RLE annotations."""
         if sys.version_info >= (3, 9):  # Needed for Mypy
-            from pycocotools import mask as coco_mask
-
             height, width = 128, 128
 
-            # Create a compressed RLE from a polygon using pycocotools.
-            rle_list = coco_mask.frPyObjects(
-                [[int(v) for v in _COCO_POLYGON_PX]], height, width
-            )
-            compressed_rle = coco_mask.merge(rle_list)
-            # counts is bytes, convert to str for JSON.
-            counts_raw = compressed_rle["counts"]
-            counts_str = (
-                counts_raw.decode("utf-8")
-                if isinstance(counts_raw, bytes)
-                else counts_raw
-            )
-            compressed_rle_annotation = {
-                "counts": counts_str,
-                "size": compressed_rle["size"],
-            }
-
-            # Create an uncompressed RLE (counts as a list of ints).
-            binary_mask = coco_mask.decode(compressed_rle)
-            flat = binary_mask.flatten(order="F")
-            counts: list[int] = []
-            current: int = 0
-            count: int = 0
-            for val in flat:
-                if val == current:
-                    count += 1
-                else:
-                    counts.append(count)
-                    current = int(val)
-                    count = 1
-            counts.append(count)
-            uncompressed_rle_annotation = {
-                "counts": counts,
-                "size": [height, width],
-            }
+            (
+                compressed_rle_annotation,
+                uncompressed_rle_annotation,
+            ) = _create_rle_annotations_from_polygon(_COCO_POLYGON_PX, height, width)
 
             annotations_per_image = [
                 [
@@ -498,3 +512,172 @@ class TestCOCOInstanceSegmentationMmapHash:
 
         with pytest.raises(RuntimeError, match="Python >= 3.9"):
             list(args.list_image_info())
+
+
+class TestFilterValidPolygonSegments:
+    def test_valid_segments_kept(self) -> None:
+        # Arrange
+        segments = [
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+        ]
+
+        # Act
+        result = _filter_valid_polygon_segments(segments)
+
+        # Assert
+        assert result == segments
+
+    def test_too_few_coords_removed(self) -> None:
+        # Arrange
+        segments = [[1.0, 2.0, 3.0, 4.0]]
+
+        # Act
+        result = _filter_valid_polygon_segments(segments)
+
+        # Assert
+        assert result == []
+
+    def test_odd_length_removed(self) -> None:
+        # Arrange
+        segments = [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]]
+
+        # Act
+        result = _filter_valid_polygon_segments(segments)
+
+        # Assert
+        assert result == []
+
+    def test_non_list_entries_removed(self) -> None:
+        # Arrange
+        segments: list[Any] = ["not_a_list", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]
+
+        # Act
+        result = _filter_valid_polygon_segments(segments)
+
+        # Assert
+        assert result == [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]
+
+    def test_empty_input(self) -> None:
+        # Arrange
+        segments: list[list[float]] = []
+
+        # Act
+        result = _filter_valid_polygon_segments(segments)
+
+        # Assert
+        assert result == []
+
+
+class TestNormalizePolygonSegments:
+    def test_normalize(self) -> None:
+        # Arrange
+        segments = [[10.0, 20.0, 30.0, 40.0, 50.0, 60.0]]
+
+        # Act
+        result = _normalize_polygon_segments(
+            segments, image_width=100, image_height=200
+        )
+
+        # Assert
+        assert result == [[0.1, 0.1, 0.3, 0.2, 0.5, 0.3]]
+
+    def test_multiple_segments(self) -> None:
+        # Arrange
+        segments = [
+            [100.0, 200.0, 300.0, 400.0, 500.0, 600.0],
+            [50.0, 50.0, 150.0, 150.0, 250.0, 250.0],
+        ]
+
+        # Act
+        result = _normalize_polygon_segments(
+            segments, image_width=500, image_height=1000
+        )
+
+        # Assert
+        assert result == [
+            [0.2, 0.2, 0.6, 0.4, 1.0, 0.6],
+            [0.1, 0.05, 0.3, 0.15, 0.5, 0.25],
+        ]
+
+
+class TestBboxFromPolygonSegments:
+    def test_single_segment(self) -> None:
+        # Arrange
+        segments = [[10.0, 10.0, 40.0, 10.0, 40.0, 50.0, 10.0, 50.0]]
+
+        # Act
+        result = _bbox_from_polygon_segments(segments)
+
+        # Assert
+        assert result == (10.0, 10.0, 30.0, 40.0)
+
+    def test_multiple_segments(self) -> None:
+        # Arrange
+        segments = [
+            [0.0, 0.0, 10.0, 10.0, 20.0, 20.0],
+            [5.0, 5.0, 30.0, 25.0, 15.0, 15.0],
+        ]
+
+        # Act
+        left, top, w, h = _bbox_from_polygon_segments(segments)
+
+        # Assert
+        assert (left, top) == (0.0, 0.0)
+        assert w == 30.0
+        assert h == 25.0
+
+
+class TestProcessPolygonSegmentation:
+    def test_returns_none_for_invalid_segments(self) -> None:
+        # Arrange
+        segmentation = [[1.0, 2.0]]
+        annotation: dict[str, Any] = {"bbox": [0, 0, 10, 10]}
+
+        # Act
+        result = _process_polygon_segmentation(
+            segmentation=segmentation,
+            annotation=annotation,
+            image_width=100,
+            image_height=100,
+        )
+
+        # Assert
+        assert result is None
+
+    def test_uses_annotation_bbox(self) -> None:
+        # Arrange
+        segmentation = [[10.0, 10.0, 40.0, 10.0, 40.0, 50.0, 10.0, 50.0]]
+        annotation = {"bbox": [5, 5, 50, 60]}
+
+        # Act
+        result = _process_polygon_segmentation(
+            segmentation=segmentation,
+            annotation=annotation,
+            image_width=128,
+            image_height=128,
+        )
+
+        # Assert
+        assert result is not None
+        _, bbox = result
+        assert bbox == (5, 5, 50, 60)
+
+    def test_derives_bbox_from_polygon(self) -> None:
+        # Arrange
+        polygon = [10.0, 10.0, 40.0, 10.0, 40.0, 50.0, 10.0, 50.0]
+        annotation: dict[str, Any] = {}
+
+        # Act
+        result = _process_polygon_segmentation(
+            segmentation=[polygon],
+            annotation=annotation,
+            image_width=128,
+            image_height=128,
+        )
+
+        # Assert
+        assert result is not None
+        segments, bbox = result
+        assert bbox == (10.0, 10.0, 30.0, 40.0)
+        assert segments == [[v / 128 for v in polygon]]

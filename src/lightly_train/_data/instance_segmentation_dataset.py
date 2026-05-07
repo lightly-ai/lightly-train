@@ -22,6 +22,7 @@ else:
     coco_mask: Any = None
 
 import numpy as np
+import numpy.typing as npt
 import pydantic
 import torch
 from pydantic import Field
@@ -45,6 +46,97 @@ from lightly_train.types import (
     InstanceSegmentationDatasetItem,
     PathLike,
 )
+
+
+def _filter_valid_polygon_segments(
+    segmentation: list[list[float]],
+) -> list[list[float]]:
+    """Return polygon segments with >= 3 points (>= 6 even-length coords)."""
+    return [
+        segment
+        for segment in segmentation
+        if isinstance(segment, list) and len(segment) >= 6 and len(segment) % 2 == 0
+    ]
+
+
+def _normalize_polygon_segments(
+    segments: list[list[float]],
+    image_width: float,
+    image_height: float,
+) -> list[list[float]]:
+    """Normalize polygon coordinates from pixels to [0, 1]."""
+    return [
+        [
+            coord / image_width if i % 2 == 0 else coord / image_height
+            for i, coord in enumerate(segment)
+        ]
+        for segment in segments
+    ]
+
+
+def _bbox_from_polygon_segments(
+    segments: list[list[float]],
+) -> tuple[float, float, float, float]:
+    """Compute [x, y, w, h] bounding box in pixels from polygon segments."""
+    all_px = [coord for segment in segments for coord in segment]
+    xs = all_px[0::2]
+    ys = all_px[1::2]
+    left = min(xs)
+    top = min(ys)
+    return left, top, max(xs) - left, max(ys) - top
+
+
+def _process_polygon_segmentation(
+    segmentation: list[list[float]],
+    annotation: dict[str, Any],
+    image_width: float,
+    image_height: float,
+) -> tuple[list[list[float]], tuple[float, float, float, float]] | None:
+    """Process a polygon segmentation annotation.
+
+    Returns the normalized polygon group and bbox in [x, y, w, h] pixels,
+    or None if no valid segments exist.
+    """
+    valid_segments = _filter_valid_polygon_segments(segmentation)
+    if not valid_segments:
+        return None
+    polygon_group_norm = _normalize_polygon_segments(
+        valid_segments, image_width, image_height
+    )
+    if "bbox" in annotation:
+        bbox = tuple(annotation["bbox"])
+    else:
+        bbox = _bbox_from_polygon_segments(valid_segments)
+    return polygon_group_norm, bbox  # type: ignore[return-value]
+
+
+def _process_rle_segmentation(
+    segmentation: dict[str, Any],
+    annotation: dict[str, Any],
+    image_width: float,
+    image_height: float,
+) -> tuple[dict[str, Any], tuple[float, float, float, float]]:
+    """Process an RLE segmentation annotation.
+
+    Returns the compressed RLE dict and bbox in [x, y, w, h] pixels.
+    """
+    if coco_mask is None:
+        raise RuntimeError(
+            "RLE encoded segmentation requires Python >= 3.9 for pycocotools support."
+        )
+    if isinstance(segmentation.get("counts"), list):
+        rle = coco_mask.frPyObjects(  # type: ignore[call-overload]
+            segmentation, image_height, image_width
+        )
+    else:
+        rle = segmentation
+    if "bbox" in annotation:
+        bbox = tuple(annotation["bbox"])
+    else:
+        bbox = tuple(coco_mask.toBbox(rle).flatten().tolist())
+    if isinstance(rle["counts"], bytes):
+        rle["counts"] = rle["counts"].decode("utf-8")
+    return rle, bbox  # type: ignore[return-value]
 
 
 class InstanceSegmentationDataset(TaskDataset):
@@ -117,7 +209,7 @@ class InstanceSegmentationDataset(TaskDataset):
         class_labels_np = np.array(class_labels, dtype=np.int64)
 
         h, w = image_np.shape[0], image_np.shape[1]
-        mask_list: list[np.ndarray[Any, Any]] = []
+        mask_list: list[npt.NDArray[np.bool_]] = []
         for segment in segments:
             if isinstance(segment, list):
                 # Polygon format: list of polygon coordinate arrays.
@@ -465,7 +557,7 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
             image_id = image["id"]
             image_filepath = image_dir / image["file_name"]
 
-            segments: list[Any] = []
+            segments: list[list[list[float]] | dict[str, Any]] = []
             bboxes = []
             class_labels = []
             if image_id in annotations_by_image_id:
@@ -474,85 +566,34 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                     if not segmentation:
                         continue
                     if isinstance(segmentation, list):
-                        # Filter to valid polygon segments (list with >= 6
-                        # even-length coordinates, i.e. at least 3 points).
-                        valid_segments = [
-                            segment
-                            for segment in segmentation
-                            if isinstance(segment, list)
-                            and len(segment) >= 6
-                            and len(segment) % 2 == 0
-                        ]
-                        if not valid_segments:
+                        result = _process_polygon_segmentation(
+                            segmentation,
+                            annotation,
+                            image_width_pixel,
+                            image_height_pixel,
+                        )
+                        if result is None:
                             continue
-                        # Normalize each polygon segment to [0, 1].
-                        polygon_group_norm = [
-                            [
-                                coord / image_width_pixel
-                                if i % 2 == 0
-                                else coord / image_height_pixel
-                                for i, coord in enumerate(segment)
-                            ]
-                            for segment in valid_segments
-                        ]
-                        # Get bbox in [x, y, w, h] pixel format.
-                        if "bbox" in annotation:
-                            left_pixel, top_pixel, width_pixel, height_pixel = (
-                                annotation["bbox"]
-                            )
-                        else:
-                            all_px = [
-                                coord for segment in valid_segments for coord in segment
-                            ]
-                            xs = all_px[0::2]
-                            ys = all_px[1::2]
-                            left_pixel = min(xs)
-                            top_pixel = min(ys)
-                            width_pixel = max(xs) - left_pixel
-                            height_pixel = max(ys) - top_pixel
-                        segments.append(polygon_group_norm)
-
+                        segment: list[list[float]] | dict[str, Any] = result[0]
+                        bbox = result[1]
                     elif isinstance(segmentation, dict):
-                        # RLE encoded segmentation. pycocotools is only
-                        # available for Python >= 3.9.
-                        if coco_mask is None:
-                            raise RuntimeError(
-                                "RLE encoded segmentation requires Python >= 3.9 "
-                                "for pycocotools support."
-                            )
-
-                        # Ensure RLE is in compressed format.
-                        if isinstance(segmentation.get("counts"), list):
-                            rle = coco_mask.frPyObjects(  # type: ignore[call-overload]
-                                segmentation,
-                                image_height_pixel,
-                                image_width_pixel,
-                            )
-                        else:
-                            rle = segmentation
-
-                        # Get bbox in [x, y, w, h] pixel format.
-                        if "bbox" in annotation:
-                            left_pixel, top_pixel, width_pixel, height_pixel = (
-                                annotation["bbox"]
-                            )
-                        else:
-                            left_pixel, top_pixel, width_pixel, height_pixel = (
-                                coco_mask.toBbox(rle).flatten().tolist()
-                            )
-
-                        # Ensure counts is a string for JSON serialization.
-                        if isinstance(rle["counts"], bytes):
-                            rle["counts"] = rle["counts"].decode("utf-8")
-                        segments.append(rle)
+                        segment, bbox = _process_rle_segmentation(
+                            segmentation,
+                            annotation,
+                            image_width_pixel,
+                            image_height_pixel,
+                        )
                     else:
                         raise ValueError(
                             f"Unsupported segmentation format: {type(segmentation)}. "
                             "Expected a list of polygons or an RLE dict."
                         )
 
+                    segments.append(segment)
+
                     # Convert bbox from [x, y, w, h] pixels to normalized
                     # [x_center, y_center, w, h].
+                    left_pixel, top_pixel, width_pixel, height_pixel = bbox
                     x_center = (left_pixel + width_pixel / 2.0) / image_width_pixel
                     y_center = (top_pixel + height_pixel / 2.0) / image_height_pixel
                     width = width_pixel / image_width_pixel
