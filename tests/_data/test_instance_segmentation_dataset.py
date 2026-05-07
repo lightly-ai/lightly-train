@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import torch
 
 from lightly_train._data.instance_segmentation_dataset import (
     COCOInstanceSegmentationDataArgs,
@@ -512,6 +513,97 @@ class TestCOCOInstanceSegmentationMmapHash:
 
         with pytest.raises(RuntimeError, match="Python >= 3.9"):
             list(args.list_image_info())
+
+
+class TestInstanceSegmentationDatasetGetitem:
+    @pytest.mark.skipif(
+        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
+    )
+    def test_getitem__rle_segment(self, tmp_path: Path) -> None:
+        """RLE segments are decoded to binary masks in __getitem__."""
+        if sys.version_info >= (3, 9):  # Needed for Mypy
+            from albumentations import BboxParams
+            from lightning_utilities.core.imports import RequirementCache
+
+            from lightly_train._data.instance_segmentation_dataset import (
+                InstanceSegmentationDataset,
+            )
+            from lightly_train._transforms.instance_segmentation_transform import (
+                InstanceSegmentationTransform,
+                InstanceSegmentationTransformArgs,
+            )
+            from lightly_train._transforms.transform import NormalizeArgs
+
+            ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
+            ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
+
+            # Arrange
+            height, width = 128, 128
+            compressed_rle, _ = _create_rle_annotations_from_polygon(
+                _COCO_POLYGON_PX, height, width
+            )
+
+            create_coco_instance_segmentation_dataset(
+                tmp_path=tmp_path,
+                num_files=1,
+                height=height,
+                width=width,
+                num_classes=1,
+                annotations_per_image=[
+                    [
+                        {
+                            "category_id": 0,
+                            "bbox": [10, 10, 30, 40],
+                            "segmentation": compressed_rle,
+                        }
+                    ]
+                ],
+            )
+            dataset_args = COCOInstanceSegmentationDatasetArgs(
+                labels=tmp_path / "train.json",
+                data_dir=Path("train"),
+                classes={0: "class_0"},
+                ignore_classes=None,
+                skip_if_annotations_missing=False,
+            )
+            image_info = list(dataset_args.list_image_info())
+            transform_args = InstanceSegmentationTransformArgs(
+                image_size=None,
+                channel_drop=None,
+                num_channels=3,
+                normalize=NormalizeArgs(),
+                random_flip=None,
+                random_rotate_90=None,
+                random_rotate=None,
+                color_jitter=None,
+                scale_jitter=None,
+                smallest_max_size=None,
+                random_crop=None,
+                bbox_params=BboxParams(
+                    format="yolo",
+                    label_fields=["class_labels", "indices"],
+                    **(
+                        dict(filter_invalid_bboxes=True)
+                        if ALBUMENTATIONS_GE_2_0_1
+                        else {}
+                    ),
+                    **(dict(clip=True) if ALBUMENTATIONS_GE_1_4_5 else {}),
+                ),
+            )
+            transform = InstanceSegmentationTransform(transform_args)
+            dataset = InstanceSegmentationDataset(
+                dataset_args=dataset_args,
+                image_info=image_info,
+                transform=transform,
+            )
+
+            # Act
+            item = dataset[0]
+
+            # Assert
+            assert item["binary_masks"]["masks"].shape == (1, height, width)
+            assert item["binary_masks"]["masks"].dtype == torch.bool
+            assert item["binary_masks"]["masks"].any()
 
 
 class TestFilterValidPolygonSegments:

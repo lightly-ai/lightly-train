@@ -524,12 +524,13 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
     def list_image_info(self) -> Iterable[dict[str, str]]:
         """Yields image info dicts for each image in the COCO annotation file.
 
-        Polygons are converted from COCO format (pixel coordinates) to normalized
-        [0, 1] coordinates. Each annotation's polygon segments are stored as a list
-        of polygons. Bounding boxes are converted from COCO format
-        (x, y, width, height in pixels) to normalized (x_center, y_center, width,
-        height) format. Images with no annotations are included unless
-        ``skip_if_annotations_missing`` is True.
+        Each annotation's segmentation is either a polygon group or an RLE dict.
+        Polygon segmentations are normalized from pixel coordinates to [0, 1] and
+        stored as ``list[list[float]]``. RLE segmentations are stored as compressed
+        RLE dicts (``{"counts": str, "size": [h, w]}``). Bounding boxes are
+        converted from COCO format (x, y, width, height in pixels) to normalized
+        (x_center, y_center, width, height) format. Images with no annotations are
+        included unless ``skip_if_annotations_missing`` is True.
         """
         class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
@@ -567,10 +568,10 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                         continue
                     if isinstance(segmentation, list):
                         result = _process_polygon_segmentation(
-                            segmentation,
-                            annotation,
-                            image_width_pixel,
-                            image_height_pixel,
+                            segmentation=segmentation,
+                            annotation=annotation,
+                            image_width=image_width_pixel,
+                            image_height=image_height_pixel,
                         )
                         if result is None:
                             continue
@@ -578,10 +579,10 @@ class COCOInstanceSegmentationDatasetArgs(TaskDatasetArgs):
                         bbox = result[1]
                     elif isinstance(segmentation, dict):
                         segment, bbox = _process_rle_segmentation(
-                            segmentation,
-                            annotation,
-                            image_width_pixel,
-                            image_height_pixel,
+                            segmentation=segmentation,
+                            annotation=annotation,
+                            image_width=image_width_pixel,
+                            image_height=image_height_pixel,
                         )
                     else:
                         raise ValueError(
