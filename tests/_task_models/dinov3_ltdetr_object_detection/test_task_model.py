@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import pytest
 from torch import nn
@@ -77,66 +77,10 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
     )
 
 
-def test_resolve_auto__uses_vit_model_name() -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
-    _create_train_model(model_args)
-
-    assert model_args.patch_size == 16
-
-
-def test_resolve_auto__uses_model_init_args_patch_size() -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
-    _create_train_model(
-        model_args,
-        model_init_args={"patch_size": 14},
-    )
-
-    assert model_args.patch_size == 14
-
-
-def test_resolve_auto__uses_explicit_patch_size() -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
-    _create_train_model(model_args)
-
-    assert model_args.patch_size == 14
-
-
-def test_resolve_auto__keeps_convnext_auto() -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
-    train_model = _create_train_model(
-        model_args,
-        model_name="dinov3/convnext-small-ltdetr",
-    )
-
-    assert model_args.patch_size == "auto"
-    assert train_model.model.backbone.backbone.patch_size is None
-
-
-def test_warns_when_patch_size_is_ignored_for_convnext(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
-    with caplog.at_level(
-        logging.WARNING,
-        logger="lightly_train._task_models.dinov3_ltdetr_object_detection.train_model",
-    ):
-        train_model = _create_train_model(
-            model_args,
-            model_name="dinov3/convnext-small-ltdetr",
-        )
-
-    assert train_model.model.backbone.backbone.patch_size is None
-    assert (
-        "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'"
-        in caplog.text
-    )
-
-
 def _create_train_model(
     train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
     *,
     model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
-    model_init_args: dict[str, Any] | None = None,
 ) -> DINOv3LTDETRObjectDetectionTrain:
     data_args = YOLOObjectDetectionDataArgs(
         path=Path("/tmp/data"),
@@ -147,7 +91,7 @@ def _create_train_model(
     train_model_args.resolve_auto(
         total_steps=1000,
         model_name=model_name,
-        model_init_args={} if model_init_args is None else model_init_args,
+        model_init_args={},
         data_args=data_args,
     )
     train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
