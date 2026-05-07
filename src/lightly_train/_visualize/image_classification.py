@@ -61,7 +61,7 @@ def plot_image_classification_labels(
         labels = [
             included_classes.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
         ]
-        img = _draw_class_legend(image=img, labels=labels)
+        img = _draw_class_legend(image=img, labels=labels, colors=None)
 
         pil_images.append(img)
 
@@ -134,7 +134,7 @@ def plot_image_classification_predictions(
             score = float(top_scores[i, rank].item())
             class_name = included_classes.get(class_id, f"Class {class_id}")
             labels.append(f"{class_name}: {score:.2f}")
-        img = _draw_class_legend(image=img, labels=labels)
+        img = _draw_class_legend(image=img, labels=labels, colors=None)
 
         pil_images.append(img)
 

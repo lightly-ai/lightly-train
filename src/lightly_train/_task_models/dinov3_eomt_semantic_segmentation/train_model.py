@@ -15,6 +15,7 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -53,6 +54,10 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize.semantic_segmentation import (
+    plot_semantic_segmentation_labels,
+    plot_semantic_segmentation_predictions,
+)
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 logger = logging.getLogger(__name__)
@@ -213,9 +218,11 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
         self.model_args = model_args
         self.metric_args = metric_args
+
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         image_size = no_auto(val_transform_args.image_size)
+
         normalize = no_auto(val_transform_args.normalize)
 
         # Prepare backbone args.
@@ -270,6 +277,12 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.criterion_empty_weight_reinit_hook
         )
+
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
+        self.viz_alpha = 0.6
 
     def get_task_model(self) -> DINOv3EoMTSemanticSegmentation:
         return self.model
@@ -341,10 +354,20 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = plot_semantic_segmentation_labels(
+                batch=batch,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
         return TaskStepResult(
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
+            label_image=label_image,
         )
 
     def validation_step(
@@ -383,6 +406,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         )
         num_blocks = len(self.model.backbone.blocks)  # type: ignore[arg-type]
         losses = {}
+        pred_logits: list[Tensor] | None = None
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
                 # Add +1 to num_blocks for final output.
@@ -417,15 +441,38 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                     self.val_metrics.update_with_predictions(
                         pred[None, ...], targ[None, ...]
                     )
+                pred_logits = [p.detach() for p in logits]
 
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
+        label_image: PILImage | None = None
+        prediction_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = plot_semantic_segmentation_labels(
+                batch=batch,
+                included_classes=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
+            if pred_logits is not None:
+                prediction_image = plot_semantic_segmentation_predictions(
+                    batch=batch,
+                    logits=pred_logits,
+                    included_classes=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
+
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
+            label_image=label_image,
+            prediction_image=prediction_image,
         )
 
     def mask_annealing(
