@@ -122,7 +122,7 @@ def test_get_optimizer__scheduler_modes(
 ) -> None:
     train_model = _create_train_model(
         DINOv2LTDETRObjectDetectionTrainArgs(
-            scheduler=scheduler_name,
+            scheduler_name=scheduler_name,
             lr_warmup_steps=500,
         )
     )
@@ -141,7 +141,7 @@ def test_get_optimizer__scheduler_modes(
 def test_get_optimizer__flat_cosine_raises_when_cosine_phase_collapses() -> None:
     train_model = _create_train_model(
         DINOv2LTDETRObjectDetectionTrainArgs(
-            scheduler="flat-cosine",
+            scheduler_name="flat-cosine",
             lr_warmup_steps=1000,
         )
     )
@@ -155,7 +155,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
 ) -> None:
     train_model = _create_train_model(
         DINOv2LTDETRObjectDetectionTrainArgs(
-            scheduler="linear",
+            scheduler_name="linear",
             lr_warmup_steps=1001,
         )
     )

@@ -125,7 +125,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_lr_factor: float = 1e-2
 
     # Scheduler configuration
-    scheduler: Literal["linear", "flat-cosine"] = "linear"
+    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
     scheduler_start_factor: float = 0.01
     lr_warmup_steps: int = Field(
         default=2000,
@@ -159,10 +159,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.data_args = data_args
 
-        backbone_args: dict[str, Any] | None = copy.deepcopy(model_args.backbone_args)
-        if not backbone_args:
-            backbone_args = None
-
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
         normalize_dict: dict[str, Any] | None
@@ -179,7 +175,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             classes=data_args.included_classes,
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
-            backbone_args=backbone_args,
+            backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
             backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )
@@ -539,10 +535,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             weight_decay=self.model_args.weight_decay,
         )
         scheduler: LRScheduler
-        if self.model_args.scheduler == "linear":
+        if self.model_args.scheduler_name == "linear":
             if self.model_args.lr_warmup_steps > total_steps:
                 logger.warning(
-                    f"{self.model_args.scheduler} scheduler has "
+                    f"{self.model_args.scheduler_name} scheduler has "
                     f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
                     f"and total_steps={total_steps}; the schedule will not complete "
                     "as intended."
@@ -552,7 +548,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 total_iters=self.model_args.lr_warmup_steps,
                 start_factor=self.model_args.scheduler_start_factor,
             )
-        elif self.model_args.scheduler == "flat-cosine":
+        elif self.model_args.scheduler_name == "flat-cosine":
             scheduler = FlatCosineLRScheduler(
                 optimizer=optim,
                 total_steps=total_steps,
@@ -560,7 +556,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
         else:
             raise ValueError(
-                f"Unknown scheduler: {self.model_args.scheduler!r}. "
+                f"Unknown scheduler: {self.model_args.scheduler_name!r}. "
                 "Expected 'linear' or 'flat-cosine'."
             )
 

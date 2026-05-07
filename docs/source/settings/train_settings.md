@@ -107,7 +107,7 @@ architecture. The table lists the most commonly tuned options:
 | [`lr`](#lr)                                     | `float`                   | Base learning rate.                 |
 | [`backbone_weights`](#backbone_weights)         | `Path`<br>`str`<br>`None` | Path to backbone weights to load.   |
 | [`metric_log_classwise`](#metric_log_classwise) | `bool`                    | Whether to log class-wise metrics.  |
-| [`scheduler`](#scheduler)                       | `str`                     | Scheduler mode for LTDETR training. |
+| [`scheduler_name`](#scheduler_name)             | `str`                     | Scheduler mode for LTDETR training. |
 
 #### `lr`
 
@@ -196,14 +196,14 @@ lightly_train.train_object_detection(
 )
 ```
 
-#### `scheduler`
+#### `scheduler_name`
 
 Scheduler mode for LTDETR object detection training. Supported values are:
 
 - `"linear"`: linear warmup via `LinearLR`
 - `"flat-cosine"`: LT-DETR-style warmup, flat, cosine decay, and final tail
 
-Any other value raises a `ValueError`.
+Any other value raises a `ValueError`. The legacy `scheduler` key is no longer accepted.
 
 ```python
 import lightly_train
@@ -211,7 +211,7 @@ import lightly_train
 lightly_train.train_object_detection(
     ...,
     model_args={
-        "scheduler": "flat-cosine",
+        "scheduler_name": "flat-cosine",
     },
 )
 ```

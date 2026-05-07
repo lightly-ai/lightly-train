@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add `model_args.scheduler` support for LTDETR object detection with explicit `linear`
+- Add `model_args.scheduler_name` support for LTDETR object detection with explicit `linear`
   and `flat-cosine` scheduler modes.
 
 ### Changed
