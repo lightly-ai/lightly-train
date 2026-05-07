@@ -35,7 +35,7 @@ class RFDETRPackage(Package):
     @classmethod
     def list_model_names(cls) -> list[str]:
         try:
-            from rfdetr.main import OPEN_SOURCE_MODELS
+            from rfdetr.main import HOSTED_MODELS
         except ImportError:
             return []
         # We use the model names from the checkpoint .pth filenames Roboflow provided
