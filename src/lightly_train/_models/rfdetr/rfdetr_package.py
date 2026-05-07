@@ -68,7 +68,6 @@ class RFDETRPackage(Package):
                 RFDETRSegPreview,
                 RFDETRSmall,
             )
-
             # TODO (Gabriel, 05/26): Use OPEN_SOURCE_MODELS.
             from rfdetr.main import HOSTED_MODELS  # type: ignore[attr-defined]
         except ImportError:
