@@ -145,7 +145,10 @@ def test_warns_when_patch_size_is_ignored_for_convnext(
 
     assert model_args.patch_size == 14
     assert "patch_size" not in calls[0]["model_args"]
-    assert "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'" in caplog.text
+    assert (
+        "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'"
+        in caplog.text
+    )
 
 
 def _create_train_model(

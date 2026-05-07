@@ -69,7 +69,6 @@ from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -178,12 +177,12 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         parsed_name = DINOv3LTDETRObjectDetection.parse_model_name(
             model_name=model_name
         )
-        backbone_args: dict[str, Any] | None = copy.deepcopy(model_args.backbone_args)
+        model_args_backbone_args_copy: dict[str, Any] = copy.deepcopy(
+            model_args.backbone_args
+        )
         if isinstance(model_args.patch_size, int):
             if parsed_name["backbone_name"].startswith("vit"):
-                if backbone_args is None:
-                    backbone_args = {}
-                backbone_args["patch_size"] = model_args.patch_size
+                model_args_backbone_args_copy["patch_size"] = model_args.patch_size
             else:
                 logger.warning(
                     "Ignoring top-level `patch_size=%s` for non-ViT backbone '%s'. "
@@ -191,6 +190,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                     model_args.patch_size,
                     parsed_name["backbone_name"],
                 )
+
+        backbone_args: dict[str, Any] | None = model_args_backbone_args_copy
 
         if not backbone_args:
             backbone_args = None
