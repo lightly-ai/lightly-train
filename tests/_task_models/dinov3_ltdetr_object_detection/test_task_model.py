@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -131,24 +130,19 @@ def test_resolve_auto__keeps_convnext_auto(monkeypatch: pytest.MonkeyPatch) -> N
     assert "patch_size" not in calls[0]["model_args"]
 
 
-def test_warns_when_patch_size_is_ignored_for_convnext(
+def test_resolve_auto__uses_explicit_patch_size_for_convnext(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
-    with caplog.at_level(logging.WARNING):
-        _, calls = _create_train_model_with_capture(
-            model_args,
-            model_name="dinov3/convnext-small-ltdetr",
-            monkeypatch=monkeypatch,
-        )
+    train_model, calls = _create_train_model_with_capture(
+        model_args,
+        model_name="dinov3/convnext-small-ltdetr",
+        monkeypatch=monkeypatch,
+    )
 
     assert model_args.patch_size == 14
-    assert "patch_size" not in calls[0]["model_args"]
-    assert (
-        "Ignoring top-level `patch_size=14` for non-ViT backbone 'convnext-small'"
-        in caplog.text
-    )
+    assert calls[0]["model_args"]["patch_size"] == 14
+    assert train_model.model.backbone.patch_size == 14
 
 
 def _create_train_model(
@@ -202,7 +196,10 @@ def _create_train_model_with_capture(
         model_args = kwargs.get("model_args", {}) or {}
 
         if str(model_name).startswith("convnext"):
-            return backbones._dinov3_convnext_test(pretrained=False)
+            convnext_kwargs: dict[str, Any] = {"pretrained": False}
+            if "patch_size" in model_args:
+                convnext_kwargs["patch_size"] = int(model_args["patch_size"])
+            return backbones._dinov3_convnext_test(**convnext_kwargs)
 
         return backbones._dinov3_vit_test(
             pretrained=False,
