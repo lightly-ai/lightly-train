@@ -325,7 +325,7 @@ class PicoDetObjectDetection(TaskModel):
         has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
         has_model_weights = any(k.startswith("model.") for k in state_dict)
 
-        new_state_dict: dict[str, Any] = {}
+        new_state_dict = {}
         if has_ema_weights:
             for name, param in state_dict.items():
                 if name.startswith("ema_model.model."):
@@ -337,13 +337,7 @@ class PicoDetObjectDetection(TaskModel):
                     new_name = name[len("model.") :]
                     new_state_dict[new_name] = param
         else:
-            new_state_dict = dict(state_dict)
-
-        # TODO(Nauryzbay, 05/2026): Remove this pop once no PicoDet checkpoints
-        # with the legacy persistent internal_class_to_class buffer exist in
-        # the wild. It is only kept for backwards compatibility with checkpoints
-        # saved before the buffer became non-persistent.
-        new_state_dict.pop("internal_class_to_class", None)
+            new_state_dict = state_dict
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
