@@ -339,9 +339,10 @@ class PicoDetObjectDetection(TaskModel):
         else:
             new_state_dict = dict(state_dict)
 
-        # Drop the legacy persistent buffer so checkpoints saved before
-        # internal_class_to_class became non-persistent still load cleanly,
-        # even when num_classes differs from the checkpoint.
+        # TODO(Nauryzbay, 05/2026): Remove this pop once no PicoDet checkpoints
+        # with the legacy persistent internal_class_to_class buffer exist in
+        # the wild. It is only kept for backwards compatibility with checkpoints
+        # saved before the buffer became non-persistent.
         new_state_dict.pop("internal_class_to_class", None)
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
