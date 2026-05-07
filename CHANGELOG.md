@@ -14,8 +14,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Align the LTDETR flat-cosine scheduler more closely with the LT-DETR reference recipe.
-
 ### Deprecated
 
 ### Removed
