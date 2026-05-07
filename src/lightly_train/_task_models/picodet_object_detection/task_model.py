@@ -108,6 +108,7 @@ class PicoDetObjectDetection(TaskModel):
         self.register_buffer(
             "internal_class_to_class",
             torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,
         )
 
         config = _MODEL_CONFIGS.get(model_name)
@@ -337,11 +338,6 @@ class PicoDetObjectDetection(TaskModel):
                     new_state_dict[new_name] = param
         else:
             new_state_dict = state_dict
-
-        if "internal_class_to_class" not in new_state_dict:
-            new_state_dict["internal_class_to_class"] = (
-                self.internal_class_to_class.detach().clone()
-            )
 
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
