@@ -35,7 +35,8 @@ class RFDETRPackage(Package):
     @classmethod
     def list_model_names(cls) -> list[str]:
         try:
-            from rfdetr.main import HOSTED_MODELS
+            # TODO (Gabriel, 05/26): Use OPEN_SOURCE_MODELS.
+            from rfdetr.main import HOSTED_MODELS  # type: ignore[attr-defined]
         except ImportError:
             return []
         # We use the model names from the checkpoint .pth filenames Roboflow provided
@@ -67,7 +68,8 @@ class RFDETRPackage(Package):
                 RFDETRSegPreview,
                 RFDETRSmall,
             )
-            from rfdetr.main import HOSTED_MODELS
+            # TODO (Gabriel, 05/26): Use OPEN_SOURCE_MODELS.
+            from rfdetr.main import HOSTED_MODELS  # type: ignore[attr-defined]
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because rfdetr is not installed."
