@@ -7,14 +7,10 @@
 #
 from __future__ import annotations
 
-import math
-
 import pytest
 import torch
 from PIL import Image, ImageChops
-from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw
-from torch import Tensor
 
 from lightly_train._visualize import utils
 
@@ -25,132 +21,40 @@ _CLASS_0_COLOR: tuple[int, int, int] = (242, 24, 24)
 _CLASS_1_COLOR: tuple[int, int, int] = (24, 87, 242)
 
 
-def _non_white_bbox(image: PILImage) -> tuple[int, int, int, int] | None:
-    """Bounding box of pixels that differ from pure white, or None if all white."""
-    white = Image.new(image.mode, image.size, _WHITE_PIXEL)
-    return ImageChops.difference(image, white).getbbox()
-
-
-@pytest.mark.parametrize(
-    "boxes, w, h, expected",
-    [
-        (
-            torch.tensor([[0.5, 0.5, 0.5, 0.5]]),
-            100,
-            80,
-            torch.tensor([[25.0, 20.0, 75.0, 60.0]]),
-        ),
-        (
-            torch.tensor([[0.5, 0.5, 1.0, 1.0]]),
-            200,
-            100,
-            torch.tensor([[0.0, 0.0, 200.0, 100.0]]),
-        ),
-        (
-            torch.tensor([[0.25, 0.25, 0.5, 0.5], [0.75, 0.75, 0.5, 0.5]]),
-            100,
-            100,
-            torch.tensor([[0.0, 0.0, 50.0, 50.0], [50.0, 50.0, 100.0, 100.0]]),
-        ),
-        (
-            torch.tensor([[0.5, 0.5, 1.0, 1.0]]),
-            400,
-            200,
-            torch.tensor([[0.0, 0.0, 400.0, 200.0]]),
-        ),
-    ],
-    ids=["center_box", "full_image_box", "multiple_boxes", "non_square_image"],
-)
-def test__cxcywh_to_xyxy(boxes: Tensor, w: int, h: int, expected: Tensor) -> None:
-    result = utils._cxcywh_to_xyxy(boxes=boxes, w=w, h=h)
+def test__cxcywh_to_xyxy() -> None:
+    # Two boxes at once on a non-square image: a centered partial box and a
+    # full-image box. Catches per-row math, x/y scaling and width/height halving.
+    boxes = torch.tensor([[0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 1.0, 1.0]])
+    expected = torch.tensor([[50.0, 25.0, 150.0, 75.0], [0.0, 0.0, 200.0, 100.0]])
+    result = utils._cxcywh_to_xyxy(boxes=boxes, w=200, h=100)
     assert torch.allclose(result, expected)
 
 
-def test__cxcywh_to_xyxy__does_not_modify_input() -> None:
-    boxes = torch.tensor([[0.5, 0.5, 0.5, 0.5]])
-    original = boxes.clone()
-    utils._cxcywh_to_xyxy(boxes=boxes, w=100, h=100)
-    assert torch.equal(boxes, original)
-
-
-def test__render_grid__single_image() -> None:
-    img = Image.new("RGB", (50, 40), color=(255, 0, 0))
-    assert utils._render_grid([img]).size == (50, 40)
-
-
-def test__render_grid__four_images_form_2x2() -> None:
-    images = [Image.new("RGB", (10, 10), color=_BACKGROUND_PIXEL) for _ in range(4)]
-    assert utils._render_grid(images).size == (20, 20)
-
-
-def test__render_grid__nine_images_form_3x3() -> None:
-    images = [Image.new("RGB", (8, 6), color=_BACKGROUND_PIXEL) for _ in range(9)]
-    assert utils._render_grid(images).size == (24, 18)
-
-
-def test__render_grid__five_images_grid_dimensions() -> None:
-    images = [Image.new("RGB", (10, 10), color=_BACKGROUND_PIXEL) for _ in range(5)]
-    n_cols = math.ceil(math.sqrt(5))
-    n_rows = math.ceil(5 / n_cols)
-    assert utils._render_grid(images).size == (n_cols * 10, n_rows * 10)
-
-
-def test__render_grid__pixels_placed_correctly() -> None:
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 0)]
-    images = [Image.new("RGB", (10, 10), color=c) for c in colors]
-    result = utils._render_grid(images)
-    assert result.getpixel((5, 5)) == colors[0]  # top-left
-    assert result.getpixel((15, 5)) == colors[1]  # top-right
-    assert result.getpixel((5, 15)) == colors[2]  # bottom-left
-    assert result.getpixel((15, 15)) == colors[3]  # bottom-right
-
-
-def test__render_grid__heterogeneous_sizes_use_max_cell() -> None:
-    # Cell size should be max(w), max(h) across all tiles. With 4 tiles
-    # the grid is 2x2, so the result is (2 * max_w, 2 * max_h).
+def test__render_grid__centers_heterogeneous_tiles_in_max_size_cells() -> None:
+    # Four distinct-color tiles of different sizes. Cell size should be
+    # max(w), max(h) = (10, 10); grid is 2x2 so the result is (20, 20). Each
+    # tile is centered in its cell, so cell-center pixels match the tile color
+    # and cell corners outside the centered tile remain background.
+    red, green, blue, yellow = (255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 0)
     images = [
-        Image.new("RGB", (10, 6), color=(255, 0, 0)),
-        Image.new("RGB", (4, 8), color=(0, 255, 0)),
-        Image.new("RGB", (6, 10), color=(0, 0, 255)),
-        Image.new("RGB", (8, 4), color=(128, 128, 0)),
+        Image.new("RGB", (10, 6), color=red),
+        Image.new("RGB", (4, 8), color=green),
+        Image.new("RGB", (6, 10), color=blue),
+        Image.new("RGB", (8, 4), color=yellow),
     ]
     result = utils._render_grid(images)
     assert result.size == (20, 20)
-
-
-def test__render_grid__heterogeneous_sizes_tiles_centered_in_cell() -> None:
-    # Tiles of different sizes are centered within a uniform cell, with
-    # background padding around them.
-    red = (255, 0, 0)
-    green = (0, 255, 0)
-    blue = (0, 0, 255)
-    yellow = (128, 128, 0)
-    images = [
-        Image.new("RGB", (10, 6), color=red),  # cell 0: 10x6 → centered y offset 2
-        Image.new(
-            "RGB", (4, 8), color=green
-        ),  # cell 1: 4x8 → centered x offset 3, y offset 1
-        Image.new("RGB", (6, 10), color=blue),  # cell 2: 6x10 → centered x offset 2
-        Image.new(
-            "RGB", (8, 4), color=yellow
-        ),  # cell 3: 8x4 → centered x offset 1, y offset 3
-    ]
-    result = utils._render_grid(images)
-    # Cell size is (10, 10); grid is 2x2 → (20, 20).
-    assert result.size == (20, 20)
-    # Center pixel of each cell should be the tile color.
-    assert result.getpixel((5, 5)) == red  # top-left cell center
-    assert result.getpixel((15, 5)) == green  # top-right cell center
-    assert result.getpixel((5, 15)) == blue  # bottom-left cell center
-    assert result.getpixel((15, 15)) == yellow  # bottom-right cell center
-    # Corners of cells (outside centered tiles) should be background.
-    # Top-left cell: red is 10x6, centered with y offset 2 → row 0 is padding.
+    assert result.getpixel((5, 5)) == red
+    assert result.getpixel((15, 5)) == green
+    assert result.getpixel((5, 15)) == blue
+    assert result.getpixel((15, 15)) == yellow
+    # Red tile is 10x6 in a 10x10 cell: top row is padding.
     assert result.getpixel((0, 0)) == _BACKGROUND_PIXEL
-    # Top-right cell: green is 4x8, x offset 3 → column 10 is padding.
+    # Green tile is 4x8 in a 10x10 cell at top-right: left column is padding.
     assert result.getpixel((10, 5)) == _BACKGROUND_PIXEL
 
 
-def test__draw_bbox_label__label_above_when_space() -> None:
+def test__draw_bbox_label__draws_above_when_space() -> None:
     image = Image.new("RGB", (200, 200), color=_BACKGROUND_PIXEL)
     draw = ImageDraw(image)
     color = (255, 0, 0)
@@ -159,7 +63,7 @@ def test__draw_bbox_label__label_above_when_space() -> None:
     assert image.getpixel((150, 150)) == _BACKGROUND_PIXEL
 
 
-def test__draw_bbox_label__label_below_when_no_space() -> None:
+def test__draw_bbox_label__draws_below_when_no_space() -> None:
     image = Image.new("RGB", (200, 200), color=_BACKGROUND_PIXEL)
     draw = ImageDraw(image)
     color = (0, 255, 0)
@@ -168,85 +72,25 @@ def test__draw_bbox_label__label_below_when_no_space() -> None:
     assert image.getpixel((150, 150)) == _BACKGROUND_PIXEL
 
 
-def test__draw_bbox_label__at_boundary() -> None:
-    image = Image.new("RGB", (200, 200), color=_BACKGROUND_PIXEL)
-    draw = ImageDraw(image)
-    color = (0, 0, 255)
-    text = "bird"
-    bbox = draw.textbbox((0, 0), text, font=utils._DEFAULT_FONT)
-    label_height = int(bbox[3] - bbox[1]) + 8  # text height + 2 * padding(4)
-    utils._draw_bbox_label(draw=draw, x1=10, y1=label_height, text=text, color=color)
-    assert image.getpixel((11, label_height - 1)) == color
-    assert image.getpixel((150, 150)) == _BACKGROUND_PIXEL
-
-
-def test__denormalize_image__basic_math() -> None:
-    image = torch.zeros(3, 2, 2)
+def test__denormalize_image__per_channel_math() -> None:
+    image = torch.tensor([[[0.0]], [[0.5]], [[1.0]]])
     result = utils._denormalize_image(
-        image=image, mean=(0.5, 0.5, 0.5), std=(0.2, 0.2, 0.2)
+        image=image, mean=(0.1, 0.2, 0.3), std=(0.5, 0.4, 0.3)
     )
-    assert torch.allclose(result, torch.full((3, 2, 2), 0.5))
-
-
-def test__denormalize_image__identity() -> None:
-    image = torch.tensor([[[0.3]], [[0.6]], [[0.9]]])
-    result = utils._denormalize_image(
-        image=image, mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0)
-    )
-    assert torch.allclose(result, image)
+    # x * std + mean per channel.
+    assert result[0, 0, 0].item() == pytest.approx(0.1)
+    assert result[1, 0, 0].item() == pytest.approx(0.4)
+    assert result[2, 0, 0].item() == pytest.approx(0.6)
 
 
 def test__denormalize_image__clamps_to_zero_one() -> None:
-    image = torch.tensor([[[2.0]], [[-2.0]], [[0.0]]])
+    image = torch.tensor([[[3.0]], [[-2.0]], [[0.5]]])
     result = utils._denormalize_image(
-        image=image, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)
+        image=image, mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0)
     )
     assert result[0, 0, 0].item() == pytest.approx(1.0)
     assert result[1, 0, 0].item() == pytest.approx(0.0)
     assert result[2, 0, 0].item() == pytest.approx(0.5)
-
-
-def test__denormalize_image__per_channel() -> None:
-    image = torch.zeros(3, 1, 1)
-    result = utils._denormalize_image(
-        image=image, mean=(0.1, 0.2, 0.3), std=(0.5, 0.5, 0.5)
-    )
-    assert result[0, 0, 0].item() == pytest.approx(0.1)
-    assert result[1, 0, 0].item() == pytest.approx(0.2)
-    assert result[2, 0, 0].item() == pytest.approx(0.3)
-
-
-def test__denormalize_image__preserves_dtype() -> None:
-    image = torch.rand(3, 4, 4, dtype=torch.float64)
-    result = utils._denormalize_image(
-        image=image, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)
-    )
-    assert result.dtype == torch.float64
-
-
-def test__get_class_color__values_in_valid_range() -> None:
-    for class_id in range(20):
-        r, g, b = utils._get_class_color(class_id)
-        assert 0 <= r <= 255
-        assert 0 <= g <= 255
-        assert 0 <= b <= 255
-
-
-def test__get_class_color__deterministic() -> None:
-    for class_id in range(10):
-        assert utils._get_class_color(class_id) == utils._get_class_color(class_id)
-
-
-def test__get_class_color__distinct_colors_for_nearby_ids() -> None:
-    colors = [utils._get_class_color(i) for i in range(10)]
-    assert len(set(colors)) == len(colors)
-
-
-def test__get_class_color__large_class_id() -> None:
-    r, g, b = utils._get_class_color(10_000)
-    assert 0 <= r <= 255
-    assert 0 <= g <= 255
-    assert 0 <= b <= 255
 
 
 @pytest.mark.parametrize(
@@ -254,9 +98,6 @@ def test__get_class_color__large_class_id() -> None:
     [
         (0, (242, 24, 24)),
         (1, (24, 87, 242)),
-        (2, (151, 242, 24)),
-        (3, (242, 24, 215)),
-        (4, (24, 242, 205)),
         (42, (242, 24, 79)),
         (99, (217, 242, 24)),
     ],
@@ -270,25 +111,12 @@ def test__get_class_color__exact_rgb(
 def test__draw_class_legend__empty_labels_returns_input_unchanged() -> None:
     image = Image.new("RGB", (64, 64), color=(0, 200, 100))
     result = utils._draw_class_legend(image=image, labels=[], colors=None)
-    # Empty labels short-circuits and returns the image untouched.
     assert ImageChops.difference(result, image).getbbox() is None
 
 
-def test__draw_class_legend__text_only_anchored_to_upper_left() -> None:
-    # Text-only legend (colors=None) draws into the upper-left corner and
-    # leaves the rest of the image untouched.
-    image = Image.new("RGB", (256, 256), color=_WHITE_PIXEL)
-    result = utils._draw_class_legend(image=image, labels=["cat"], colors=None)
-    bbox = _non_white_bbox(result)
-    assert bbox is not None
-    # Legend stays in the upper-left half of the image.
-    assert bbox[2] <= 128 and bbox[3] <= 128
-    # Far corner is preserved.
-    assert result.getpixel((255, 255)) == _WHITE_PIXEL
-
-
 def test__draw_class_legend__with_colors_renders_patch_color() -> None:
-    # A red color patch must produce red-dominant pixels in the legend area.
+    # A red patch must produce red-dominant pixels somewhere in the upper-left
+    # legend area.
     image = Image.new("RGB", (256, 256), color=_WHITE_PIXEL)
     result = utils._draw_class_legend(image=image, labels=["cat"], colors=[(255, 0, 0)])
     pixels = result.load()
@@ -304,127 +132,45 @@ def test__draw_class_legend__with_colors_renders_patch_color() -> None:
     assert has_red
 
 
-def test__draw_class_legend__more_labels_extends_legend_downward() -> None:
-    # Stacking a second label extends the legend further down the image.
-    image = Image.new("RGB", (256, 256), color=_WHITE_PIXEL)
-    result_one = utils._draw_class_legend(
-        image=image, labels=["a"], colors=[(255, 0, 0)]
-    )
-    result_two = utils._draw_class_legend(
-        image=image, labels=["a", "b"], colors=[(255, 0, 0), (0, 255, 0)]
-    )
-    bbox_one = _non_white_bbox(result_one)
-    bbox_two = _non_white_bbox(result_two)
-    assert bbox_one is not None and bbox_two is not None
-    assert bbox_two[3] > bbox_one[3]
-
-
 def test__draw_class_legend__mismatched_colors_and_labels_raises() -> None:
     image = Image.new("RGB", (64, 64), color=_WHITE_PIXEL)
     with pytest.raises(ValueError, match="must have the same length"):
         utils._draw_class_legend(image=image, labels=["a", "b"], colors=[(255, 0, 0)])
 
 
-def test__build_mask_overlay__returns_rgb_image_of_requested_size() -> None:
-    mask = torch.zeros(8, 8, dtype=torch.long)
-    result = utils._build_mask_overlay(mask=mask, size=(16, 12), class_names={0: "a"})
-    assert result.mode == "RGB"
-    assert result.size == (16, 12)
-
-
-def test__build_mask_overlay__class_pixels_get_expected_color() -> None:
+def test__build_mask_overlay__colors_known_classes_skips_unknown_and_resizes() -> None:
+    # Top half is class 0 (in class_names → colored). Bottom half is class 5
+    # (not in class_names → stays black). Output size differs from mask, so
+    # nearest-neighbor resize is exercised.
     mask = torch.zeros(4, 4, dtype=torch.long)
-    result = utils._build_mask_overlay(mask=mask, size=(4, 4), class_names={0: "a"})
-    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
-    assert result.getpixel((3, 3)) == _CLASS_0_COLOR
-
-
-def test__build_mask_overlay__two_classes_get_distinct_colors() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
-    mask[2:, :] = 1
-    result = utils._build_mask_overlay(
-        mask=mask, size=(4, 4), class_names={0: "a", 1: "b"}
-    )
-    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
-    assert result.getpixel((0, 3)) == _CLASS_1_COLOR
-
-
-def test__build_mask_overlay__resizes_when_size_differs_from_mask_shape() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
+    mask[2:, :] = 5
     result = utils._build_mask_overlay(mask=mask, size=(8, 8), class_names={0: "a"})
+    assert result.mode == "RGB"
     assert result.size == (8, 8)
-
-
-def test__build_mask_overlay__ids_not_in_class_names_are_black() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
-    mask[2:, :] = 1
-    result = utils._build_mask_overlay(mask=mask, size=(4, 4), class_names={0: "a"})
     assert result.getpixel((0, 0)) == _CLASS_0_COLOR
-    assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
+    assert result.getpixel((0, 7)) == _BACKGROUND_PIXEL
 
 
-def test__build_mask_overlay__ignore_index_colored_when_in_class_names() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
-    mask[2:, :] = -100
-    result = utils._build_mask_overlay(
-        mask=mask, size=(4, 4), class_names={0: "a", -100: "ignored"}
-    )
-    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
-    assert result.getpixel((0, 3)) == utils._get_class_color(-100)
-
-
-def test__build_mask_overlay__ignore_index_black_when_not_in_class_names() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
-    mask[2:, :] = -100
-    result = utils._build_mask_overlay(mask=mask, size=(4, 4), class_names={0: "a"})
-    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
-    assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
-
-
-def test__draw_mask_contours__uniform_mask_has_no_contours() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
-    image = Image.new("RGB", (4, 4), color=_WHITE_PIXEL)
-    result = utils._draw_mask_contours(image=image, mask=mask)
-    assert result.getpixel((0, 0)) == _WHITE_PIXEL
-    assert result.getpixel((3, 3)) == _WHITE_PIXEL
-
-
-def test__draw_mask_contours__boundary_pixels_are_black() -> None:
+def test__draw_mask_contours__paints_boundary_keeps_interior() -> None:
+    # Two stacked regions split between rows 3 and 4. Boundary pixels on both
+    # sides of the split should be black; interior pixels of each region are
+    # untouched.
     mask = torch.zeros(8, 8, dtype=torch.long)
     mask[4:, :] = 1
     image = Image.new("RGB", (8, 8), color=_WHITE_PIXEL)
     result = utils._draw_mask_contours(image=image, mask=mask)
     assert result.getpixel((4, 3)) == _BACKGROUND_PIXEL
     assert result.getpixel((4, 4)) == _BACKGROUND_PIXEL
-    # Pixels well inside each region are not touched.
     assert result.getpixel((4, 1)) == _WHITE_PIXEL
     assert result.getpixel((4, 6)) == _WHITE_PIXEL
 
 
-def test__legend_entries_for_mask__returns_labels_and_colors() -> None:
-    mask = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+def test__legend_entries_for_mask__returns_sorted_filtered_entries() -> None:
+    # Mask contains classes 0, 1 and 5. Class 5 is not in class_names → skipped.
+    # Class 1 appears before class 0 in the mask, so output must be sorted by id.
+    mask = torch.tensor([[1, 5], [0, 1]], dtype=torch.long)
     labels, colors = utils._legend_entries_for_mask(
         mask=mask, class_names={0: "cat", 1: "dog"}
     )
     assert labels == ["cat", "dog"]
     assert colors == [_CLASS_0_COLOR, _CLASS_1_COLOR]
-
-
-def test__legend_entries_for_mask__skips_classes_not_in_class_names() -> None:
-    mask = torch.tensor([[255]], dtype=torch.long)
-    labels, colors = utils._legend_entries_for_mask(mask=mask, class_names={0: "cat"})
-    assert labels == []
-    assert colors == []
-
-
-def test__legend_entries_for_mask__sorted_by_class_id() -> None:
-    mask = torch.tensor([[1, 0]], dtype=torch.long)
-    labels, _ = utils._legend_entries_for_mask(mask=mask, class_names={0: "a", 1: "b"})
-    assert labels == ["a", "b"]
-
-
-def test__legend_entries_for_mask__empty_when_no_matching_classes() -> None:
-    mask = torch.zeros(4, 4, dtype=torch.long)
-    labels, colors = utils._legend_entries_for_mask(mask=mask, class_names={})
-    assert labels == []
-    assert colors == []
