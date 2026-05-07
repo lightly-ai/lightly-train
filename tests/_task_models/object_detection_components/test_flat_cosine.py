@@ -11,6 +11,7 @@ import pytest
 import torch
 from torch import nn
 from torch.optim.optimizer import Optimizer
+from torch.optim.sgd import SGD
 
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -24,7 +25,7 @@ def _make_scheduler(
     warmup_start_factor: float = 0.01,
 ) -> tuple[Optimizer, FlatCosineLRScheduler]:
     param = nn.Parameter(torch.ones(()))
-    optimizer = torch.optim.sgd.SGD([param], lr=1.0)
+    optimizer = SGD([param], lr=1.0)
     scheduler = FlatCosineLRScheduler(
         optimizer=optimizer,
         total_steps=total_steps,
