@@ -19,11 +19,15 @@ import math
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-# TODO(Gabriel, 05/26): Replace these hardcoded reference values with public config when the
-# LT-DETR / DEIMv2 recipe is published.
-_REFERENCE_TOTAL_PHASE = 72
-_REFERENCE_FLAT_PHASE = 29
-_REFERENCE_NO_AUG_PHASE = 8
+from lightly_train._transforms.object_detection_transform import (
+    LTDETR_REFERENCE_FLAT_EPOCHS,
+    LTDETR_REFERENCE_NO_AUG_EPOCHS,
+    LTDETR_REFERENCE_TOTAL_EPOCHS,
+)
+
+_REFERENCE_TOTAL_PHASE = LTDETR_REFERENCE_TOTAL_EPOCHS
+_REFERENCE_FLAT_PHASE = LTDETR_REFERENCE_FLAT_EPOCHS
+_REFERENCE_NO_AUG_PHASE = LTDETR_REFERENCE_NO_AUG_EPOCHS
 _REFERENCE_LR_GAMMA = 0.5
 
 
@@ -58,7 +62,7 @@ class FlatCosineLRScheduler(LRScheduler):
     """Warmup + flat + cosine + final tail schedule.
 
     The flat and no-augmentation phases follow the LT-DETR / DEIMv2 reference
-    recipe scaled to ``total_steps``.
+    config scaled to ``total_steps``.
     """
 
     def __init__(
