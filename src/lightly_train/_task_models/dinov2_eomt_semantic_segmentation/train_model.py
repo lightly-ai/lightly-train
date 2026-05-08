@@ -330,7 +330,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         if step < 3 and fabric.global_rank == 0:
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
                 alpha=self.viz_alpha,
@@ -425,7 +425,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         if step < 3 and fabric.global_rank == 0:
             label_image = plot_semantic_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
                 alpha=self.viz_alpha,
@@ -434,7 +434,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 prediction_image = plot_semantic_segmentation_predictions(
                     batch=batch,
                     logits=pred_logits,
-                    included_classes=self.model.included_classes,
+                    class_names=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
