@@ -161,8 +161,8 @@ def test_plot_instance_segmentation_predictions__score_threshold_filters_low_sco
     None
 ):
     # Two predictions on a 128x128 black canvas:
-    #   instance 0: class 0, mask in rows/cols 0..63, score 0.9 → kept.
-    #   instance 1: class 1, mask in rows/cols 64..127, score 0.2 → dropped.
+    #   instance 0: class 0, mask in rows/cols 0..63, score 0.9 -> kept.
+    #   instance 1: class 1, mask in rows/cols 64..127, score 0.2 -> dropped.
     # The dropped instance must produce no overlay AND no bbox, so its bbox
     # corners must remain black. A bug that filters only the overlay but still
     # draws the box (or vice versa) would fail at these probes.
@@ -190,7 +190,7 @@ def test_plot_instance_segmentation_predictions__score_threshold_filters_low_sco
         alpha=1.0,
         score_threshold=0.5,
     )
-    # Kept instance: bbox is derived from mask extent → xyxy [0, 0, 63, 63].
+    # Kept instance: bbox is derived from mask extent -> xyxy [0, 0, 63, 63].
     # All four corners are painted in class 0's color.
     _assert_bbox_corners_have_color(
         image=result, xyxy=(0, 0, 63, 63), color=utils._get_class_color(0)

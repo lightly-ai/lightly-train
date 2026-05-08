@@ -141,8 +141,8 @@ def test__draw_class_legend__mismatched_colors_and_labels_raises() -> None:
 def test__build_semantic_mask_overlay__colors_known_classes_skips_unknown_and_resizes() -> (
     None
 ):
-    # Top half is class 0 (in class_names → colored). Bottom half is class 5
-    # (not in class_names → stays black). Output size differs from mask, so
+    # Top half is class 0 (in class_names -> colored). Bottom half is class 5
+    # (not in class_names -> stays black). Output size differs from mask, so
     # nearest-neighbor resize is exercised.
     mask = torch.zeros(4, 4, dtype=torch.long)
     mask[2:, :] = 5
@@ -157,9 +157,9 @@ def test__build_semantic_mask_overlay__colors_known_classes_skips_unknown_and_re
 
 def test__bboxes_from_masks__tight_bounds_and_skips_empty() -> None:
     # Three instances on an 8x8 canvas:
-    #   0: rows 1-3, cols 2-5 → tight box [2, 1, 5, 3].
-    #   1: empty (no foreground pixels) → skipped.
-    #   2: a single pixel at (col=6, row=7) → degenerate box [6, 7, 6, 7].
+    #   0: rows 1-3, cols 2-5 -> tight box [2, 1, 5, 3].
+    #   1: empty (no foreground pixels) -> skipped.
+    #   2: a single pixel at (col=6, row=7) -> degenerate box [6, 7, 6, 7].
     # Note: bboxes use inclusive max coords (xs.max() / ys.max(), no +1).
     masks = torch.zeros(3, 8, 8, dtype=torch.bool)
     masks[0, 1:4, 2:6] = True
@@ -216,7 +216,7 @@ def test__draw_mask_contours__paints_boundary_keeps_interior() -> None:
 
 
 def test__legend_entries_for_mask__returns_sorted_filtered_entries() -> None:
-    # Mask contains classes 0, 1 and 5. Class 5 is not in class_names → skipped.
+    # Mask contains classes 0, 1 and 5. Class 5 is not in class_names -> skipped.
     # Class 1 appears before class 0 in the mask, so output must be sorted by id.
     mask = torch.tensor([[1, 5], [0, 1]], dtype=torch.long)
     labels, colors = utils._legend_entries_for_mask(
