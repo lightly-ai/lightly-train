@@ -54,10 +54,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.semantic_segmentation import (
-    plot_semantic_segmentation_labels,
-    plot_semantic_segmentation_predictions,
-)
+from lightly_train._visualize import semantic_segmentation
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 logger = logging.getLogger(__name__)
@@ -356,9 +353,9 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            label_image = plot_semantic_segmentation_labels(
+            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
                 alpha=self.viz_alpha,
@@ -450,21 +447,23 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            label_image = plot_semantic_segmentation_labels(
+            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
                 alpha=self.viz_alpha,
             )
             if pred_logits is not None:
-                prediction_image = plot_semantic_segmentation_predictions(
-                    batch=batch,
-                    logits=pred_logits,
-                    included_classes=self.model.included_classes,
-                    image_normalize=self.model.image_normalize,
-                    max_images=self.viz_max_images,
-                    alpha=self.viz_alpha,
+                prediction_image = (
+                    semantic_segmentation.plot_semantic_segmentation_predictions(
+                        batch=batch,
+                        logits=pred_logits,
+                        class_names=self.model.included_classes,
+                        image_normalize=self.model.image_normalize,
+                        max_images=self.viz_max_images,
+                        alpha=self.viz_alpha,
+                    )
                 )
 
         return TaskStepResult(

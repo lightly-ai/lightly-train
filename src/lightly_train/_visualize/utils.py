@@ -232,20 +232,53 @@ def _render_grid(pil_images: list[PILImage]) -> PILImage:
     return grid
 
 
-def _build_mask_overlay(
+def _build_instance_mask_overlay(
+    masks: Tensor,
+    labels: Tensor,
+    size: tuple[int, int],
+    class_names: dict[int, str],
+) -> PILImage:
+    """Build an RGB overlay image colored by class id from per-instance binary masks.
+
+    Instances may overlap; later instances overwrite earlier ones. Only ids that
+    appear as keys of ``class_names`` are colored; pixels with any other id are
+    left black.
+
+    Args:
+        masks: Boolean tensor of shape (n_instances, H, W).
+        labels: Tensor of shape (n_instances,) with internal class ids.
+        size: Target (width, height) of the overlay.
+        class_names: Mapping from class id to class name. Only ids that appear
+            as keys are colored; other ids are left black.
+
+    Returns:
+        RGB PIL image of the requested size.
+    """
+    h, w = masks.shape[-2:]
+    overlay = torch.zeros((3, h, w), dtype=torch.uint8)
+    for idx in range(masks.shape[0]):
+        class_id = int(labels[idx])
+        if class_id not in class_names:
+            continue
+        color = _get_class_color(class_id)
+        for c in range(3):
+            overlay[c][masks[idx]] = color[c]
+
+    return _overlay_to_pil(overlay=overlay, size=size)
+
+
+def _build_semantic_mask_overlay(
     mask: Tensor,
     size: tuple[int, int],
     class_names: dict[int, str],
 ) -> PILImage:
-    """Build an RGB overlay image where each pixel is colored by its class id.
+    """Build an RGB overlay image colored by class id from a 2D class mask.
 
     Only ids that appear as keys of ``class_names`` are colored; pixels with
-    any other id are left black. Note that the ignore index is colored when
-    callers include it as a key in ``class_names`` (e.g. mapped to
-    ``"ignored"``) and left black otherwise.
+    any other id are left black.
 
     Args:
-        mask: Tensor of shape (H, W) with internal contiguous class indices.
+        mask: Tensor of shape (H, W) with internal class ids per pixel.
         size: Target (width, height) of the overlay.
         class_names: Mapping from class id to class name. Only ids that appear
             as keys are colored; other ids are left black.
@@ -260,10 +293,15 @@ def _build_mask_overlay(
         if class_id not in class_names:
             continue
         color = _get_class_color(class_id)
-        class_pixels = mask == class_id
+        pixels = mask == class_id
         for c in range(3):
-            overlay[c][class_pixels] = color[c]
+            overlay[c][pixels] = color[c]
 
+    return _overlay_to_pil(overlay=overlay, size=size)
+
+
+def _overlay_to_pil(overlay: Tensor, size: tuple[int, int]) -> PILImage:
+    """Convert a (3, H, W) uint8 overlay tensor to a resized RGB PIL image."""
     overlay_img: PILImage = Image.fromarray(overlay.permute(1, 2, 0).numpy()).convert(
         "RGB"
     )
@@ -348,3 +386,63 @@ def _cxcywh_to_xyxy(boxes: Tensor, w: int, h: int) -> Tensor:
     boxes_xyxy[:, 2] = (cx + bw / 2) * w
     boxes_xyxy[:, 3] = (cy + bh / 2) * h
     return boxes_xyxy
+
+
+def _bboxes_from_masks(masks: Tensor) -> tuple[Tensor, Tensor]:
+    """Derive xyxy bounding boxes from per-instance binary masks.
+
+    Empty masks (no foreground pixels) are skipped: their entries do not appear
+    in the returned boxes and the corresponding entry in the keep tensor is
+    False. Callers should use the keep tensor to filter parallel arrays such as
+    labels and scores.
+
+    Args:
+        masks: Boolean tensor of shape (n_instances, H, W).
+
+    Returns:
+        A tuple (boxes, keep) where boxes has shape (n_kept, 4) in xyxy pixel
+        coordinates and keep is a boolean tensor of shape (n_instances,).
+    """
+    n = masks.shape[0]
+    boxes = torch.zeros((n, 4), dtype=torch.float32)
+    keep = torch.zeros((n,), dtype=torch.bool)
+    for i in range(n):
+        ys, xs = torch.where(masks[i])
+        if ys.numel() == 0:
+            continue
+        boxes[i, 0] = float(xs.min())
+        boxes[i, 1] = float(ys.min())
+        boxes[i, 2] = float(xs.max())
+        boxes[i, 3] = float(ys.max())
+        keep[i] = True
+    return boxes[keep], keep
+
+
+def _draw_labeled_boxes(
+    image: PILImage,
+    bboxes_xyxy: Tensor,
+    labels: Tensor,
+    scores: Tensor | None,
+    class_names: dict[int, str],
+) -> None:
+    """Draw a colored bounding box and class label per box, in place.
+
+    Args:
+        image: RGB PIL image to draw onto.
+        bboxes_xyxy: Tensor of shape (n_boxes, 4) in xyxy pixel coordinates.
+        labels: Tensor of shape (n_boxes,) with internal class ids.
+        scores: Optional tensor of shape (n_boxes,) with per-box scores. When
+            provided, scores are appended to each label.
+        class_names: A dict mapping internal class IDs to class names.
+    """
+    if bboxes_xyxy.shape[0] == 0:
+        return
+    draw = PILDraw(image)
+    for i in range(bboxes_xyxy.shape[0]):
+        x1, y1, x2, y2 = bboxes_xyxy[i].tolist()
+        class_id = int(labels[i])
+        class_name = class_names.get(class_id, f"Class {class_id}")
+        color = _get_class_color(class_id)
+        text = class_name if scores is None else f"{class_name} {float(scores[i]):.2f}"
+        draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
+        _draw_bbox_label(draw=draw, x1=x1, y1=y1, text=text, color=color)

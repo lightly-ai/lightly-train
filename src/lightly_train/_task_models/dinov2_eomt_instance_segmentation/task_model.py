@@ -115,6 +115,11 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+
         # Disable drop path by default.
         backbone_model_args = {
             "drop_path_rate": 0.0,
