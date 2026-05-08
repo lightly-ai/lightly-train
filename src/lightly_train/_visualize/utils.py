@@ -182,14 +182,12 @@ def _denormalize_image(
 def _get_class_color(class_id: float) -> tuple[int, int, int]:
     """Generate a deterministic RGB color for a class ID.
 
-    The integer part of ``class_id`` selects a base hue using the golden ratio
-    (so different classes are well-separated). The fractional part adds an
-    amplified hue offset, so callers can pass ``class_id + small_offset`` to
-    derive instance-specific colors that are clearly distinct yet still in the
-    same color region as the base class.
-
-    Integer class IDs reproduce the original per-class colors exactly, so
-    existing callers (e.g. object detection) are unaffected.
+    The hue is computed as ``(class_id * golden_ratio) % 1.0``. Multiplying by
+    the golden ratio spreads consecutive integer class IDs across the hue
+    circle so different classes are well-separated, while a small fractional
+    offset on ``class_id`` produces only a small hue shift. Callers can
+    therefore pass ``class_id + small_offset`` to derive instance-specific
+    colors that remain in the same color region as the base class.
 
     Args:
         class_id: The class ID to generate a color for.
