@@ -322,17 +322,10 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = object_detection.plot_object_detection_labels(
                 batch=batch,
-                class_names=self.data_args.included_classes,
-                mean=normalize_mean,
-                std=normalize_std,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
             )
         return TaskStepResult(
@@ -414,25 +407,17 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
             label_image = object_detection.plot_object_detection_labels(
                 batch=batch,
-                class_names=self.data_args.included_classes,
-                mean=normalize_mean,
-                std=normalize_std,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize  ,
                 max_images=self.viz_max_images,
             )
             prediction_image = object_detection.plot_object_detection_predictions(
                 batch=batch,
                 results=results,
-                class_names=self.data_args.included_classes,
-                mean=normalize_mean,
-                std=normalize_std,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
                 score_threshold=self.viz_score_threshold,
                 max_pred_boxes=self.viz_max_pred_boxes,
                 max_images=self.viz_max_images,
