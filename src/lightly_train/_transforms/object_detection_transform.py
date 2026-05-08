@@ -117,16 +117,10 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
 _logger = logging.getLogger(__name__)
 
 # Matched upstream schedule profile for LTDETR.
-_WARMUP_EPOCHS = 4
-_SHORT_RUN_TOTAL_EPOCHS = 12
-_REFERENCE_TOTAL_EPOCHS = 72
-_REFERENCE_NO_AUG_EPOCHS = 12
-
-# Public aliases so other LT-DETR components can reuse the same config.
-LTDETR_REFERENCE_WARMUP_EPOCHS = _WARMUP_EPOCHS
-LTDETR_SHORT_RUN_TOTAL_EPOCHS = _SHORT_RUN_TOTAL_EPOCHS
-LTDETR_REFERENCE_TOTAL_EPOCHS = _REFERENCE_TOTAL_EPOCHS
-LTDETR_REFERENCE_NO_AUG_EPOCHS = _REFERENCE_NO_AUG_EPOCHS
+LTDETR_REFERENCE_WARMUP_EPOCHS = 4
+LTDETR_SHORT_RUN_TOTAL_EPOCHS = 12
+LTDETR_REFERENCE_TOTAL_EPOCHS = 72
+LTDETR_REFERENCE_NO_AUG_EPOCHS = 12
 LTDETR_REFERENCE_FLAT_EPOCHS = (
     LTDETR_REFERENCE_WARMUP_EPOCHS + LTDETR_REFERENCE_TOTAL_EPOCHS // 2
 )
@@ -162,13 +156,13 @@ def resolve_ltdetr_step_schedule(
 
     3. Convert that recipe into three epoch boundaries:
        - ``epoch_stop_resolved = total_epochs - no_aug_epochs_resolved``
-       - short runs with ``total_epochs <= _SHORT_RUN_TOTAL_EPOCHS`` compress
+       - short runs with ``total_epochs <= LTDETR_SHORT_RUN_TOTAL_EPOCHS`` compress
          the warmup to
-         ``floor(total_epochs / (_SHORT_RUN_TOTAL_EPOCHS / _WARMUP_EPOCHS))``
+         ``floor(total_epochs / (LTDETR_SHORT_RUN_TOTAL_EPOCHS / LTDETR_REFERENCE_WARMUP_EPOCHS))``
          and set ``epoch_flat_resolved`` to
          ``min(epoch_stop_resolved, epoch_start_resolved + floor(total_epochs / 2))``
-       - longer runs keep ``epoch_start_resolved = _WARMUP_EPOCHS`` and use
-         ``epoch_flat_resolved = _WARMUP_EPOCHS + floor(total_epochs / 2)``
+       - longer runs keep ``epoch_start_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS`` and use
+         ``epoch_flat_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS + floor(total_epochs / 2)``
     4. Convert each epoch boundary back to integer steps with
        ``floor(epoch * steps_per_epoch)``.
 
@@ -188,23 +182,30 @@ def resolve_ltdetr_step_schedule(
 
     # Resolve no-aug tail from matched upstream profile.
     no_aug_epochs_resolved = min(
-        _REFERENCE_NO_AUG_EPOCHS,
-        round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
+        LTDETR_REFERENCE_NO_AUG_EPOCHS,
+        round(
+            total_epochs
+            * LTDETR_REFERENCE_NO_AUG_EPOCHS
+            / LTDETR_REFERENCE_TOTAL_EPOCHS
+        ),
     )
     epoch_stop_resolved = total_epochs - no_aug_epochs_resolved
 
     # Compute epoch_start and epoch_flat with short-run compression.
-    if total_epochs <= _SHORT_RUN_TOTAL_EPOCHS:
+    if total_epochs <= LTDETR_SHORT_RUN_TOTAL_EPOCHS:
         epoch_start_resolved = math.floor(
-            total_epochs / (_SHORT_RUN_TOTAL_EPOCHS / _WARMUP_EPOCHS)
+            total_epochs
+            / (LTDETR_SHORT_RUN_TOTAL_EPOCHS / LTDETR_REFERENCE_WARMUP_EPOCHS)
         )
         epoch_flat_resolved = min(
             epoch_stop_resolved,
             epoch_start_resolved + math.floor(total_epochs / 2),
         )
     else:
-        epoch_start_resolved = _WARMUP_EPOCHS
-        epoch_flat_resolved = _WARMUP_EPOCHS + math.floor(total_epochs / 2)
+        epoch_start_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS
+        epoch_flat_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS + math.floor(
+            total_epochs / 2
+        )
 
     # Convert epoch boundaries to steps.
     step_start_resolved = math.floor(epoch_start_resolved * steps_per_epoch)
