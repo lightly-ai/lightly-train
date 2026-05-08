@@ -10,7 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.#
-"""LT-DETR-style flat-cosine learning-rate scheduling."""
+"""
+LT-DETR-style flat-cosine learning-rate scheduling.
+
+DEIM: DETR with Improved Matching for Fast Convergence
+Copyright (c) 2024 The DEIM Authors. All Rights Reserved.
+"""
 
 from __future__ import annotations
 
