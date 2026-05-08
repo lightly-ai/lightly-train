@@ -12,12 +12,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
-from lightly_train._visualize.utils import (
-    _cxcywh_to_xyxy,
-    _denormalize_image,
-    _draw_labeled_boxes,
-    _render_grid,
-)
+from lightly_train._visualize import utils
 from lightly_train.types import ObjectDetectionBatch
 
 
@@ -51,15 +46,17 @@ def plot_object_detection_labels(
     for i in range(n):
         image_tensor = gt_images[i].clone().to(dtype=torch.float32)
         if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
+            image_tensor = utils._denormalize_image(
+                image=image_tensor, mean=mean, std=std
+            )
 
         _, img_height, img_width = image_tensor.shape
         img = torchvision_functional.to_pil_image(image_tensor)
 
         boxes = gt_bboxes[i]
         class_ids = gt_classes[i]
-        boxes_xyxy = _cxcywh_to_xyxy(boxes=boxes, w=img_width, h=img_height)
-        _draw_labeled_boxes(
+        boxes_xyxy = utils._cxcywh_to_xyxy(boxes=boxes, w=img_width, h=img_height)
+        utils._draw_labeled_boxes(
             image=img,
             bboxes_xyxy=boxes_xyxy,
             labels=class_ids,
@@ -68,7 +65,7 @@ def plot_object_detection_labels(
         )
         pil_images.append(img)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)
 
 
 def plot_object_detection_predictions(
@@ -114,7 +111,7 @@ def plot_object_detection_predictions(
     for i in range(n):
         image_tensor = gt_images[i].clone().to(dtype=torch.float32)
         if mean is not None and std is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=mean,
                 std=std,
@@ -147,7 +144,7 @@ def plot_object_detection_predictions(
                 class_ids = class_ids[order]
                 scores = scores[order]
 
-                _draw_labeled_boxes(
+                utils._draw_labeled_boxes(
                     image=img,
                     bboxes_xyxy=boxes,
                     labels=class_ids,
@@ -156,4 +153,4 @@ def plot_object_detection_predictions(
                 )
         pil_images.append(img)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)

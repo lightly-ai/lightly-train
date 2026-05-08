@@ -13,14 +13,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
-from lightly_train._visualize.utils import (
-    _build_semantic_mask_overlay,
-    _denormalize_image,
-    _draw_class_legend,
-    _draw_mask_contours,
-    _legend_entries_for_mask,
-    _render_grid,
-)
+from lightly_train._visualize import utils
 from lightly_train.types import MaskSemanticSegmentationBatch
 
 
@@ -64,7 +57,7 @@ def plot_semantic_segmentation_labels(
     for i in range(n):
         image_tensor = gt_images[i].clone()
         if image_normalize is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
@@ -72,18 +65,20 @@ def plot_semantic_segmentation_labels(
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
         mask = gt_masks[i]
 
-        overlay = _build_semantic_mask_overlay(
+        overlay = utils._build_semantic_mask_overlay(
             mask=mask, size=img.size, class_names=class_names
         )
         blended = Image.blend(img, overlay, alpha=alpha)
-        blended = _draw_mask_contours(image=blended, mask=mask)
+        blended = utils._draw_mask_contours(image=blended, mask=mask)
 
-        labels, colors = _legend_entries_for_mask(mask=mask, class_names=class_names)
-        blended = _draw_class_legend(image=blended, labels=labels, colors=colors)
+        labels, colors = utils._legend_entries_for_mask(
+            mask=mask, class_names=class_names
+        )
+        blended = utils._draw_class_legend(image=blended, labels=labels, colors=colors)
 
         pil_images.append(blended)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)
 
 
 def plot_semantic_segmentation_predictions(
@@ -121,7 +116,7 @@ def plot_semantic_segmentation_predictions(
     for i in range(n):
         image_tensor = gt_images[i].clone()
         if image_normalize is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
@@ -131,17 +126,17 @@ def plot_semantic_segmentation_predictions(
         logits_i = logits[i].cpu()
         pred_mask = torch.argmax(logits_i, dim=0)
 
-        overlay = _build_semantic_mask_overlay(
+        overlay = utils._build_semantic_mask_overlay(
             mask=pred_mask, size=img.size, class_names=class_names
         )
         blended = Image.blend(img, overlay, alpha=alpha)
-        blended = _draw_mask_contours(image=blended, mask=pred_mask)
+        blended = utils._draw_mask_contours(image=blended, mask=pred_mask)
 
-        labels, colors = _legend_entries_for_mask(
+        labels, colors = utils._legend_entries_for_mask(
             mask=pred_mask, class_names=class_names
         )
-        blended = _draw_class_legend(image=blended, labels=labels, colors=colors)
+        blended = utils._draw_class_legend(image=blended, labels=labels, colors=colors)
 
         pil_images.append(blended)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)

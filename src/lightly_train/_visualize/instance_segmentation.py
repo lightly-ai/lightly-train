@@ -12,14 +12,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
-from lightly_train._visualize.utils import (
-    _bboxes_from_masks,
-    _build_instance_mask_overlay,
-    _cxcywh_to_xyxy,
-    _denormalize_image,
-    _draw_labeled_boxes,
-    _render_grid,
-)
+from lightly_train._visualize import utils
 from lightly_train.types import InstanceSegmentationBatch
 
 
@@ -63,7 +56,7 @@ def plot_instance_segmentation_labels(
     for i in range(n):
         image_tensor = gt_images[i].clone()
         if image_normalize is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
@@ -74,12 +67,14 @@ def plot_instance_segmentation_labels(
         labels = binary_masks_list[i]["labels"].cpu()
         bboxes_norm = bboxes_list[i].cpu()
 
-        overlay = _build_instance_mask_overlay(
+        overlay = utils._build_instance_mask_overlay(
             masks=masks, labels=labels, size=img.size, class_names=class_names
         )
         blended = Image.blend(img, overlay, alpha=alpha)
-        bboxes_xyxy = _cxcywh_to_xyxy(boxes=bboxes_norm, w=img.size[0], h=img.size[1])
-        _draw_labeled_boxes(
+        bboxes_xyxy = utils._cxcywh_to_xyxy(
+            boxes=bboxes_norm, w=img.size[0], h=img.size[1]
+        )
+        utils._draw_labeled_boxes(
             image=blended,
             bboxes_xyxy=bboxes_xyxy,
             labels=labels,
@@ -88,7 +83,7 @@ def plot_instance_segmentation_labels(
         )
         pil_images.append(blended)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)
 
 
 def plot_instance_segmentation_predictions(
@@ -135,7 +130,7 @@ def plot_instance_segmentation_predictions(
     for i in range(n):
         image_tensor = gt_images[i].clone()
         if image_normalize is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
@@ -151,13 +146,13 @@ def plot_instance_segmentation_predictions(
         labels = labels[keep_scores]
         scores = scores[keep_scores]
 
-        overlay = _build_instance_mask_overlay(
+        overlay = utils._build_instance_mask_overlay(
             masks=masks, labels=labels, size=img.size, class_names=class_names
         )
         blended = Image.blend(img, overlay, alpha=alpha)
 
-        bboxes_xyxy, keep = _bboxes_from_masks(masks=masks)
-        _draw_labeled_boxes(
+        bboxes_xyxy, keep = utils._bboxes_from_masks(masks=masks)
+        utils._draw_labeled_boxes(
             image=blended,
             bboxes_xyxy=bboxes_xyxy,
             labels=labels[keep],
@@ -166,4 +161,4 @@ def plot_instance_segmentation_predictions(
         )
         pil_images.append(blended)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)
