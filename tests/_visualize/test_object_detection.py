@@ -91,7 +91,7 @@ class TestPlotObjectDetectionLabels:
     def test_plot_object_detection_labels_grid_caps_at_max_images(self) -> None:
         batch = _make_batch(batch_size=4, height=16, width=16)
         result = object_detection.plot_object_detection_labels(
-            batch=batch, included_classes={}, max_images=2
+            batch=batch, class_names={}, max_images=2
         )
         assert result.size == (32, 16)
 
@@ -107,7 +107,7 @@ class TestPlotObjectDetectionLabels:
             classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
-            batch=batch, included_classes={1: "dog"}, max_images=1
+            batch=batch, class_names={1: "dog"}, max_images=1
         )
         # All four corners of the bbox outline must be painted with class 1's color.
         _assert_bbox_corners_have_color(
@@ -131,7 +131,7 @@ class TestPlotObjectDetectionLabels:
             classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
-            batch=batch, included_classes={}, max_images=1
+            batch=batch, class_names={}, max_images=1
         )
         # Unknown class IDs still get a deterministic color from `_get_class_color`.
         _assert_bbox_corners_have_color(
@@ -169,7 +169,7 @@ class TestPlotObjectDetectionLabels:
         batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), image_value))
         result = object_detection.plot_object_detection_labels(
             batch=batch,
-            included_classes={},
+            class_names={},
             max_images=1,
             mean=mean,
             std=std,
@@ -185,7 +185,7 @@ class TestPlotObjectDetectionLabels:
         # Uniform 0.4 -> 102.
         batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), 0.4))
         result = object_detection.plot_object_detection_labels(
-            batch=batch, included_classes={}, max_images=1
+            batch=batch, class_names={}, max_images=1
         )
         assert result.getpixel((0, 0)) == (102, 102, 102)
         assert result.getpixel((31, 31)) == (102, 102, 102)
@@ -206,7 +206,7 @@ class TestPlotObjectDetectionLabels:
             classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
-            batch=batch, included_classes={0: "cat"}, max_images=2
+            batch=batch, class_names={0: "cat"}, max_images=2
         )
         # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0..63, image 1 at x=64..127.
         _assert_bbox_corners_have_color(
@@ -224,7 +224,7 @@ class TestPlotObjectDetectionPredictions:
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=results,
-            included_classes={},
+            class_names={},
             max_images=2,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -240,7 +240,7 @@ class TestPlotObjectDetectionPredictions:
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_empty_results(batch_size=1),
-            included_classes={},
+            class_names={},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -270,7 +270,7 @@ class TestPlotObjectDetectionPredictions:
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=results,
-            included_classes={0: "cat"},
+            class_names={0: "cat"},
             max_images=2,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -299,7 +299,7 @@ class TestPlotObjectDetectionPredictions:
                     "scores": torch.tensor([score]),
                 }
             ],
-            included_classes={0: "cat"},
+            class_names={0: "cat"},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -347,7 +347,7 @@ class TestPlotObjectDetectionPredictions:
                     "scores": torch.tensor([0.60, 0.95, 0.55, 0.85, 0.75]),
                 }
             ],
-            included_classes={i: f"c{i}" for i in range(5)},
+            class_names={i: f"c{i}" for i in range(5)},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=3,
@@ -386,7 +386,7 @@ class TestPlotObjectDetectionPredictions:
                     "scores": torch.tensor([0.9]),
                 }
             ],
-            included_classes={},
+            class_names={},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -423,7 +423,7 @@ class TestPlotObjectDetectionPredictions:
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_empty_results(batch_size=1),
-            included_classes={},
+            class_names={},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -444,7 +444,7 @@ class TestPlotObjectDetectionPredictions:
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_empty_results(batch_size=1),
-            included_classes={},
+            class_names={},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -471,7 +471,7 @@ class TestPlotObjectDetectionPredictions:
                     "scores": torch.tensor([0.9]),
                 }
             ],
-            included_classes={0: "obj"},
+            class_names={0: "obj"},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,
@@ -503,7 +503,7 @@ class TestPlotObjectDetectionPredictions:
                     "scores": torch.tensor([0.9]),
                 }
             ],
-            included_classes={0: "obj"},
+            class_names={0: "obj"},
             max_images=1,
             score_threshold=0.5,
             max_pred_boxes=10,

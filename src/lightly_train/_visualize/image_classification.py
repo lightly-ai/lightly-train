@@ -14,11 +14,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
-from lightly_train._visualize.utils import (
-    _denormalize_image,
-    _draw_class_legend,
-    _render_grid,
-)
+from lightly_train._visualize import utils
 from lightly_train.types import ImageClassificationBatch
 
 
@@ -50,7 +46,7 @@ def plot_image_classification_labels(
     for i in range(n):
         image_tensor = images[i].clone().to(dtype=torch.float32)
         if image_normalize is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
@@ -61,11 +57,11 @@ def plot_image_classification_labels(
         labels = [
             included_classes.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
         ]
-        img = _draw_class_legend(image=img, labels=labels)
+        img = utils._draw_class_legend(image=img, labels=labels, colors=None)
 
         pil_images.append(img)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)
 
 
 def plot_image_classification_predictions(
@@ -116,7 +112,7 @@ def plot_image_classification_predictions(
     for i in range(n):
         image_tensor = images[i].clone().to(dtype=torch.float32)
         if image_normalize is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
@@ -134,8 +130,8 @@ def plot_image_classification_predictions(
             score = float(top_scores[i, rank].item())
             class_name = included_classes.get(class_id, f"Class {class_id}")
             labels.append(f"{class_name}: {score:.2f}")
-        img = _draw_class_legend(image=img, labels=labels)
+        img = utils._draw_class_legend(image=img, labels=labels, colors=None)
 
         pil_images.append(img)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)

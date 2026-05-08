@@ -298,6 +298,13 @@ def test_train_instance_segmentation(
     assert results["masks"].shape[-2:] == dummy_input.shape[1:]
     assert results["scores"].ndim == 1
 
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
+
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
@@ -476,6 +483,13 @@ def test_train_semantic_segmentation(
     assert prediction.shape == (224, 224)
     assert prediction.min() >= 0
     assert prediction.max() <= 1
+
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
