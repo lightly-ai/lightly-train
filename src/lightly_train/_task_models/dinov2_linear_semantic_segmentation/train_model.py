@@ -13,6 +13,7 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import CrossEntropyLoss
 from torch.optim.adamw import AdamW
@@ -44,6 +45,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize import semantic_segmentation
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
@@ -142,6 +144,12 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             loss_names=["loss"],
         )
 
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
+        self.viz_alpha = 0.6
+
     def get_task_model(self) -> DINOv2LinearSemanticSegmentation:
         return self.model
 
@@ -164,7 +172,21 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         if self.metric_args.train:
             self.train_metrics.update_with_predictions(logits.argmax(dim=1), masks)
 
-        return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
+        label_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
+                batch=batch,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.train_metrics,
+            label_image=label_image,
+        )
 
     def validation_step(
         self,
@@ -201,7 +223,35 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
 
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
-        return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
+        label_image: PILImage | None = None
+        prediction_image: PILImage | None = None
+        if step < 3 and fabric.global_rank == 0:
+            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
+                batch=batch,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            )
+            if logits is not None:
+                prediction_image = (
+                    semantic_segmentation.plot_semantic_segmentation_predictions(
+                        batch=batch,
+                        logits=logits,
+                        class_names=self.model.included_classes,
+                        image_normalize=self.model.image_normalize,
+                        max_images=self.viz_max_images,
+                        alpha=self.viz_alpha,
+                    )
+                )
+
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.val_metrics,
+            label_image=label_image,
+            prediction_image=prediction_image,
+        )
 
     def get_optimizer(
         self,

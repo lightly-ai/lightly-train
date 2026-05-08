@@ -167,3 +167,27 @@ class TestDINOv3Package:
         # The log should show a format without the 'dinov3/' prefix
         assert "get_model('<XYZ>')" in log_output
         assert "get_model('dinov3/" not in log_output
+
+    @pytest.mark.parametrize("model_name, patch_size", [("vitt16", 41), ("vitt32", 32)])
+    def test_get_model__patch_size_arg_gets_precedence_over_model_name(
+        self, model_name: str, patch_size: int
+    ) -> None:
+        model = DINOv3Package.get_model(
+            model_name, model_args={"patch_size": patch_size}, load_weights=False
+        )
+
+        assert model.patch_size == patch_size
+
+    def test_get_model__patch_size_arg_overwrites_model_name_logs_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.WARNING):
+            model = DINOv3Package.get_model(
+                "vitt16", model_args={"patch_size": 41}, load_weights=False
+            )
+
+        assert model.patch_size == 41
+        assert (
+            "Patch size from model name 16 got overwritten by patch size argument 41"
+            in caplog.text
+        )
