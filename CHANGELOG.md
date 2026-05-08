@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Configurable `patch_size` for DINOv3 LT-DETR models.
+
 ### Changed
 
 ### Deprecated
