@@ -179,12 +179,15 @@ def _denormalize_image(
     return denormalized
 
 
-def _get_class_color(class_id: int) -> tuple[int, int, int]:
+def _get_class_color(class_id: float) -> tuple[int, int, int]:
     """Generate a deterministic RGB color for a class ID.
 
-    Uses HSV color space with varying hue to ensure the same class ID always gets
-    the same color, with good visual distinction between different classes.
-    This maintains color consistency throughout the training process.
+    The hue is computed as ``(class_id * golden_ratio) % 1.0``. Multiplying by
+    the golden ratio spreads consecutive integer class IDs across the hue
+    circle so different classes are well-separated, while a small fractional
+    offset on ``class_id`` produces only a small hue shift. Callers can
+    therefore pass ``class_id + small_offset`` to derive instance-specific
+    colors that remain in the same color region as the base class.
 
     Args:
         class_id: The class ID to generate a color for.
@@ -240,9 +243,8 @@ def _build_instance_mask_overlay(
 ) -> PILImage:
     """Build an RGB overlay image colored by class id from per-instance binary masks.
 
-    Instances may overlap; later instances overwrite earlier ones. Only ids that
-    appear as keys of ``class_names`` are colored; pixels with any other id are
-    left black.
+    Only ids that appear as keys of ``class_names`` are colored; pixels with
+    any other id are left black.
 
     Args:
         masks: Boolean tensor of shape (n_instances, H, W).
@@ -263,6 +265,57 @@ def _build_instance_mask_overlay(
         color = _get_class_color(class_id)
         for c in range(3):
             overlay[c][masks[idx]] = color[c]
+
+    return _overlay_to_pil(overlay=overlay, size=size)
+
+
+def _build_panoptic_mask_overlay(
+    label_mask: Tensor,
+    segment_mask: Tensor,
+    size: tuple[int, int],
+    class_names: dict[int, str],
+) -> PILImage:
+    """Build an RGB overlay image where each segment is colored.
+
+    Different instances of the same class are given visually-close but distinct
+    colors by passing ``class_id + small_offset`` to ``_get_class_color``. The
+    first instance of each class uses the base class color so that the legend
+    color matches.
+
+    Only class ids that appear as keys of ``class_names`` are colored; pixels
+    with any other id are left black. The ignore index is colored when callers
+    include it as a key in ``class_names`` (e.g. mapped to ``"ignored"``) and
+    left black otherwise.
+
+    Args:
+        label_mask: Tensor of shape (H, W) with internal contiguous class
+            indices.
+        segment_mask: Tensor of shape (H, W) with per-pixel segment ids.
+            Different segment ids within the same class are treated as
+            different instances and rendered with different colors.
+        size: Target (width, height) of the overlay.
+        class_names: Mapping from class id to class name. Only ids that appear
+            as keys are colored; other ids are left black.
+
+    Returns:
+        RGB PIL image of the requested size.
+    """
+    h, w = label_mask.shape[-2:]
+    overlay = torch.zeros((3, h, w), dtype=torch.uint8)
+    instance_hue_step = 0.01
+    for class_id in torch.unique(label_mask).tolist():
+        class_id = int(class_id)
+        if class_id not in class_names:
+            continue
+        class_pixels = label_mask == class_id
+        segment_ids = sorted(
+            int(s) for s in torch.unique(segment_mask[class_pixels]).tolist()
+        )
+        for instance_idx, seg_id in enumerate(segment_ids):
+            color = _get_class_color(class_id + instance_hue_step * instance_idx)
+            seg_pixels = class_pixels & (segment_mask == seg_id)
+            for c in range(3):
+                overlay[c][seg_pixels] = color[c]
 
     return _overlay_to_pil(overlay=overlay, size=size)
 

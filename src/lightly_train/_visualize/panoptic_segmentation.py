@@ -7,33 +7,37 @@
 #
 from __future__ import annotations
 
-import torch
+from collections.abc import Sequence
+
 from PIL import Image
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
-from lightly_train.types import MaskSemanticSegmentationBatch
+from lightly_train.types import MaskPanopticSegmentationBatch
 
 
-def plot_semantic_segmentation_labels(
-    batch: MaskSemanticSegmentationBatch,
+def plot_panoptic_segmentation_labels(
+    batch: MaskPanopticSegmentationBatch,
     class_names: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
     alpha: float,
 ) -> PILImage:
-    """Render a grid of images annotated with ground truth semantic segmentation masks.
+    """Render a grid of images annotated with ground truth panoptic segmentation masks.
+
+    The class label channel of each mask is colorized using ``class_names``,
+    and contours are drawn along segment boundaries so that distinct instances
+    of the same class remain visually separated.
 
     Args:
-        batch: Semantic segmentation batch with images and masks. Mask pixel values
-            are internal contiguous class indices, not original class ids. Masks
-            may also contain the raw class_ignore_index value (e.g. -100), which
-            is not a contiguous internal class id.
+        batch: Panoptic segmentation batch with images and (H, W, 2) masks where
+            channel 0 holds internal class labels and channel 1 holds segment
+            ids (segment id -1 indicates unassigned pixels).
         class_names: A dict mapping internal class IDs to class names. May
-            also contain class_ignore_index mapped to "ignored" when masks
-            include ignored pixels.
+            also contain the internal ignore class id mapped to "ignored" when
+            masks include ignored pixels.
         max_images: Maximum number of images to include in the grid.
         image_normalize: Optional dict with "mean" and "std" tuples used to
             denormalize images before rendering. If None, images pass through
@@ -46,7 +50,7 @@ def plot_semantic_segmentation_labels(
         in a grid.
     """
     images = batch["image"]
-    masks = batch["mask"]
+    masks = batch["masks"]
     gt_images = (
         [img.float().cpu() for img in images]
         if isinstance(images, list)
@@ -65,16 +69,23 @@ def plot_semantic_segmentation_labels(
                 std=image_normalize["std"],
             )
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
-        mask = gt_masks[i]
+        # (H, W, 2): channel 0 is the class label, channel 1 is the segment id.
+        label_mask = gt_masks[i][..., 0]
+        segment_mask = gt_masks[i][..., 1]
 
-        overlay = utils._build_semantic_mask_overlay(
-            mask=mask, size=img.size, class_names=class_names
+        overlay = utils._build_panoptic_mask_overlay(
+            label_mask=label_mask,
+            segment_mask=segment_mask,
+            size=img.size,
+            class_names=class_names,
         )
         blended = Image.blend(img, overlay, alpha=alpha)
-        blended = utils._draw_mask_contours(image=blended, mask=mask)
+        # Use segment id boundaries so different instances of the same class
+        # remain visually separated.
+        blended = utils._draw_mask_contours(image=blended, mask=segment_mask)
 
         labels, colors = utils._legend_entries_for_mask(
-            mask=mask, class_names=class_names
+            mask=label_mask, class_names=class_names
         )
         blended = utils._draw_class_legend(image=blended, labels=labels, colors=colors)
 
@@ -83,19 +94,22 @@ def plot_semantic_segmentation_labels(
     return utils._render_grid(pil_images)
 
 
-def plot_semantic_segmentation_predictions(
-    batch: MaskSemanticSegmentationBatch,
-    logits: list[Tensor],
+def plot_panoptic_segmentation_predictions(
+    batch: MaskPanopticSegmentationBatch,
+    pred_masks: Sequence[Tensor],
     class_names: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
     alpha: float,
 ) -> PILImage:
-    """Render a grid of images annotated with predicted semantic segmentation masks.
+    """Render a grid of images annotated with predicted panoptic segmentation masks.
 
     Args:
-        batch: Semantic segmentation batch with images.
-        logits: List of per-image logit tensors of shape (C, H, W).
+        batch: Panoptic segmentation batch with images.
+        pred_masks: Per-image predicted (H, W, 2) masks where channel 0 holds
+            internal class labels and channel 1 holds segment ids. Each mask
+            must have the same spatial size as its corresponding image in
+            ``batch["image"]``.
         class_names: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
         image_normalize: Optional dict with "mean" and "std" tuples used to
@@ -114,7 +128,7 @@ def plot_semantic_segmentation_predictions(
         if isinstance(images, list)
         else images.float().cpu()
     )
-    n = min(max_images, len(gt_images))
+    n = min(max_images, len(gt_images), len(pred_masks))
 
     pil_images: list[PILImage] = []
     for i in range(n):
@@ -125,19 +139,25 @@ def plot_semantic_segmentation_predictions(
                 mean=image_normalize["mean"],
                 std=image_normalize["std"],
             )
-
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
-        logits_i = logits[i].cpu()
-        pred_mask = torch.argmax(logits_i, dim=0)
+        pred_mask = pred_masks[i].cpu()
+        # (H, W, 2): channel 0 is the class label, channel 1 is the segment id.
+        label_mask = pred_mask[..., 0]
+        segment_mask = pred_mask[..., 1]
 
-        overlay = utils._build_semantic_mask_overlay(
-            mask=pred_mask, size=img.size, class_names=class_names
+        overlay = utils._build_panoptic_mask_overlay(
+            label_mask=label_mask,
+            segment_mask=segment_mask,
+            size=img.size,
+            class_names=class_names,
         )
         blended = Image.blend(img, overlay, alpha=alpha)
-        blended = utils._draw_mask_contours(image=blended, mask=pred_mask)
+        # Use segment id boundaries so different instances of the same class
+        # remain visually separated.
+        blended = utils._draw_mask_contours(image=blended, mask=segment_mask)
 
         labels, colors = utils._legend_entries_for_mask(
-            mask=pred_mask, class_names=class_names
+            mask=label_mask, class_names=class_names
         )
         blended = utils._draw_class_legend(image=blended, labels=labels, colors=colors)
 

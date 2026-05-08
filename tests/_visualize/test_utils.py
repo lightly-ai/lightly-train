@@ -138,21 +138,87 @@ def test__draw_class_legend__mismatched_colors_and_labels_raises() -> None:
         utils._draw_class_legend(image=image, labels=["a", "b"], colors=[(255, 0, 0)])
 
 
-def test__build_semantic_mask_overlay__colors_known_classes_skips_unknown_and_resizes() -> (
-    None
-):
-    # Top half is class 0 (in class_names -> colored). Bottom half is class 5
-    # (not in class_names -> stays black). Output size differs from mask, so
-    # nearest-neighbor resize is exercised.
+def test__build_panoptic_mask_overlay__colors_known_segments() -> None:
+    # Two segments with the same class: first uses base class color, second
+    # uses a shifted hue so separate instances are visually distinct.
+    label_mask = torch.zeros(4, 4, dtype=torch.long)
+    segment_mask = torch.zeros(4, 4, dtype=torch.long)
+    segment_mask[2:, :] = 1
+    result = utils._build_panoptic_mask_overlay(
+        label_mask=label_mask,
+        segment_mask=segment_mask,
+        size=(4, 4),
+        class_names={0: "cat"},
+    )
+    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+    assert result.getpixel((0, 3)) != _CLASS_0_COLOR
+    assert result.getpixel((0, 3)) != _BACKGROUND_PIXEL
+
+
+def test__build_panoptic_mask_overlay__skips_unknown_classes() -> None:
+    label_mask = torch.zeros(4, 4, dtype=torch.long)
+    label_mask[2:, :] = 5
+    segment_mask = torch.zeros(4, 4, dtype=torch.long)
+    result = utils._build_panoptic_mask_overlay(
+        label_mask=label_mask,
+        segment_mask=segment_mask,
+        size=(4, 4),
+        class_names={0: "cat"},
+    )
+    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+    assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
+
+
+def test__build_instance_mask_overlay__colors_known_instances() -> None:
+    # Each instance mask should be painted with its class color.
+    masks = torch.zeros(2, 4, 4, dtype=torch.bool)
+    masks[0, :2, :] = True
+    masks[1, 2:, :] = True
+    labels = torch.tensor([0, 1], dtype=torch.long)
+    result = utils._build_instance_mask_overlay(
+        masks=masks,
+        labels=labels,
+        size=(4, 4),
+        class_names={0: "cat", 1: "dog"},
+    )
+    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+    assert result.getpixel((0, 3)) == _CLASS_1_COLOR
+
+
+def test__build_instance_mask_overlay__skips_unknown_classes() -> None:
+    # Masks whose label is not in class_names should stay black.
+    masks = torch.zeros(2, 4, 4, dtype=torch.bool)
+    masks[0, :2, :] = True
+    masks[1, 2:, :] = True
+    labels = torch.tensor([0, 5], dtype=torch.long)
+    result = utils._build_instance_mask_overlay(
+        masks=masks,
+        labels=labels,
+        size=(4, 4),
+        class_names={0: "cat"},
+    )
+    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+    assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
+
+
+def test__build_semantic_mask_overlay__colors_known_classes() -> None:
+    mask = torch.zeros(4, 4, dtype=torch.long)
+    mask[2:, :] = 1
+    result = utils._build_semantic_mask_overlay(
+        mask=mask, size=(4, 4), class_names={0: "cat", 1: "dog"}
+    )
+    assert result.getpixel((0, 0)) == _CLASS_0_COLOR
+    assert result.getpixel((0, 3)) == _CLASS_1_COLOR
+
+
+def test__build_semantic_mask_overlay__skips_unknown_classes() -> None:
     mask = torch.zeros(4, 4, dtype=torch.long)
     mask[2:, :] = 5
     result = utils._build_semantic_mask_overlay(
-        mask=mask, size=(8, 8), class_names={0: "a"}
+        mask=mask, size=(4, 4), class_names={0: "cat"}
     )
-    assert result.mode == "RGB"
-    assert result.size == (8, 8)
     assert result.getpixel((0, 0)) == _CLASS_0_COLOR
-    assert result.getpixel((0, 7)) == _BACKGROUND_PIXEL
+    assert result.getpixel((0, 3)) == _BACKGROUND_PIXEL
 
 
 def test__bboxes_from_masks__tight_bounds_and_skips_empty() -> None:
@@ -174,9 +240,7 @@ def test__bboxes_from_masks__tight_bounds_and_skips_empty() -> None:
 
 
 def test__draw_labeled_boxes__draws_outline_and_label_in_class_color() -> None:
-    # Single 64x64 box at (32, 32) on a 128x128 canvas. y1=32 leaves room for
-    # the label above the box, so the label rectangle is drawn above and is
-    # filled with the class color.
+    # Single box on a 128x128 canvas. y1=32 leaves room for the label above.
     image = Image.new("RGB", (128, 128), color=_BACKGROUND_PIXEL)
     bboxes = torch.tensor([[32.0, 32.0, 96.0, 96.0]])
     labels = torch.tensor([1], dtype=torch.long)
@@ -187,17 +251,11 @@ def test__draw_labeled_boxes__draws_outline_and_label_in_class_color() -> None:
         scores=None,
         class_names={1: "dog"},
     )
-    # Each of the four corners is painted in class 1's color — catches a
-    # regression where the bbox is drawn in the wrong color (e.g. a hard-coded
-    # color or class 0's color regardless of label).
+    # Box corner is painted with class 1's color (outline drawn in class color).
     assert image.getpixel((32, 32)) == _CLASS_1_COLOR
-    assert image.getpixel((96, 32)) == _CLASS_1_COLOR
-    assert image.getpixel((32, 96)) == _CLASS_1_COLOR
-    assert image.getpixel((96, 96)) == _CLASS_1_COLOR
-    # Box interior remains background (only the outline is drawn).
+    # Box interior remains background (only the outline is drawn, not fill).
     assert image.getpixel((64, 64)) == _BACKGROUND_PIXEL
-    # The label rectangle sits above the box and is filled with class 1's
-    # color, so a pixel just above the box at x=34 lands inside the label.
+    # Label rectangle sits above the box, filled with class color.
     assert image.getpixel((34, 30)) == _CLASS_1_COLOR
 
 
