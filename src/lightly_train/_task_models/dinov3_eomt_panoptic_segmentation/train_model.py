@@ -51,10 +51,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.panoptic_segmentation import (
-    plot_panoptic_segmentation_labels,
-    plot_panoptic_segmentation_predictions,
-)
+from lightly_train._visualize import panoptic_segmentation
 from lightly_train.types import (
     MaskPanopticSegmentationBatch,
     PathLike,
@@ -372,9 +369,9 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
 
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            label_image = plot_panoptic_segmentation_labels(
+            label_image = panoptic_segmentation.plot_panoptic_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
                 alpha=self.viz_alpha,
@@ -497,20 +494,22 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            label_image = plot_panoptic_segmentation_labels(
+            label_image = panoptic_segmentation.plot_panoptic_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
                 alpha=self.viz_alpha,
             )
-            prediction_image = plot_panoptic_segmentation_predictions(
-                batch=batch,
-                pred_masks=pred_masks,
-                included_classes=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
+            prediction_image = (
+                panoptic_segmentation.plot_panoptic_segmentation_predictions(
+                    batch=batch,
+                    pred_masks=pred_masks,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
             )
 
         return TaskStepResult(
