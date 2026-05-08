@@ -58,6 +58,7 @@ class RFDETRPackage(Package):
         load_weights: bool = True,
     ) -> RFDETR:
         try:
+            from rfdetr.assets.model_weights import ModelWeights
             from rfdetr.detr import (
                 RFDETRBase,
                 RFDETRLarge,
@@ -72,7 +73,6 @@ class RFDETRPackage(Package):
                 RFDETRSegXLarge,
                 RFDETRSmall,
             )
-            from rfdetr.assets.model_weights import ModelWeights
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because rfdetr is not installed."
