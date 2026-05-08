@@ -33,15 +33,25 @@ class RFDETRPackage(Package):
     name = "rfdetr"
 
     @classmethod
+    def _supported_model_names(cls) -> list[str]:
+        return [
+            "rf-detr-base",
+            "rf-detr-base-o365",
+            "rf-detr-base-2",
+            "rf-detr-large",
+            "rf-detr-nano",
+            "rf-detr-small",
+            "rf-detr-medium",
+            "rf-detr-seg-preview",
+        ]
+
+    @classmethod
     def list_model_names(cls) -> list[str]:
         try:
-            from rfdetr.assets.model_weights import ModelWeights
+            import rfdetr  # noqa: F401
         except ImportError:
             return []
-        return [
-            f"{cls.name}/{Path(model_name).stem}"
-            for model_name in ModelWeights.list_models()
-        ]
+        return [f"{cls.name}/{model_name}" for model_name in cls._supported_model_names()]
 
     @classmethod
     def is_supported_model(cls, model: RFDETR | ModelWrapper | Any) -> bool:
@@ -64,13 +74,7 @@ class RFDETRPackage(Package):
                 RFDETRLarge,
                 RFDETRMedium,
                 RFDETRNano,
-                RFDETRSeg2XLarge,
-                RFDETRSegLarge,
-                RFDETRSegMedium,
-                RFDETRSegNano,
                 RFDETRSegPreview,
-                RFDETRSegSmall,
-                RFDETRSegXLarge,
                 RFDETRSmall,
             )
         except ImportError:
@@ -105,17 +109,10 @@ class RFDETRPackage(Package):
             "rf-detr-base-o365": RFDETRBase,
             "rf-detr-base-2": RFDETRBase,
             "rf-detr-large": RFDETRLarge,
-            "rf-detr-large-2026": RFDETRLarge,
             "rf-detr-nano": RFDETRNano,
             "rf-detr-small": RFDETRSmall,
             "rf-detr-medium": RFDETRMedium,
             "rf-detr-seg-preview": RFDETRSegPreview,
-            "rf-detr-seg-nano": RFDETRSegNano,
-            "rf-detr-seg-small": RFDETRSegSmall,
-            "rf-detr-seg-medium": RFDETRSegMedium,
-            "rf-detr-seg-large": RFDETRSegLarge,
-            "rf-detr-seg-xlarge": RFDETRSegXLarge,
-            "rf-detr-seg-xxlarge": RFDETRSeg2XLarge,
         }
         model_ctor = model_constructors.get(model_name)
         if model_ctor is None:
