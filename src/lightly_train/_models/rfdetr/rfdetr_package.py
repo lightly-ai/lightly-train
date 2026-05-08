@@ -51,7 +51,9 @@ class RFDETRPackage(Package):
             import rfdetr  # noqa: F401
         except ImportError:
             return []
-        return [f"{cls.name}/{model_name}" for model_name in cls._supported_model_names()]
+        return [
+            f"{cls.name}/{model_name}" for model_name in cls._supported_model_names()
+        ]
 
     @classmethod
     def is_supported_model(cls, model: RFDETR | ModelWrapper | Any) -> bool:
