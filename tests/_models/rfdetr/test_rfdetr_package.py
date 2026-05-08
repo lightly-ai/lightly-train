@@ -74,7 +74,7 @@ class TestRFDETRPackage:
         ],
     )
     def test_get_model(self, model_name: str) -> None:
-        model = RFDETRPackage.get_model(model_name=model_name, load_weights=False)
+        model = RFDETRPackage.get_model(model_name=model_name)
         assert isinstance(model, RFDETR)
 
     def test_get_model_wrapper(self) -> None:
