@@ -79,14 +79,14 @@ def test_flat_cosine_scheduler_state_dict_roundtrip() -> None:
     _advance(optimizer, scheduler, 123)
     state_dict = scheduler.state_dict()  # type: ignore[no-untyped-call]
 
-    clone_optimizer, clone = _make_scheduler()
-    clone.load_state_dict(state_dict)
+    clone_optimizer, clone_scheduler = _make_scheduler()
+    clone_scheduler.load_state_dict(state_dict)
 
-    assert clone.last_step == scheduler.last_step
-    assert clone.get_last_lr() == pytest.approx(scheduler.get_last_lr())
+    assert clone_scheduler.last_step == scheduler.last_step
+    assert clone_scheduler.get_last_lr() == pytest.approx(scheduler.get_last_lr())
 
     optimizer.step()
     scheduler.step()
     clone_optimizer.step()
-    clone.step()
-    assert clone.get_last_lr() == pytest.approx(scheduler.get_last_lr())
+    clone_scheduler.step()
+    assert clone_scheduler.get_last_lr() == pytest.approx(scheduler.get_last_lr())
