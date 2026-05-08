@@ -30,13 +30,20 @@ class TestRFDETRPackage:
             ("rfdetr/rf-detr-base", True),
             ("rfdetr/rf-detr-base-o365", True),
             ("rfdetr/rf-detr-base-2", True),
+            ("rfdetr/rf-detr-large", True),
+            ("rfdetr/rf-detr-large-2026", True),
             ("rfdetr/rf-detr-nano", True),
             ("rfdetr/rf-detr-small", True),
-            ("rfdetr/rf-detr-small-2", False),  # No pretrained checkpoint available.
             ("rfdetr/rf-detr-medium", True),
-            ("rfdetr/rf-detr-large", True),
-            ("rfdetr/rf-detr-large-2", False),  # No pretrained checkpoint available.
             ("rfdetr/rf-detr-seg-preview", True),
+            ("rfdetr/rf-detr-seg-nano", True),
+            ("rfdetr/rf-detr-seg-small", True),
+            ("rfdetr/rf-detr-seg-medium", True),
+            ("rfdetr/rf-detr-seg-large", True),
+            ("rfdetr/rf-detr-seg-xlarge", True),
+            ("rfdetr/rf-detr-seg-xxlarge", True),
+            ("rfdetr/rf-detr-small-2", False),  # No pretrained checkpoint available.
+            ("rfdetr/rf-detr-large-2", False),  # No pretrained checkpoint available.
         ],
     )
     def test_list_model_names(self, model_name: str, supported: bool) -> None:
@@ -62,11 +69,12 @@ class TestRFDETRPackage:
         "model_name",
         [
             "rf-detr-base",
+            "rf-detr-large-2026",
             "rf-detr-nano",
         ],
     )
     def test_get_model(self, model_name: str) -> None:
-        model = RFDETRPackage.get_model(model_name=model_name)
+        model = RFDETRPackage.get_model(model_name=model_name, load_weights=False)
         assert isinstance(model, RFDETR)
 
     def test_get_model_wrapper(self) -> None:
