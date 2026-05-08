@@ -48,7 +48,9 @@ def plot_instance_segmentation_labels(
     binary_masks_list = batch["binary_masks"]
     bboxes_list = batch["bboxes"]
     gt_images = (
-        [img.cpu() for img in images] if isinstance(images, list) else images.cpu()
+        [img.float().cpu() for img in images]
+        if isinstance(images, list)
+        else images.float().cpu()
     )
     n = min(max_images, len(gt_images))
 
@@ -122,7 +124,9 @@ def plot_instance_segmentation_predictions(
     """
     images = batch["image"]
     gt_images = (
-        [img.cpu() for img in images] if isinstance(images, list) else images.cpu()
+        [img.float().cpu() for img in images]
+        if isinstance(images, list)
+        else images.float().cpu()
     )
     n = min(max_images, len(gt_images))
 

@@ -38,7 +38,7 @@ def plot_image_classification_labels(
         A single PIL image containing up to max_images annotated images arranged
         in a grid.
     """
-    images = batch["image"].cpu()
+    images = batch["image"].float().cpu()
     gt_classes = [c.cpu() for c in batch["classes"]]
     n = min(max_images, images.shape[0])
 

@@ -48,7 +48,9 @@ def plot_semantic_segmentation_labels(
     images = batch["image"]
     masks = batch["mask"]
     gt_images = (
-        [img.cpu() for img in images] if isinstance(images, list) else images.cpu()
+        [img.float().cpu() for img in images]
+        if isinstance(images, list)
+        else images.float().cpu()
     )
     gt_masks = [m.cpu() for m in masks] if isinstance(masks, list) else masks.cpu()
     n = min(max_images, len(gt_images))
@@ -108,7 +110,9 @@ def plot_semantic_segmentation_predictions(
     """
     images = batch["image"]
     gt_images = (
-        [img.cpu() for img in images] if isinstance(images, list) else images.cpu()
+        [img.float().cpu() for img in images]
+        if isinstance(images, list)
+        else images.float().cpu()
     )
     n = min(max_images, len(gt_images))
 
