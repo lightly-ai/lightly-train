@@ -33,8 +33,11 @@ def _make_scheduler(
     return optimizer, scheduler
 
 
-def _advance(scheduler: FlatCosineLRScheduler, steps: int) -> None:
+def _advance(
+    optimizer: Optimizer, scheduler: FlatCosineLRScheduler, steps: int
+) -> None:
     for _ in range(steps):
+        optimizer.step()
         scheduler.step()
 
 
@@ -45,23 +48,23 @@ def test_flat_cosine_scheduler_phases() -> None:
     assert scheduler.no_aug_steps == 111
     assert scheduler.get_last_lr()[0] == pytest.approx(0.0)
 
-    _advance(scheduler, 100)
+    _advance(optimizer, scheduler, 100)
     assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
 
-    _advance(scheduler, 301)
+    _advance(optimizer, scheduler, 301)
     assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
 
-    _advance(scheduler, 1)
+    _advance(optimizer, scheduler, 1)
     assert scheduler.get_last_lr()[0] == pytest.approx(1.0)
 
-    _advance(scheduler, 1)
+    _advance(optimizer, scheduler, 1)
     cosine_lr = scheduler.get_last_lr()[0]
     assert 0.5 < cosine_lr < 1.0
 
-    _advance(scheduler, 486)
+    _advance(optimizer, scheduler, 486)
     assert scheduler.get_last_lr()[0] == pytest.approx(0.5)
 
-    _advance(scheduler, 100)
+    _advance(optimizer, scheduler, 100)
     assert scheduler.get_last_lr()[0] == pytest.approx(0.5)
     assert optimizer.param_groups[0]["lr"] == pytest.approx(0.5)
 
@@ -72,16 +75,18 @@ def test_flat_cosine_scheduler_rejects_collapsed_cosine_phase() -> None:
 
 
 def test_flat_cosine_scheduler_state_dict_roundtrip() -> None:
-    _, scheduler = _make_scheduler()
-    _advance(scheduler, 123)
+    optimizer, scheduler = _make_scheduler()
+    _advance(optimizer, scheduler, 123)
     state_dict = scheduler.state_dict()  # type: ignore[no-untyped-call]
 
-    _, clone = _make_scheduler()
+    clone_optimizer, clone = _make_scheduler()
     clone.load_state_dict(state_dict)
 
     assert clone.last_step == scheduler.last_step
     assert clone.get_last_lr() == pytest.approx(scheduler.get_last_lr())
 
+    optimizer.step()
     scheduler.step()
+    clone_optimizer.step()
     clone.step()
     assert clone.get_last_lr() == pytest.approx(scheduler.get_last_lr())
