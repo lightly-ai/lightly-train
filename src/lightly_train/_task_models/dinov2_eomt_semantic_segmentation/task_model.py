@@ -120,6 +120,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             persistent=False,  # No need to save it in the state dict.
         )
 
+        # GT masks contain the raw `class_ignore_index` value (e.g. -100) for
+        # ignored pixels, so we register that key directly for the legend.
+        # Predictions drop the ignore channel, so this key never appears in them.
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+        if self.class_ignore_index is not None:
+            self.included_classes[self.class_ignore_index] = "ignored"
+
         # Disable drop path by default.
         backbone_model_args = {
             "drop_path_rate": 0.0,

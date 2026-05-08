@@ -67,10 +67,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.object_detection import (
-    plot_object_detection_labels,
-    plot_object_detection_predictions,
-)
+from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 logger = logging.getLogger(__name__)
@@ -338,9 +335,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             normalize_std = (
                 tuple(self._normalize.std) if self._normalize is not None else None
             )
-            label_image = plot_object_detection_labels(
+            label_image = object_detection.plot_object_detection_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
@@ -430,17 +427,17 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             normalize_std = (
                 tuple(self._normalize.std) if self._normalize is not None else None
             )
-            label_image = plot_object_detection_labels(
+            label_image = object_detection.plot_object_detection_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
             )
-            prediction_image = plot_object_detection_predictions(
+            prediction_image = object_detection.plot_object_detection_predictions(
                 batch=batch,
                 results=results,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 score_threshold=self.viz_score_threshold,
