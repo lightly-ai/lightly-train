@@ -14,7 +14,7 @@ from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize.utils import (
-    _build_mask_overlay,
+    _build_semantic_mask_overlay,
     _denormalize_image,
     _draw_class_legend,
     _draw_mask_contours,
@@ -26,7 +26,7 @@ from lightly_train.types import MaskSemanticSegmentationBatch
 
 def plot_semantic_segmentation_labels(
     batch: MaskSemanticSegmentationBatch,
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
     alpha: float,
@@ -38,7 +38,7 @@ def plot_semantic_segmentation_labels(
             are internal contiguous class indices, not original class ids. Masks
             may also contain the raw class_ignore_index value (e.g. -100), which
             is not a contiguous internal class id.
-        included_classes: A dict mapping internal class IDs to class names. May
+        class_names: A dict mapping internal class IDs to class names. May
             also contain class_ignore_index mapped to "ignored" when masks
             include ignored pixels.
         max_images: Maximum number of images to include in the grid.
@@ -72,15 +72,13 @@ def plot_semantic_segmentation_labels(
         img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
         mask = gt_masks[i]
 
-        overlay = _build_mask_overlay(
-            mask=mask, size=img.size, class_names=included_classes
+        overlay = _build_semantic_mask_overlay(
+            mask=mask, size=img.size, class_names=class_names
         )
         blended = Image.blend(img, overlay, alpha=alpha)
         blended = _draw_mask_contours(image=blended, mask=mask)
 
-        labels, colors = _legend_entries_for_mask(
-            mask=mask, class_names=included_classes
-        )
+        labels, colors = _legend_entries_for_mask(mask=mask, class_names=class_names)
         blended = _draw_class_legend(image=blended, labels=labels, colors=colors)
 
         pil_images.append(blended)
@@ -91,7 +89,7 @@ def plot_semantic_segmentation_labels(
 def plot_semantic_segmentation_predictions(
     batch: MaskSemanticSegmentationBatch,
     logits: list[Tensor],
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
     alpha: float,
@@ -101,7 +99,7 @@ def plot_semantic_segmentation_predictions(
     Args:
         batch: Semantic segmentation batch with images.
         logits: List of per-image logit tensors of shape (C, H, W).
-        included_classes: A dict mapping internal class IDs to class names.
+        class_names: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
         image_normalize: Optional dict with "mean" and "std" tuples used to
             denormalize images before rendering. If None, images pass through
@@ -133,14 +131,14 @@ def plot_semantic_segmentation_predictions(
         logits_i = logits[i].cpu()
         pred_mask = torch.argmax(logits_i, dim=0)
 
-        overlay = _build_mask_overlay(
-            mask=pred_mask, size=img.size, class_names=included_classes
+        overlay = _build_semantic_mask_overlay(
+            mask=pred_mask, size=img.size, class_names=class_names
         )
         blended = Image.blend(img, overlay, alpha=alpha)
         blended = _draw_mask_contours(image=blended, mask=pred_mask)
 
         labels, colors = _legend_entries_for_mask(
-            mask=pred_mask, class_names=included_classes
+            mask=pred_mask, class_names=class_names
         )
         blended = _draw_class_legend(image=blended, labels=labels, colors=colors)
 
