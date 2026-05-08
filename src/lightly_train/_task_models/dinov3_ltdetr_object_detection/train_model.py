@@ -333,7 +333,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
             label_image = plot_object_detection_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
@@ -425,7 +425,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             )
             label_image = plot_object_detection_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
@@ -433,7 +433,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             prediction_image = plot_object_detection_predictions(
                 batch=batch,
                 results=results,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 score_threshold=self.viz_score_threshold,
