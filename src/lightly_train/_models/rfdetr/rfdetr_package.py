@@ -35,13 +35,12 @@ class RFDETRPackage(Package):
     @classmethod
     def list_model_names(cls) -> list[str]:
         try:
-            from rfdetr.main import HOSTED_MODELS
+            from rfdetr.assets.model_weights import ModelWeights
         except ImportError:
             return []
-        # We use the model names from the checkpoint .pth filenames Roboflow provided
         return [
-            f"{cls.name}/{model_name.split('.')[0]}"
-            for model_name in HOSTED_MODELS.keys()
+            f"{cls.name}/{Path(model_name).stem}"
+            for model_name in ModelWeights.list_models()
         ]
 
     @classmethod
@@ -59,15 +58,21 @@ class RFDETRPackage(Package):
         load_weights: bool = True,
     ) -> RFDETR:
         try:
-            from rfdetr import (
+            from rfdetr.detr import (
                 RFDETRBase,
                 RFDETRLarge,
                 RFDETRMedium,
                 RFDETRNano,
+                RFDETRSeg2XLarge,
+                RFDETRSegLarge,
+                RFDETRSegMedium,
+                RFDETRSegNano,
                 RFDETRSegPreview,
+                RFDETRSegSmall,
+                RFDETRSegXLarge,
                 RFDETRSmall,
             )
-            from rfdetr.main import HOSTED_MODELS
+            from rfdetr.assets.model_weights import ModelWeights
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because rfdetr is not installed."
@@ -82,40 +87,44 @@ class RFDETRPackage(Package):
         # Remove these arguments so that get_model() only returns the full model
         args.pop("encoder_only", None)
         args.pop("backbone_only", None)
-        if not load_weights:
-            args["pretrain_weights"] = None
-
-        model_names = [model_name.split(".")[0] for model_name in HOSTED_MODELS.keys()]
-        if model_name not in model_names:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. "
-                f"Supported model names are: {model_names}"
-            )
-        model_rfdetr: RFDETR
-        if "base" in model_name:
-            # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRBase(**args)  # type: ignore[no-untyped-call]
-        elif "nano" in model_name:
-            # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRNano(**args)  # type: ignore[no-untyped-call]
-        elif "small" in model_name:
-            # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRSmall(**args)  # type: ignore[no-untyped-call]
-        elif "medium" in model_name:
-            # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRMedium(**args)  # type: ignore[no-untyped-call]
-        elif "seg-preview" in model_name:
-            # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRSegPreview(**args)  # type: ignore[no-untyped-call]
-        elif "large" in model_name:
-            # Type ignore as typing **args correctly is too complex
-            model_rfdetr = RFDETRLarge(**args)  # type: ignore[no-untyped-call]
-        else:
+        model_name = Path(model_name).stem
+        model_assets = {Path(asset.filename).stem: asset for asset in ModelWeights}
+        if model_name not in model_assets:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. "
                 f"Supported model names are: {cls.list_model_names()}"
             )
 
+        if load_weights:
+            args.setdefault("pretrain_weights", model_assets[model_name].filename)
+        else:
+            args["pretrain_weights"] = None
+
+        model_constructors: dict[str, type[RFDETR]] = {
+            "rf-detr-base": RFDETRBase,
+            "rf-detr-base-o365": RFDETRBase,
+            "rf-detr-base-2": RFDETRBase,
+            "rf-detr-large": RFDETRLarge,
+            "rf-detr-large-2026": RFDETRLarge,
+            "rf-detr-nano": RFDETRNano,
+            "rf-detr-small": RFDETRSmall,
+            "rf-detr-medium": RFDETRMedium,
+            "rf-detr-seg-preview": RFDETRSegPreview,
+            "rf-detr-seg-nano": RFDETRSegNano,
+            "rf-detr-seg-small": RFDETRSegSmall,
+            "rf-detr-seg-medium": RFDETRSegMedium,
+            "rf-detr-seg-large": RFDETRSegLarge,
+            "rf-detr-seg-xlarge": RFDETRSegXLarge,
+            "rf-detr-seg-xxlarge": RFDETRSeg2XLarge,
+        }
+        model_ctor = model_constructors.get(model_name)
+        if model_ctor is None:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. "
+                f"Supported model names are: {cls.list_model_names()}"
+            )
+
+        model_rfdetr = model_ctor(**args)  # type: ignore[no-untyped-call]
         return model_rfdetr
 
     @classmethod
