@@ -248,6 +248,8 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         # hardcoded, but we may want to make them configurable in the future
         # (with logger_args).
         self.viz_max_images = 4
+        self.viz_alpha = 0.5
+        self.viz_score_threshold = 0.1
 
     def get_task_model(self) -> DINOv3EoMTInstanceSegmentation:
         return self.model
@@ -326,9 +328,10 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         if step < 3 and fabric.global_rank == 0:
             label_image = plot_instance_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
+                class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
             )
 
         return TaskStepResult(
@@ -437,16 +440,19 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         if step < 3 and fabric.global_rank == 0:
             label_image = plot_instance_segmentation_labels(
                 batch=batch,
-                included_classes=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
+                class_names=self.model.included_classes,
                 max_images=self.viz_max_images,
+                image_normalize=self.model.image_normalize,
+                alpha=self.viz_alpha,
             )
             prediction_image = plot_instance_segmentation_predictions(
                 batch=batch,
                 predictions=predictions,
-                included_classes=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
+                class_names=self.model.included_classes,
                 max_images=self.viz_max_images,
+                image_normalize=self.model.image_normalize,
+                alpha=self.viz_alpha,
+                score_threshold=self.viz_score_threshold,
             )
         return TaskStepResult(
             loss=loss,

@@ -138,17 +138,67 @@ def test__draw_class_legend__mismatched_colors_and_labels_raises() -> None:
         utils._draw_class_legend(image=image, labels=["a", "b"], colors=[(255, 0, 0)])
 
 
-def test__build_mask_overlay__colors_known_classes_skips_unknown_and_resizes() -> None:
+def test__build_semantic_mask_overlay__colors_known_classes_skips_unknown_and_resizes() -> (
+    None
+):
     # Top half is class 0 (in class_names → colored). Bottom half is class 5
     # (not in class_names → stays black). Output size differs from mask, so
     # nearest-neighbor resize is exercised.
     mask = torch.zeros(4, 4, dtype=torch.long)
     mask[2:, :] = 5
-    result = utils._build_mask_overlay(mask=mask, size=(8, 8), class_names={0: "a"})
+    result = utils._build_semantic_mask_overlay(
+        mask=mask, size=(8, 8), class_names={0: "a"}
+    )
     assert result.mode == "RGB"
     assert result.size == (8, 8)
     assert result.getpixel((0, 0)) == _CLASS_0_COLOR
     assert result.getpixel((0, 7)) == _BACKGROUND_PIXEL
+
+
+def test__bboxes_from_masks__tight_bounds_and_skips_empty() -> None:
+    # Three instances on an 8x8 canvas:
+    #   0: rows 1-3, cols 2-5 → tight box [2, 1, 5, 3].
+    #   1: empty (no foreground pixels) → skipped.
+    #   2: a single pixel at (col=6, row=7) → degenerate box [6, 7, 6, 7].
+    # Note: bboxes use inclusive max coords (xs.max() / ys.max(), no +1).
+    masks = torch.zeros(3, 8, 8, dtype=torch.bool)
+    masks[0, 1:4, 2:6] = True
+    masks[2, 7, 6] = True
+    boxes, keep = utils._bboxes_from_masks(masks=masks)
+    # The keep tensor preserves the original instance order so callers can use
+    # it to filter parallel arrays (labels, scores) — index 1 must be False.
+    assert keep.tolist() == [True, False, True]
+    assert boxes.shape == (2, 4)
+    assert boxes[0].tolist() == [2.0, 1.0, 5.0, 3.0]
+    assert boxes[1].tolist() == [6.0, 7.0, 6.0, 7.0]
+
+
+def test__draw_labeled_boxes__draws_outline_and_label_in_class_color() -> None:
+    # Single 64x64 box at (32, 32) on a 128x128 canvas. y1=32 leaves room for
+    # the label above the box, so the label rectangle is drawn above and is
+    # filled with the class color.
+    image = Image.new("RGB", (128, 128), color=_BACKGROUND_PIXEL)
+    bboxes = torch.tensor([[32.0, 32.0, 96.0, 96.0]])
+    labels = torch.tensor([1], dtype=torch.long)
+    utils._draw_labeled_boxes(
+        image=image,
+        bboxes_xyxy=bboxes,
+        labels=labels,
+        scores=None,
+        class_names={1: "dog"},
+    )
+    # Each of the four corners is painted in class 1's color — catches a
+    # regression where the bbox is drawn in the wrong color (e.g. a hard-coded
+    # color or class 0's color regardless of label).
+    assert image.getpixel((32, 32)) == _CLASS_1_COLOR
+    assert image.getpixel((96, 32)) == _CLASS_1_COLOR
+    assert image.getpixel((32, 96)) == _CLASS_1_COLOR
+    assert image.getpixel((96, 96)) == _CLASS_1_COLOR
+    # Box interior remains background (only the outline is drawn).
+    assert image.getpixel((64, 64)) == _BACKGROUND_PIXEL
+    # The label rectangle sits above the box and is filled with class 1's
+    # color, so a pixel just above the box at x=34 lands inside the label.
+    assert image.getpixel((34, 30)) == _CLASS_1_COLOR
 
 
 def test__draw_mask_contours__paints_boundary_keeps_interior() -> None:
