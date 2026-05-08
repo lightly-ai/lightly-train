@@ -51,10 +51,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.instance_segmentation import (
-    plot_instance_segmentation_labels,
-    plot_instance_segmentation_predictions,
-)
+from lightly_train._visualize import instance_segmentation
 from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 
@@ -326,7 +323,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
 
         label_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            label_image = plot_instance_segmentation_labels(
+            label_image = instance_segmentation.plot_instance_segmentation_labels(
                 batch=batch,
                 class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
@@ -438,21 +435,23 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         label_image: PILImage | None = None
         prediction_image: PILImage | None = None
         if step < 3 and fabric.global_rank == 0:
-            label_image = plot_instance_segmentation_labels(
+            label_image = instance_segmentation.plot_instance_segmentation_labels(
                 batch=batch,
                 class_names=self.model.included_classes,
                 max_images=self.viz_max_images,
                 image_normalize=self.model.image_normalize,
                 alpha=self.viz_alpha,
             )
-            prediction_image = plot_instance_segmentation_predictions(
-                batch=batch,
-                predictions=predictions,
-                class_names=self.model.included_classes,
-                max_images=self.viz_max_images,
-                image_normalize=self.model.image_normalize,
-                alpha=self.viz_alpha,
-                score_threshold=self.viz_score_threshold,
+            prediction_image = (
+                instance_segmentation.plot_instance_segmentation_predictions(
+                    batch=batch,
+                    predictions=predictions,
+                    class_names=self.model.included_classes,
+                    max_images=self.viz_max_images,
+                    image_normalize=self.model.image_normalize,
+                    alpha=self.viz_alpha,
+                    score_threshold=self.viz_score_threshold,
+                )
             )
         return TaskStepResult(
             loss=loss,
