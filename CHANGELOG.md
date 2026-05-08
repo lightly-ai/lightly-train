@@ -17,6 +17,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Update supported RF-DETR model names for the latest upstream release.
+
 ### Security
 
 ## [0.15.0] - 2026-04-16
