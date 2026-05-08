@@ -67,7 +67,7 @@ def test_plot_semantic_segmentation_labels__grid_caps_at_max_images() -> None:
     batch = _make_batch(batch_size=4, height=16, width=16)
     result = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={0: "_"},
+        class_names={0: "_"},
         max_images=2,
         image_normalize=None,
         alpha=0.0,
@@ -87,7 +87,7 @@ def test_plot_semantic_segmentation_labels__no_image_normalize_skips_denormaliza
     )
     result = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={},
+        class_names={},
         max_images=1,
         image_normalize=None,
         alpha=0.0,
@@ -105,7 +105,7 @@ def test_plot_semantic_segmentation_labels__image_normalize_denormalizes() -> No
     )
     result = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={},
+        class_names={},
         max_images=1,
         image_normalize={"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)},
         alpha=0.0,
@@ -126,7 +126,7 @@ def test_plot_semantic_segmentation_labels__alpha_one_replaces_image_with_mask_c
     )
     result = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={0: "cat"},
+        class_names={0: "cat"},
         max_images=1,
         image_normalize=None,
         alpha=1.0,
@@ -147,7 +147,7 @@ def test_plot_semantic_segmentation_labels__contours_drawn_at_class_boundary() -
     )
     result = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={0: "cat", 1: "dog"},
+        class_names={0: "cat", 1: "dog"},
         max_images=1,
         image_normalize=None,
         alpha=1.0,
@@ -173,14 +173,14 @@ def test_plot_semantic_segmentation_labels__legend_skips_class_not_in_included_c
     )
     with_known_class = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={0: "cat"},
+        class_names={0: "cat"},
         max_images=1,
         image_normalize=None,
         alpha=0.0,
     )
     with_unknown_class = semantic_segmentation.plot_semantic_segmentation_labels(
         batch=batch,
-        included_classes={1: "dog"},
+        class_names={1: "dog"},
         max_images=1,
         image_normalize=None,
         alpha=0.0,
@@ -209,7 +209,7 @@ def test_plot_semantic_segmentation_predictions__overlay_matches_argmax_class() 
     result = semantic_segmentation.plot_semantic_segmentation_predictions(
         batch=batch,
         logits=[logits],
-        included_classes={0: "cat", 1: "dog"},
+        class_names={0: "cat", 1: "dog"},
         max_images=1,
         image_normalize=None,
         alpha=1.0,
