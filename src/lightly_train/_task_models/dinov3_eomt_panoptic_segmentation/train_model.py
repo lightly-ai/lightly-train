@@ -14,7 +14,6 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -367,21 +366,23 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
-        label_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = panoptic_segmentation.plot_panoptic_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
+        visualization = None
+        if self.should_visualize_step(fabric=fabric, step=step):
+            visualization = (
+                panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
             )
 
         return TaskStepResult(
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
-            label_image=label_image,
+            visualization=visualization,
         )
 
     def validation_step(
@@ -491,18 +492,10 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
 
-        label_image: PILImage | None = None
-        prediction_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = panoptic_segmentation.plot_panoptic_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
-            )
-            prediction_image = (
-                panoptic_segmentation.plot_panoptic_segmentation_predictions(
+        visualization = None
+        if self.should_visualize_step(fabric=fabric, step=step):
+            visualization = (
+                panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
                     batch=batch,
                     pred_masks=pred_masks,
                     class_names=self.model.included_classes,
@@ -516,8 +509,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            label_image=label_image,
-            prediction_image=prediction_image,
+            visualization=visualization,
         )
 
     def mask_annealing(

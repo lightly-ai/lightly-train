@@ -13,7 +13,6 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
-from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import CrossEntropyLoss
 from torch.optim.adamw import AdamW
@@ -172,20 +171,23 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         if self.metric_args.train:
             self.train_metrics.update_with_predictions(logits.argmax(dim=1), masks)
 
-        label_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
+        visualization = None
+        if self.should_visualize_step(fabric=fabric, step=step):
+            visualization = (
+                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
             )
+
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.train_metrics,
-            label_image=label_image,
+            visualization=visualization,
         )
 
     def validation_step(
@@ -223,34 +225,24 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
 
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
-        label_image: PILImage | None = None
-        prediction_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
-            )
-            if logits is not None:
-                prediction_image = (
-                    semantic_segmentation.plot_semantic_segmentation_predictions(
-                        batch=batch,
-                        logits=logits,
-                        class_names=self.model.included_classes,
-                        image_normalize=self.model.image_normalize,
-                        max_images=self.viz_max_images,
-                        alpha=self.viz_alpha,
-                    )
+        visualization = None
+        if self.should_visualize_step(fabric=fabric, step=step):
+            visualization = (
+                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    logits=logits,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
                 )
+            )
 
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            label_image=label_image,
-            prediction_image=prediction_image,
+            visualization=visualization,
         )
 
     def get_optimizer(

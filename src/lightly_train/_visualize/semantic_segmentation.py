@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -15,6 +17,37 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
 from lightly_train.types import MaskSemanticSegmentationBatch
+
+
+@dataclass
+class SemanticSegmentationTaskStepVisualization:
+    batch: MaskSemanticSegmentationBatch
+    class_names: dict[int, str]
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    alpha: float
+    logits: list[Tensor] | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_semantic_segmentation_labels(
+            batch=self.batch,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+            alpha=self.alpha,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.logits is None:
+            return None
+        return plot_semantic_segmentation_predictions(
+            batch=self.batch,
+            logits=self.logits,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+            alpha=self.alpha,
+        )
 
 
 def plot_semantic_segmentation_labels(

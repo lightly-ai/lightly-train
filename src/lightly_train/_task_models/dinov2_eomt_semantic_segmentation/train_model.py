@@ -14,7 +14,6 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import ModuleList
 from torch.optim.adamw import AdamW
@@ -323,20 +322,23 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 current_iter=step,
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
-        label_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
+        visualization = None
+        if self.should_visualize_step(fabric=fabric, step=step):
+            visualization = (
+                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
             )
+
         return TaskStepResult(
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
-            label_image=label_image,
+            visualization=visualization,
         )
 
     def validation_step(
@@ -417,34 +419,24 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
-        label_image: PILImage | None = None
-        prediction_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = semantic_segmentation.plot_semantic_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
-            )
-            if pred_logits is not None:
-                prediction_image = (
-                    semantic_segmentation.plot_semantic_segmentation_predictions(
-                        batch=batch,
-                        logits=pred_logits,
-                        class_names=self.model.included_classes,
-                        image_normalize=self.model.image_normalize,
-                        max_images=self.viz_max_images,
-                        alpha=self.viz_alpha,
-                    )
+        visualization = None
+        if self.should_visualize_step(fabric=fabric, step=step):
+            visualization = (
+                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    logits=pred_logits,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
                 )
+            )
 
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            label_image=label_image,
-            prediction_image=prediction_image,
+            visualization=visualization,
         )
 
     def mask_annealing(

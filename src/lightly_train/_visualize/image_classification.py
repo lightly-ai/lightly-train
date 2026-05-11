@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
@@ -16,6 +17,38 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
 from lightly_train.types import ImageClassificationBatch
+
+
+@dataclass
+class ImageClassificationTaskStepVisualization:
+    batch: ImageClassificationBatch
+    class_names: dict[int, str]
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    top_k: int = 1
+    classification_task: Literal["multiclass", "multilabel"] = "multiclass"
+    logits: Tensor | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_image_classification_labels(
+            batch=self.batch,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.logits is None:
+            return None
+        return plot_image_classification_predictions(
+            batch=self.batch,
+            logits=self.logits,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            top_k=self.top_k,
+            max_images=self.max_images,
+            classification_task=self.classification_task,
+        )
 
 
 def plot_image_classification_labels(
