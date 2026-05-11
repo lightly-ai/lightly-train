@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 import re
 from typing import Any, ClassVar, Literal
@@ -48,6 +49,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
     DINOv3LTDETRObjectDetectionValTransformArgs,
 )
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
+from lightly_train._task_models.object_detection_components.flat_cosine import (
+    FlatCosineLRScheduler,
+)
 from lightly_train._task_models.object_detection_components.matcher import (
     HungarianMatcher,
 )
@@ -67,6 +71,8 @@ from lightly_train._task_models.train_model import (
 from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
+
+logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
@@ -119,6 +125,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_lr_factor: float = 1e-2
 
     # Scheduler configuration
+    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
     scheduler_start_factor: float = 0.01
     lr_warmup_steps: int = Field(
         default=2000,
@@ -552,12 +559,31 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )
-        # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
-        scheduler = LinearLR(
-            optimizer=optim,
-            total_iters=self.model_args.lr_warmup_steps,
-            start_factor=self.model_args.scheduler_start_factor,
-        )
+        scheduler: LRScheduler
+        if self.model_args.scheduler_name == "linear":
+            if self.model_args.lr_warmup_steps > total_steps:
+                logger.warning(
+                    f"{self.model_args.scheduler_name} scheduler has "
+                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"and total_steps={total_steps}; the schedule will not complete "
+                    "as intended."
+                )
+            scheduler = LinearLR(
+                optimizer=optim,
+                total_iters=self.model_args.lr_warmup_steps,
+                start_factor=self.model_args.scheduler_start_factor,
+            )
+        elif self.model_args.scheduler_name == "flat-cosine":
+            scheduler = FlatCosineLRScheduler(
+                optimizer=optim,
+                total_steps=total_steps,
+                warmup_steps=self.model_args.lr_warmup_steps,
+            )
+        else:
+            raise ValueError(
+                f"Unknown scheduler: {self.model_args.scheduler_name!r}. "
+                "Expected 'linear' or 'flat-cosine'."
+            )
 
         return optim, scheduler
 
