@@ -1724,11 +1724,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                         )
 
-                    if is_first_val_step and val_step < 3 and fabric.global_rank == 0:
+                    if val_step < 3 and fabric.global_rank == 0:
                         visualization_helpers.save_val_step_visualizations(
                             result=val_result,
                             out_dir=out_dir,
                             val_step=val_step,
+                            save_label_image=is_first_val_step,
                         )
                     val_result.clear_visualizations()
 

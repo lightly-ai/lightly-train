@@ -30,16 +30,18 @@ def save_val_step_visualizations(
     result: TaskStepResult,
     out_dir: Path,
     val_step: int,
+    save_label_image: bool = False,
 ) -> None:
     viz_dir = _image_examples_dir(out_dir)
     _save_image(
         image=result.create_prediction_image(),
         path=viz_dir / f"val_predictions_{val_step}.jpg",
     )
-    _save_image(
-        image=result.create_label_image(),
-        path=viz_dir / "val_labels_0.jpg",
-    )
+    if save_label_image:
+        _save_image(
+            image=result.create_label_image(),
+            path=viz_dir / f"val_labels_{val_step}.jpg",
+        )
 
 
 def _image_examples_dir(out_dir: Path) -> Path:
