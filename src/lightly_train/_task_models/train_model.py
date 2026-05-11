@@ -157,6 +157,3 @@ class TaskStepResult:
         if self.visualization is None:
             return None
         return self.visualization.create_prediction_image()
-
-    def clear_visualizations(self) -> None:
-        self.visualization = None
