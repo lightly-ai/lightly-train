@@ -112,8 +112,7 @@ def plot_object_detection_predictions(
 ) -> PILImage:
     """Render a grid of images annotated with predicted bounding boxes.
 
-    Predictions are filtered by score_threshold and capped at max_pred_boxes per
-    image, selecting the highest-confidence detections.
+    Predictions are filtered by score_threshold selecting the highest-confidence detections.
 
     Args:
         batch: Object detection batch with images and original_size.
