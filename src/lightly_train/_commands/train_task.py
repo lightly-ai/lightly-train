@@ -1561,8 +1561,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         val_log_steps = {
             step for step in [1, 2, 5, 10, 50, 100] if step < val_log_every_num_steps
         }
-        first_val_train_step = min(val_every_num_steps, config.steps) - 1
-
         for step in range(start_step, config.steps):
             state["step"] = step
             current_epoch = helpers.get_training_epoch(
@@ -1573,7 +1571,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             is_last_step = step + 1 == config.steps
             is_log_step = step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
             is_val_step = (step + 1) % val_every_num_steps == 0
-            is_first_val_step = step == first_val_train_step
             is_save_ckpt_step = (step + 1) % no_auto(
                 config.save_checkpoint_args.save_every_num_steps
             ) == 0
@@ -1618,7 +1615,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         out_dir=out_dir,
                         step=step,
                     )
-                train_result.clear_visualizations()
 
             # Optimizer step and scheduler step.
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
@@ -1729,9 +1725,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             result=val_result,
                             out_dir=out_dir,
                             val_step=val_step,
-                            save_label_image=is_first_val_step,
                         )
-                    val_result.clear_visualizations()
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")

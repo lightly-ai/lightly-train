@@ -172,7 +172,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
             self.train_metrics.update_with_predictions(logits.argmax(dim=1), masks)
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
@@ -226,7 +226,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,

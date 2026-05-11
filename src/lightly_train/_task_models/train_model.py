@@ -91,10 +91,6 @@ class TrainModel(Module):
         """Set the model to training mode."""
         self.train()
 
-    def should_visualize_step(self, fabric: Fabric, step: int) -> bool:
-        """Whether to create visualization payloads for this step."""
-        return step < 3 and fabric.global_rank == 0
-
     def get_task_model(self) -> TaskModel:
         """Returns the task model.
 

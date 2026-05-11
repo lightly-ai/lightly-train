@@ -316,7 +316,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             self.train_metrics.update_with_predictions(results, targets)
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = object_detection.ObjectDetectionTaskStepVisualization(
                 batch=batch,
                 class_names=self.model.included_classes,
@@ -404,7 +404,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         self.val_metrics.update_with_predictions(results, targets)
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = object_detection.ObjectDetectionTaskStepVisualization(
                 batch=batch,
                 results=results,

@@ -367,7 +367,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             )
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
                     batch=batch,
@@ -493,7 +493,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             )
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
                     batch=batch,

@@ -323,7 +323,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
@@ -420,7 +420,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,

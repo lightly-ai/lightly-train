@@ -317,7 +317,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
             )
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 instance_segmentation.InstanceSegmentationTaskStepVisualization(
                     batch=batch,
@@ -427,7 +427,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
         self.val_metrics.update_with_predictions(preds=predictions, target=binary_masks)
 
         visualization = None
-        if self.should_visualize_step(fabric=fabric, step=step):
+        if step < 3 and fabric.global_rank == 0:
             visualization = (
                 instance_segmentation.InstanceSegmentationTaskStepVisualization(
                     batch=batch,
