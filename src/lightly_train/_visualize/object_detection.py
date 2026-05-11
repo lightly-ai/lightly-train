@@ -170,11 +170,6 @@ def plot_object_detection_predictions(
             scores = scores[mask]
 
             if len(scores) > 0:
-                order = torch.argsort(scores, descending=True)
-                boxes = boxes[order]
-                class_ids = class_ids[order]
-                scores = scores[order]
-
                 utils._draw_labeled_boxes(
                     image=img,
                     bboxes_xyxy=boxes,

@@ -316,9 +316,11 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
+            visualization=(
                 instance_segmentation.InstanceSegmentationTaskStepVisualization(
                     batch=batch,
                     class_names=self.model.included_classes,
@@ -326,13 +328,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict=mask_prob_dict,
-            metrics=self.train_metrics,
-            visualization=visualization,
+            ),
         )
 
     def validation_step(
@@ -426,25 +422,19 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
 
         self.val_metrics.update_with_predictions(preds=predictions, target=binary_masks)
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
-                instance_segmentation.InstanceSegmentationTaskStepVisualization(
-                    batch=batch,
-                    predictions=predictions,
-                    class_names=self.model.included_classes,
-                    max_images=self.viz_max_images,
-                    image_normalize=self.model.image_normalize,
-                    alpha=self.viz_alpha,
-                    score_threshold=self.viz_score_threshold,
-                )
-            )
-
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            visualization=visualization,
+            visualization=instance_segmentation.InstanceSegmentationTaskStepVisualization(
+                batch=batch,
+                predictions=predictions,
+                class_names=self.model.included_classes,
+                max_images=self.viz_max_images,
+                image_normalize=self.model.image_normalize,
+                alpha=self.viz_alpha,
+                score_threshold=self.viz_score_threshold,
+            ),
         )
 
     def mask_annealing(

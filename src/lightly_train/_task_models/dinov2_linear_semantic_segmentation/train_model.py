@@ -171,9 +171,11 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         if self.metric_args.train:
             self.train_metrics.update_with_predictions(logits.argmax(dim=1), masks)
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.train_metrics,
+            visualization=(
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
                     class_names=self.model.included_classes,
@@ -181,13 +183,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict={},
-            metrics=self.train_metrics,
-            visualization=visualization,
+            ),
         )
 
     def validation_step(
@@ -224,10 +220,11 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         loss /= len(images)
 
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
-
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.val_metrics,
+            visualization=(
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
                     logits=logits,
@@ -236,13 +233,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict={},
-            metrics=self.val_metrics,
-            visualization=visualization,
+            ),
         )
 
     def get_optimizer(

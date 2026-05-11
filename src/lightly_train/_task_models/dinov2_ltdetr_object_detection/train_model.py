@@ -322,20 +322,16 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             )
             self.train_metrics.update_with_predictions(results, targets)
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = object_detection.ObjectDetectionTaskStepVisualization(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-            )
-
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
-            visualization=visualization,
+            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+                batch=batch,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+            ),
         )
 
     def on_train_batch_end(self) -> None:
@@ -410,22 +406,18 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(results, targets)
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = object_detection.ObjectDetectionTaskStepVisualization(
+        return TaskStepResult(
+            loss=total_loss,
+            log_dict={},
+            metrics=self.val_metrics,
+            visualization=object_detection.ObjectDetectionTaskStepVisualization(
                 batch=batch,
                 results=results,
                 class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 score_threshold=self.viz_score_threshold,
                 max_images=self.viz_max_images,
-            )
-
-        return TaskStepResult(
-            loss=total_loss,
-            log_dict={},
-            metrics=self.val_metrics,
-            visualization=visualization,
+            ),
         )
 
     def get_optimizer(

@@ -350,9 +350,11 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
+            visualization=(
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
                     class_names=self.model.included_classes,
@@ -360,13 +362,7 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict=mask_prob_dict,
-            metrics=self.train_metrics,
-            visualization=visualization,
+            ),
         )
 
     def validation_step(
@@ -446,24 +442,18 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         loss = self.criterion.loss_total(losses_all_layers=losses)
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
-                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
-                    batch=batch,
-                    logits=pred_logits,
-                    class_names=self.model.included_classes,
-                    image_normalize=self.model.image_normalize,
-                    max_images=self.viz_max_images,
-                    alpha=self.viz_alpha,
-                )
-            )
-
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            visualization=visualization,
+            visualization=semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                batch=batch,
+                logits=pred_logits,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+            ),
         )
 
     def mask_annealing(

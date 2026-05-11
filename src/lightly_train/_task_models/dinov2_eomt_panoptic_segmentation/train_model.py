@@ -355,9 +355,11 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict=mask_prob_dict,
+            metrics=self.train_metrics,
+            visualization=(
                 panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
                     batch=batch,
                     class_names=self.model.included_classes,
@@ -365,13 +367,7 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict=mask_prob_dict,
-            metrics=self.train_metrics,
-            visualization=visualization,
+            ),
         )
 
     def validation_step(
@@ -481,9 +477,11 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                 target=target_masks.unsqueeze(0),  # (1, H, W, 2)
             )
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.val_metrics,
+            visualization=(
                 panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
                     batch=batch,
                     pred_masks=pred_masks,
@@ -492,13 +490,7 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict={},
-            metrics=self.val_metrics,
-            visualization=visualization,
+            ),
         )
 
     def mask_annealing(

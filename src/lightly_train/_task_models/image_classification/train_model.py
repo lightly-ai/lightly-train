@@ -202,22 +202,18 @@ class ImageClassificationTrain(TrainModel):
             {"loss": loss.detach()}, weight=len(images)
         )
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.train_metrics,
+            visualization=(
                 image_classification.ImageClassificationTaskStepVisualization(
                     batch=batch,
                     class_names=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
                 )
-            )
-
-        return TaskStepResult(
-            loss=loss,
-            log_dict={},
-            metrics=self.train_metrics,
-            visualization=visualization,
+            ),
         )
 
     def validation_step(
@@ -245,25 +241,19 @@ class ImageClassificationTrain(TrainModel):
         self.val_metrics.update_with_predictions(logits, targets)
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
-        visualization = None
-        if step < 3 and fabric.global_rank == 0:
-            visualization = (
-                image_classification.ImageClassificationTaskStepVisualization(
-                    batch=batch,
-                    logits=logits,
-                    class_names=self.model.included_classes,
-                    image_normalize=self.model.image_normalize,
-                    top_k=self.viz_top_k,
-                    max_images=self.viz_max_images,
-                    classification_task=self.model.classification_task,
-                )
-            )
-
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            visualization=visualization,
+            visualization=image_classification.ImageClassificationTaskStepVisualization(
+                batch=batch,
+                logits=logits,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                top_k=self.viz_top_k,
+                max_images=self.viz_max_images,
+                classification_task=self.model.classification_task,
+            ),
         )
 
     def get_optimizer(
