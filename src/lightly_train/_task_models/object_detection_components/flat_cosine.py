@@ -17,6 +17,11 @@ DEIM: DETR with Improved Matching for Fast Convergence
 Copyright (c) 2024 The DEIM Authors. All Rights Reserved.
 """
 
+# Modifications Copyright 2026 Lightly AG
+# - Modifications:
+#    - Added errors for states that are considered invalid (i.e no cosine phase).
+#    - Refactored the code and logic to adheres to our standards and APIs.
+
 from __future__ import annotations
 
 import math
