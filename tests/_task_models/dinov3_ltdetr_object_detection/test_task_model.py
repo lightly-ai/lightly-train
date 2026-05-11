@@ -19,6 +19,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
+from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
+    DINOv3LTDETRObjectDetection,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrainArgs,
@@ -118,16 +121,19 @@ def test_resolve_auto__uses_explicit_patch_size(
     assert train_model.model.backbone.patch_size == 14
 
 
-def test_resolve_auto__keeps_convnext_auto(monkeypatch: pytest.MonkeyPatch) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
-    _, calls = _create_train_model_with_capture(
-        model_args,
-        model_name="dinov3/convnext-small-ltdetr",
-        monkeypatch=monkeypatch,
-    )
+def test_task_model_init_args_roundtrip_preserves_patch_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = _create_task_model(monkeypatch=monkeypatch, patch_size=14)
 
-    assert model_args.patch_size == "auto"
-    assert "patch_size" not in calls[0]["model_args"]
+    assert model.init_args["patch_size"] == 14
+
+    roundtrip_model = DINOv3LTDETRObjectDetection(
+        **model.init_args,
+        load_weights=False,
+    )
+    assert roundtrip_model.init_args == model.init_args
+    assert roundtrip_model.init_args["patch_size"] == 14
 
 
 def test_resolve_auto__uses_explicit_patch_size_for_convnext(
@@ -181,6 +187,42 @@ def _create_train_model(
     return train_model
 
 
+def _create_task_model(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
+    patch_size: int = 16,
+) -> DINOv3LTDETRObjectDetection:
+    monkeypatch.setattr(DINOV3_PACKAGE, "get_model", _fake_get_model)
+    return DINOv3LTDETRObjectDetection(
+        model_name=model_name,
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        patch_size=patch_size,
+        image_normalize=None,
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        load_weights=False,
+    )
+
+
+def _fake_get_model(*args: Any, **kwargs: Any) -> Any:
+    model_name = kwargs.get("model_name", args[0] if args else "")
+    model_args = kwargs.get("model_args", {}) or {}
+
+    if str(model_name).startswith("convnext"):
+        convnext_kwargs: dict[str, Any] = {"pretrained": False}
+        if "patch_size" in model_args:
+            convnext_kwargs["patch_size"] = int(model_args["patch_size"])
+        return backbones._dinov3_convnext_test(**convnext_kwargs)
+
+    return backbones._dinov3_vit_test(
+        pretrained=False,
+        patch_size=int(model_args.get("patch_size", 16)),
+    )
+
+
 def _create_train_model_with_capture(
     train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
     *,
@@ -192,19 +234,7 @@ def _create_train_model_with_capture(
 
     def fake_get_model(*args: Any, **kwargs: Any) -> Any:
         calls.append(dict(kwargs))
-        model_name = kwargs.get("model_name", args[0] if args else "")
-        model_args = kwargs.get("model_args", {}) or {}
-
-        if str(model_name).startswith("convnext"):
-            convnext_kwargs: dict[str, Any] = {"pretrained": False}
-            if "patch_size" in model_args:
-                convnext_kwargs["patch_size"] = int(model_args["patch_size"])
-            return backbones._dinov3_convnext_test(**convnext_kwargs)
-
-        return backbones._dinov3_vit_test(
-            pretrained=False,
-            patch_size=int(model_args.get("patch_size", 16)),
-        )
+        return _fake_get_model(*args, **kwargs)
 
     monkeypatch.setattr(DINOV3_PACKAGE, "get_model", fake_get_model)
 

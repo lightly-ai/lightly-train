@@ -171,13 +171,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.data_args = data_args
 
-        model_args_backbone_args_copy: dict[str, Any] = copy.deepcopy(
-            model_args.backbone_args
-        )
-        if isinstance(model_args.patch_size, int):
-            model_args_backbone_args_copy["patch_size"] = model_args.patch_size
-
-        backbone_args: dict[str, Any] | None = model_args_backbone_args_copy
+        backbone_args: dict[str, Any] | None = model_args.backbone_args
 
         if not backbone_args:
             backbone_args = None
@@ -199,6 +193,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
             backbone_args=backbone_args,
+            patch_size=no_auto(model_args.patch_size),
             backbone_weights=model_args.backbone_weights,
             load_weights=load_weights,
         )

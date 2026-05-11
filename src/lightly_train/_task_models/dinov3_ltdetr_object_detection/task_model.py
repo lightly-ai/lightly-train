@@ -449,12 +449,38 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         model_name: str,
         classes: dict[int, str],
         image_size: tuple[int, int],
+        patch_size: int,
         image_normalize: dict[str, Any] | None = None,
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
+        """Create a DINOv3 LTDETR object detection model.
+
+        Args:
+            model_name:
+                The model name. For example ``"vitt16-ltdetr"``.
+            classes:
+                A dict mapping class IDs to class names.
+            image_size:
+                The input image size.
+            patch_size:
+                Patch size used to initialize the DINOv3 backbone. This is stored in
+                ``init_args`` so exported checkpoints can be reconstructed with the
+                same backbone patch size.
+            image_normalize:
+                A dict containing normalization statistics with the keys ``"mean"``
+                and ``"std"``.
+            backbone_freeze:
+                Whether to freeze the backbone during training.
+            backbone_weights:
+                Path to the DINOv3 backbone weights.
+            backbone_args:
+                Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
+        """
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
@@ -480,7 +506,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {}
+        backbone_model_args: dict[str, Any] = {
+            "patch_size": patch_size,
+        }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
