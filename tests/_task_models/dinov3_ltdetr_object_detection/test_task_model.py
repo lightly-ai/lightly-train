@@ -249,8 +249,8 @@ def _create_train_model_with_capture(
         model_init_args=model_init_args,
     )
     return train_model, calls
-  
-  
+
+
 @pytest.mark.parametrize(
     ("scheduler_name", "scheduler_cls"),
     [
