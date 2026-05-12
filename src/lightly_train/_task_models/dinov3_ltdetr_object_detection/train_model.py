@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightning_fabric import Fabric
 from PIL.Image import Image as PILImage
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, computed_field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -144,6 +144,23 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_loss_weight_dict(self) -> dict[str, float]:
+        if self.decoder_name == "dfine":
+            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
+        return dict(self.loss_weight_dict)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_losses(self) -> list[str]:
+        if self.decoder_name == "dfine":
+            return [
+                *self.losses,
+                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
+            ]
+        return list(self.losses)
+
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
@@ -209,23 +226,16 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             gamma=model_args.matcher_gamma,
         )
 
-        loss_weight_dict = model_args.loss_weight_dict
-        losses = model_args.losses
         criterion: DFINECriterion | RTDETRCriterionv2
         if model_args.decoder_name == "dfine":
-            loss_weight_dict = {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **loss_weight_dict}
-            losses = [
-                *losses,
-                *(name for name in _DFINE_EXTRA_LOSSES if name not in losses),
-            ]
             self.train_loss_names = _DFINE_LOSS_NAMES
             self.val_loss_names = _RTDETRV2_LOSS_NAMES
             if not isinstance(self.model.decoder, DFINETransformer):
                 raise TypeError("decoder='dfine' requires a DFINETransformer decoder.")
             criterion = DFINECriterion(  # type: ignore[no-untyped-call]
                 matcher=matcher,
-                weight_dict=loss_weight_dict,
-                losses=losses,
+                weight_dict=model_args.effective_loss_weight_dict,
+                losses=model_args.effective_losses,
                 alpha=model_args.loss_alpha,
                 gamma=model_args.loss_gamma,
                 num_classes=len(data_args.included_classes),
@@ -236,8 +246,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             self.val_loss_names = _RTDETRV2_LOSS_NAMES
             criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
                 matcher=matcher,
-                weight_dict=loss_weight_dict,
-                losses=losses,
+                weight_dict=model_args.effective_loss_weight_dict,
+                losses=model_args.effective_losses,
                 alpha=model_args.loss_alpha,
                 gamma=model_args.loss_gamma,
                 num_classes=len(data_args.included_classes),
