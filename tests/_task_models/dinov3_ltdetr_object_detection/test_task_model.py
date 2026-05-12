@@ -27,12 +27,12 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model impor
     DINOv3LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrainArgs,
 )
-from lightly_train._task_models.object_detection_components.flat_cosine import (
-    FlatCosineLRScheduler,
-)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
     DINOv3LTDETRObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.object_detection_components.flat_cosine import (
+    FlatCosineLRScheduler,
 )
 
 
@@ -308,4 +308,3 @@ def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     config.resolve_auto(patch_size=patch_size)
 
     assert config.feat_strides == feat_strides
-
