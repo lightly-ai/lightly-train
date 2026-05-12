@@ -32,7 +32,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
 )
 
 
-def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_jitter() -> None:
+def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_jitter() -> (
+    None
+):
     data_args = YOLOObjectDetectionDataArgs(
         path=Path("/tmp/data"),
         train=Path("train") / "images",
