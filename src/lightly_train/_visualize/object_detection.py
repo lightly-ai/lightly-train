@@ -9,23 +9,16 @@ from __future__ import annotations
 
 import torch
 from PIL.Image import Image as PILImage
-from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
-from lightly_train._visualize.utils import (
-    _cxcywh_to_xyxy,
-    _denormalize_image,
-    _draw_bbox_label,
-    _get_class_color,
-    _render_grid,
-)
+from lightly_train._visualize import utils
 from lightly_train.types import ObjectDetectionBatch
 
 
 def plot_object_detection_labels(
     batch: ObjectDetectionBatch,
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     mean: tuple[float, ...] | None = None,
     std: tuple[float, ...] | None = None,
@@ -35,7 +28,7 @@ def plot_object_detection_labels(
     Args:
         batch: Object detection batch with images, bboxes (cxcywh normalized), and
             classes.
-        included_classes: Mapping from class ID to class name.
+        class_names: Mapping from class ID to class name.
         mean: Per-channel mean used for image normalization (for denormalization).
         std: Per-channel std used for image normalization (for denormalization).
         max_images: Maximum number of images to include in the grid.
@@ -51,41 +44,34 @@ def plot_object_detection_labels(
 
     pil_images: list[PILImage] = []
     for i in range(n):
-        image_tensor = gt_images[i].clone()
+        image_tensor = gt_images[i].clone().to(dtype=torch.float32)
         if mean is not None and std is not None:
-            image_tensor = _denormalize_image(image=image_tensor, mean=mean, std=std)
+            image_tensor = utils._denormalize_image(
+                image=image_tensor, mean=mean, std=std
+            )
 
         _, img_height, img_width = image_tensor.shape
         img = torchvision_functional.to_pil_image(image_tensor)
-        draw = PILDraw(img)
 
         boxes = gt_bboxes[i]
         class_ids = gt_classes[i]
-        if len(boxes) > 0:
-            boxes_xyxy = _cxcywh_to_xyxy(boxes=boxes, w=img_width, h=img_height)
-            for box, class_id in zip(boxes_xyxy, class_ids):
-                x1, y1, x2, y2 = box.tolist()
-                class_name = included_classes.get(
-                    int(class_id), f"Class {int(class_id)}"
-                )
-                color = _get_class_color(int(class_id))
-                draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                _draw_bbox_label(
-                    draw=draw,
-                    x1=x1,
-                    y1=y1,
-                    text=class_name,
-                    color=color,
-                )
+        boxes_xyxy = utils._cxcywh_to_xyxy(boxes=boxes, w=img_width, h=img_height)
+        utils._draw_labeled_boxes(
+            image=img,
+            bboxes_xyxy=boxes_xyxy,
+            labels=class_ids,
+            scores=None,
+            class_names=class_names,
+        )
         pil_images.append(img)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)
 
 
 def plot_object_detection_predictions(
     batch: ObjectDetectionBatch,
     results: list[dict[str, Tensor]],
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     score_threshold: float,
     max_pred_boxes: int,
@@ -101,7 +87,7 @@ def plot_object_detection_predictions(
         batch: Object detection batch with images and original_size.
         results: Postprocessor outputs, each a dict with 'boxes' (xyxy in original
             image coordinates), 'labels', and 'scores'.
-        included_classes: Mapping from class ID to class name.
+        class_names: Mapping from class ID to class name.
         score_threshold: Minimum score for a predicted box to be shown.
         max_pred_boxes: Maximum number of predicted boxes to show per image.
         mean: Per-channel mean used for image normalization (for denormalization).
@@ -123,16 +109,15 @@ def plot_object_detection_predictions(
 
     pil_images: list[PILImage] = []
     for i in range(n):
-        image_tensor = gt_images[i].clone()
+        image_tensor = gt_images[i].clone().to(dtype=torch.float32)
         if mean is not None and std is not None:
-            image_tensor = _denormalize_image(
+            image_tensor = utils._denormalize_image(
                 image=image_tensor,
                 mean=mean,
                 std=std,
             )
 
         img = torchvision_functional.to_pil_image(image_tensor)
-        draw = PILDraw(img)
 
         result = results[i]
         boxes = result["boxes"]
@@ -159,20 +144,13 @@ def plot_object_detection_predictions(
                 class_ids = class_ids[order]
                 scores = scores[order]
 
-                for box, class_id, score in zip(boxes, class_ids, scores):
-                    x1, y1, x2, y2 = box.tolist()
-                    class_name = included_classes.get(
-                        int(class_id), f"Class {int(class_id)}"
-                    )
-                    color = _get_class_color(int(class_id))
-                    draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                    _draw_bbox_label(
-                        draw=draw,
-                        x1=x1,
-                        y1=y1,
-                        text=f"{class_name} {score:.2f}",
-                        color=color,
-                    )
+                utils._draw_labeled_boxes(
+                    image=img,
+                    bboxes_xyxy=boxes,
+                    labels=class_ids,
+                    scores=scores,
+                    class_names=class_names,
+                )
         pil_images.append(img)
 
-    return _render_grid(pil_images)
+    return utils._render_grid(pil_images)

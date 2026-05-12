@@ -102,11 +102,12 @@ restored correctly.
 Dictionary with model-specific training parameters. The available keys vary by
 architecture. The table lists the most commonly tuned options:
 
-| Key                                             | Type                      | Description                        |
-| ----------------------------------------------- | ------------------------- | ---------------------------------- |
-| [`lr`](#lr)                                     | `float`                   | Base learning rate.                |
-| [`backbone_weights`](#backbone_weights)         | `Path`<br>`str`<br>`None` | Path to backbone weights to load.  |
-| [`metric_log_classwise`](#metric_log_classwise) | `bool`                    | Whether to log class-wise metrics. |
+| Key                                             | Type                      | Description                         |
+| ----------------------------------------------- | ------------------------- | ----------------------------------- |
+| [`lr`](#lr)                                     | `float`                   | Base learning rate.                 |
+| [`backbone_weights`](#backbone_weights)         | `Path`<br>`str`<br>`None` | Path to backbone weights to load.   |
+| [`metric_log_classwise`](#metric_log_classwise) | `bool`                    | Whether to log class-wise metrics.  |
+| [`scheduler_name`](#scheduler_name)             | `str`                     | Scheduler mode for LTDETR training. |
 
 #### `lr`
 
@@ -191,6 +192,26 @@ lightly_train.train_object_detection(
     ...,
     model_args={
         "metric_log_classwise": True,
+    },
+)
+```
+
+#### `scheduler_name`
+
+Scheduler mode for LTDETR object detection training. Supported values are:
+
+- `"linear"`: linear warmup via `LinearLR`
+- `"flat-cosine"`: LT-DETR-style warmup, flat, cosine decay, and final tail
+
+Any other value raises a `ValueError`. The legacy `scheduler` key is no longer accepted.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    model_args={
+        "scheduler_name": "flat-cosine",
     },
 )
 ```

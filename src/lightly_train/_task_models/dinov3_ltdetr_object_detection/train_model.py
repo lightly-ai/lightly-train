@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from typing import Any, ClassVar, Literal
 
@@ -52,6 +53,9 @@ from lightly_train._task_models.object_detection_components.dfine_decoder import
     DFINETransformer,
 )
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
+from lightly_train._task_models.object_detection_components.flat_cosine import (
+    FlatCosineLRScheduler,
+)
 from lightly_train._task_models.object_detection_components.matcher import (
     HungarianMatcher,
 )
@@ -69,10 +73,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.object_detection import (
-    plot_object_detection_labels,
-    plot_object_detection_predictions,
-)
+from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 _RTDETRV2_LOSS_WEIGHT_DICT: dict[str, float] = {
@@ -86,6 +87,7 @@ _RTDETRV2_LOSS_NAMES: list[str] = ["loss", *_RTDETRV2_LOSS_WEIGHT_DICT]
 _DFINE_EXTRA_LOSS_WEIGHT_DICT: dict[str, float] = {"loss_fgl": 0.15, "loss_ddf": 1.5}
 _DFINE_EXTRA_LOSSES: list[str] = ["local"]
 _DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT_DICT]
+logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
@@ -138,6 +140,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_lr_factor: float = 1e-2
 
     # Scheduler configuration
+    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
     scheduler_start_factor: float = 0.01
     lr_warmup_steps: int = Field(
         default=2000,
@@ -385,9 +388,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             normalize_std = (
                 tuple(self._normalize.std) if self._normalize is not None else None
             )
-            label_image = plot_object_detection_labels(
+            label_image = object_detection.plot_object_detection_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
@@ -476,17 +479,17 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             normalize_std = (
                 tuple(self._normalize.std) if self._normalize is not None else None
             )
-            label_image = plot_object_detection_labels(
+            label_image = object_detection.plot_object_detection_labels(
                 batch=batch,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 max_images=self.viz_max_images,
             )
-            prediction_image = plot_object_detection_predictions(
+            prediction_image = object_detection.plot_object_detection_predictions(
                 batch=batch,
                 results=results,
-                included_classes=self.data_args.included_classes,
+                class_names=self.data_args.included_classes,
                 mean=normalize_mean,
                 std=normalize_std,
                 score_threshold=self.viz_score_threshold,
@@ -580,12 +583,31 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             betas=self.model_args.optimizer_betas,
             weight_decay=self.model_args.weight_decay,
         )
-        # TODO (Thomas, 11/25): Change to flat-cosine with warmup.
-        scheduler = LinearLR(
-            optimizer=optim,
-            total_iters=self.model_args.lr_warmup_steps,
-            start_factor=self.model_args.scheduler_start_factor,
-        )
+        scheduler: LRScheduler
+        if self.model_args.scheduler_name == "linear":
+            if self.model_args.lr_warmup_steps > total_steps:
+                logger.warning(
+                    f"{self.model_args.scheduler_name} scheduler has "
+                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"and total_steps={total_steps}; the schedule will not complete "
+                    "as intended."
+                )
+            scheduler = LinearLR(
+                optimizer=optim,
+                total_iters=self.model_args.lr_warmup_steps,
+                start_factor=self.model_args.scheduler_start_factor,
+            )
+        elif self.model_args.scheduler_name == "flat-cosine":
+            scheduler = FlatCosineLRScheduler(
+                optimizer=optim,
+                total_steps=total_steps,
+                warmup_steps=self.model_args.lr_warmup_steps,
+            )
+        else:
+            raise ValueError(
+                f"Unknown scheduler: {self.model_args.scheduler_name!r}. "
+                "Expected 'linear' or 'flat-cosine'."
+            )
 
         return optim, scheduler
 

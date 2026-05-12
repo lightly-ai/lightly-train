@@ -525,6 +525,13 @@ LightlyTrain supports the following model and workflow combinations.
 
 [Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 
+## LightlyTrain in Research
+
+- [Unlabeled to Accurate: Self-Supervised Learning for Land Use Classification in Sentinel-2 Imagery](https://ieeexplore.ieee.org/abstract/document/11087068)
+- [Vision Foundry: A System for Training Foundational Vision AI Models](https://arxiv.org/abs/2512.11837)
+- [EdgeCrafter: Compact ViTs for Edge Dense Prediction via Task-Specialized Distillation](https://arxiv.org/abs/2603.18739)
+- [Real-Time Object Detection Meets DINOv3](https://arxiv.org/abs/2509.20787)
+
 ## Usage Events
 
 LightlyTrain collects anonymous usage events to help us improve the product. We only

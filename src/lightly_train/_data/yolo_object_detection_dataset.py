@@ -118,7 +118,6 @@ class YOLOObjectDetectionDatasetArgs(TaskDatasetArgs):
     skip_if_label_file_missing: bool
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
-
         class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
                 class_ids=self.classes.keys(),
