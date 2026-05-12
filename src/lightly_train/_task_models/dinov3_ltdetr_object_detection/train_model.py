@@ -15,7 +15,7 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightning_fabric import Fabric
 from PIL.Image import Image as PILImage
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, computed_field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -46,6 +46,12 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
     DINOv3LTDETRObjectDetectionValTransform,
     DINOv3LTDETRObjectDetectionValTransformArgs,
 )
+from lightly_train._task_models.object_detection_components.dfine_criterion import (
+    DFINECriterion,
+)
+from lightly_train._task_models.object_detection_components.dfine_decoder import (
+    DFINETransformer,
+)
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -70,6 +76,17 @@ from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
+_RTDETRV2_LOSS_WEIGHT_DICT: dict[str, float] = {
+    "loss_vfl": 1.0,
+    "loss_bbox": 5.0,
+    "loss_giou": 2.0,
+}
+_RTDETRV2_LOSSES: list[str] = ["vfl", "boxes"]
+_RTDETRV2_LOSS_NAMES: list[str] = ["loss", *_RTDETRV2_LOSS_WEIGHT_DICT]
+
+_DFINE_EXTRA_LOSS_WEIGHT_DICT: dict[str, float] = {"loss_fgl": 0.15, "loss_ddf": 1.5}
+_DFINE_EXTRA_LOSSES: list[str] = ["local"]
+_DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT_DICT]
 logger = logging.getLogger(__name__)
 
 
@@ -83,6 +100,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
     backbone_freeze: bool = False
+    decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -98,9 +116,9 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     # Criterion configuration
     loss_weight_dict: dict[str, float] = Field(
-        default_factory=lambda: {"loss_vfl": 1.0, "loss_bbox": 5.0, "loss_giou": 2.0}
+        default_factory=lambda: dict(_RTDETRV2_LOSS_WEIGHT_DICT)
     )
-    losses: list[str] = Field(default_factory=lambda: ["vfl", "boxes"])
+    losses: list[str] = Field(default_factory=lambda: list(_RTDETRV2_LOSSES))
     loss_alpha: float = 0.75
     loss_gamma: float = 2.0
 
@@ -128,6 +146,23 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         default=2000,
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_loss_weight_dict(self) -> dict[str, float]:
+        if self.decoder_name == "dfine":
+            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
+        return dict(self.loss_weight_dict)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_losses(self) -> list[str]:
+        if self.decoder_name == "dfine":
+            return [
+                *self.losses,
+                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
+            ]
+        return list(self.losses)
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):
@@ -174,6 +209,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             backbone_freeze=model_args.backbone_freeze,
             backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
             backbone_weights=model_args.backbone_weights,
+            decoder_name=model_args.decoder_name,
             load_weights=load_weights,
         )
 
@@ -193,24 +229,42 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             gamma=model_args.matcher_gamma,
         )
 
-        self.criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
-            matcher=matcher,
-            weight_dict=model_args.loss_weight_dict,
-            losses=model_args.losses,
-            alpha=model_args.loss_alpha,
-            gamma=model_args.loss_gamma,
-            num_classes=len(data_args.included_classes),
-        )
+        criterion: DFINECriterion | RTDETRCriterionv2
+        if model_args.decoder_name == "dfine":
+            self.train_loss_names = _DFINE_LOSS_NAMES
+            self.val_loss_names = _RTDETRV2_LOSS_NAMES
+            if not isinstance(self.model.decoder, DFINETransformer):
+                raise TypeError("decoder='dfine' requires a DFINETransformer decoder.")
+            criterion = DFINECriterion(  # type: ignore[no-untyped-call]
+                matcher=matcher,
+                weight_dict=model_args.effective_loss_weight_dict,
+                losses=model_args.effective_losses,
+                alpha=model_args.loss_alpha,
+                gamma=model_args.loss_gamma,
+                num_classes=len(data_args.included_classes),
+                reg_max=self.model.decoder.reg_max,
+            )
+        else:
+            self.train_loss_names = _RTDETRV2_LOSS_NAMES
+            self.val_loss_names = _RTDETRV2_LOSS_NAMES
+            criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
+                matcher=matcher,
+                weight_dict=model_args.effective_loss_weight_dict,
+                losses=model_args.effective_losses,
+                alpha=model_args.loss_alpha,
+                gamma=model_args.loss_gamma,
+                num_classes=len(data_args.included_classes),
+            )
+        self.criterion = criterion
 
         class_names = list(data_args.included_classes.values())
-        self.loss_names = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
         self.metric_args = metric_args
         self.train_metrics = ObjectDetectionTaskMetric(
             task_metric_args=metric_args,
             split="train",
             class_names=class_names,
             box_format="xyxy",
-            loss_names=self.loss_names,
+            loss_names=self.train_loss_names,
             train_loss_running_mean_window=gradient_accumulation_steps,
         )
         self.val_metrics = ObjectDetectionTaskMetric(
@@ -218,7 +272,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             split="val",
             class_names=class_names,
             box_format="xyxy",
-            loss_names=self.loss_names,
+            loss_names=self.val_loss_names,
         )
 
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently
@@ -303,12 +357,11 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         # Metrics
         self.train_metrics.update_with_losses(
-            loss_dict={
-                "loss": total_loss.detach(),
-                "loss_vfl": loss_dict["loss_vfl"].detach(),
-                "loss_bbox": loss_dict["loss_bbox"].detach(),
-                "loss_giou": loss_dict["loss_giou"].detach(),
-            },
+            loss_dict=_get_loss_log_dict(
+                total_loss=total_loss,
+                loss_dict=loss_dict,
+                loss_names=self.train_loss_names,
+            ),
             weight=samples.shape[0],
         )
         if self.metric_args.train:
@@ -408,12 +461,11 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
 
         # Metrics
         self.val_metrics.update_with_losses(
-            loss_dict={
-                "loss": total_loss.detach(),
-                "loss_vfl": loss_dict["loss_vfl"].detach(),
-                "loss_bbox": loss_dict["loss_bbox"].detach(),
-                "loss_giou": loss_dict["loss_giou"].detach(),
-            },
+            loss_dict=_get_loss_log_dict(
+                total_loss=total_loss,
+                loss_dict=loss_dict,
+                loss_names=self.val_loss_names,
+            ),
             weight=samples.shape[0],
         )
         self.val_metrics.update_with_predictions(results, targets)
@@ -570,3 +622,31 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 max_norm=self.model_args.gradient_clip_val,
                 error_if_nonfinite=False,
             )
+
+
+def _get_loss_log_dict(
+    *,
+    total_loss: Tensor,
+    loss_dict: dict[str, Tensor],
+    loss_names: list[str],
+) -> dict[str, Tensor]:
+    zero = total_loss.new_zeros(())
+    log_dict = {"loss": total_loss.detach()}
+    for loss_name in loss_names:
+        if loss_name == "loss":
+            continue
+        if loss_name == "loss_ddf":
+            loss_values = [
+                v.detach()
+                for k, v in loss_dict.items()
+                if k == "loss_ddf" or k.startswith("loss_ddf_")
+            ]
+            if not loss_values:
+                raise KeyError(
+                    "No loss entries found for 'loss_ddf'. Available losses: "
+                    f"{sorted(loss_dict.keys())}"
+                )
+            log_dict[loss_name] = sum(loss_values, start=zero)
+        else:
+            log_dict[loss_name] = loss_dict[loss_name].detach()
+    return log_dict

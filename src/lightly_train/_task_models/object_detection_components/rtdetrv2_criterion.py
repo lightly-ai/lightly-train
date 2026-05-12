@@ -12,6 +12,9 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
+# Modifications Copyright 2026 Lightly AG:
+# - Introduce sanitize_boxes_cxcywh_normalized function to ensure boxes are in the expected format
+
 import copy
 
 import torch
@@ -26,14 +29,9 @@ from lightly_train._task_models.object_detection_components.box_ops import (
     generalized_box_iou,
     sanitize_boxes_cxcywh_normalized,
 )
-
-
-def is_dist_available_and_initialized():
-    if not torch.distributed.is_available():
-        return False
-    if not torch.distributed.is_initialized():
-        return False
-    return True
+from lightly_train._task_models.object_detection_components.dist_utils import (
+    is_dist_available_and_initialized,
+)
 
 
 class RTDETRCriterionv2(nn.Module):
