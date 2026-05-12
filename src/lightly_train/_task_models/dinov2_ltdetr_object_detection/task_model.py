@@ -218,11 +218,31 @@ class _RTDETRTransformerv2ViTGConfig(_RTDETRTransformerv2Config):
 
 
 class _DFINETransformerConfig(PydanticConfig):
-    feat_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 256
+    feat_channels: list[int]
+    feat_strides: list[int]
+    hidden_dim: int
+    num_levels: int
+    num_layers: int
+    num_queries: int
+    num_denoising: int
+    label_noise_ratio: float
+    box_noise_scale: float
+    eval_idx: int
+    num_points: list[int]
+    query_select_method: str
+    cross_attn_method: str
+    dim_feedforward: int
+    reg_max: int
+    reg_scale: float
+    layer_scale: float
+
+
+class _DFINETransformerViTSConfig(_DFINETransformerConfig):
+    feat_channels: list[int] = [224, 224, 224]
+    feat_strides: list[int] = [7, 14, 28]
+    hidden_dim: int = 224
     num_levels: int = 3
-    num_layers: int = 6
+    num_layers: int = 4
     num_queries: int = 300
     num_denoising: int = 100
     label_noise_ratio: float = 0.5
@@ -231,42 +251,70 @@ class _DFINETransformerConfig(PydanticConfig):
     num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
     cross_attn_method: str = "default"
-    dim_feedforward: int = 2048
+    dim_feedforward: int = 1792
     reg_max: int = 32
     reg_scale: float = 4.0
     layer_scale: float = 1.0
-
-
-class _DFINETransformerViTSConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [224, 224, 224]
-    feat_strides: list[int] = [7, 14, 28]
-    hidden_dim: int = 224
-    num_layers: int = 4
-    dim_feedforward: int = 1792
 
 
 class _DFINETransformerViTBConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [768, 768, 768]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 768
+    num_levels: int = 3
     num_layers: int = 4
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [3, 6, 3]
+    query_select_method: str = "default"
+    cross_attn_method: str = "default"
     dim_feedforward: int = 6144
+    reg_max: int = 32
+    reg_scale: float = 4.0
+    layer_scale: float = 1.0
 
 
 class _DFINETransformerViTLConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [1024, 1024, 1024]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1024
+    num_levels: int = 3
     num_layers: int = 4
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [3, 6, 3]
+    query_select_method: str = "default"
+    cross_attn_method: str = "default"
     dim_feedforward: int = 8192
+    reg_max: int = 32
+    reg_scale: float = 4.0
+    layer_scale: float = 1.0
 
 
 class _DFINETransformerViTGConfig(_DFINETransformerConfig):
     feat_channels: list[int] = [1536, 1536, 1536]
     feat_strides: list[int] = [7, 14, 28]
     hidden_dim: int = 1536
+    num_levels: int = 3
     num_layers: int = 4
+    num_queries: int = 300
+    num_denoising: int = 100
+    label_noise_ratio: float = 0.5
+    box_noise_scale: float = 1.0
+    eval_idx: int = -1
+    num_points: list[int] = [3, 6, 3]
+    query_select_method: str = "default"
+    cross_attn_method: str = "default"
     dim_feedforward: int = 12288
+    reg_max: int = 32
+    reg_scale: float = 4.0
+    layer_scale: float = 1.0
 
 
 class _BackboneWrapperViTSConfig(PydanticConfig):
