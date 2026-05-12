@@ -204,7 +204,7 @@ class _HybridEncoderViTLConfig(_HybridEncoderConfig):
 
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int = 256
     num_levels: int = 3
     num_layers: int = 6
@@ -214,6 +214,12 @@ class _RTDETRTransformerv2Config(PydanticConfig):
     box_noise_scale: float = 1.0
     eval_idx: int = -1
     num_points: list[int] = [4, 4, 4]
+
+    def resolve_auto(self, patch_size: int):
+        if self.feat_strides == "auto":
+            self.feat_strides = [
+                int(patch_size * (2 ** (i - 1))) for i in range(self.num_levels)
+            ]
 
 
 class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
@@ -315,6 +321,9 @@ class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     rtdetr_postprocessor: _RTDETRPostProcessorConfig
+
+    def resolve_auto(self, patch_size: int):
+        self.rtdetr_transformer.resolve_auto(patch_size=patch_size)
 
 
 class _DINOv3LTDETRObjectDetectionLargeConfig(_DINOv3LTDETRObjectDetectionConfig):
@@ -555,6 +564,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         config_name = config_name.replace("-eupe", "")
         config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
+
+        config.resolve_auto(patch_size=patch_size)
 
         if hasattr(config, "backbone_wrapper"):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.

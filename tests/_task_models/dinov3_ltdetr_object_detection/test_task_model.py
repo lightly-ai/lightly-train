@@ -23,6 +23,7 @@ from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
+    _RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
@@ -309,3 +310,26 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
     assert "the schedule will not complete as intended" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("patch_size", "feat_strides", "num_levels"),
+    [
+        (16, [8, 16, 32, 64], 4),
+        (14, [7, 14, 28, 56], 4),
+        (64, [32, 64, 128, 256], 4),
+        (16, [8, 16, 32], 3),
+        (14, [7, 14, 28], 3),
+        (64, [32, 64, 128], 3),
+    ],
+)
+def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
+    patch_size: int, feat_strides: list[int], num_levels: int
+):
+    config = _RTDETRTransformerv2Config(
+        num_levels=num_levels, feat_channels=[-1] * num_levels
+    )
+
+    config.resolve_auto(patch_size=patch_size)
+
+    assert config.feat_strides == feat_strides
