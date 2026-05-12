@@ -135,7 +135,7 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     max_scale: float | None = None
     num_scales: int | None = None
     prob: float = 1.0
-    divisible_by: int | None = None
+    divisible_by: int | None | Literal["auto"] = "auto"
 
     # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
     # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
@@ -280,6 +280,14 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                     self.num_channels = 3
                 else:
                     self.num_channels = len(self.normalize.mean)
+
+        if self.divisible_by == "auto" and "patch_size" in model_init_args:
+            # This is multiplied by 2 to account for the common ViT design. In
+            # our case (05/26) the ViT output a single (H)x(W) scale feature
+            # map and we make a multi-scale from it with the next scales
+            # (H/2)x(W/2), (H)x(W) and (2H)x(2W). That's why we need it to be divisible_by
+            # 2*patch_size, to account for this 2x smaller feature map.
+            self.divisible_by = 2 * model_init_args["patch_size"]
 
     def resolve_step_schedule(
         self,
