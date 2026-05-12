@@ -281,18 +281,20 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                 else:
                     self.num_channels = len(self.normalize.mean)
 
-        if (
-            self.scale_jitter is not None
-            and self.scale_jitter.divisible_by == "auto"
-            and "patch_size" in model_init_args
-        ):
-            # This is multiplied by 2 to account for the common ViT design. In
-            # our case (05/26) the ViT output a single (H)x(W) scale feature
-            # map and we make a multi-scale from it with the next scales
-            # (H/2)x(W/2), (H)x(W) and (2H)x(2W). That's why we need it to be divisible_by
-            # 2*patch_size, to account for this 2x smaller feature map.
-            # You can take a look at the forward of the DINOv3STAs class.
-            self.scale_jitter.divisible_by = 2 * model_init_args["patch_size"]
+        if self.scale_jitter is not None:
+            if (
+                self.scale_jitter.divisible_by == "auto"
+                and "patch_size" in model_init_args
+            ):
+                # This is multiplied by 2 to account for the common ViT design. In
+                # our case (05/26) the ViT output a single (H)x(W) scale feature
+                # map and we make a multi-scale from it with the next scales
+                # (H/2)x(W/2), (H)x(W) and (2H)x(2W). That's why we need it to be divisible_by
+                # 2*patch_size, to account for this 2x smaller feature map.
+                # You can take a look at the forward of the DINOv3STAs class.
+                self.scale_jitter.divisible_by = 2 * model_init_args["patch_size"]
+            else:
+                self.scale_jitter.divisible_by = None
 
     def resolve_step_schedule(
         self,
