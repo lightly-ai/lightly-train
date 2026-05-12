@@ -169,6 +169,10 @@ def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_siz
     train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
     train_transform_args.resolve_auto(task_model.init_args)
 
+    assert train_transform_args.scale_jitter is not None, (
+        "scale_jitter should not be None after resolve_auto"
+    )
+
     assert train_transform_args.scale_jitter.divisible_by == patch_size * 2
 
 
@@ -340,7 +344,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
 )
 def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     patch_size: int, feat_strides: list[int], num_levels: int
-):
+) -> None:
     config = _RTDETRTransformerv2Config(
         num_levels=num_levels, feat_channels=[-1] * num_levels
     )
