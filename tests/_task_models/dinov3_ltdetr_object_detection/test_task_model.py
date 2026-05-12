@@ -157,6 +157,21 @@ def test_resolve_auto__uses_explicit_patch_size_for_convnext(
     assert train_model.model.backbone.patch_size == 14
 
 
+@pytest.mark.parametrize("patch_size", [14, 16, 64])
+def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_size(
+    patch_size: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_model = _create_task_model(
+        monkeypatch=monkeypatch,
+        patch_size=patch_size,
+    )
+    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args.resolve_auto(task_model.init_args)
+
+    assert train_transform_args.scale_jitter.divisible_by == patch_size * 2
+
+
 def _create_train_model(
     train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
     *,
