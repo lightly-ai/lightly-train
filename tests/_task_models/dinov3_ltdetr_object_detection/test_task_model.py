@@ -93,7 +93,7 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
 
 @pytest.mark.parametrize(
     ("model_name", "expected_patch_size"),
-    [("dinov3/vitt16-ltdetr-coco", 16), ("dinov3/convnext-tiny-ltdetr-coco", "auto")],
+    [("dinov3/vitt16-ltdetr-coco", 16), ("dinov3/convnext-tiny-ltdetr-coco", None)],
 )
 def test_resolve_auto__uses_vit_model_name(
     model_name: str,

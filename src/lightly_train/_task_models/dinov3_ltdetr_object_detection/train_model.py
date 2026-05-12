@@ -84,7 +84,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
-    patch_size: int | Literal["auto"] = "auto"
+    patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
 
     use_ema_model: bool = True
@@ -148,8 +148,16 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                     r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
                     model_name,
                 )
+
                 if match is not None:
                     self.patch_size = int(match.group("patch_size"))
+                elif re.match(r"dinov3/convnext.*", model_name) is not None:
+                    self.patch_size = None
+                else:
+                    raise ValueError(
+                        "Unable to resolve patch_size='auto' for model "
+                        f"{model_name!r}. Please provide a concrete patch_size."
+                    )
 
 
 class DINOv3LTDETRObjectDetectionTrain(TrainModel):

@@ -458,7 +458,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         model_name: str,
         classes: dict[int, str],
         image_size: tuple[int, int],
-        patch_size: int,
+        patch_size: int | None = None,
         image_normalize: dict[str, Any] | None = None,
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
