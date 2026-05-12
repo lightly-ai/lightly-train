@@ -49,6 +49,8 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     ("sequencer2d_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("aimv2_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("convit_", {"model_type": "transformer", "norm_type": "layernorm"}),
+    # gemma4_vit_* uses RmsNorm throughout, but norm_type is a training-recipe
+    # tag (non-batchnorm) so "layernorm" is the correct bucket here.
     ("gemma4_vit_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("gmixer_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("gmlp_", {"model_type": "transformer", "norm_type": "layernorm"}),
