@@ -1340,6 +1340,15 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_init_args=model_init_args,
             data_args=config.data,
         )
+        # TODO(Gabriel, 05/26): Split raw model_init_args from resolved
+        # model-dependent init args. For now we patch in values that transforms need,
+        # such as patch_size.
+        resolved_model_init_args = dict(model_init_args)
+        if hasattr(config.model_args, "patch_size"):
+            patch_size = getattr(config.model_args, "patch_size")
+            if patch_size not in (None, "auto"):
+                resolved_model_init_args["patch_size"] = patch_size
+
         config.metric_args = helpers.get_metric_args(
             train_model_cls=train_model_cls,
             metric_args=config.metric_args,
@@ -1377,7 +1386,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             transform_args=config.transform_args,
             # TODO (Lionel, 10/25): Handle ignore_index properly for object detection.
             ignore_index=getattr(config.data, "ignore_index", None),
-            model_init_args=model_init_args,
+            model_init_args=resolved_model_init_args,
             total_steps=no_auto(config.steps),
             train_num_batches=len(train_dataloader),
             gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
