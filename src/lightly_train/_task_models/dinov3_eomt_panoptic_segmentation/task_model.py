@@ -135,6 +135,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             class_id: internal_id
             for internal_id, class_id in enumerate(internal_class_to_class[:-1])
         }
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
 
         # Boolean mask indicating which internal classes are stuff classes.
         self.is_stuff_class: Tensor

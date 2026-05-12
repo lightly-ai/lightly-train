@@ -7,10 +7,13 @@
 #
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from torch import nn
+from torch.optim.lr_scheduler import LinearLR
 
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -23,6 +26,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
     DINOv3LTDETRObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.object_detection_components.flat_cosine import (
+    FlatCosineLRScheduler,
 )
 
 
@@ -73,6 +79,8 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
 
 def _create_train_model(
     train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
+    *,
+    model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
 ) -> DINOv3LTDETRObjectDetectionTrain:
     data_args = YOLOObjectDetectionDataArgs(
         path=Path("/tmp/data"),
@@ -82,7 +90,7 @@ def _create_train_model(
     )
     train_model_args.resolve_auto(
         total_steps=1000,
-        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_name=model_name,
         model_init_args={},
         data_args=data_args,
     )
@@ -92,7 +100,7 @@ def _create_train_model(
     val_transform_args.resolve_auto(model_init_args={})
 
     train_model = DINOv3LTDETRObjectDetectionTrain(
-        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_name=model_name,
         model_args=train_model_args,
         data_args=data_args,
         train_transform_args=train_transform_args,
@@ -102,3 +110,63 @@ def _create_train_model(
         gradient_accumulation_steps=1,
     )
     return train_model
+
+
+@pytest.mark.parametrize(
+    ("scheduler_name", "scheduler_cls"),
+    [
+        ("linear", LinearLR),
+        ("flat-cosine", FlatCosineLRScheduler),
+    ],
+)
+def test_get_optimizer__scheduler_modes(
+    scheduler_name: Literal["linear", "flat-cosine"],
+    scheduler_cls: type[LinearLR] | type[FlatCosineLRScheduler],
+) -> None:
+    train_model = _create_train_model(
+        DINOv3LTDETRObjectDetectionTrainArgs(
+            scheduler_name=scheduler_name,
+            lr_warmup_steps=500,
+        )
+    )
+    optimizer, scheduler = train_model.get_optimizer(
+        total_steps=1000,
+        global_batch_size=16,
+    )
+
+    assert isinstance(scheduler, scheduler_cls)
+    optimizer.step()
+    scheduler.step()
+    assert len(scheduler.get_last_lr()) == len(optimizer.param_groups)
+    scheduler.load_state_dict(scheduler.state_dict())  # type: ignore[no-untyped-call]
+
+
+def test_get_optimizer__flat_cosine_raises_when_cosine_phase_collapses() -> None:
+    train_model = _create_train_model(
+        DINOv3LTDETRObjectDetectionTrainArgs(
+            scheduler_name="flat-cosine",
+            lr_warmup_steps=1000,
+        )
+    )
+
+    with pytest.raises(ValueError, match="non-empty cosine phase"):
+        train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+
+
+def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    train_model = _create_train_model(
+        DINOv3LTDETRObjectDetectionTrainArgs(
+            scheduler_name="linear",
+            lr_warmup_steps=1001,
+        )
+    )
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="lightly_train._task_models.dinov3_ltdetr_object_detection.train_model",
+    ):
+        train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+
+    assert "the schedule will not complete as intended" in caplog.text

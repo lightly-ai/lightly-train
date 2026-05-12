@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add support for choosing LR scheduler for LTDETR object detection. You can specify the
+  scheduler with `model_args.scheduler_name`, choosing either `linear` or `flat-cosine`.
+
 ### Changed
 
 ### Deprecated

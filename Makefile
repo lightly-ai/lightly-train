@@ -153,6 +153,7 @@ add-header:
 	licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
 		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		src/lightly_train/_task_models/object_detection_components/flat_cosine.py \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files
