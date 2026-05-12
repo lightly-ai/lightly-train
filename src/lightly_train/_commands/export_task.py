@@ -18,6 +18,7 @@ from lightly_train._commands import _warnings, common_helpers
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._export.onnx_helpers import (
     ONNXPrecision,
+    convert_onnx_to_float16,
     precalculate_for_onnx_export,
 )
 from lightly_train._task_models import task_model_helpers
@@ -159,7 +160,11 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
         # Get the device of the model to ensure dummy input is on the same device
         model_device = next(task_model.parameters()).device
         onnx_dtype = config.precision.torch_dtype()
-        task_model.to(onnx_dtype)
+
+        # Always trace in fp32 to avoid numerical issues in ops that
+        # internally require fp32 (e.g. D-FINE/RTDETR decoders).
+        # The ONNX graph is converted to fp16 after export if requested.
+        task_model.to(torch.float32)
 
         dummy_input = torch.randn(
             config.batch_size,
@@ -168,7 +173,7 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             width,
             requires_grad=False,
             device=model_device,
-            dtype=onnx_dtype,
+            dtype=torch.float32,
         )
         input_name = "input"
         output_names = ["masks", "logits"]
@@ -193,6 +198,10 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
             onnxslim.slim(
                 out_path, output_model=out_path, skip_optimizations=["constant_folding"]
             )
+
+        if config.precision == ONNXPrecision.F16_TRUE:
+            logger.info("Converting ONNX model to float16")
+            convert_onnx_to_float16(out_path)
 
         if config.verify:
             logger.info("Verifying ONNX model")

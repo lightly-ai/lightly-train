@@ -111,6 +111,7 @@ xformers = [
 ]
 onnx = [
     "onnx>=1.15.0",
+    "onnxconverter-common>=1.13.0",
 ]
 onnxruntime = [
     "onnxruntime>=1.21.0",
@@ -152,6 +153,7 @@ module = [
     "transformers.*",
     "ultralytics.*",
     "onnxruntime.*",
+    "onnxconverter_common.*",
 ]
 ignore_missing_imports = true
  

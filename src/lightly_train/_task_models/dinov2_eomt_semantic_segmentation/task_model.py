@@ -754,15 +754,19 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         dtype = first_parameter.dtype
 
         if precision == "fp32":
-            dtype = torch.float32
+            target_dtype = torch.float32
         elif precision == "fp16":
-            dtype = torch.float16
-        elif precision != "auto":
+            target_dtype = torch.float16
+        elif precision == "auto":
+            target_dtype = dtype
+        else:
             raise ValueError(
                 f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
             )
 
-        self.to(dtype)
+        # Always trace in fp32 to avoid numerical issues in ops that
+        # internally require fp32. Convert ONNX to fp16 after export.
+        self.to(torch.float32)
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
@@ -775,7 +779,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             width,
             requires_grad=False,
             device=model_device,
-            dtype=dtype,
+            dtype=torch.float32,
         )
 
         # Precalculate interpolated positional encoding for ONNX export.
@@ -810,6 +814,12 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 skip_optimizations=["constant_folding"],
             )
 
+        if target_dtype == torch.float16:
+            from lightly_train._export.onnx_helpers import convert_onnx_to_float16
+
+            logger.info("Converting ONNX model to float16")
+            convert_onnx_to_float16(str(out))
+
         if verify:
             logger.info("Verifying ONNX model")
             import onnx
@@ -823,10 +833,11 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 dummy_input.cpu().to(torch.float32),
             )
 
-            # Get outputs from the ONNX model.
+            # Feed the ONNX model with the target dtype input.
+            onnx_input = dummy_input.cpu().to(target_dtype)
             session = ort.InferenceSession(out)
             input_feed = {
-                "images": dummy_input.cpu().numpy(),
+                "images": onnx_input.numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)

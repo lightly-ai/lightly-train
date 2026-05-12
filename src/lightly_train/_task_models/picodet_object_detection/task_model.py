@@ -573,15 +573,19 @@ class PicoDetObjectDetection(TaskModel):
         dtype = first_parameter.dtype
 
         if precision == "fp32":
-            dtype = torch.float32
+            target_dtype = torch.float32
         elif precision == "fp16":
-            dtype = torch.float16
-        elif precision != "auto":
+            target_dtype = torch.float16
+        elif precision == "auto":
+            target_dtype = dtype
+        else:
             raise ValueError(
                 f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
             )
 
-        self.to(dtype)
+        # Always trace in fp32 to avoid numerical issues in ops that
+        # internally require fp32. Convert ONNX to fp16 after export.
+        self.to(torch.float32)
         model_device = next(self.parameters()).device
 
         if num_channels is None:
@@ -613,7 +617,7 @@ class PicoDetObjectDetection(TaskModel):
             self.image_size[1],
             requires_grad=False,
             device=model_device,
-            dtype=dtype,
+            dtype=torch.float32,
         )
 
         input_names = ["images"]
@@ -645,17 +649,12 @@ class PicoDetObjectDetection(TaskModel):
         if torch_version >= version.parse("2.2.0"):
             export_kwargs["dynamo"] = False
 
-        prev_export_decode_fp32 = self._export_decode_fp32
-        self._export_decode_fp32 = dtype == torch.float16
-        try:
-            torch.onnx.export(
-                export_model,
-                (dummy_input,),
-                str(out),
-                **export_kwargs,
-            )
-        finally:
-            self._export_decode_fp32 = prev_export_decode_fp32
+        torch.onnx.export(
+            export_model,
+            (dummy_input,),
+            str(out),
+            **export_kwargs,
+        )
 
         if simplify:
             import onnxslim  # type: ignore [import-not-found,import-untyped]
@@ -665,6 +664,12 @@ class PicoDetObjectDetection(TaskModel):
                 output_model=out,
                 skip_optimizations=["constant_folding"],
             )
+
+        if target_dtype == torch.float16:
+            from lightly_train._export.onnx_helpers import convert_onnx_to_float16
+
+            logger.info("Converting ONNX model to float16")
+            convert_onnx_to_float16(str(out))
 
         self._add_onnx_metadata(out=out)
 
@@ -681,9 +686,10 @@ class PicoDetObjectDetection(TaskModel):
                 dummy_input.cpu().to(torch.float32),
             )
 
+            onnx_input = dummy_input.cpu().to(target_dtype)
             session = ort.InferenceSession(out)
             input_feed = {
-                "images": dummy_input.cpu().numpy(),
+                "images": onnx_input.numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)

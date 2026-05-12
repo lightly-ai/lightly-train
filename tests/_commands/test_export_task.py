@@ -122,6 +122,10 @@ def test_onnx_export(
 ) -> None:
     if num_channels == 4:
         pytest.skip("Tests with 4 channels are currently flaky")
+    if precision == ONNXPrecision.F16_TRUE and not RequirementCache(
+        "onnxconverter-common"
+    ):
+        pytest.skip("onnxconverter-common not installed (needed for fp16 export)")
 
     import onnx
     import onnxruntime as ort

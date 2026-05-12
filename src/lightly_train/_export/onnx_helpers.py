@@ -53,3 +53,38 @@ class ONNXPrecision(str, Enum):
             ONNXPrecision.F32_TRUE: torch.float32,
             ONNXPrecision.F16_TRUE: torch.float16,
         }[self]
+
+
+def convert_onnx_to_float16(model_path: str) -> None:
+    """Convert an ONNX model from float32 to float16.
+
+    Uses onnxconverter-common to convert all float32 tensors (weights,
+    inputs, outputs, intermediates) to float16. Integer types are left
+    unchanged.
+
+    After conversion, Cast nodes from the original graph that still
+    target float32 are updated to target float16. Cast nodes inserted
+    by the converter (e.g. to keep Resize inputs in float32) are left
+    unchanged.
+    """
+    import onnx
+    from onnx import TensorProto
+    from onnxconverter_common import (
+        float16,  # type: ignore[import-not-found,import-untyped]
+    )
+
+    model = onnx.load(model_path)
+
+    original_cast_names = {
+        node.name for node in model.graph.node if node.op_type == "Cast"
+    }
+
+    model_fp16 = float16.convert_float_to_float16(model, keep_io_types=False)
+
+    for node in model_fp16.graph.node:
+        if node.op_type == "Cast" and node.name in original_cast_names:
+            for attr in node.attribute:
+                if attr.name == "to" and attr.i == TensorProto.FLOAT:
+                    attr.i = TensorProto.FLOAT16
+
+    onnx.save(model_fp16, model_path)
