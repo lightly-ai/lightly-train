@@ -7,14 +7,61 @@
 #
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pytest import LogCaptureFixture
 
 from lightly_train._commands.train_task_helpers import (
     BestAggregatedMetricValues,
     get_best_metrics,
+    get_train_model_args,
+    get_transform_args,
+)
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
+from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
+    DINOv3LTDETRObjectDetectionTrain,
+    DINOv3LTDETRObjectDetectionTrainArgs,
+)
+
+
+def test_get_train_model_args_and_transform_args__propagate_patch_size() -> None:
+    data_args = YOLOObjectDetectionDataArgs(
+        path=Path("/tmp/data"),
+        train=Path("train") / "images",
+        val=Path("val") / "images",
+        names={0: "class_0", 1: "class_1"},
+    )
+
+    train_model_args = get_train_model_args(
+        model_args={"patch_size": 14},
+        model_args_cls=DINOv3LTDETRObjectDetectionTrainArgs,
+        total_steps=1000,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_init_args={},
+        data_args=data_args,
+    )
+
+    resolved_model_init_args: dict[str, int] = {}
+    if train_model_args.patch_size not in (None, "auto"):
+        resolved_model_init_args["patch_size"] = train_model_args.patch_size
+
+    train_transform_args, _ = get_transform_args(
+        train_model_cls=DINOv3LTDETRObjectDetectionTrain,
+        transform_args=None,
+        ignore_index=None,
+        model_init_args=resolved_model_init_args,
+        total_steps=1000,
+        train_num_batches=100,
+        gradient_accumulation_steps=1,
+    )
+
+    assert train_model_args.patch_size == 14
+    assert train_transform_args.scale_jitter is not None
+    assert train_transform_args.scale_jitter.divisible_by == 28
 
 
 def test_get_best_metrics__no_previous_best() -> None:
