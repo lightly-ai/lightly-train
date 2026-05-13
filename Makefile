@@ -1,4 +1,5 @@
-export UV_FROZEN = 1 # default to frozen installs for stability
+# default to frozen installs for stability
+export UV_FROZEN=1
 
 ### Cleaning
 
