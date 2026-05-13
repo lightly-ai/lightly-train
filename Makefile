@@ -323,7 +323,7 @@ install-minimal-extras:
 # CUDA/driver version on the CI machine.
 .PHONY: install-pinned-3.8
 install-pinned-3.8:
-	uv sync --python=3.8 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
+	uv sync --python=3.8 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group pinned-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
