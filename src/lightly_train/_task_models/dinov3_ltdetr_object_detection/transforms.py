@@ -14,6 +14,9 @@ from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
+from lightly_train._task_models.object_detection_components.ltdetr_geometry import (
+    ltdetr_image_size_divisor,
+)
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
@@ -53,7 +56,7 @@ def _resolve_image_size_for_patch_size(
             int(provided_image_size[1]),
         )
         if patch_size is not None:
-            divisor = 2 * patch_size
+            divisor = ltdetr_image_size_divisor(patch_size)
             if any(size % divisor != 0 for size in image_size):
                 raise ValueError(
                     "When providing an image size in model_init_args, it must be divisible by 2 * the patch size."
@@ -63,7 +66,7 @@ def _resolve_image_size_for_patch_size(
     if patch_size is None:
         return default_image_size
 
-    divisor = 2 * patch_size
+    divisor = ltdetr_image_size_divisor(patch_size)
     return (
         math.ceil(default_image_size[0] / divisor) * divisor,
         math.ceil(default_image_size[1] / divisor) * divisor,
@@ -327,7 +330,9 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                     # (H/2)x(W/2), (H)x(W) and (2H)x(2W). That's why we need it to be divisible_by
                     # 2*patch_size, to account for this 2x smaller feature map.
                     # You can take a look at the forward of the DINOv3STAs class.
-                    self.scale_jitter.divisible_by = 2 * model_init_args["patch_size"]
+                    self.scale_jitter.divisible_by = ltdetr_image_size_divisor(
+                        patch_size
+                    )
                 else:
                     self.scale_jitter.divisible_by = None
 
