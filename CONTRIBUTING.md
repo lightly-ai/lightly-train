@@ -19,9 +19,11 @@ Make sure the environment is activated before running the following commands.
 
 ### Running Checks and Tests
 
-Before committing code, make sure all tests and checks pass:
+Before committing code, make sure the checks pass. The common file-level checks are
+handled by pre-commit, which `make install-dev` installs for you:
 
 ```
+pre-commit run --all-files
 make format
 make static-checks
 ```
