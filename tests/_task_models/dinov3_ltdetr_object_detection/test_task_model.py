@@ -213,6 +213,24 @@ def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
     assert roundtrip_model.init_args["patch_size"] == 14
 
 
+@pytest.mark.parametrize(
+    ("patch_size", "expected_image_size"),
+    [
+        (14, (644, 644)),
+        (16, (640, 640)),
+        (64, (640, 640)),
+    ],
+)
+def test_train_transform_args__resolve_auto__image_size_is_patch_size_compatible(
+    patch_size: int,
+    expected_image_size: tuple[int, int],
+) -> None:
+    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
+
+    assert train_transform_args.image_size == expected_image_size
+
+
 @pytest.mark.parametrize("patch_size", [14, 16, 64])
 def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_size(
     patch_size: int,
@@ -225,6 +243,24 @@ def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_siz
     )
 
     assert train_transform_args.scale_jitter.divisible_by == patch_size * 2
+
+
+@pytest.mark.parametrize(
+    ("patch_size", "expected_image_size"),
+    [
+        (14, (644, 644)),
+        (16, (640, 640)),
+        (64, (640, 640)),
+    ],
+)
+def test_val_transform_args__resolve_auto__image_size_is_patch_size_compatible(
+    patch_size: int,
+    expected_image_size: tuple[int, int],
+) -> None:
+    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
+    val_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
+
+    assert val_transform_args.image_size == expected_image_size
 
 
 @pytest.mark.parametrize(

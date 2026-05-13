@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
@@ -37,6 +38,35 @@ from lightly_train.types import ImageSizeTuple
 
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
+
+
+def _resolve_image_size_for_patch_size(
+    model_init_args: dict[str, Any],
+    *,
+    default_image_size: tuple[int, int],
+    patch_size: int | None,
+) -> tuple[int, int]:
+    provided_image_size = model_init_args.get("image_size")
+    if provided_image_size is not None:
+        image_size = (
+            int(provided_image_size[0]),
+            int(provided_image_size[1]),
+        )
+        if patch_size is not None and any(
+            size % patch_size != 0 for size in image_size
+        ):
+            raise ValueError(
+                "When providing an image size in model_init_args, it must be divisible by the patch size."
+            )
+        return image_size
+
+    if patch_size is None:
+        return default_image_size
+
+    return (
+        math.ceil(default_image_size[0] / patch_size) * patch_size,
+        math.ceil(default_image_size[1] / patch_size) * patch_size,
+    )
 
 
 class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
@@ -251,8 +281,14 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
 
+        patch_size: int | None = model_init_args.get("patch_size")
+
         if self.image_size == "auto":
-            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
+            self.image_size = _resolve_image_size_for_patch_size(
+                model_init_args,
+                default_image_size=(640, 640),
+                patch_size=patch_size,
+            )
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -283,7 +319,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
 
         if self.scale_jitter is not None:
             if self.scale_jitter.divisible_by == "auto":
-                if "patch_size" in model_init_args:
+                if patch_size is not None:
                     # This is multiplied by 2 to account for the common ViT design. In
                     # our case (05/26) the ViT output a single (H)x(W) scale feature
                     # map and we make a multi-scale from it with the next scales
@@ -348,8 +384,14 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
 
+        patch_size: int | None = model_init_args.get("patch_size")
+
         if self.image_size == "auto":
-            self.image_size = tuple(model_init_args.get("image_size", (640, 640)))
+            self.image_size = _resolve_image_size_for_patch_size(
+                model_init_args,
+                default_image_size=(640, 640),
+                patch_size=patch_size,
+            )
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
