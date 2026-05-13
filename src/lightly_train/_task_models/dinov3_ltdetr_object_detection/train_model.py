@@ -176,6 +176,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                         "Unable to resolve patch_size='auto' for model "
                         f"{model_name!r}. Please provide a concrete patch_size."
                     )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_loss_weight_dict(self) -> dict[str, float]:
