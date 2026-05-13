@@ -1,3 +1,5 @@
+export UV_FROZEN = 1 # default to frozen installs for stability
+
 ### Cleaning
 
 .PHONY: clean
@@ -279,6 +281,10 @@ export LIGHTLY_TRAIN_POSTHOG_KEY := ""
 install-ffmpeg-ubuntu:
 	sudo apt-get install ffmpeg=7:4.2.7-0ubuntu0.1
 
+.PHONY: create-lockfile
+create-lockfile:
+	uv lock --exclude-newer ${EXCLUDE_NEWER_DATE}
+
 # Install package for local development.
 .PHONY: install-dev
 install-dev:
@@ -303,13 +309,13 @@ install-dev:
 # --reinstall: Reinstall dependencies to make sure they satisfy the constraints.
 .PHONY: install-minimal
 install-minimal:
-	uv sync --python=3.8 --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38
+	UV_FROZEN=0 uv sync --python=3.8 --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38
 
 # Install package with minimal dependencies including extras.
 # See install-minimal for more information.
 .PHONY: install-minimal-extras
 install-minimal-extras:
-	uv sync --python=3.8 --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
+	UV_FROZEN=0 uv sync --python=3.8 --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
@@ -323,7 +329,7 @@ install-minimal-extras:
 # CUDA/driver version on the CI machine.
 .PHONY: install-pinned-3.8
 install-pinned-3.8:
-	uv sync --python=3.8 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group pinned-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
+	uv sync --frozen --python=3.8 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group pinned-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
@@ -331,22 +337,22 @@ install-pinned-3.8:
 # See install-pinned-3.8 for more information.
 .PHONY: install-pinned-3.13
 install-pinned-3.13:
-	uv sync --python=3.13 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group pinned-torch-py313 $(call to_uv_extras,$(EXTRAS_PY313))
+	uv sync --frozen --python=3.13 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group pinned-torch-py313 $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package with the latest dependencies for Python 3.8.
 .PHONY: install-latest-3.8
 install-latest-3.8:
-	uv sync --python=3.8 --upgrade --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY38))
+	UV_FROZEN=0 uv sync --python=3.8 --upgrade --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
 install-latest-3.13:
-	uv sync --python=3.13 --upgrade --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY313))
+	UV_FROZEN=0 uv sync --python=3.13 --upgrade --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package for building docs.
 .PHONY: install-docs
 install-docs:
-	uv sync --python=3.13 --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY313))
+	uv sync --frozen --python=3.13 --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package dependencies in Docker image.
 # Uninstall opencv-python and opencv-python-headless because they are both installed by rfdetr
