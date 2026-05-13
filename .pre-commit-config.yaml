@@ -15,17 +15,8 @@ repos:
     hooks:
       - id: nbdev-clean
         args: [--fname=examples]
-  - repo: local
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
     hooks:
-      - id: ruff-format-check
-        name: ruff format (check)
-        entry: ruff format --check
-        language: system
-        types_or: [python]
-        description: "Ensure Python files are formatted with Ruff."
+      - id: ruff-format
       - id: ruff-check
-        name: ruff check
-        entry: ruff check
-        language: system
-        types_or: [python]
-        description: "Run Ruff lint checks."
