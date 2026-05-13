@@ -284,7 +284,7 @@ install-ffmpeg-ubuntu:
 
 .PHONY: create-lockfile
 create-lockfile:
-	uv lock --exclude-newer ${EXCLUDE_NEWER_DATE}
+	UV_FROZEN=0 uv lock --exclude-newer ${EXCLUDE_NEWER_DATE}
 
 # Install package for local development.
 .PHONY: install-dev
