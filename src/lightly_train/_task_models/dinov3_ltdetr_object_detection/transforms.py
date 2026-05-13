@@ -52,20 +52,21 @@ def _resolve_image_size_for_patch_size(
             int(provided_image_size[0]),
             int(provided_image_size[1]),
         )
-        if patch_size is not None and any(
-            size % patch_size != 0 for size in image_size
-        ):
-            raise ValueError(
-                "When providing an image size in model_init_args, it must be divisible by the patch size."
-            )
+        if patch_size is not None:
+            divisor = 2 * patch_size
+            if any(size % divisor != 0 for size in image_size):
+                raise ValueError(
+                    "When providing an image size in model_init_args, it must be divisible by 2 * the patch size."
+                )
         return image_size
 
     if patch_size is None:
         return default_image_size
 
+    divisor = 2 * patch_size
     return (
-        math.ceil(default_image_size[0] / patch_size) * patch_size,
-        math.ceil(default_image_size[1] / patch_size) * patch_size,
+        math.ceil(default_image_size[0] / divisor) * divisor,
+        math.ceil(default_image_size[1] / divisor) * divisor,
     )
 
 

@@ -218,10 +218,11 @@ def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
     [
         (14, (644, 644)),
         (16, (640, 640)),
+        (24, (672, 672)),
         (64, (640, 640)),
     ],
 )
-def test_train_transform_args__resolve_auto__image_size_is_patch_size_compatible(
+def test_train_transform_args__resolve_auto__image_size_is_2x_patch_size_compatible(
     patch_size: int,
     expected_image_size: tuple[int, int],
 ) -> None:
@@ -250,10 +251,11 @@ def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_siz
     [
         (14, (644, 644)),
         (16, (640, 640)),
+        (24, (672, 672)),
         (64, (640, 640)),
     ],
 )
-def test_val_transform_args__resolve_auto__image_size_is_patch_size_compatible(
+def test_val_transform_args__resolve_auto__image_size_is_2x_patch_size_compatible(
     patch_size: int,
     expected_image_size: tuple[int, int],
 ) -> None:
@@ -299,9 +301,9 @@ def test_transform_args__resolve_auto__rejects_incompatible_explicit_image_size(
 ) -> None:
     transform_args = transform_args_cls()
 
-    with pytest.raises(ValueError, match="must be divisible by the patch size"):
+    with pytest.raises(ValueError, match=r"2 \* the patch size"):
         transform_args.resolve_auto(
-            model_init_args={"patch_size": 14, "image_size": (671, 671)}
+            model_init_args={"patch_size": 14, "image_size": (658, 658)}
         )
 
 
