@@ -36,6 +36,56 @@ from lightly_train._task_models.object_detection_components.flat_cosine import (
 )
 
 
+def _is_module_frozen(m: nn.Module) -> bool:
+    return all(not param.requires_grad for param in m.parameters())
+
+
+def _create_train_model(
+    train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
+    *,
+    model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
+    model_init_args: dict[str, Any] | None = None,
+) -> DINOv3LTDETRObjectDetectionTrain:
+    data_args = YOLOObjectDetectionDataArgs(
+        path=Path("/tmp/data"),
+        train=Path("train") / "images",
+        val=Path("val") / "images",
+        names={0: "class_0", 1: "class_1"},
+    )
+    train_model_args.resolve_auto(
+        total_steps=1000,
+        model_name=model_name,
+        model_init_args={} if model_init_args is None else model_init_args,
+        data_args=data_args,
+    )
+    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args.resolve_auto(model_init_args={})
+    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
+    val_transform_args.resolve_auto(model_init_args={})
+
+    train_model = DINOv3LTDETRObjectDetectionTrain(
+        model_name=model_name,
+        model_args=train_model_args,
+        data_args=data_args,
+        train_transform_args=train_transform_args,
+        val_transform_args=val_transform_args,
+        metric_args=ObjectDetectionTaskMetricArgs(),
+        load_weights=False,
+        gradient_accumulation_steps=1,
+    )
+    return train_model
+
+
+@pytest.fixture()
+def dummy_yolo_detection_data_args() -> YOLOObjectDetectionDataArgs:
+    return YOLOObjectDetectionDataArgs(
+        path=Path("/tmp/data"),
+        train=Path("train") / "images",
+        val=Path("val") / "images",
+        names={0: "class_0", 1: "class_1"},
+    )
+
+
 @pytest.mark.parametrize("use_ema_model", [True, False])
 def test_load_train_state_dict__from_exported(use_ema_model: bool) -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs(use_ema_model=use_ema_model)
@@ -55,20 +105,6 @@ def test_load_train_state_dict__no_ema_weights() -> None:
     # copying the non-EMA weights to the EMA model.
     state_dict = {k: v for k, v in state_dict.items() if not k.startswith("ema_model.")}
     task_model.load_train_state_dict(state_dict)
-
-
-def _is_module_frozen(m: nn.Module) -> bool:
-    return all(not param.requires_grad for param in m.parameters())
-
-
-@pytest.fixture()
-def dummy_yolo_detection_data_args() -> YOLOObjectDetectionDataArgs:
-    return YOLOObjectDetectionDataArgs(
-        path=Path("/tmp/data"),
-        train=Path("train") / "images",
-        val=Path("val") / "images",
-        names={0: "class_0", 1: "class_1"},
-    )
 
 
 @pytest.mark.parametrize("should_freeze", [True, False])
@@ -189,42 +225,6 @@ def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_siz
     )
 
     assert train_transform_args.scale_jitter.divisible_by == patch_size * 2
-
-
-def _create_train_model(
-    train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
-    *,
-    model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
-    model_init_args: dict[str, Any] | None = None,
-) -> DINOv3LTDETRObjectDetectionTrain:
-    data_args = YOLOObjectDetectionDataArgs(
-        path=Path("/tmp/data"),
-        train=Path("train") / "images",
-        val=Path("val") / "images",
-        names={0: "class_0", 1: "class_1"},
-    )
-    train_model_args.resolve_auto(
-        total_steps=1000,
-        model_name=model_name,
-        model_init_args={} if model_init_args is None else model_init_args,
-        data_args=data_args,
-    )
-    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
-    train_transform_args.resolve_auto(model_init_args={})
-    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
-    val_transform_args.resolve_auto(model_init_args={})
-
-    train_model = DINOv3LTDETRObjectDetectionTrain(
-        model_name=model_name,
-        model_args=train_model_args,
-        data_args=data_args,
-        train_transform_args=train_transform_args,
-        val_transform_args=val_transform_args,
-        metric_args=ObjectDetectionTaskMetricArgs(),
-        load_weights=False,
-        gradient_accumulation_steps=1,
-    )
-    return train_model
 
 
 @pytest.mark.parametrize(
