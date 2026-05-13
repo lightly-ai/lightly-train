@@ -48,13 +48,14 @@ dependencies = [
                             # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
     "pycocotools>=2.0.11; python_version>='3.9'",
+    "numpy>1.23.0; python_version>='3.12'",  # numpy<=1.23 fails to build on Python>3.12 (no distutils).
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "licenseheaders>=0.8.8",
     "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
-    "mdformat-myst>=0.3.0; python_version>='3.9'", # MyST support for mdformat
+    "mdformat-myst>=0.3.0; python_version>='3.10'", # MyST support for mdformat
     "mypy>=1.10.0",
     "pillow>=10.3.0,<12.0.0",  # helpers.create_image currently fails for newer pillow versions
     "pre-commit>=3.5.0",
@@ -77,11 +78,33 @@ dev = [
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
 ]
+
+# Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
+# on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
+# They are the latest versions available before 2024-08-28.
+# Torch 2.5+ is no longer compatible with Python 3.8.
+# Be careful when making changes on the CI machine as other repositories also depend on
+# the installed CUDA/driver versions.
+minimal-torch-py38 = [
+    "torch==2.1.0; python_version<'3.9'",
+    "torchvision==0.16.0; python_version<'3.9'",
+]
+pinned-torch-py38 = [
+    "torch==2.4.0; python_version<'3.9'",
+    "torchvision==0.19.0; python_version<'3.9'",
+]
+pinned-torch-py313 = [
+    "torch==2.7.0; python_version>='3.9'",
+    "torchvision==0.22.0; python_version>='3.9'",
+]
+
+[project.optional-dependencies]
 dicom = [
     "pydicom>=2.1.0",
 ]
 mlflow = [
     "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
+    "pandas>=2.2.3; python_version>='3.12'",  # pandas<2.2.3 fails to build on Python>3.12 (no pkg_resources).
 ]
 notebook = [
     "notebook>=7.2.3",
@@ -89,12 +112,12 @@ notebook = [
 # Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
 # which can result in conflicts.
 rfdetr = [
-    "rfdetr>=1.4.1,<1.6.0", # TODO (Lionel, 03/26): Remove upper bound once unit test are fixed.
-    "onnxruntime>=1.21.0", # onnxruntime is required for onnxsim, which is required for rfdetr
+    "rfdetr>=1.4.1,<1.6.0; python_version>='3.10'", # TODO (Lionel, 03/26): Remove upper bound once unit test are fixed.
+    "onnxruntime>=1.21.0; python_version>='3.10'", # onnxruntime is required for onnxsim, which is required for rfdetr
 ]
 super-gradients = [
-    "albumentations>=1.3.1,<1.4.0", # SuperGradients requires albumentations 1.3
-    "super-gradients>=3.7",
+    "albumentations>=1.3.1,<1.4.0; python_version<'3.12'", # SuperGradients requires albumentations 1.3
+    "super-gradients>=3.7; python_version<'3.12'",  # SuperGradients depends on numpy<=1.23 which requires distutils (removed in Python 3.12).
 ]
 tensorboard = [] # Keep for backwards compatibility
 timm = [
@@ -113,7 +136,7 @@ onnx = [
     "onnx>=1.15.0",
 ]
 onnxruntime = [
-    "onnxruntime>=1.21.0",
+    "onnxruntime>=1.21.0; python_version>='3.10'",
 ] # inference engines
 onnxslim = [
     "onnxslim>=0.1.67",
@@ -197,8 +220,40 @@ convention = "google"
 [tool.uv]
 override-dependencies = [
   "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
+  "onnx>=1.17.0",             # Override dependency from SuperGradients on onnx==1.15.0
+]
+conflicts = [
+    [ # conflicting due to incompatible versions of onnxruntime
+        { extra = "super-gradients" },
+        { extra = "onnxruntime" },
+    ],
+    [ # conflicting due to incompatible versions of onnxruntime
+        { extra = "super-gradients" },
+        { extra = "rfdetr" },
+    ],
+    [
+        { group = "minimal-torch-py38" },
+        { group = "pinned-torch-py38" },
+        { group = "pinned-torch-py313" },
+    ]
 ]
 
+[tool.uv.sources]
+# The CI versions are pinned to specific indices to make sure that a version
+# compatible with the CUDA driver of CI is installed.
+torch = [
+    { index = "pytorch-cu118", group = "pinned-torch-py38" },
+    { index = "pytorch-cu118", group = "pinned-torch-py313" },
+]
+torchvision = [
+    { index = "pytorch-cu118", group = "pinned-torch-py38" },
+    { index = "pytorch-cu118", group = "pinned-torch-py313" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
 
 [tool.pytest.ini_options]
 # Make pytest discover all files in the tests directory. This is usuful for showing

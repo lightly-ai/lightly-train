@@ -45,39 +45,39 @@ MDFORMAT_FILES := .github docker docs src tests *.md
 .PHONY: format
 format: add-header
 	# Format code
-	ruff format .
+	uv run ruff format .
 	# Fix linting issues and sort imports
-	ruff check --fix .
+	uv run ruff check --fix .
 	# Format markdown files
-	mdformat ${MDFORMAT_FILES}
+	uv run mdformat ${MDFORMAT_FILES}
 	# Format code in markdown files
-	pytest --update-examples docs/format_code.py::test_format_code_in_docs
+	uv run pytest --update-examples docs/format_code.py::test_format_code_in_docs
 	# Run pre-commit hooks
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 # run format check
 .PHONY: format-check
 format-check:
 	# Check code formatting
-	ruff format --check .
+	uv run ruff format --check .
 	# Check linting issues
-	ruff check .
+	uv run ruff check .
 	# Check markdown formatting
-	mdformat --check ${MDFORMAT_FILES}
+	uv run mdformat --check ${MDFORMAT_FILES}
 	# Check code in markdown files
-	pytest docs/format_code.py::test_format_check_code_in_docs
+	uv run pytest docs/format_code.py::test_format_check_code_in_docs
 	# Run pre-commit hooks
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 # run type check
 .PHONY: type-check
 type-check:
-	mypy src tests docs/format_code.py
+	uv run mypy src tests docs/format_code.py
 
 # adding the license header to all files
 .PHONY: add-header
 add-header:
-	licenseheaders -t dev_tools/licenseheader.tmpl -d src \
+	uv run licenseheaders -t dev_tools/licenseheader.tmpl -d src \
 		-x src/lightly_train/_methods/dinov2/dinov2_loss.py \
 		-x src/lightly_train/_methods/dinov2/dinov2_head.py \
 		-x src/lightly_train/_methods/dinov2/utils.py \
@@ -105,25 +105,25 @@ add-header:
 		-x src/lightly_train/_task_models/picodet_object_detection/losses.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/pico_head.py \
 		-E py
-	licenseheaders -t dev_tools/licenseheader.tmpl -d tests
+	uv run licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
-	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
 		-d src/lightly_train/_models/dinov2_vit/dinov2_vit_src \
 		-E py
 	
-	licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
 		-f src/lightly_train/_methods/dinov2/dinov2_loss.py \
 		src/lightly_train/_methods/dinov2/dinov2_head.py \
 		src/lightly_train/_methods/dinov2/utils.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to PyTorch Lighting derived files
-	licenseheaders -t dev_tools/pytorch_lightning_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/pytorch_lightning_licenseheader.tmpl \
 		-f src/lightly_train/_lightning_rank_zero.py
 
 	# Apply the Apache 2.0 license header to RT-DETR derived files
-	licenseheaders -t dev_tools/rtdetr_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/rtdetr_licenseheader.tmpl \
 		-d src/lightly_train/_task_models/object_detection_components/ \
 		-x src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
@@ -132,19 +132,19 @@ add-header:
 		-E py
 
 	# Apply Lightly's header to tiling_utils.py
-	licenseheaders -t dev_tools/licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/licenseheader.tmpl \
 		-f src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to D-FINE derived files
-	licenseheaders -t dev_tools/dfine_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/dfine_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
 		src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
 		-E py
 
 	# Apply the PicoDet license header to PicoDet-derived files
-	licenseheaders -t dev_tools/picodet_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/picodet_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
 		src/lightly_train/_task_models/picodet_object_detection/esnet.py \
 		src/lightly_train/_task_models/picodet_object_detection/losses.py \
@@ -152,14 +152,14 @@ add-header:
 		-E py
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
-	licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
 		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
 		src/lightly_train/_task_models/object_detection_components/flat_cosine.py \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files
-	licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/eomt_licenseheader.tmpl \
 		-f src/lightly_train/_task_models/dinov2_eomt_panoptic_segmentation/mask_loss.py \
 		src/lightly_train/_task_models/dinov2_eomt_panoptic_segmentation/scale_block.py \
 		src/lightly_train/_task_models/dinov2_eomt_panoptic_segmentation/scheduler.py \
@@ -181,7 +181,7 @@ add-header:
 		-E py
 	
 	# Apply the DINOv3 license header to the DINOv3 derived files
-	licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
+	uv run licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
 		-d src/lightly_train/_models/dinov3/dinov3_src \
 		-E py
 
@@ -191,11 +191,11 @@ add-header:
 # run tests
 .PHONY: test
 test:
-	pytest tests
+	uv run pytest tests
 
 .PHONY: test-ci
 test-ci:
-	pytest tests -v --durations=20
+	uv run pytest tests -v --durations=20
 
 
 ### Virtual Environment
@@ -218,12 +218,12 @@ reset-venv:
 # with: `make reset-venv && source .venv/bin/activate`
 # Otherwise old dependencies might linger around.
 
-# Set EDITABLE to -e to install the package in editable mode outside of CI. This is
+# Set NO_EDITABLE to install the package in non-editable mode outside of CI. This is
 # useful for local development.
 ifdef CI
-EDITABLE :=
+NO_EDITABLE := --no-editable
 else
-EDITABLE := -e
+NO_EDITABLE :=
 endif
 
 # RFDETR and ONNXRuntime is not compatible with Python<3.9. Therefore we exclude it from the
@@ -244,40 +244,33 @@ endif
 # 
 # This problem is fixed in pywinpty>2.0.14 but these versions are not compatible with
 # Python 3.8.
-#
+
+comma := ,
+to_uv_extras = --extra $(subst $(comma), --extra ,$(subst ],,$(subst [,,$(1))))
+
 # SuperGradients is excluded as it is outdated and causes issues in CI.
-EXTRAS_PY38 := [dev,dicom,mlflow,onnx,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY38 := [dicom,mlflow,onnx,tensorboard,timm,ultralytics,wandb]
 
 # RFDETR has installation issues because of onnxsim dependency on CI with Python 3.13.
 # Onnx dependencies in RFDETR should become optional in RFDETR >1.1.0.
 #
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
-EXTRAS_PY313 := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
+EXTRAS_PY313 := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,tensorboard,timm,ultralytics,wandb]
 
 # RF-DETR is not always installable for Python>=3.12, therefore we remove it from the
 # default development dependencies.
 
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
-EXTRAS_DEV := [dev,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
-DOCKER_EXTRAS := --extra mlflow --extra tensorboard --extra timm --extra wandb --extra rfdetr
+DOCKER_EXTRAS := [mlflow,tensorboard,timm,wandb,rfdetr]
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
 EXCLUDE_NEWER_DATE := "2026-02-09"
 
-# Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
-# on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
-# They are the latest versions available before 2024-08-28.
-# Torch 2.5+ is no longer compatible with Python 3.8.
-# Be careful when making changes on the CI machine as other repositories also depend on
-# the installed CUDA/driver versions.
-#
-# The CI versions are pinned to specific URLs as specifying them as simple version string
-# (e.g. "torch==2.4.0") with the --index-url or --extra-index-url options from UV leads
-# down a rabbit hole of dependency resolution issues.
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Linux)
@@ -286,31 +279,27 @@ PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch
 PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.7.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.22.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
-MINIMAL_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.1.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.16.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
 endif
 else
 PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
 PINNED_TORCH_VERSION_PY313 := "torch==2.7.0"
 PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
 PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.22.0"
-MINIMAL_TORCH_VERSION_PY38 := "torch==2.1.0"
-MINIMAL_TORCHVISION_VERSION_PY38 := "torchvision==0.16.0"
 endif
 
 export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
 export LIGHTLY_TRAIN_POSTHOG_KEY := ""
 
 # Install ffmpeg on Ubuntu.
-. PHONY: install-ffmpeg-ubuntu
+.PHONY: install-ffmpeg-ubuntu
 install-ffmpeg-ubuntu:
 	sudo apt-get install ffmpeg=7:4.2.7-0ubuntu0.1
 
 # Install package for local development.
 .PHONY: install-dev
 install-dev:
-	uv pip install ${EDITABLE} ".${EXTRAS_DEV}"
-	pre-commit install
+	uv sync ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_DEV))
+	uv run pre-commit install
 
 # Install package with minimal dependencies.
 #
@@ -330,19 +319,13 @@ install-dev:
 # --reinstall: Reinstall dependencies to make sure they satisfy the constraints.
 .PHONY: install-minimal
 install-minimal:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} ".[dev]"
-	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
-		--reinstall ${EDITABLE} "." --requirement pyproject.toml \
-		${MINIMAL_TORCH_VERSION_PY38} ${MINIMAL_TORCHVISION_VERSION_PY38}
+	uv sync --python=3.8 --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38
 
 # Install package with minimal dependencies including extras.
 # See install-minimal for more information.
 .PHONY: install-minimal-extras
 install-minimal-extras:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} ${EDITABLE} ".[dev]"
-	uv pip install --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} \
-		--reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
-		${MINIMAL_TORCH_VERSION_PY38} ${MINIMAL_TORCHVISION_VERSION_PY38}
+	uv sync --python=3.8 --resolution=lowest-direct --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
@@ -356,8 +339,7 @@ install-minimal-extras:
 # CUDA/driver version on the CI machine.
 .PHONY: install-pinned-3.8
 install-pinned-3.8:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY38}" --requirement pyproject.toml \
-		${PINNED_TORCH_VERSION_PY38} ${PINNED_TORCHVISION_VERSION_PY38}
+	uv sync --python=3.8 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
@@ -365,23 +347,22 @@ install-pinned-3.8:
 # See install-pinned-3.8 for more information.
 .PHONY: install-pinned-3.13
 install-pinned-3.13:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY313}" --requirement pyproject.toml \
-		${PINNED_TORCH_VERSION_PY313} ${PINNED_TORCHVISION_VERSION_PY313}
+	uv sync --python=3.13 --exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev --group pinned-torch-py313 $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package with the latest dependencies for Python 3.8.
 .PHONY: install-latest-3.8
 install-latest-3.8:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY38}"
+	uv sync --python=3.8 --upgrade --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY38))
 
 # Install package with the latest dependencies for Python 3.13.
 .PHONY: install-latest-3.13
 install-latest-3.13:
-	uv pip install --upgrade --reinstall ${EDITABLE} ".${EXTRAS_PY313}"
+	uv sync --python=3.13 --upgrade --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package for building docs.
 .PHONY: install-docs
 install-docs:
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${EDITABLE} ".${EXTRAS_PY313}" --requirement pyproject.toml
+	uv sync --python=3.13 --exclude-newer ${EXCLUDE_NEWER_DATE} --reinstall ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package dependencies in Docker image.
 # Uninstall opencv-python and opencv-python-headless because they are both installed by rfdetr
