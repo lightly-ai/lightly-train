@@ -262,6 +262,3 @@ explicit = true
 # detailed assertion errors outside of the test file, for example when using a helper
 # function from `tests/helpers.py`.
 python_files = "tests/*.py tests/**/*.py"
-
-[tool.uv.extra-build-dependencies]
-pyarrow = ["pkg_resources"]
