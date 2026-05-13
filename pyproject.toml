@@ -222,7 +222,7 @@ convention = "google"
 [tool.uv]
 override-dependencies = [
   "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
-  "onnx>=1.17.0",             # Override dependency from SuperGradients on onnx==1.15.0
+  "onnx>=1.15.0",             # Override dependency from SuperGradients on onnx==1.15.0
 ]
 conflicts = [
     [ # conflicting due to incompatible versions of onnxruntime
