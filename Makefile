@@ -271,22 +271,6 @@ DOCKER_EXTRAS := [mlflow,tensorboard,timm,wandb,rfdetr]
 # Dependencies released after this date are ignored.
 EXCLUDE_NEWER_DATE := "2026-02-09"
 
-UNAME_S := $(shell uname -s)
-
-ifeq ($(UNAME_S),Linux)
-ifdef CI
-PINNED_TORCH_VERSION_PY38 := "torch@https://download.pytorch.org/whl/cu118/torch-2.4.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCH_VERSION_PY313 := "torch@https://download.pytorch.org/whl/cu118/torch-2.7.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY38 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.19.0%2Bcu118-cp38-cp38-linux_x86_64.whl"
-PINNED_TORCHVISION_VERSION_PY313 := "torchvision@https://download.pytorch.org/whl/cu118/torchvision-0.22.0%2Bcu118-cp313-cp313-manylinux_2_28_x86_64.whl"
-endif
-else
-PINNED_TORCH_VERSION_PY38 := "torch==2.4.0"
-PINNED_TORCH_VERSION_PY313 := "torch==2.7.0"
-PINNED_TORCHVISION_VERSION_PY38 := "torchvision==0.19.0"
-PINNED_TORCHVISION_VERSION_PY313 := "torchvision==0.22.0"
-endif
-
 export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
 export LIGHTLY_TRAIN_POSTHOG_KEY := ""
 
