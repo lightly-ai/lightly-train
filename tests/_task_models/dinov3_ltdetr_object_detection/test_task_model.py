@@ -264,6 +264,44 @@ def test_val_transform_args__resolve_auto__image_size_is_patch_size_compatible(
 
 
 @pytest.mark.parametrize(
+    "transform_args_cls",
+    [
+        DINOv3LTDETRObjectDetectionTrainTransformArgs,
+        DINOv3LTDETRObjectDetectionValTransformArgs,
+    ],
+)
+def test_transform_args__resolve_auto__preserves_explicit_image_size(
+    transform_args_cls: type[
+        DINOv3LTDETRObjectDetectionTrainTransformArgs
+        | DINOv3LTDETRObjectDetectionValTransformArgs
+    ],
+) -> None:
+    transform_args = transform_args_cls()
+    transform_args.resolve_auto(model_init_args={"patch_size": 14, "image_size": (672, 672)})
+
+    assert transform_args.image_size == (672, 672)
+
+
+@pytest.mark.parametrize(
+    "transform_args_cls",
+    [
+        DINOv3LTDETRObjectDetectionTrainTransformArgs,
+        DINOv3LTDETRObjectDetectionValTransformArgs,
+    ],
+)
+def test_transform_args__resolve_auto__rejects_incompatible_explicit_image_size(
+    transform_args_cls: type[
+        DINOv3LTDETRObjectDetectionTrainTransformArgs
+        | DINOv3LTDETRObjectDetectionValTransformArgs
+    ],
+) -> None:
+    transform_args = transform_args_cls()
+
+    with pytest.raises(ValueError, match="must be divisible by the patch size"):
+        transform_args.resolve_auto(model_init_args={"patch_size": 14, "image_size": (671, 671)})
+
+
+@pytest.mark.parametrize(
     ("scheduler_name", "scheduler_cls"),
     [
         ("linear", LinearLR),
