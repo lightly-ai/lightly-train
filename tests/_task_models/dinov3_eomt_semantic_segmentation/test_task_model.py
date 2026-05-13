@@ -49,9 +49,23 @@ def test_export_onnx__dynamic_batch_size(
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
     assert input_batch_dim.dim_param == "N"
 
-    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    import torch
+
     inputs = np.random.randn(3, 3, 16, 16).astype(np.float32)
-    session.run(None, {"images": inputs})
+
+    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    onnx_outputs = session.run(None, {"images": inputs})
+
+    with torch.no_grad():
+        torch_outputs = model(torch.from_numpy(inputs))
+
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+        onnx_tensor = torch.from_numpy(onnx_out)
+        if torch_out.is_floating_point():
+            close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
+            assert close.float().mean() > 0.95
+        else:
+            assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
 @pytest.mark.xfail(
