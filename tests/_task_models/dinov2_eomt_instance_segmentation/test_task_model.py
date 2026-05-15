@@ -34,7 +34,9 @@ def model() -> DINOv2EoMTInstanceSegmentation:
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
-def test_export_onnx(model: DINOv2EoMTInstanceSegmentation, tmp_path: Path) -> None:
+def test_export_onnx__dynamic_batch_size(
+    model: DINOv2EoMTInstanceSegmentation, tmp_path: Path
+) -> None:
     import numpy as np
     import onnx
     import onnxruntime as ort
