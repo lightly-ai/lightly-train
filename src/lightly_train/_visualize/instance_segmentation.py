@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from PIL import Image
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -14,6 +16,39 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
 from lightly_train.types import InstanceSegmentationBatch
+
+
+@dataclass
+class InstanceSegmentationTaskStepVisualization:
+    batch: InstanceSegmentationBatch
+    class_names: dict[int, str]
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    alpha: float
+    score_threshold: float
+    predictions: list[dict[str, Tensor]] | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_instance_segmentation_labels(
+            batch=self.batch,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+            alpha=self.alpha,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.predictions is None:
+            return None
+        return plot_instance_segmentation_predictions(
+            batch=self.batch,
+            predictions=self.predictions,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+            alpha=self.alpha,
+            score_threshold=self.score_threshold,
+        )
 
 
 def plot_instance_segmentation_labels(
