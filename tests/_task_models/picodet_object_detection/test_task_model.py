@@ -72,6 +72,9 @@ def test_task_model_forward_shapes() -> None:
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
 def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     import onnx
 
