@@ -220,7 +220,8 @@ class _RTDETRTransformerv2Config(PydanticConfig):
     eval_idx: int = -1
     num_points: list[int] = [4, 4, 4]
 
-    def resolve_auto(self, patch_size: int) -> None:
+    def resolve_auto(self, patch_size: int | None) -> None:
+        patch_size = patch_size or 16
         if self.feat_strides == "auto":
             self.feat_strides = [
                 int(patch_size * (2 ** (i - 1))) for i in range(self.num_levels)
@@ -404,7 +405,7 @@ class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     dfine_transformer: _DFINETransformerConfig
     rtdetr_postprocessor: _RTDETRPostProcessorConfig
 
-    def resolve_auto(self, patch_size: int) -> None:
+    def resolve_auto(self, patch_size: int | None) -> None:
         self.rtdetr_transformer.resolve_auto(patch_size=patch_size)
 
 

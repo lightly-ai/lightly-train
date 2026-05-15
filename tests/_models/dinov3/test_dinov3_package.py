@@ -14,7 +14,10 @@ import pytest
 import torch
 
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
-from lightly_train._models.dinov3.dinov3_package import DINOv3Package
+from lightly_train._models.dinov3.dinov3_package import (
+    DINOv3Package,
+    _resolve_patch_size,
+)
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -178,16 +181,33 @@ class TestDINOv3Package:
 
         assert model.patch_size == patch_size
 
-    def test_get_model__patch_size_arg_overwrites_model_name_logs_warning(
-        self, caplog: pytest.LogCaptureFixture
+    @pytest.mark.parametrize(
+        "patch_size, args, expected_args, expected_warning",
+        [
+            (None, {}, {}, None),
+            ("16", {}, {"patch_size": 16}, None),
+            ("16", {"patch_size": None}, {"patch_size": 16}, None),
+            (
+                "16",
+                {"patch_size": 41},
+                {"patch_size": 41},
+                "Patch size from model name 16 got overwritten by patch size argument 41",
+            ),
+        ],
+    )
+    def test_resolve_patch_size(
+        self,
+        patch_size: str | None,
+        args: dict[str, int | None],
+        expected_args: dict[str, int],
+        expected_warning: str | None,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         with caplog.at_level(logging.WARNING):
-            model = DINOv3Package.get_model(
-                "vitt16", model_args={"patch_size": 41}, load_weights=False
-            )
+            _resolve_patch_size(patch_size, args)
 
-        assert model.patch_size == 41
-        assert (
-            "Patch size from model name 16 got overwritten by patch size argument 41"
-            in caplog.text
-        )
+        assert args == expected_args
+        if expected_warning is None:
+            assert caplog.text == ""
+        else:
+            assert expected_warning in caplog.text
