@@ -817,6 +817,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
+        # TODO (Simon, 05/26) This class does not seem to have an export_onnx function
         if orig_target_size is None:
             h, w = x.shape[-2:]
             orig_target_size_ = torch.tensor([[w, h]]).to(x.device)

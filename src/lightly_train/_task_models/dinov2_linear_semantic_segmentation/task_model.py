@@ -242,6 +242,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
+        # TODO (Simon, 05/26) This class does not seem to have an export_onnx function
         logits = self._forward_logits(x)  # (B, K|K+1, H, W), K=num_classes
         if self.class_ignore_index is not None:
             # Restrict logits to known classes only.
