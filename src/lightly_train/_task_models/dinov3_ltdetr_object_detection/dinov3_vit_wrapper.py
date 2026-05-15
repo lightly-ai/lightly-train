@@ -230,8 +230,22 @@ class DINOv3STAs(Module):
         fused_feats = []
         if self.use_sta:
             detail_feats = self.sta(x)
-            for sem_feat, detail_feat in zip(sem_feats_t, detail_feats):
-                fused_feats.append(torch.cat([sem_feat, detail_feat], dim=1))
+            for semantic_feat, detail_feat in zip(sem_feats_t, detail_feats):
+                detail_feat_interpolated = F.interpolate(
+                    detail_feat,
+                    size=semantic_feat.shape[-2:],
+                    mode="bilinear",
+                    align_corners=False,
+                )
+                fused_feats.append(
+                    torch.cat(
+                        [
+                            semantic_feat,
+                            detail_feat_interpolated,
+                        ],
+                        dim=1,
+                    )
+                )
         else:
             fused_feats = sem_feats_t
 

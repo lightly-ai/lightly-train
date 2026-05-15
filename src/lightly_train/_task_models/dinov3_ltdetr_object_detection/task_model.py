@@ -209,7 +209,7 @@ class _HybridEncoderViTLConfig(_HybridEncoderConfig):
 
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int = 256
     num_levels: int = 3
     num_layers: int = 6
@@ -219,6 +219,13 @@ class _RTDETRTransformerv2Config(PydanticConfig):
     box_noise_scale: float = 1.0
     eval_idx: int = -1
     num_points: list[int] = [4, 4, 4]
+
+    def resolve_auto(self, patch_size: int | None) -> None:
+        patch_size = patch_size or 16
+        if self.feat_strides == "auto":
+            self.feat_strides = [
+                int(patch_size * (2 ** (i - 1))) for i in range(self.num_levels)
+            ]
 
 
 class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
@@ -398,6 +405,9 @@ class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     dfine_transformer: _DFINETransformerConfig
     rtdetr_postprocessor: _RTDETRPostProcessorConfig
 
+    def resolve_auto(self, patch_size: int | None) -> None:
+        self.rtdetr_transformer.resolve_auto(patch_size=patch_size)
+
 
 class _DINOv3LTDETRObjectDetectionLargeConfig(_DINOv3LTDETRObjectDetectionConfig):
     hybrid_encoder: _HybridEncoderLargeConfig = Field(
@@ -558,6 +568,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         model_name: str,
         classes: dict[int, str],
         image_size: tuple[int, int],
+        patch_size: int | None = None,
         image_normalize: dict[str, tuple[float, ...]] | None = None,
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
@@ -565,6 +576,31 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
     ) -> None:
+        """Create a DINOv3 LTDETR object detection model.
+
+        Args:
+            model_name:
+                The model name. For example ``"vitt16-ltdetr"``.
+            classes:
+                A dict mapping class IDs to class names.
+            image_size:
+                The input image size.
+            patch_size:
+                Patch size used to initialize the DINOv3 backbone. This is stored in
+                ``init_args`` so exported checkpoints can be reconstructed with the
+                same backbone patch size.
+            image_normalize:
+                A dict containing normalization statistics with the keys ``"mean"``
+                and ``"std"``.
+            backbone_freeze:
+                Whether to freeze the backbone during training.
+            backbone_weights:
+                Path to the DINOv3 backbone weights.
+            backbone_args:
+                Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
+        """
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
@@ -594,7 +630,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {}
+        backbone_model_args: dict[str, Any] = {
+            "patch_size": patch_size,
+        }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
@@ -642,6 +680,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
         config.decoder_name = decoder_name
+
+        config.resolve_auto(patch_size=patch_size)
 
         if hasattr(config, "backbone_wrapper"):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
