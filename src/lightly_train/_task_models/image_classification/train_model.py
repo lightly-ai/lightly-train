@@ -212,6 +212,8 @@ class ImageClassificationTrain(TrainModel):
                     class_names=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
+                    top_k=self.viz_top_k,
+                    classification_task=self.model.classification_task,
                 )
             ),
         )

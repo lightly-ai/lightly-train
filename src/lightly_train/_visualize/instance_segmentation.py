@@ -25,7 +25,7 @@ class InstanceSegmentationTaskStepVisualization:
     image_normalize: dict[str, tuple[float, ...]] | None
     max_images: int
     alpha: float
-    score_threshold: float = 0.0
+    score_threshold: float
     predictions: list[dict[str, Tensor]] | None = None
 
     def create_label_image(self) -> PILImage | None:

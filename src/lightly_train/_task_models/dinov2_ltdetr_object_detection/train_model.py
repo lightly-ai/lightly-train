@@ -384,6 +384,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
+                score_threshold=self.viz_score_threshold,
             ),
         )
 

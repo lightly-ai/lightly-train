@@ -327,6 +327,7 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
                     alpha=self.viz_alpha,
+                    score_threshold=self.viz_score_threshold,
                 )
             ),
         )

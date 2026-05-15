@@ -25,8 +25,8 @@ class ImageClassificationTaskStepVisualization:
     class_names: dict[int, str]
     image_normalize: dict[str, tuple[float, ...]] | None
     max_images: int
-    top_k: int = 1
-    classification_task: Literal["multiclass", "multilabel"] = "multiclass"
+    top_k: int
+    classification_task: Literal["multiclass", "multilabel"]
     logits: Tensor | None = None
 
     def create_label_image(self) -> PILImage | None:

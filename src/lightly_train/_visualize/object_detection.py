@@ -24,7 +24,7 @@ class ObjectDetectionTaskStepVisualization:
     class_names: dict[int, str]
     image_normalize: dict[str, tuple[float, ...]] | None
     max_images: int
-    score_threshold: float = 0.0
+    score_threshold: float
     results: list[dict[str, Tensor]] | None = None
 
     def create_label_image(self) -> PILImage | None:
