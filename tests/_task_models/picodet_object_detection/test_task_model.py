@@ -72,6 +72,9 @@ def test_task_model_forward_shapes() -> None:
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
 def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     import onnx
 
@@ -83,12 +86,70 @@ def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     )
 
     out = tmp_path / "picodet.onnx"
-    model.export_onnx(out=out, simplify=False, verify=False)
+    model.export_onnx(out=out, simplify=False, verify=True)
 
     onnx_model = onnx.load(out)
     op_types = {node.op_type for node in onnx_model.graph.node}
     assert "NonMaxSuppression" not in op_types
     assert "If" not in op_types
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
+    import numpy as np
+    import onnx
+    import onnxruntime as ort
+
+    model = PicoDetObjectDetection(
+        model_name="picodet/s-416",
+        image_size=(416, 416),
+        num_classes=80,
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_param == "N"
+
+    inputs = np.random.randn(3, 3, 416, 416).astype(np.float32)
+
+    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    onnx_outputs = session.run(None, {"images": inputs})
+    onnx_labels, onnx_boxes, onnx_scores = (torch.from_numpy(o) for o in onnx_outputs)
+
+    with torch.no_grad():
+        boxes, obj_logits, cls_logits = model(torch.from_numpy(inputs))
+        scores = torch.sigmoid(obj_logits)
+
+    assert onnx_labels.shape == (3, boxes.shape[1])
+    close_boxes = torch.isclose(onnx_boxes, boxes, atol=2e-2, rtol=1e-1)
+    assert close_boxes.float().mean() > 0.95
+    close_scores = torch.isclose(onnx_scores, scores, atol=2e-2, rtol=1e-1)
+    assert close_scores.float().mean() > 0.95
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
+    model = PicoDetObjectDetection(
+        model_name="picodet/s-416",
+        image_size=(416, 416),
+        num_classes=80,
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(
+        out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
+    )
 
 
 def _is_module_frozen(m: nn.Module) -> bool:

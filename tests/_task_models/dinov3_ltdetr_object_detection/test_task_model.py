@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 
@@ -21,7 +22,10 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
+<<<<<<< gabriel-trn-1983-support-dinov3-lt-detr-variable-patch-size
     _RTDETRTransformerv2Config,
+=======
+>>>>>>> main
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
@@ -367,6 +371,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
     assert "the schedule will not complete as intended" in caplog.text
 
 
+<<<<<<< gabriel-trn-1983-support-dinov3-lt-detr-variable-patch-size
 @pytest.mark.parametrize(
     ("patch_size", "feat_strides", "num_levels"),
     [
@@ -388,3 +393,63 @@ def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     config.resolve_auto(patch_size=patch_size)
 
     assert config.feat_strides == feat_strides
+=======
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
+    import numpy as np
+    import onnx
+    import onnxruntime as ort
+
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_param == "N"
+
+    import torch
+
+    inputs = np.random.randn(3, 3, 256, 256).astype(np.float32)
+
+    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    onnx_outputs = session.run(None, {"images": inputs})
+
+    with torch.no_grad():
+        torch_outputs = model(torch.from_numpy(inputs))
+
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+        onnx_tensor = torch.from_numpy(onnx_out)
+        if torch_out.is_floating_point():
+            close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
+            assert close.float().mean() > 0.95
+        else:
+            assert (onnx_tensor == torch_out).float().mean() > 0.95
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(
+        out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
+    )
+>>>>>>> main

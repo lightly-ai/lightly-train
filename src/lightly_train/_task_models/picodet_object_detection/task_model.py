@@ -528,6 +528,8 @@ class PicoDetObjectDetection(TaskModel):
         out: PathLike,
         *,
         precision: Literal["auto", "fp32", "fp16"] = "auto",
+        batch_size: int = 1,
+        dynamic_batch_size: bool = True,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -536,9 +538,11 @@ class PicoDetObjectDetection(TaskModel):
     ) -> None:
         """Exports the model to ONNX for inference.
 
-        The export uses a dummy input of shape (1, C, H, W) where C is inferred
-        from the first model parameter and (H, W) come from `self.image_size`.
-        The ONNX graph outputs labels, boxes, and scores.
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is
+        inferred from the first model parameter and (H, W) come from
+        `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
+        have a dynamic batch dimension for the input. The graph outputs labels,
+        boxes, and scores.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -550,6 +554,11 @@ class PicoDetObjectDetection(TaskModel):
             precision:
                 Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
                 uses the model's current precision.
+            batch_size:
+                Batch size for the ONNX input.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension for the
+                input. If False, the batch dimension is fixed to `batch_size`.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -606,8 +615,12 @@ class PicoDetObjectDetection(TaskModel):
                         "num_channels must be provided for ONNX export if it cannot be inferred."
                     )
 
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
         dummy_input = torch.randn(
-            1,
+            batch_size,
             num_channels,
             self.image_size[0],
             self.image_size[1],
@@ -638,7 +651,7 @@ class PicoDetObjectDetection(TaskModel):
             "input_names": input_names,
             "output_names": output_names,
             "opset_version": opset_version,
-            "dynamic_axes": {"images": {0: "N"}},
+            "dynamic_axes": dynamic_axes,
             **(format_args or {}),
         }
         torch_version = version.parse(torch.__version__.split("+", 1)[0])
