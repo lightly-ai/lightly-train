@@ -73,8 +73,8 @@ class PicoDetObjectDetection(TaskModel):
         model_name: str,
         image_size: tuple[int, int],
         num_classes: int,
-        classes: dict[int, str] | None = None,
-        image_normalize: dict[str, list[float]] | None = None,
+        classes: dict[int, str],
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
         reg_max: int = 7,
         score_threshold: float = 0.025,
         iou_threshold: float = 0.6,
@@ -96,20 +96,20 @@ class PicoDetObjectDetection(TaskModel):
         self._export_decode_fp32 = False
         self.backbone_freeze = backbone_freeze
 
-        if classes is not None and len(classes) != num_classes:
-            raise ValueError(
-                "classes must have the same length as num_classes when provided."
-            )
+        if len(classes) != num_classes:
+            raise ValueError("classes must have the same length as num_classes.")
 
-        internal_class_to_class = (
-            list(range(num_classes)) if classes is None else list(classes.keys())
-        )
+        internal_class_to_class = list(classes.keys())
         self.internal_class_to_class: Tensor
         self.register_buffer(
             "internal_class_to_class",
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,
         )
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(classes.values())
+        }
 
         config = _MODEL_CONFIGS.get(model_name)
         if config is None:
@@ -224,8 +224,6 @@ class PicoDetObjectDetection(TaskModel):
 
     def _add_onnx_metadata(self, out: PathLike) -> None:
         """Attach class mapping metadata to exported ONNX model."""
-        if self.classes is None:
-            return
         try:
             import onnx
         except ImportError:

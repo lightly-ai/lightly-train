@@ -68,6 +68,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
@@ -215,6 +216,12 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss_names=["loss", "loss_vfl", "loss_giou", "loss_dfl"],
         )
 
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_score_threshold = 0.1
+        self.viz_max_images = 4
+
     def set_train_mode(self) -> None:
         super().set_train_mode()
         if self.model_args.backbone_freeze:
@@ -327,6 +334,13 @@ class PicoDetObjectDetectionTrain(TrainModel):
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
+            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+                batch=batch,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                score_threshold=self.viz_score_threshold,
+            ),
         )
 
     def on_train_batch_end(self) -> None:
@@ -441,10 +455,40 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(preds, targets)
 
+        # TODO(Nauryz, 05/2026): The visualization expects boxes in original image
+        # coordinates, so we rescale here. A better alternative should be
+        # implemented in the future so this rescaling can be removed.
+        viz_results: list[dict[str, Tensor]] = []
+        for i in range(batch_size):
+            orig_w, orig_h = batch["original_size"][i]
+            scale = preds[i]["boxes"].new_tensor(
+                [
+                    orig_w / img_w,
+                    orig_h / img_h,
+                    orig_w / img_w,
+                    orig_h / img_h,
+                ]
+            )
+            viz_results.append(
+                {
+                    "boxes": preds[i]["boxes"] * scale,
+                    "scores": preds[i]["scores"],
+                    "labels": preds[i]["labels"],
+                }
+            )
+
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.val_metrics,
+            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+                batch=batch,
+                results=viz_results,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                score_threshold=self.viz_score_threshold,
+                max_images=self.viz_max_images,
+            ),
         )
 
     def _compute_losses(
