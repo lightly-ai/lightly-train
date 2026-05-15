@@ -22,10 +22,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
-<<<<<<< gabriel-trn-1983-support-dinov3-lt-detr-variable-patch-size
     _RTDETRTransformerv2Config,
-=======
->>>>>>> main
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
@@ -371,7 +368,6 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
     assert "the schedule will not complete as intended" in caplog.text
 
 
-<<<<<<< gabriel-trn-1983-support-dinov3-lt-detr-variable-patch-size
 @pytest.mark.parametrize(
     ("patch_size", "feat_strides", "num_levels"),
     [
@@ -392,8 +388,7 @@ def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
 
     config.resolve_auto(patch_size=patch_size)
 
-    assert config.feat_strides == feat_strides
-=======
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -452,4 +447,3 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model.export_onnx(
         out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
     )
->>>>>>> main
