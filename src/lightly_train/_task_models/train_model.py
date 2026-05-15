@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from lightning_fabric import Fabric
 from PIL.Image import Image as PILImage
@@ -119,6 +119,18 @@ class TrainModel(Module):
         pass
 
 
+class TaskStepVisualization(Protocol):
+    """Lazy visualization payload returned by task-specific training steps."""
+
+    def create_label_image(self) -> PILImage | None:
+        """Create a grid of label images for debugging purposes."""
+        ...
+
+    def create_prediction_image(self) -> PILImage | None:
+        """Create a grid of prediction images for debugging purposes."""
+        ...
+
+
 @dataclass
 class TaskStepResult:
     # Loss value on which backwards will be called.
@@ -133,7 +145,15 @@ class TaskStepResult:
     # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
     log_dict: dict[str, float]
 
-    # Grid of label images for debugging purposes.
-    label_image: PILImage | None = None
-    # Grid of prediction images for debugging purposes.
-    prediction_image: PILImage | None = None
+    # Lazy visualization payload for task-specific label and prediction images.
+    visualization: TaskStepVisualization | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        if self.visualization is None:
+            return None
+        return self.visualization.create_label_image()
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.visualization is None:
+            return None
+        return self.visualization.create_prediction_image()

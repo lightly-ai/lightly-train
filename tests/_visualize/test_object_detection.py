@@ -91,7 +91,7 @@ class TestPlotObjectDetectionLabels:
     def test_plot_object_detection_labels_grid_caps_at_max_images(self) -> None:
         batch = _make_batch(batch_size=4, height=16, width=16)
         result = object_detection.plot_object_detection_labels(
-            batch=batch, class_names={}, max_images=2
+            batch=batch, class_names={}, max_images=2, image_normalize=None
         )
         assert result.size == (32, 16)
 
@@ -107,7 +107,7 @@ class TestPlotObjectDetectionLabels:
             classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
-            batch=batch, class_names={1: "dog"}, max_images=1
+            batch=batch, class_names={1: "dog"}, max_images=1, image_normalize=None
         )
         # All four corners of the bbox outline must be painted with class 1's color.
         _assert_bbox_corners_have_color(
@@ -131,7 +131,7 @@ class TestPlotObjectDetectionLabels:
             classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
-            batch=batch, class_names={}, max_images=1
+            batch=batch, class_names={}, max_images=1, image_normalize=None
         )
         # Unknown class IDs still get a deterministic color from `_get_class_color`.
         _assert_bbox_corners_have_color(
@@ -171,8 +171,7 @@ class TestPlotObjectDetectionLabels:
             batch=batch,
             class_names={},
             max_images=1,
-            mean=mean,
-            std=std,
+            image_normalize={"mean": mean, "std": std},
         )
         # No bboxes are drawn, so every pixel reflects the denormalized image.
         assert result.getpixel((0, 0)) == expected_pixel
@@ -185,7 +184,7 @@ class TestPlotObjectDetectionLabels:
         # Uniform 0.4 -> 102.
         batch = _make_batch_from_image(image=torch.full((1, 3, 32, 32), 0.4))
         result = object_detection.plot_object_detection_labels(
-            batch=batch, class_names={}, max_images=1
+            batch=batch, class_names={}, max_images=1, image_normalize=None
         )
         assert result.getpixel((0, 0)) == (102, 102, 102)
         assert result.getpixel((31, 31)) == (102, 102, 102)
@@ -206,7 +205,7 @@ class TestPlotObjectDetectionLabels:
             classes=classes,
         )
         result = object_detection.plot_object_detection_labels(
-            batch=batch, class_names={0: "cat"}, max_images=2
+            batch=batch, class_names={0: "cat"}, max_images=2, image_normalize=None
         )
         # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0..63, image 1 at x=64..127.
         _assert_bbox_corners_have_color(
@@ -227,7 +226,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={},
             max_images=2,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         assert result.size == (32, 16)
 
@@ -243,7 +242,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         assert result.getpixel((0, 0)) == _BACKGROUND_PIXEL
         assert result.getpixel((31, 31)) == _BACKGROUND_PIXEL
@@ -273,7 +272,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={0: "cat"},
             max_images=2,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         # Grid is 2×1 (128 wide, 64 tall): image 0 at x=0...63, image 1 at x=64...127.
         _assert_bbox_corners_have_color(
@@ -302,7 +301,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={0: "cat"},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         # When the score is above threshold, the four bbox corners must be
         # painted with class 0's color; when below, the box is filtered out and
@@ -313,63 +312,6 @@ class TestPlotObjectDetectionPredictions:
         )
         # The box interior is never filled — only the outline is drawn.
         assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
-
-    def test_plot_object_detection_predictions_max_pred_boxes_limits_drawn_boxes(
-        self,
-    ) -> None:
-        # Each box gets a distinct class (and therefore a distinct color), and
-        # scores are scrambled so the kept set is determined by score rank rather
-        # than insertion order. Scores: top-3 are box 1 (0.95), box 3 (0.85),
-        # box 4 (0.75). Boxes 0 (0.60) and 2 (0.55) are dropped, even though box
-        # 0 comes first and box 2 sits between two kept boxes.
-        # All scores are > score_threshold=0.5, so the only filter is max_pred_boxes.
-        # Boxes are 24 px tall so the label rectangle (~19 px tall with the default
-        # font) does not reach the bottom corners. Boxes are spaced 120 px apart so
-        # each kept box's label (~80 px wide) cannot reach the next box's region.
-        batch = _make_batch_from_image(
-            image=torch.full((1, 3, 32, 600), _BACKGROUND_COLOR)
-        )
-        boxes = torch.tensor(
-            [
-                [0.0, 0.0, 10.0, 24.0],  # class 0, score 0.60 -> suppressed
-                [120.0, 0.0, 130.0, 24.0],  # class 1, score 0.95 -> kept
-                [240.0, 0.0, 250.0, 24.0],  # class 2, score 0.55 -> suppressed
-                [360.0, 0.0, 370.0, 24.0],  # class 3, score 0.85 -> kept
-                [480.0, 0.0, 490.0, 24.0],  # class 4, score 0.75 -> kept
-            ]
-        )
-        result = object_detection.plot_object_detection_predictions(
-            batch=batch,
-            results=[
-                {
-                    "boxes": boxes,
-                    "labels": torch.tensor([0, 1, 2, 3, 4], dtype=torch.long),
-                    "scores": torch.tensor([0.60, 0.95, 0.55, 0.85, 0.75]),
-                }
-            ],
-            class_names={i: f"c{i}" for i in range(5)},
-            max_images=1,
-            score_threshold=0.5,
-            max_pred_boxes=3,
-        )
-        # Suppressed boxes leave all four corners black.
-        _assert_bbox_corners_have_color(
-            image=result, xyxy=(0, 0, 10, 24), color=_BACKGROUND_PIXEL
-        )
-        _assert_bbox_corners_have_color(
-            image=result, xyxy=(240, 0, 250, 24), color=_BACKGROUND_PIXEL
-        )
-        # Kept boxes paint all four corners with their own class color, so a
-        # color regression (e.g. all boxes drawn in class 0's color) fails here.
-        _assert_bbox_corners_have_color(
-            image=result, xyxy=(120, 0, 130, 24), color=utils._get_class_color(1)
-        )
-        _assert_bbox_corners_have_color(
-            image=result, xyxy=(360, 0, 370, 24), color=utils._get_class_color(3)
-        )
-        _assert_bbox_corners_have_color(
-            image=result, xyxy=(480, 0, 490, 24), color=utils._get_class_color(4)
-        )
 
     def test_plot_object_detection_predictions_unknown_class_draws_box(self) -> None:
         # Check that a box is drawn even when the class ID isn't in included_classes;
@@ -389,7 +331,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         # Class 42 is not in `included_classes` but still gets its deterministic
         # color from `_get_class_color` (label shows "Class 42" in white).
@@ -426,9 +368,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
-            mean=mean,
-            std=std,
+            image_normalize={"mean": mean, "std": std},
         )
         # No predicted boxes pass the threshold, so every pixel reflects the
         # denormalized image.
@@ -447,7 +387,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         assert result.getpixel((0, 0)) == (102, 102, 102)
         assert result.getpixel((31, 31)) == (102, 102, 102)
@@ -474,7 +414,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={0: "obj"},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         assert result.size == (64, 64)
         _assert_bbox_corners_have_color(
@@ -506,7 +446,7 @@ class TestPlotObjectDetectionPredictions:
             class_names={0: "obj"},
             max_images=1,
             score_threshold=0.5,
-            max_pred_boxes=10,
+            image_normalize=None,
         )
         assert result.size == (64, 64)
         _assert_bbox_corners_have_color(

@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -16,12 +18,41 @@ from lightly_train._visualize import utils
 from lightly_train.types import ObjectDetectionBatch
 
 
+@dataclass
+class ObjectDetectionTaskStepVisualization:
+    batch: ObjectDetectionBatch
+    class_names: dict[int, str]
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    score_threshold: float
+    results: list[dict[str, Tensor]] | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_object_detection_labels(
+            batch=self.batch,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.results is None:
+            return None
+        return plot_object_detection_predictions(
+            batch=self.batch,
+            results=self.results,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            score_threshold=self.score_threshold,
+            max_images=self.max_images,
+        )
+
+
 def plot_object_detection_labels(
     batch: ObjectDetectionBatch,
     class_names: dict[int, str],
     max_images: int,
-    mean: tuple[float, ...] | None = None,
-    std: tuple[float, ...] | None = None,
+    image_normalize: dict[str, tuple[float, ...]] | None,
 ) -> PILImage:
     """Render a grid of images annotated with ground truth bounding boxes.
 
@@ -29,8 +60,9 @@ def plot_object_detection_labels(
         batch: Object detection batch with images, bboxes (cxcywh normalized), and
             classes.
         class_names: Mapping from class ID to class name.
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
         max_images: Maximum number of images to include in the grid.
 
     Returns:
@@ -45,9 +77,11 @@ def plot_object_detection_labels(
     pil_images: list[PILImage] = []
     for i in range(n):
         image_tensor = gt_images[i].clone().to(dtype=torch.float32)
-        if mean is not None and std is not None:
+        if image_normalize is not None:
             image_tensor = utils._denormalize_image(
-                image=image_tensor, mean=mean, std=std
+                image=image_tensor,
+                mean=image_normalize["mean"],
+                std=image_normalize["std"],
             )
 
         _, img_height, img_width = image_tensor.shape
@@ -74,14 +108,11 @@ def plot_object_detection_predictions(
     class_names: dict[int, str],
     max_images: int,
     score_threshold: float,
-    max_pred_boxes: int,
-    mean: tuple[float, ...] | None = None,
-    std: tuple[float, ...] | None = None,
+    image_normalize: dict[str, tuple[float, ...]] | None,
 ) -> PILImage:
     """Render a grid of images annotated with predicted bounding boxes.
 
-    Predictions are filtered by score_threshold and capped at max_pred_boxes per
-    image, selecting the highest-confidence detections.
+    Predictions are filtered by score_threshold selecting the highest-confidence detections.
 
     Args:
         batch: Object detection batch with images and original_size.
@@ -89,9 +120,9 @@ def plot_object_detection_predictions(
             image coordinates), 'labels', and 'scores'.
         class_names: Mapping from class ID to class name.
         score_threshold: Minimum score for a predicted box to be shown.
-        max_pred_boxes: Maximum number of predicted boxes to show per image.
-        mean: Per-channel mean used for image normalization (for denormalization).
-        std: Per-channel std used for image normalization (for denormalization).
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
 
     Returns:
         A single PIL image containing up to max_images annotated images arranged
@@ -110,11 +141,11 @@ def plot_object_detection_predictions(
     pil_images: list[PILImage] = []
     for i in range(n):
         image_tensor = gt_images[i].clone().to(dtype=torch.float32)
-        if mean is not None and std is not None:
+        if image_normalize is not None:
             image_tensor = utils._denormalize_image(
                 image=image_tensor,
-                mean=mean,
-                std=std,
+                mean=image_normalize["mean"],
+                std=image_normalize["std"],
             )
 
         img = torchvision_functional.to_pil_image(image_tensor)
@@ -139,11 +170,6 @@ def plot_object_detection_predictions(
             scores = scores[mask]
 
             if len(scores) > 0:
-                order = torch.argsort(scores, descending=True)[:max_pred_boxes]
-                boxes = boxes[order]
-                class_ids = class_ids[order]
-                scores = scores[order]
-
                 utils._draw_labeled_boxes(
                     image=img,
                     bboxes_xyxy=boxes,

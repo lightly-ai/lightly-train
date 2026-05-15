@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
@@ -18,9 +19,41 @@ from lightly_train._visualize import utils
 from lightly_train.types import ImageClassificationBatch
 
 
+@dataclass
+class ImageClassificationTaskStepVisualization:
+    batch: ImageClassificationBatch
+    class_names: dict[int, str]
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    top_k: int
+    classification_task: Literal["multiclass", "multilabel"]
+    logits: Tensor | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_image_classification_labels(
+            batch=self.batch,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.logits is None:
+            return None
+        return plot_image_classification_predictions(
+            batch=self.batch,
+            logits=self.logits,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            top_k=self.top_k,
+            max_images=self.max_images,
+            classification_task=self.classification_task,
+        )
+
+
 def plot_image_classification_labels(
     batch: ImageClassificationBatch,
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
 ) -> PILImage:
@@ -28,7 +61,7 @@ def plot_image_classification_labels(
 
     Args:
         batch: Image classification batch with images and class IDs.
-        included_classes: A dict mapping internal class IDs to class names.
+        class_names: A dict mapping internal class IDs to class names.
         max_images: Maximum number of images to include in the grid.
         image_normalize: Optional dict with "mean" and "std" tuples used to
             denormalize images before rendering. If None, images pass through
@@ -55,7 +88,7 @@ def plot_image_classification_labels(
         img = torchvision_functional.to_pil_image(image_tensor)
 
         labels = [
-            included_classes.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
+            class_names.get(int(cid), f"Class {int(cid)}") for cid in gt_classes[i]
         ]
         img = utils._draw_class_legend(image=img, labels=labels, colors=None)
 
@@ -66,7 +99,7 @@ def plot_image_classification_labels(
 
 def plot_image_classification_predictions(
     batch: ImageClassificationBatch,
-    included_classes: dict[int, str],
+    class_names: dict[int, str],
     logits: Tensor,
     max_images: int,
     top_k: int,
@@ -80,7 +113,7 @@ def plot_image_classification_predictions(
 
     Args:
         batch: Image classification batch with images.
-        included_classes: A dict mapping internal class IDs to class names.
+        class_names: A dict mapping internal class IDs to class names.
         logits: Model output logits of shape (batch_size, num_classes).
         max_images: Maximum number of images to include in the grid.
         top_k: Number of top predictions to display per image.
@@ -128,7 +161,7 @@ def plot_image_classification_predictions(
         for rank in range(effective_k):
             class_id = int(top_class_ids[i, rank].item())
             score = float(top_scores[i, rank].item())
-            class_name = included_classes.get(class_id, f"Class {class_id}")
+            class_name = class_names.get(class_id, f"Class {class_id}")
             labels.append(f"{class_name}: {score:.2f}")
         img = utils._draw_class_legend(image=img, labels=labels, colors=None)
 

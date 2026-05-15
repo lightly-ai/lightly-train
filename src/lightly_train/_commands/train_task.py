@@ -31,6 +31,7 @@ from lightly_train import (
 )
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
+from lightly_train._commands import train_task_visualization as visualization_helpers
 from lightly_train._commands.train_task_helpers import BestAggregatedMetricValues
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
@@ -1550,6 +1551,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         timer.start()
 
         log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
+        val_every_num_steps = no_auto(config.logger_args.val_every_num_steps)
         val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
         train_num_batches = len(train_dataloader)
         # Always log the first few steps and then log at a regular interval.
@@ -1559,7 +1561,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         val_log_steps = {
             step for step in [1, 2, 5, 10, 50, 100] if step < val_log_every_num_steps
         }
-
         for step in range(start_step, config.steps):
             state["step"] = step
             current_epoch = helpers.get_training_epoch(
@@ -1569,9 +1570,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             )
             is_last_step = step + 1 == config.steps
             is_log_step = step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
-            is_val_step = (step + 1) % no_auto(
-                config.logger_args.val_every_num_steps
-            ) == 0
+            is_val_step = (step + 1) % val_every_num_steps == 0
             is_save_ckpt_step = (step + 1) % no_auto(
                 config.save_checkpoint_args.save_every_num_steps
             ) == 0
@@ -1592,7 +1591,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 train_collate_fn.mark_dataloader_as_reinitialized()
 
             # Training data loading, forward passes, and gradient accumulation.
-            label_image = None
             for acc_step in range(config.gradient_accumulation_steps):
                 is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
@@ -1610,8 +1608,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         train_result.loss / config.gradient_accumulation_steps
                     )
 
-                if acc_step == 0:
-                    label_image = train_result.label_image
+                # Save label grid from the first microbatch of the training step.
+                if acc_step == 0 and step < 3 and fabric.global_rank == 0:
+                    visualization_helpers.save_train_step_visualizations(
+                        result=train_result,
+                        out_dir=out_dir,
+                        step=step,
+                    )
 
             # Optimizer step and scheduler step.
             train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
@@ -1621,12 +1624,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
             # Call the on_train_batch_end hook.
             train_model.on_train_batch_end()
-
-            # Save label grid from the first microbatch of the training step.
-            if label_image is not None:
-                viz_dir = out_dir / "image_examples"
-                viz_dir.mkdir(parents=True, exist_ok=True)
-                label_image.save(viz_dir / f"train_labels_{step}.jpg")
 
             timer.end_step("train_step")
             timer.record_gpu_stats("train")
@@ -1723,17 +1720,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             step=val_step,
                         )
 
-                    viz_dir = out_dir / "image_examples"
-                    if val_result.prediction_image is not None:
-                        viz_dir.mkdir(parents=True, exist_ok=True)
-                        val_result.prediction_image.save(
-                            viz_dir / f"val_predictions_{val_step}.jpg"
+                    if val_step < 3 and fabric.global_rank == 0:
+                        visualization_helpers.save_val_step_visualizations(
+                            result=val_result,
+                            out_dir=out_dir,
+                            val_step=val_step,
                         )
-                    if val_result.label_image is not None:
-                        label_path = viz_dir / f"val_labels_{val_step}.jpg"
-                        if not label_path.exists():
-                            viz_dir.mkdir(parents=True, exist_ok=True)
-                            val_result.label_image.save(label_path)
 
                     timer.end_step("val_step")
                     timer.record_gpu_stats("val")

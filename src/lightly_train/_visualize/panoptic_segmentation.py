@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -16,6 +17,37 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
 from lightly_train.types import MaskPanopticSegmentationBatch
+
+
+@dataclass
+class PanopticSegmentationTaskStepVisualization:
+    batch: MaskPanopticSegmentationBatch
+    class_names: dict[int, str]
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    alpha: float
+    pred_masks: Sequence[Tensor] | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_panoptic_segmentation_labels(
+            batch=self.batch,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+            alpha=self.alpha,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.pred_masks is None:
+            return None
+        return plot_panoptic_segmentation_predictions(
+            batch=self.batch,
+            pred_masks=self.pred_masks,
+            class_names=self.class_names,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+            alpha=self.alpha,
+        )
 
 
 def plot_panoptic_segmentation_labels(
