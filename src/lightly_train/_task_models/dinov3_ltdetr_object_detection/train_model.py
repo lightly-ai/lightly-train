@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -24,6 +25,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
 )
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -98,6 +100,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
     decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
 
@@ -146,6 +149,33 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
 
+    def resolve_auto(
+        self,
+        total_steps: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
+    ) -> None:
+        if self.patch_size == "auto":
+            patch_size = model_init_args.get("patch_size", None)
+            if patch_size is not None:
+                self.patch_size = int(patch_size)
+            else:
+                match = re.match(
+                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
+                    model_name,
+                )
+
+                if match is not None:
+                    self.patch_size = int(match.group("patch_size"))
+                elif re.match(r"dinov3/convnext.*", model_name) is not None:
+                    self.patch_size = None
+                else:
+                    raise ValueError(
+                        "Unable to resolve patch_size='auto' for model "
+                        f"{model_name!r}. Please provide a concrete patch_size."
+                    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_loss_weight_dict(self) -> dict[str, float]:
@@ -190,6 +220,11 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.data_args = data_args
 
+        backbone_args: dict[str, Any] | None = model_args.backbone_args
+
+        if not backbone_args:
+            backbone_args = None
+
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
         normalize_dict: dict[str, Any] | None
@@ -206,7 +241,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             classes=data_args.included_classes,
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
-            backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
+            backbone_args=backbone_args,
+            patch_size=no_auto(model_args.patch_size),
             backbone_weights=model_args.backbone_weights,
             decoder_name=model_args.decoder_name,
             load_weights=load_weights,

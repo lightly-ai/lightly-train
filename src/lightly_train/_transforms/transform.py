@@ -217,7 +217,7 @@ class ScaleJitterArgs(PydanticConfig):
     max_scale: float | None
     num_scales: int | None
     prob: float = Field(ge=0.0, le=1.0)
-    divisible_by: int | None
+    divisible_by: int | None | Literal["auto"]
 
     # ScaleJitter does not have `step_start`, only `step_stop`.
     step_stop: int | Literal["auto"] | None = None
