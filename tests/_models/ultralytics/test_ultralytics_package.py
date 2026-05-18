@@ -12,7 +12,10 @@ import pytest
 import torch
 from lightning_utilities.core.imports import RequirementCache
 
-from lightly_train._models.ultralytics.ultralytics import UltralyticsModelWrapper
+from lightly_train._models.ultralytics.ultralytics import (
+    YOLO26_AVAILABLE,
+    UltralyticsModelWrapper,
+)
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
 
 if importlib_util.find_spec("ultralytics") is None:
@@ -21,17 +24,6 @@ if importlib_util.find_spec("ultralytics") is None:
 from ultralytics import YOLO  # type: ignore[attr-defined]
 
 YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
-
-
-def _is_model_available(model_name: str) -> bool:
-    try:
-        YOLO(model_name)
-    except Exception:
-        return False
-    return True
-
-
-YOLO26_AVAILABLE = _is_model_available("yolo26n.yaml")
 
 
 class TestUltralyticsPackage:

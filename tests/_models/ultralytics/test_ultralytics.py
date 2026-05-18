@@ -13,6 +13,7 @@ from torch.nn import Identity
 
 from lightly_train._models.ultralytics import ultralytics
 from lightly_train._models.ultralytics.ultralytics import (
+    YOLO26_AVAILABLE,
     YOLOV11_AVAILABLE,
     YOLOV12_ORIGINAL_AVAILABLE,
     YOLOV12_ULTRALYTICS_AVAILABLE,
@@ -24,17 +25,6 @@ if importlib_util.find_spec("ultralytics") is None:
 
 from ultralytics import YOLO  # type: ignore[attr-defined]
 from ultralytics.nn.modules.block import SPPF, C2f
-
-
-def _is_model_available(model_name: str) -> bool:
-    try:
-        YOLO(model_name)
-    except Exception:
-        return False
-    return True
-
-
-YOLO26_AVAILABLE = _is_model_available("yolo26n.yaml")
 
 
 class TestUltralyticsModelWrapper:
