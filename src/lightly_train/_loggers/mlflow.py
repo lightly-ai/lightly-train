@@ -89,10 +89,11 @@ class MLFlowLogger(LightningMLFlowLogger):
 
     @rank_zero_only  # type: ignore[misc]
     def log_image(self, key: str, images: list[Image], step: int | None = None) -> None:
+        mlflow_key = key.replace("/", ".")
         for image in images:
             self.experiment.log_image(
                 run_id=self.run_id,
                 image=image,
-                key=key,
+                key=mlflow_key,
                 step=step,
             )
