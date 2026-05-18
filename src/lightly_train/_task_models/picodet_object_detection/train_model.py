@@ -409,6 +409,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
         cls_labels = cls_logits.argmax(dim=-1)
         cls_scores = cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
         scores = torch.sigmoid(cls_scores)
+        cls_labels = ema_model.internal_class_to_class[cls_labels]
 
         preds = []
         targets = []
