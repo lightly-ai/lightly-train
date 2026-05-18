@@ -352,13 +352,13 @@ install-docker:
 # Install dependencies for building and publishing the package.
 .PHONY: install-dist
 install-dist:
-	uv venv --python=${MAXIMAL_PYTHON_VERSION}
-	uv pip install --exclude-newer ${EXCLUDE_NEWER_DATE} wheel twine build 
+	uv sync --frozen --python=${MAXIMAL_PYTHON_VERSION} \
+		--exclude-newer ${EXCLUDE_NEWER_DATE} --only-group dist
 
 ### Building source and wheel package for publishing to pypi
 .PHONY: dist
 dist: clean
-	python -m build
+	uv run --frozen python -m build
 	ls -l dist
 
 

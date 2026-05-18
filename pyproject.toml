@@ -78,6 +78,11 @@ dev = [
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
 ]
+dist = [
+    "build>=1.2.2",
+    "twine>=6.1.0",
+    "wheel>=0.45.1",
+]
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
