@@ -89,7 +89,11 @@ class MLFlowLogger(LightningMLFlowLogger):
 
     @rank_zero_only  # type: ignore[misc]
     def log_image(self, key: str, images: list[Image], step: int | None = None) -> None:
-        mlflow_key = key.replace("/", ".")
+        # MLflow groups image panels on the run page by the prefix before '/'
+        # in the key. Flatten the incoming logical key (e.g. 'val/predictions_0')
+        # into the section name so each call lands in its own section, with
+        # 'image' as the item name within that section.
+        mlflow_key = f"{key.replace('/', '_')}/image"
         for image in images:
             self.experiment.log_image(
                 run_id=self.run_id,
