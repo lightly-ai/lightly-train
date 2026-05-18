@@ -1,17 +1,22 @@
 repos:
- - repo: https://github.com/kynan/nbstripout.git
-   rev: 0.9.0
-   hooks:
-    - id: nbstripout
-      description: "Strips outputs from Jupyter notebooks."
- - repo: https://github.com/pre-commit/pre-commit-hooks
-   rev: v6.0.0
-   hooks:
-    - id: check-added-large-files
-      description: "Avoid committing large files."
-      args: ["--maxkb=2000", "--enforce-all"]
- - repo: https://github.com/fastai/nbdev
-   rev: 3.0.14
-   hooks:
-    - id: nbdev-clean
-      args: [--fname=examples]
+  - repo: https://github.com/kynan/nbstripout.git
+    rev: 0.9.0
+    hooks:
+      - id: nbstripout
+        description: "Strips outputs from Jupyter notebooks."
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        description: "Avoid committing large files."
+        args: ["--maxkb=2000", "--enforce-all"]
+  - repo: https://github.com/fastai/nbdev
+    rev: 3.0.14
+    hooks:
+      - id: nbdev-clean
+        args: [--fname=examples]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff-format
+      - id: ruff-check

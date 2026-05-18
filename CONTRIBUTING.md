@@ -19,14 +19,23 @@ Make sure the environment is activated before running the following commands.
 
 ### Running Checks and Tests
 
-Before committing code, make sure all tests and checks pass:
+Before committing code, make sure the checks pass. A typical workflow is:
 
 ```
 make format
 make static-checks
 ```
 
-and if you want to run all the tests:
+`make format` fixes formatting and lint issues, and `make static-checks` validates
+formatting, linting, markdown formatting, and type checking.
+
+If you only want the hook-based file checks, run:
+
+```
+pre-commit run --all-files
+```
+
+To run all the tests:
 
 ```
 make test

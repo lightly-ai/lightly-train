@@ -58,16 +58,12 @@ format: add-header
 # run format check
 .PHONY: format-check
 format-check:
-	# Check code formatting
-	ruff format --check .
-	# Check linting issues
-	ruff check .
+	# Run pre-commit hooks
+	pre-commit run --all-files
 	# Check markdown formatting
 	mdformat --check ${MDFORMAT_FILES}
 	# Check code in markdown files
 	pytest docs/format_code.py::test_format_check_code_in_docs
-	# Run pre-commit hooks
-	pre-commit run --all-files
 
 # run type check
 .PHONY: type-check
