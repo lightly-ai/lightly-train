@@ -221,8 +221,8 @@ convention = "google"
 
 [tool.uv]
 override-dependencies = [
-  "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
-  "onnx>=1.15.0",             # Override dependency from SuperGradients on onnx==1.15.0
+    # Override dependency from SuperGradients on sphinx<=4.1
+    "sphinx>=7.1",
 ]
 conflicts = [
     [ # conflicting due to incompatible versions of onnxruntime
@@ -233,7 +233,11 @@ conflicts = [
         { extra = "super-gradients" },
         { extra = "rfdetr" },
     ],
-    [
+    [ # super-gradients requires onnx==1.15.0 which is incompatible with onnx>=1.18.0 for Python>=3.9
+        { extra = "super-gradients" },
+        { extra = "onnx" },
+    ],
+    [ # conflicting pinned versions of torch and torchvision for Python 3.8
         { group = "minimal-torch-py38" },
         { group = "pinned-torch-py38" },
         { group = "pinned-torch-py313" },
