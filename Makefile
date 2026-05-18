@@ -276,6 +276,9 @@ install-minimal:
 		--group minimal-torch-py38
 	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
 
+# Install package with minimal dependencies and extras, but latest versions of
+# development packages.
+.PHONY: install-minimal-extras
 install-minimal-extras:
 	uv sync --python=${MINIMAL_PYTHON_VERSION} --resolution=lowest-direct \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
