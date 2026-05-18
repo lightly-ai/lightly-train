@@ -223,6 +223,12 @@ convention = "google"
 override-dependencies = [
     # Override dependency from SuperGradients on sphinx<=4.1
     "sphinx>=7.1",
+    # Floor for transitive onnx dependencies (e.g. from onnxslim) to prevent the
+    # resolver from picking ancient versions like onnx==0.1 under --resolution=lowest-direct.
+    # The onnx extra's Python-versioned lower bounds (>=1.18 for 3.9+, >=1.20 for 3.10+)
+    # are intentionally left to the resolver; the conflict declaration below prevents
+    # super-gradients' onnx==1.15.0 pin from pulling those down.
+    "onnx>=1.15.0",
 ]
 conflicts = [
     [ # conflicting due to incompatible versions of onnxruntime
