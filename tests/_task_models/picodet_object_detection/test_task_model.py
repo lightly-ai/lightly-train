@@ -57,6 +57,7 @@ def test_task_model_forward_shapes() -> None:
         model_name="picodet/s-416",
         image_size=(416, 416),
         num_classes=80,
+        classes={i: f"class_{i}" for i in range(80)},
         image_normalize=None,
         load_weights=False,
     )
@@ -82,6 +83,7 @@ def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
         model_name="picodet/s-416",
         image_size=(416, 416),
         num_classes=80,
+        classes={i: f"class_{i}" for i in range(80)},
         load_weights=False,
     )
 
@@ -107,6 +109,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
         model_name="picodet/s-416",
         image_size=(416, 416),
         num_classes=80,
+        classes={i: f"class_{i}" for i in range(80)},
         load_weights=False,
     )
 
@@ -143,6 +146,7 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
         model_name="picodet/s-416",
         image_size=(416, 416),
         num_classes=80,
+        classes={i: f"class_{i}" for i in range(80)},
         load_weights=False,
     )
 

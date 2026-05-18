@@ -74,7 +74,7 @@ class PicoDetObjectDetection(TaskModel):
         image_size: tuple[int, int],
         num_classes: int,
         classes: dict[int, str] | None = None,
-        image_normalize: dict[str, list[float]] | None = None,
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
         reg_max: int = 7,
         score_threshold: float = 0.025,
         iou_threshold: float = 0.6,
@@ -97,9 +97,7 @@ class PicoDetObjectDetection(TaskModel):
         self.backbone_freeze = backbone_freeze
 
         if classes is not None and len(classes) != num_classes:
-            raise ValueError(
-                "classes must have the same length as num_classes when provided."
-            )
+            raise ValueError("classes must have the same length as num_classes.")
 
         internal_class_to_class = (
             list(range(num_classes)) if classes is None else list(classes.keys())
@@ -109,6 +107,14 @@ class PicoDetObjectDetection(TaskModel):
             "internal_class_to_class",
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,
+        )
+        self.included_classes: dict[int, str] = (
+            {i: str(i) for i in range(num_classes)}
+            if classes is None
+            else {
+                internal_class_id: class_name
+                for internal_class_id, class_name in enumerate(classes.values())
+            }
         )
 
         config = _MODEL_CONFIGS.get(model_name)
