@@ -26,6 +26,17 @@ from ultralytics import YOLO  # type: ignore[attr-defined]
 from ultralytics.nn.modules.block import SPPF, C2f
 
 
+def _is_model_available(model_name: str) -> bool:
+    try:
+        YOLO(model_name)
+    except Exception:
+        return False
+    return True
+
+
+YOLO26_AVAILABLE = _is_model_available("yolo26n.yaml")
+
+
 class TestUltralyticsModelWrapper:
     @pytest.mark.parametrize(
         "model_name", ["yolov8s.yaml", "yolov8s.pt", "yolov8s-cls.yaml"]
@@ -79,6 +90,20 @@ class TestUltralyticsModelWrapper:
                 marks=pytest.mark.skipif(
                     not YOLOV12_ORIGINAL_AVAILABLE,
                     reason="YOLOv12 from the custom source",
+                ),
+            ),
+            pytest.param(
+                "yolo26s.yaml",
+                marks=pytest.mark.skipif(
+                    not YOLO26_AVAILABLE,
+                    reason="YOLO26 is not available",
+                ),
+            ),
+            pytest.param(
+                "yolo26s-cls.yaml",
+                marks=pytest.mark.skipif(
+                    not YOLO26_AVAILABLE,
+                    reason="YOLO26 is not available",
                 ),
             ),
         ],

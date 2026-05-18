@@ -23,6 +23,17 @@ from ultralytics import YOLO  # type: ignore[attr-defined]
 YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
 
 
+def _is_model_available(model_name: str) -> bool:
+    try:
+        YOLO(model_name)
+    except Exception:
+        return False
+    return True
+
+
+YOLO26_AVAILABLE = _is_model_available("yolo26n.yaml")
+
+
 class TestUltralyticsPackage:
     @pytest.mark.parametrize(
         "model_name, supported",
@@ -39,6 +50,25 @@ class TestUltralyticsPackage:
     def test_list_model_names(self, model_name: str, supported: bool) -> None:
         model_names = UltralyticsPackage.list_model_names()
         assert (model_name in model_names) is supported
+
+    @pytest.mark.skipif(not YOLO26_AVAILABLE, reason="YOLO26 is not available")
+    def test_list_model_names__yolo26(self) -> None:
+        model_names = set(UltralyticsPackage.list_model_names())
+        expected_model_names = {
+            "ultralytics/yolo26s.yaml",
+            "ultralytics/yolo26s.pt",
+            "ultralytics/yolo26s-cls.yaml",
+            "ultralytics/yolo26s-cls.pt",
+            "ultralytics/yolo26s-obb.yaml",
+            "ultralytics/yolo26s-obb.pt",
+            "ultralytics/yolo26s-pose.yaml",
+            "ultralytics/yolo26s-pose.pt",
+            "ultralytics/yolo26s-seg.yaml",
+            "ultralytics/yolo26s-seg.pt",
+            "ultralytics/yolo26n-p2.yaml",
+            "ultralytics/yolo26n-p6.yaml",
+        }
+        assert expected_model_names.issubset(model_names)
 
     def test_is_supported_model__true(self) -> None:
         model = YOLO("yolov8s.yaml")
