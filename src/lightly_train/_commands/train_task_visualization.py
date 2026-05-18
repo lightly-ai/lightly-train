@@ -49,7 +49,7 @@ def save_val_step_visualizations(
         image=result.create_prediction_image(),
         path=viz_dir / f"val_predictions_{val_step}.jpg",
         loggers=loggers,
-        key="val/predictions",
+        key=f"val/predictions_{val_step}",
         step=global_step,
     )
     label_path = viz_dir / f"val_labels_{val_step}.jpg"
@@ -58,7 +58,7 @@ def save_val_step_visualizations(
             image=result.create_label_image(),
             path=label_path,
             loggers=loggers,
-            key="val/labels",
+            key=f"val/labels_{val_step}",
             step=global_step,
         )
 
