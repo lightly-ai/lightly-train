@@ -276,6 +276,12 @@ install-minimal:
 		--group minimal-torch-py38
 	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
 
+install-minimal-extras:
+	uv sync --python=${MINIMAL_PYTHON_VERSION} --resolution=lowest-direct \
+		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
+		--group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
+	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
+
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
 # dependencies are released.
