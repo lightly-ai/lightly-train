@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 
@@ -19,6 +20,10 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
+    DINOv3LTDETRObjectDetection,
+    _RTDETRTransformerv2Config,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
     DINOv3LTDETRObjectDetectionTrainArgs,
@@ -30,6 +35,56 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
 )
+
+
+def _is_module_frozen(m: nn.Module) -> bool:
+    return all(not param.requires_grad for param in m.parameters())
+
+
+def _create_train_model(
+    train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
+    *,
+    model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
+    model_init_args: dict[str, Any] | None = None,
+) -> DINOv3LTDETRObjectDetectionTrain:
+    data_args = YOLOObjectDetectionDataArgs(
+        path=Path("/tmp/data"),
+        train=Path("train") / "images",
+        val=Path("val") / "images",
+        names={0: "class_0", 1: "class_1"},
+    )
+    train_model_args.resolve_auto(
+        total_steps=1000,
+        model_name=model_name,
+        model_init_args={} if model_init_args is None else model_init_args,
+        data_args=data_args,
+    )
+    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args.resolve_auto(model_init_args={})
+    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
+    val_transform_args.resolve_auto(model_init_args={})
+
+    train_model = DINOv3LTDETRObjectDetectionTrain(
+        model_name=model_name,
+        model_args=train_model_args,
+        data_args=data_args,
+        train_transform_args=train_transform_args,
+        val_transform_args=val_transform_args,
+        metric_args=ObjectDetectionTaskMetricArgs(),
+        load_weights=False,
+        gradient_accumulation_steps=1,
+    )
+    return train_model
+
+
+@pytest.fixture()
+def dummy_yolo_detection_data_args() -> YOLOObjectDetectionDataArgs:
+    return YOLOObjectDetectionDataArgs(
+        path=Path("/tmp/data"),
+        train=Path("train") / "images",
+        val=Path("val") / "images",
+        names={0: "class_0", 1: "class_1"},
+    )
 
 
 @pytest.mark.parametrize("use_ema_model", [True, False])
@@ -53,10 +108,6 @@ def test_load_train_state_dict__no_ema_weights() -> None:
     task_model.load_train_state_dict(state_dict)
 
 
-def _is_module_frozen(m: nn.Module) -> bool:
-    return all(not param.requires_grad for param in m.parameters())
-
-
 @pytest.mark.parametrize("should_freeze", [True, False])
 def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs(
@@ -77,39 +128,184 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
     )
 
 
-def _create_train_model(
-    train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
-    *,
-    model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
-) -> DINOv3LTDETRObjectDetectionTrain:
-    data_args = YOLOObjectDetectionDataArgs(
-        path=Path("/tmp/data"),
-        train=Path("train") / "images",
-        val=Path("val") / "images",
-        names={0: "class_0", 1: "class_1"},
-    )
-    train_model_args.resolve_auto(
+@pytest.mark.parametrize(
+    ("model_name", "expected_patch_size"),
+    [("dinov3/vitt16-ltdetr-coco", 16), ("dinov3/convnext-tiny-ltdetr-coco", None)],
+)
+def test_resolve_auto__uses_vit_model_name(
+    model_name: str,
+    expected_patch_size: int | str,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
         total_steps=1000,
         model_name=model_name,
         model_init_args={},
-        data_args=data_args,
+        data_args=dummy_yolo_detection_data_args,
     )
-    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
-    train_transform_args.resolve_auto(model_init_args={})
-    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
-    val_transform_args.resolve_auto(model_init_args={})
 
-    train_model = DINOv3LTDETRObjectDetectionTrain(
+    assert model_args.patch_size == expected_patch_size
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_patch_size"),
+    [("dinov3/vitt16-ltdetr-coco", 36), ("dinov3/convnext-tiny-ltdetr-coco", 47)],
+)
+def test_resolve_auto__uses_model_init_args_patch_size(
+    model_name: str,
+    expected_patch_size: int,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
         model_name=model_name,
-        model_args=train_model_args,
-        data_args=data_args,
-        train_transform_args=train_transform_args,
-        val_transform_args=val_transform_args,
-        metric_args=ObjectDetectionTaskMetricArgs(),
-        load_weights=False,
-        gradient_accumulation_steps=1,
+        model_init_args={"patch_size": expected_patch_size},
+        data_args=dummy_yolo_detection_data_args,
     )
-    return train_model
+
+    assert model_args.patch_size == expected_patch_size
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_patch_size"),
+    [("dinov3/vitt16-ltdetr-coco", 36), ("dinov3/convnext-tiny-ltdetr-coco", 47)],
+)
+def test_resolve_auto__uses_model_explicit_patch_size_arg(
+    model_name: str,
+    expected_patch_size: int,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=expected_patch_size)
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        model_name=model_name,
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.patch_size == expected_patch_size
+
+
+def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        patch_size=14,
+        image_normalize=None,
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        load_weights=False,
+    )
+
+    assert model.init_args["patch_size"] == 14
+
+    roundtrip_model = DINOv3LTDETRObjectDetection(
+        **model.init_args,
+        load_weights=False,
+    )
+    assert roundtrip_model.init_args == model.init_args
+    assert roundtrip_model.init_args["patch_size"] == 14
+
+
+@pytest.mark.parametrize(
+    ("patch_size", "expected_image_size"),
+    [
+        (14, (644, 644)),
+        (16, (640, 640)),
+        (24, (672, 672)),
+        (64, (640, 640)),
+    ],
+)
+def test_train_transform_args__resolve_auto__image_size_is_2x_patch_size_compatible(
+    patch_size: int,
+    expected_image_size: tuple[int, int],
+) -> None:
+    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
+
+    assert train_transform_args.image_size == expected_image_size
+
+
+@pytest.mark.parametrize("patch_size", [14, 16, 64])
+def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_size(
+    patch_size: int,
+) -> None:
+    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
+
+    assert train_transform_args.scale_jitter is not None, (
+        "scale_jitter should not be None after resolve_auto"
+    )
+
+    assert train_transform_args.scale_jitter.divisible_by == patch_size * 2
+
+
+@pytest.mark.parametrize(
+    ("patch_size", "expected_image_size"),
+    [
+        (14, (644, 644)),
+        (16, (640, 640)),
+        (24, (672, 672)),
+        (64, (640, 640)),
+    ],
+)
+def test_val_transform_args__resolve_auto__image_size_is_2x_patch_size_compatible(
+    patch_size: int,
+    expected_image_size: tuple[int, int],
+) -> None:
+    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
+    val_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
+
+    assert val_transform_args.image_size == expected_image_size
+
+
+@pytest.mark.parametrize(
+    "transform_args_cls",
+    [
+        DINOv3LTDETRObjectDetectionTrainTransformArgs,
+        DINOv3LTDETRObjectDetectionValTransformArgs,
+    ],
+)
+def test_transform_args__resolve_auto__preserves_explicit_image_size(
+    transform_args_cls: type[
+        DINOv3LTDETRObjectDetectionTrainTransformArgs
+        | DINOv3LTDETRObjectDetectionValTransformArgs
+    ],
+) -> None:
+    transform_args = transform_args_cls()
+    transform_args.resolve_auto(
+        model_init_args={"patch_size": 14, "image_size": (672, 672)}
+    )
+
+    assert transform_args.image_size == (672, 672)
+
+
+@pytest.mark.parametrize(
+    "transform_args_cls",
+    [
+        DINOv3LTDETRObjectDetectionTrainTransformArgs,
+        DINOv3LTDETRObjectDetectionValTransformArgs,
+    ],
+)
+def test_transform_args__resolve_auto__rejects_incompatible_explicit_image_size(
+    transform_args_cls: type[
+        DINOv3LTDETRObjectDetectionTrainTransformArgs
+        | DINOv3LTDETRObjectDetectionValTransformArgs
+    ],
+) -> None:
+    transform_args = transform_args_cls()
+
+    with pytest.raises(ValueError, match=r"2 \* the patch size"):
+        transform_args.resolve_auto(
+            model_init_args={"patch_size": 14, "image_size": (658, 658)}
+        )
 
 
 @pytest.mark.parametrize(
@@ -170,3 +366,84 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
     assert "the schedule will not complete as intended" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("patch_size", "feat_strides", "num_levels"),
+    [
+        (16, [8, 16, 32, 64], 4),
+        (14, [7, 14, 28, 56], 4),
+        (64, [32, 64, 128, 256], 4),
+        (16, [8, 16, 32], 3),
+        (14, [7, 14, 28], 3),
+        (64, [32, 64, 128], 3),
+    ],
+)
+def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
+    patch_size: int, feat_strides: list[int], num_levels: int
+) -> None:
+    config = _RTDETRTransformerv2Config(
+        num_levels=num_levels, feat_channels=[-1] * num_levels
+    )
+
+    config.resolve_auto(patch_size=patch_size)
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
+    import numpy as np
+    import onnx
+    import onnxruntime as ort
+
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_param == "N"
+
+    import torch
+
+    inputs = np.random.randn(3, 3, 256, 256).astype(np.float32)
+
+    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    onnx_outputs = session.run(None, {"images": inputs})
+
+    with torch.no_grad():
+        torch_outputs = model(torch.from_numpy(inputs))
+
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+        onnx_tensor = torch.from_numpy(onnx_out)
+        if torch_out.is_floating_point():
+            close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
+            assert close.float().mean() > 0.95
+        else:
+            assert (onnx_tensor == torch_out).float().mean() > 0.95
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(
+        out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
+    )

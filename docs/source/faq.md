@@ -121,7 +121,7 @@ for any visual task, especially when you have limited labeled data or domain-spe
 ```{dropdown} <h6>Which models does LightlyTrain support?<a class="headerlink" id="which-models-does-lightlytrain-support" href="#which-models-does-lightlytrain-support" title="Link to this heading">¶</a></h6>
 LightlyTrain supports the latest model architectures in computer vision such as:
 
-- YOLO (YOLOv5, YOLOv6, YOLOv8, YOLOv11, YOLOv12)
+- YOLO (YOLOv5, YOLOv6, YOLOv8, YOLOv11, YOLOv12, YOLO26)
 - RF-DETR
 - RT-DETR
 - Vision Transformers

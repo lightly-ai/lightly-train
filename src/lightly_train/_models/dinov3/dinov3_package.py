@@ -30,6 +30,19 @@ from lightly_train._models.package import Package
 logger = logging.getLogger(__name__)
 
 
+def _resolve_patch_size(patch_size: str | None, args: dict[str, Any]) -> None:
+    if patch_size is not None:
+        if "patch_size" not in args or args["patch_size"] is None:
+            args["patch_size"] = int(patch_size)
+        elif int(args["patch_size"]) != int(patch_size):
+            logger.warning(
+                f"Patch size from model name {patch_size} got overwritten by patch size argument {args['patch_size']}"
+            )
+
+        if "patch_size" in args:
+            args["patch_size"] = int(args["patch_size"])
+
+
 class _DINOv3ModelInfo(TypedDict):
     builder: Callable[..., DinoVisionTransformer | ConvNeXt]
     default_weights: str | None
@@ -297,16 +310,7 @@ class DINOv3Package(Package):
 
         # Update the patch size argument from the model_builder.
         # If patch_size is None the model is not a ViT and the patch_size should only be set if explicitly given.
-        if patch_size is not None:
-            if "patch_size" not in args:
-                args["patch_size"] = patch_size
-            elif int(args["patch_size"]) != int(patch_size):
-                logger.warning(
-                    f"Patch size from model name {patch_size} got overwritten by patch size argument {args['patch_size']}"
-                )
-
-        if "patch_size" in args:
-            args["patch_size"] = int(args["patch_size"])
+        _resolve_patch_size(patch_size, args)
 
         if (
             load_weights

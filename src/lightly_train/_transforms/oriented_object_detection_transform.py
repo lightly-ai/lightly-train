@@ -186,7 +186,7 @@ class OrientedObjectDetectionCollateFunction(TaskCollateFunction):
                 if transform_args.scale_jitter.sizes is None
                 else None,
                 num_scales=transform_args.scale_jitter.num_scales,
-                divisible_by=transform_args.scale_jitter.divisible_by,
+                divisible_by=no_auto(transform_args.scale_jitter.divisible_by),
                 scale_range=transform_args.scale_jitter.scale_range,
             )
 

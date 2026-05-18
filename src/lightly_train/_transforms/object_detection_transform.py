@@ -627,7 +627,9 @@ class ObjectDetectionCollateFunction(TaskCollateFunction):
                         ),
                         scale_range=self.transform_args.scale_jitter.scale_range,
                         num_scales=self.transform_args.scale_jitter.num_scales,
-                        divisible_by=self.transform_args.scale_jitter.divisible_by,
+                        divisible_by=no_auto(
+                            self.transform_args.scale_jitter.divisible_by
+                        ),
                         p=self.transform_args.scale_jitter.prob,
                     )
                 ],

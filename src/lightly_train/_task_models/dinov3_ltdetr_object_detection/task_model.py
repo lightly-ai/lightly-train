@@ -209,7 +209,7 @@ class _HybridEncoderViTLConfig(_HybridEncoderConfig):
 
 class _RTDETRTransformerv2Config(PydanticConfig):
     feat_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int = 256
     num_levels: int = 3
     num_layers: int = 6
@@ -219,6 +219,13 @@ class _RTDETRTransformerv2Config(PydanticConfig):
     box_noise_scale: float = 1.0
     eval_idx: int = -1
     num_points: list[int] = [4, 4, 4]
+
+    def resolve_auto(self, patch_size: int | None) -> None:
+        patch_size = patch_size or 16
+        if self.feat_strides == "auto":
+            self.feat_strides = [
+                int(patch_size * (2 ** (i - 1))) for i in range(self.num_levels)
+            ]
 
 
 class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
@@ -398,6 +405,9 @@ class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     dfine_transformer: _DFINETransformerConfig
     rtdetr_postprocessor: _RTDETRPostProcessorConfig
 
+    def resolve_auto(self, patch_size: int | None) -> None:
+        self.rtdetr_transformer.resolve_auto(patch_size=patch_size)
+
 
 class _DINOv3LTDETRObjectDetectionLargeConfig(_DINOv3LTDETRObjectDetectionConfig):
     hybrid_encoder: _HybridEncoderLargeConfig = Field(
@@ -558,13 +568,39 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         model_name: str,
         classes: dict[int, str],
         image_size: tuple[int, int],
-        image_normalize: dict[str, Any] | None = None,
+        patch_size: int | None = None,
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
         decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
     ) -> None:
+        """Create a DINOv3 LTDETR object detection model.
+
+        Args:
+            model_name:
+                The model name. For example ``"vitt16-ltdetr"``.
+            classes:
+                A dict mapping class IDs to class names.
+            image_size:
+                The input image size.
+            patch_size:
+                Patch size used to initialize the DINOv3 backbone. This is stored in
+                ``init_args`` so exported checkpoints can be reconstructed with the
+                same backbone patch size.
+            image_normalize:
+                A dict containing normalization statistics with the keys ``"mean"``
+                and ``"std"``.
+            backbone_freeze:
+                Whether to freeze the backbone during training.
+            backbone_weights:
+                Path to the DINOv3 backbone weights.
+            backbone_args:
+                Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
+        """
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
 
@@ -585,12 +621,18 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,  # No need to save it in the state dict.
         )
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
 
         self.image_normalize = image_normalize
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {}
+        backbone_model_args: dict[str, Any] = {
+            "patch_size": patch_size,
+        }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
@@ -638,6 +680,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         config_cls, wrapper_cls = config_mapping[config_name]
         config = config_cls()
         config.decoder_name = decoder_name
+
+        config.resolve_auto(patch_size=patch_size)
 
         if hasattr(config, "backbone_wrapper"):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
@@ -971,6 +1015,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         out: PathLike,
         *,
         precision: Literal["auto", "fp32", "fp16"] = "auto",
+        batch_size: int = 1,
+        dynamic_batch_size: bool = True,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -979,10 +1025,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     ) -> None:
         """Exports the model to ONNX for inference.
 
-        The export uses a dummy input of shape (1, C, H, W) where C is inferred
-        from the first model parameter and (H, W) come from `self.image_size`.
-        The ONNX graph uses dynamic batch size for both inputs and produces
-        three outputs: labels, boxes, and scores.
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is
+        inferred from the first model parameter and (H, W) come from
+        `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
+        have a dynamic batch dimension for the input. The graph produces three
+        outputs: labels, boxes, and scores.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -994,6 +1041,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             precision:
                 Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
                 uses the model's current precision.
+            batch_size:
+                Batch size for the ONNX input.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension for the
+                input. If False, the batch dimension is fixed to `batch_size`.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -1062,9 +1114,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                         "num_channels must be provided for ONNX export if it cannot be inferred."
                     )
 
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
         # Create dummy input using same device and dtype as the model.
         dummy_input = torch.randn(
-            1,
+            batch_size,
             num_channels,
             self.image_size[
                 0
@@ -1089,9 +1145,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={
-                "images": {0: "N"}
-            },  # TODO(Thomas, 12/25): Add dynamic axes for H and W.
+            dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
 

@@ -13,7 +13,6 @@ from typing import Any, ClassVar, Literal
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from lightning_fabric import Fabric
-from PIL.Image import Image as PILImage
 from pydantic import Field
 from torch import Tensor
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, Module
@@ -44,10 +43,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
-from lightly_train._visualize.image_classification import (
-    plot_image_classification_labels,
-    plot_image_classification_predictions,
-)
+from lightly_train._visualize import image_classification
 from lightly_train.types import (
     ImageClassificationBatch,
     PathLike,
@@ -206,19 +202,20 @@ class ImageClassificationTrain(TrainModel):
             {"loss": loss.detach()}, weight=len(images)
         )
 
-        label_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = plot_image_classification_labels(
-                batch=batch,
-                included_classes=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-            )
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.train_metrics,
-            label_image=label_image,
+            visualization=(
+                image_classification.ImageClassificationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    top_k=self.viz_top_k,
+                    classification_task=self.model.classification_task,
+                )
+            ),
         )
 
     def validation_step(
@@ -246,30 +243,19 @@ class ImageClassificationTrain(TrainModel):
         self.val_metrics.update_with_predictions(logits, targets)
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
 
-        label_image: PILImage | None = None
-        prediction_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = plot_image_classification_labels(
-                batch=batch,
-                included_classes=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-            )
-            prediction_image = plot_image_classification_predictions(
-                batch=batch,
-                logits=logits,
-                included_classes=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                top_k=self.viz_top_k,
-                max_images=self.viz_max_images,
-                classification_task=self.model.classification_task,
-            )
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            label_image=label_image,
-            prediction_image=prediction_image,
+            visualization=image_classification.ImageClassificationTaskStepVisualization(
+                batch=batch,
+                logits=logits,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                top_k=self.viz_top_k,
+                max_images=self.viz_max_images,
+                classification_task=self.model.classification_task,
+            ),
         )
 
     def get_optimizer(

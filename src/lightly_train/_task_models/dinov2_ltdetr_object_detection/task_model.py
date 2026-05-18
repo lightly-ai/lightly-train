@@ -438,7 +438,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         model_name: str,
         classes: dict[int, str],
         image_size: tuple[int, int],
-        image_normalize: dict[str, Any] | None = None,
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -467,6 +467,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,  # No need to save it in the state dict.
         )
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
 
         self.image_normalize = image_normalize
 
@@ -817,6 +821,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
+        # TODO (Simon, 05/26) This class does not seem to have an export_onnx function
         if orig_target_size is None:
             h, w = x.shape[-2:]
             orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
@@ -858,7 +863,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         model_name: str,
         classes: dict[int, str],
         image_size: tuple[int, int],
-        image_normalize: dict[str, Any] | None = None,
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
