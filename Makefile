@@ -1,3 +1,32 @@
+### Cleaning
+
+.PHONY: clean
+clean: clean-build clean-pyc clean-out
+
+# remove build artifacts
+.PHONY: clean-build
+clean-build:
+	rm -fr build/
+	rm -fr dist/
+	rm -fr .eggs/
+	find . -name '*.egg-info' -exec rm -fr {} +
+	find . -name '*.egg' -exec rm -fr {} +
+
+# remove python file artifacts
+.PHONY: clean-pyc
+clean-pyc:
+	find . -name '__pycache__' -exec rm -fr {} +
+
+# remove hydra outputs
+.PHONY: clean-out
+clean-out:
+	rm -fr outputs/
+	rm -fr lightly_outputs/
+	rm -fr lightning_logs/
+	rm -fr lightly_epoch_*.ckpt
+	rm -fr last.ckpt
+
+
 ### Formatting and type-checking
 
 # run format and type checks and tests
