@@ -806,9 +806,9 @@ class PicoDetObjectDetectionTrain(TrainModel):
             if pos_mask.any():
                 cls_target[pos_mask] = F.one_hot(
                     assigned_labels[pos_mask], num_classes=self.num_classes
-                ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].unsqueeze(
-                    -1
-                )
+                ).to(dtype=pred_cls_logits.dtype) * assigned_ious[pos_mask].to(
+                    dtype=pred_cls_logits.dtype
+                ).unsqueeze(-1)
                 total_iou = total_iou + assigned_ious[pos_mask].sum()
                 total_cls_target = total_cls_target + cls_target[pos_mask].sum()
 
