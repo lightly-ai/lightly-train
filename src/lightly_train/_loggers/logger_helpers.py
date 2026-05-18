@@ -8,10 +8,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from lightning_fabric.loggers.logger import Logger as FabricLogger
+from PIL.Image import Image as PILImage
 from pytorch_lightning.loggers import Logger
+from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._configs import validate
 from lightly_train._loggers.jsonl import JSONLLogger
@@ -63,3 +67,24 @@ def get_loggers(logger_args: LoggerArgs, out: Path) -> list[Logger]:
 
     logger.debug(f"Using loggers {[log.__class__.__name__ for log in loggers]}.")
     return loggers
+
+
+def log_image_to_loggers(
+    *,
+    loggers: Iterable[FabricLogger],
+    key: str,
+    image: PILImage,
+    step: int,
+) -> None:
+    """Send a PIL image to every logger that supports images.
+
+    Loggers without image support (e.g. JSONLLogger) are silently skipped.
+    """
+    image_tensor = None
+    for log in loggers:
+        if isinstance(log, TensorBoardLogger):
+            if image_tensor is None:
+                image_tensor = torchvision_functional.pil_to_tensor(image)
+            log.experiment.add_image(tag=key, img_tensor=image_tensor, global_step=step)
+        elif isinstance(log, (WandbLogger, MLFlowLogger)):
+            log.log_image(key=key, images=[image], step=step)

@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from PIL import Image as PILImageModule
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.jsonl import JSONLLogger, JSONLLoggerArgs
@@ -161,3 +163,37 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
     )  # MLFlowLogger uses the experiment id (will be 1).
     assert logger.save_dir is not None
     assert Path(logger.save_dir) == tmp_path  # Cannot check for log_dir as it is None.
+
+
+def test_log_image_to_loggers__tensorboard(tmp_path: Path) -> None:
+    tb_logger = TensorBoardLogger(save_dir=tmp_path)
+    image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
+
+    logger_helpers.log_image_to_loggers(
+        loggers=[tb_logger], key="train/labels", image=image, step=7
+    )
+    tb_logger.save()
+
+    acc = EventAccumulator(tb_logger.log_dir)
+    acc.Reload()
+    assert "train/labels" in acc.Tags()["images"]
+    events = acc.Images("train/labels")
+    assert len(events) == 1
+    assert events[0].step == 7
+
+
+def test_log_image_to_loggers__jsonl_skipped(tmp_path: Path) -> None:
+    # JSONLLogger has no image support; the helper must silently skip it.
+    jsonl_logger = JSONLLogger(save_dir=tmp_path)
+    image = PILImageModule.new("RGB", (4, 4))
+
+    logger_helpers.log_image_to_loggers(
+        loggers=[jsonl_logger], key="train/labels", image=image, step=0
+    )
+
+
+def test_log_image_to_loggers__no_loggers() -> None:
+    image = PILImageModule.new("RGB", (4, 4))
+    logger_helpers.log_image_to_loggers(
+        loggers=[], key="train/labels", image=image, step=0
+    )

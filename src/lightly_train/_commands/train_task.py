@@ -1623,6 +1623,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         result=train_result,
                         out_dir=out_dir,
                         step=step,
+                        loggers=fabric.loggers,
                     )
 
             # Optimizer step and scheduler step.
@@ -1734,6 +1735,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             result=val_result,
                             out_dir=out_dir,
                             val_step=val_step,
+                            global_step=step,
+                            loggers=fabric.loggers,
                         )
 
                     timer.end_step("val_step")
