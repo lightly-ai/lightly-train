@@ -49,6 +49,7 @@ def _get_direct_url() -> str | None:
 YOLOV12_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.3.78")
 YOLOV12_ORIGINAL_AVAILABLE = _get_direct_url() is not None
 YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
+YOLO26_AVAILABLE = RequirementCache("ultralytics>=8.4.0")
 RTDETR_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
 
 

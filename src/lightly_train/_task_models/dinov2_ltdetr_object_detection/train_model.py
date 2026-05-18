@@ -14,7 +14,6 @@ from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
-from PIL.Image import Image as PILImage
 from pydantic import AliasChoices, Field, computed_field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
@@ -278,7 +277,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
 
         # TODO(Nauryz, 04/2026): These visualization thresholds are currently hardcoded, but we may want to make them configurable in the future (with logger_args).
         self.viz_score_threshold = 0.1
-        self.viz_max_pred_boxes = 32
         self.viz_max_images = 4
 
     def load_train_state_dict(
@@ -377,26 +375,17 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             )
             self.train_metrics.update_with_predictions(results, targets)
 
-        label_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
-            label_image = object_detection.plot_object_detection_labels(
-                batch=batch,
-                class_names=self.data_args.included_classes,
-                mean=normalize_mean,
-                std=normalize_std,
-                max_images=self.viz_max_images,
-            )
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
-            label_image=label_image,
+            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+                batch=batch,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                max_images=self.viz_max_images,
+                score_threshold=self.viz_score_threshold,
+            ),
         )
 
     def on_train_batch_end(self) -> None:
@@ -470,38 +459,18 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
         self.val_metrics.update_with_predictions(results, targets)
 
-        label_image: PILImage | None = None
-        prediction_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            normalize_mean = (
-                tuple(self._normalize.mean) if self._normalize is not None else None
-            )
-            normalize_std = (
-                tuple(self._normalize.std) if self._normalize is not None else None
-            )
-            label_image = object_detection.plot_object_detection_labels(
-                batch=batch,
-                class_names=self.data_args.included_classes,
-                mean=normalize_mean,
-                std=normalize_std,
-                max_images=self.viz_max_images,
-            )
-            prediction_image = object_detection.plot_object_detection_predictions(
-                batch=batch,
-                results=results,
-                class_names=self.data_args.included_classes,
-                mean=normalize_mean,
-                std=normalize_std,
-                score_threshold=self.viz_score_threshold,
-                max_pred_boxes=self.viz_max_pred_boxes,
-                max_images=self.viz_max_images,
-            )
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.val_metrics,
-            label_image=label_image,
-            prediction_image=prediction_image,
+            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+                batch=batch,
+                results=results,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                score_threshold=self.viz_score_threshold,
+                max_images=self.viz_max_images,
+            ),
         )
 
     def get_optimizer(

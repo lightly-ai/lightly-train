@@ -14,7 +14,6 @@ from typing import Any, ClassVar, Literal
 import torch
 import torch.nn.functional as F
 from lightning_fabric import Fabric
-from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LRScheduler
@@ -321,21 +320,20 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 final_iter=no_auto(self.model_args.attn_mask_annealing_steps_end)[i],
             )
 
-        label_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = instance_segmentation.plot_instance_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                image_normalize=self.model.image_normalize,
-                max_images=self.viz_max_images,
-                alpha=self.viz_alpha,
-            )
-
         return TaskStepResult(
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
-            label_image=label_image,
+            visualization=(
+                instance_segmentation.InstanceSegmentationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                    score_threshold=self.viz_score_threshold,
+                )
+            ),
         )
 
     def validation_step(
@@ -431,34 +429,19 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             preds=predictions,
             target=binary_masks,
         )
-
-        label_image: PILImage | None = None
-        prediction_image: PILImage | None = None
-        if step < 3 and fabric.global_rank == 0:
-            label_image = instance_segmentation.plot_instance_segmentation_labels(
-                batch=batch,
-                class_names=self.model.included_classes,
-                max_images=self.viz_max_images,
-                image_normalize=self.model.image_normalize,
-                alpha=self.viz_alpha,
-            )
-            prediction_image = (
-                instance_segmentation.plot_instance_segmentation_predictions(
-                    batch=batch,
-                    predictions=predictions,
-                    class_names=self.model.included_classes,
-                    max_images=self.viz_max_images,
-                    image_normalize=self.model.image_normalize,
-                    alpha=self.viz_alpha,
-                    score_threshold=self.viz_score_threshold,
-                )
-            )
         return TaskStepResult(
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
-            label_image=label_image,
-            prediction_image=prediction_image,
+            visualization=instance_segmentation.InstanceSegmentationTaskStepVisualization(
+                batch=batch,
+                predictions=predictions,
+                class_names=self.model.included_classes,
+                max_images=self.viz_max_images,
+                image_normalize=self.model.image_normalize,
+                alpha=self.viz_alpha,
+                score_threshold=self.viz_score_threshold,
+            ),
         )
 
     def mask_annealing(

@@ -17,6 +17,7 @@ class DINOv3ConvNextWrapper(Module):
     def __init__(self, model: ConvNeXt) -> None:
         super().__init__()
         self.backbone = model
+        self.patch_size = model.patch_size
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:
         feats = self.backbone.get_intermediate_layers(x, n=3, reshape=True)

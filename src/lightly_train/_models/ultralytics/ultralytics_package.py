@@ -41,7 +41,15 @@ class UltralyticsPackage(Package):
 
         # We currently only support models that have a backbone ending with an SPPF
         # layer. See ultralytics/cfg/models for different architectures.
-        supported_models = {"yolov5", "yolov6", "yolov8", "yolo11", "yolo12", "rtdetr"}
+        supported_models = {
+            "yolov5",
+            "yolov6",
+            "yolov8",
+            "yolo11",
+            "yolo12",
+            "yolo26",
+            "rtdetr",
+        }
 
         # These models are downloaded from the ultralytics repository.
         pretrained_models = {
@@ -59,6 +67,9 @@ class UltralyticsPackage(Package):
         untrained_models.update(
             {model_name.replace(".pt", ".yaml") for model_name in pretrained_models}
         )
+        for scale in ["n", "s", "m", "l", "x"]:
+            untrained_models.add(f"yolo26{scale}-p2.yaml")
+            untrained_models.add(f"yolo26{scale}-p6.yaml")
         # Check that the model configs are available. Ultralytics doesn't provide
         # a list of available models/configs.
         for model_name in list(untrained_models):

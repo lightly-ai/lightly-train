@@ -307,7 +307,9 @@ class HybridEncoder(nn.Module):
             # unused parameter during distributed training, causing training to fail.
             if self.upsample:
                 self.downsample_convs.append(
-                    ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
+                    ConvNormLayer(
+                        hidden_dim, hidden_dim, kernel_size=3, stride=2, act=act
+                    )
                 )
             self.pan_blocks.append(
                 CSPRepLayer(
