@@ -284,11 +284,7 @@ install-dev:
 	uv sync --frozen ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_DEV))
 	uv run --frozen pre-commit install
 
-# Install package with minimal dependencies.
-#
-# This command is split into multiple steps:
-# 1. Install minimal dependencies with uv sync.
-# 2. Install development dependencies with uv pip install to ensure those are latest.
+# Install package with minimal dependencies and latest development dependencies.
 #
 # Explanation of flags:
 # --exclude-newer: We don't want to install dependencies released after that date to
@@ -302,8 +298,7 @@ install-dev:
 install-minimal:
 	uv sync --python=${MINIMAL_PYTHON_VERSION} --resolution=lowest-direct \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
-		--group minimal-torch-py38
-	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
+		--group minimal-torch-py38 --upgrade-group dev
 
 # Install package with minimal dependencies and extras, but latest versions of
 # development packages.
@@ -311,8 +306,8 @@ install-minimal:
 install-minimal-extras:
 	uv sync --python=${MINIMAL_PYTHON_VERSION} --resolution=lowest-direct \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
-		--group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
-	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
+		--group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38)) \
+		--upgrade-group dev
 
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE. This keeps CI stable if new versions of
