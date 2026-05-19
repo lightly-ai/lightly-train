@@ -31,7 +31,7 @@ def save_train_step_visualizations(
         image=image,
         path=_image_examples_dir(out_dir) / f"train_labels_{step}.jpg",
         loggers=loggers,
-        key=f"train/labels_{step}",
+        key=f"train_images/labels_{step}",
         step=step,
     )
 
@@ -49,7 +49,7 @@ def save_val_step_visualizations(
         image=result.create_prediction_image(),
         path=viz_dir / f"val_predictions_{val_step}.jpg",
         loggers=loggers,
-        key=f"val/predictions_{val_step}",
+        key=f"val_images/predictions_{val_step}",
         step=global_step,
     )
     label_path = viz_dir / f"val_labels_{val_step}.jpg"
@@ -58,7 +58,7 @@ def save_val_step_visualizations(
             image=result.create_label_image(),
             path=label_path,
             loggers=loggers,
-            key=f"val/labels_{val_step}",
+            key=f"val_images/labels_{val_step}",
             step=global_step,
         )
 
