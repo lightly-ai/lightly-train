@@ -29,19 +29,40 @@ from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 logger = logging.getLogger(__name__)
 
 
+def _get_model_registry() -> dict[str, str]:
+    """Return the rfdetr pretrained model registry (filename → URL).
+
+    Raises ImportError if rfdetr is not installed.
+    Raises RuntimeError if rfdetr is installed but the registry constant is missing
+    (indicates an incompatible rfdetr version).
+    """
+    import rfdetr.main as rfdetr_main
+
+    # rfdetr renamed HOSTED_MODELS to OPEN_SOURCE_MODELS in v1.x
+    registry: dict[str, str] | None = getattr(
+        rfdetr_main, "OPEN_SOURCE_MODELS", None
+    ) or getattr(rfdetr_main, "HOSTED_MODELS", None)
+    if registry is None:
+        raise RuntimeError(
+            "rfdetr is installed but neither 'OPEN_SOURCE_MODELS' nor 'HOSTED_MODELS' "
+            "was found in rfdetr.main. The installed rfdetr version may be incompatible."
+        )
+    return registry
+
+
 class RFDETRPackage(Package):
     name = "rfdetr"
 
     @classmethod
     def list_model_names(cls) -> list[str]:
         try:
-            from rfdetr.main import HOSTED_MODELS  # type: ignore[attr-defined]
+            model_registry = _get_model_registry()
         except ImportError:
             return []
         # We use the model names from the checkpoint .pth filenames Roboflow provided
         return [
             f"{cls.name}/{model_name.split('.')[0]}"
-            for model_name in HOSTED_MODELS.keys()
+            for model_name in model_registry.keys()
         ]
 
     @classmethod
@@ -67,7 +88,8 @@ class RFDETRPackage(Package):
                 RFDETRSegPreview,
                 RFDETRSmall,
             )
-            from rfdetr.main import HOSTED_MODELS  # type: ignore[attr-defined]
+
+            HOSTED_MODELS = _get_model_registry()
         except ImportError:
             raise ValueError(
                 f"Cannot create model '{model_name}' because rfdetr is not installed."
