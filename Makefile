@@ -323,9 +323,8 @@ install-minimal-extras:
 .PHONY: install-pinned-3.8
 install-pinned-3.8:
 	uv sync --frozen --python=${MINIMAL_PYTHON_VERSION} \
-		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
+		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --upgrade-group dev \
 		--group pinned-torch-minimal $(call to_uv_extras,$(EXTRAS_PY38))
-	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
 
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
 # version available at EXCLUDE_NEWER_DATE.
@@ -334,7 +333,7 @@ install-pinned-3.8:
 .PHONY: install-pinned-3.13
 install-pinned-3.13:
 	uv sync --frozen --python=${MAXIMAL_PYTHON_VERSION} \
-		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
+		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --upgrade-group dev \
 		--group pinned-torch-maximal $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package with the latest dependencies for Python 3.8. The --upgrade flag
