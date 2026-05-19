@@ -364,7 +364,7 @@ install-docs:
 # Uninstall pillow because we want to install pillow-simd instead.
 .PHONY: install-docker-dependencies
 install-docker-dependencies:
-	uv pip install -v --exclude-newer ${EXCLUDE_NEWER_DATE} ${DOCKER_EXTRAS} --requirement pyproject.toml
+	uv pip install -v --exclude-newer ${EXCLUDE_NEWER_DATE} $(call to_uv_extras,$(DOCKER_EXTRAS)) --requirement pyproject.toml
 	uv pip uninstall opencv-python opencv-python-headless
 	uv pip install opencv-python-headless
 	uv pip uninstall pillow
