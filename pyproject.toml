@@ -90,15 +90,15 @@ dist = [
 # Torch 2.5+ is no longer compatible with Python 3.8.
 # Be careful when making changes on the CI machine as other repositories also depend on
 # the installed CUDA/driver versions.
-minimal-torch-py38 = [
+minimal-torch = [
     "torch==2.1.0; python_version<'3.9'",
     "torchvision==0.16.0; python_version<'3.9'",
 ]
-pinned-torch-py38 = [
+pinned-torch-minimal = [
     "torch==2.4.0; python_version<'3.9'",
     "torchvision==0.19.0; python_version<'3.9'",
 ]
-pinned-torch-py313 = [
+pinned-torch-maximal = [
     "torch==2.7.0; python_version>='3.9'",
     "torchvision==0.22.0; python_version>='3.9'",
 ]
@@ -249,9 +249,9 @@ conflicts = [
         { extra = "onnx" },
     ],
     [ # conflicting pinned versions of torch and torchvision for Python 3.8
-        { group = "minimal-torch-py38" },
-        { group = "pinned-torch-py38" },
-        { group = "pinned-torch-py313" },
+        { group = "minimal-torch" },
+        { group = "pinned-torch-minimal" },
+        { group = "pinned-torch-maximal" },
     ]
 ]
 
@@ -259,12 +259,12 @@ conflicts = [
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [
-    { index = "pytorch-cu118", group = "pinned-torch-py38" },
-    { index = "pytorch-cu118", group = "pinned-torch-py313" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal" },
 ]
 torchvision = [
-    { index = "pytorch-cu118", group = "pinned-torch-py38" },
-    { index = "pytorch-cu118", group = "pinned-torch-py313" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal" },
 ]
 
 [[tool.uv.index]]

@@ -196,11 +196,11 @@ test:
 
 .PHONY: test-ci-minimal
 test-ci-3.8:
-	uv run --group pinned-torch-${MINIMAL_PYTHON_VERSION} pytest tests -v --durations=20
+	uv run --group pinned-torch-minimal pytest tests -v --durations=20
 
 .PHONY: test-ci-maximal
 test-ci-maximal:
-	uv run --group pinned-torch-${MAXIMAL_PYTHON_VERSION} pytest tests -v --durations=20
+	uv run --group pinned-torch-maximal pytest tests -v --durations=20
 
 
 ### Virtual Environment
@@ -324,7 +324,7 @@ install-minimal-extras:
 install-pinned-3.8:
 	uv sync --frozen --python=${MINIMAL_PYTHON_VERSION} \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
-		--group pinned-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38))
+		--group pinned-torch-minimal $(call to_uv_extras,$(EXTRAS_PY38))
 	uv pip install --upgrade --exclude-newer ${EXCLUDE_NEWER_DATE} --group dev
 
 # Install package for Python 3.13 with dependencies pinned to the latest compatible
@@ -335,7 +335,7 @@ install-pinned-3.8:
 install-pinned-3.13:
 	uv sync --frozen --python=${MAXIMAL_PYTHON_VERSION} \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
-		--group pinned-torch-py313 $(call to_uv_extras,$(EXTRAS_PY313))
+		--group pinned-torch-maximal $(call to_uv_extras,$(EXTRAS_PY313))
 
 # Install package with the latest dependencies for Python 3.8. The --upgrade flag
 # ensures that the lockfile is ignored.
