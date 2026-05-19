@@ -194,9 +194,13 @@ add-header:
 test:
 	uv run --frozen pytest tests
 
-.PHONY: test-ci
-test-ci:
-	uv run --frozen pytest tests -v --durations=20
+.PHONY: test-ci-minimal
+test-ci-3.8:
+	uv run --group pinned-torch-${MINIMAL_PYTHON_VERSION} pytest tests -v --durations=20
+
+.PHONY: test-ci-maximal
+test-ci-maximal:
+	uv run --group pinned-torch-${MAXIMAL_PYTHON_VERSION} pytest tests -v --durations=20
 
 
 ### Virtual Environment

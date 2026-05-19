@@ -57,4 +57,4 @@ jobs:
           make install-pinned-3.13
       - name: Run Pytest
         run: |
-          make test-ci
+          make test-ci-maximal
