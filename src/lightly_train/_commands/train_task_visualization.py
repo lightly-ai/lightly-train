@@ -31,7 +31,7 @@ def save_train_step_visualizations(
         image=image,
         path=_image_examples_dir(out_dir) / f"train_labels_{step}.jpg",
         loggers=loggers,
-        key="train/labels",
+        key=f"train/labels_{step}",
         step=step,
     )
 
