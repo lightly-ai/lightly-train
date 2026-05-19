@@ -195,12 +195,12 @@ test:
 	uv run --frozen pytest tests
 
 .PHONY: test-ci-minimal
-test-ci-3.8:
-	uv run --group pinned-torch-minimal pytest tests -v --durations=20
+test-ci-minimal:
+	uv run --frozen --group pinned-torch-minimal pytest tests -v --durations=20
 
 .PHONY: test-ci-maximal
 test-ci-maximal:
-	uv run --group pinned-torch-maximal pytest tests -v --durations=20
+	uv run --frozen --group pinned-torch-maximal pytest tests -v --durations=20
 
 
 ### Virtual Environment
@@ -302,7 +302,7 @@ install-dev:
 install-minimal:
 	uv sync --python=${MINIMAL_PYTHON_VERSION} --resolution=lowest-direct \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
-		--group minimal-torch-py38 --upgrade-group dev
+		--group minimal-torch --upgrade-group dev
 
 # Install package with minimal dependencies and extras, but latest versions of
 # development packages.
@@ -310,7 +310,7 @@ install-minimal:
 install-minimal-extras:
 	uv sync --python=${MINIMAL_PYTHON_VERSION} --resolution=lowest-direct \
 		--exclude-newer ${EXCLUDE_NEWER_DATE} ${NO_EDITABLE} --group dev \
-		--group minimal-torch-py38 $(call to_uv_extras,$(EXTRAS_PY38)) \
+		--group minimal-torch $(call to_uv_extras,$(EXTRAS_PY38)) \
 		--upgrade-group dev
 
 # Install package for Python 3.8 with dependencies pinned to the latest compatible
