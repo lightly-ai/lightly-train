@@ -24,6 +24,7 @@ from lightly_train._commands import _warnings
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.onnx_helpers import remove_redundant_casts
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
@@ -1106,7 +1107,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self,
         out: PathLike,
         *,
-        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        precision: Literal["fp32", "fp16"] = "fp32",
         batch_size: int = 1,
         dynamic_batch_size: bool = True,
         opset_version: int | None = None,
@@ -1131,8 +1132,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             out:
                 Path where the ONNX model will be written.
             precision:
-                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
-                uses the model's current precision.
+                Precision for the ONNX model. Either "fp32", or "fp16".
             batch_size:
                 Batch size for the ONNX input.
             dynamic_batch_size:
@@ -1160,25 +1160,16 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Set the model in eval and deploy mode.
         self.eval()
-        self.deploy()
 
-        # Find the first parameter from the model.
-        first_parameter = next(self.parameters())
-
-        # Infer info from first parameter.
-        model_device = first_parameter.device
-        dtype = first_parameter.dtype
-
-        if precision == "fp32":
-            dtype = torch.float32
-        elif precision == "fp16":
-            dtype = torch.float16
-        elif precision != "auto":
+        if precision not in ("fp32", "fp16"):
             raise ValueError(
-                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+                f"Invalid precision '{precision}'. Must be one of 'fp32', 'fp16'."
             )
 
-        self.to(dtype)
+        # Always trace in fp32 to avoid dtype mismatches in the decoder's
+        # autocast(enabled=False) blocks. fp16 conversion is applied
+        # post-export via onnxruntime.transformers.
+        self.to(torch.float32)
         self.deploy()
         model_device = next(self.parameters()).device
 
@@ -1220,7 +1211,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             self.image_size[1],
             requires_grad=False,
             device=model_device,
-            dtype=dtype,
+            dtype=torch.float32,
         )
 
         # TODO(Thomas, 12/25): Add warm-up forward if needed.
@@ -1244,10 +1235,35 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             **(format_args or {}),
         )
 
+        if precision == "fp16":
+            # convert_float_to_float16 creates nodes with duplicate names. In order to avoid downstream issues
+            # we require simplify to be True, as this correctly renames nodes.
+            if not simplify:
+                raise ValueError("fp16 precision requires simplify=True.")
+
+            import onnx
+            from onnxruntime.transformers import float16 as ort_float16
+
+            model_onnx = onnx.load(str(out))
+            # If the input to Softmax are too large the output of Softmax will be NaN values. Therefore we run
+            #  the Softmax computation in fp32. The nodes before Softmax are always MatMul.
+            # TODO (simon, 05/26) Ideally we would only block operators were a Matmul directly feeds into a Softmax.
+            op_block_list = list(ort_float16.DEFAULT_OP_BLOCK_LIST) + [
+                "Softmax",
+                "MatMul",
+            ]
+            model_fp16 = ort_float16.convert_float_to_float16(
+                model_onnx, op_block_list=op_block_list
+            )
+            # Using the op blocklist on a graph that looks like Softmax -> MatMul creates a graph that looks like
+            #  Cast32 -> MatMul -> Cast16 -> Cast32 -> Softmax -> Cast16. Therefore, we need to remove the middle
+            #  Cast16 -> Cast32.
+            remove_redundant_casts(model_fp16)
+            onnx.save(model_fp16, str(out))
+
         if simplify:
             import onnxslim  # type: ignore [import-not-found,import-untyped]
 
-            # Simplify.
             onnxslim.slim(
                 str(out),
                 output_model=out,
@@ -1258,7 +1274,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             import onnx
             import onnxruntime as ort
 
-            onnx.checker.check_model(out, full_check=True)
+            if precision == "fp16" and not torch.cuda.is_available():
+                logger.warning(
+                    "Skipping ONNX full model check for fp16 model because no "
+                    "GPU is available. Run on a GPU to enable full verification."
+                )
+            else:
+                onnx.checker.check_model(out, full_check=True)
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
@@ -1267,10 +1289,15 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 dummy_input.cpu().to(torch.float32),
             )
 
-            # Get outputs from the ONNX model.
-            session = ort.InferenceSession(out)
+            # Get outputs from the ONNX model. Load from bytes to avoid
+            # ORT errors about missing external data when weights are inline.
+            with open(out, "rb") as f:
+                session = ort.InferenceSession(f.read())
+            onnx_input = dummy_input.cpu()
+            if precision == "fp16":
+                onnx_input = onnx_input.half()
             input_feed = {
-                "images": dummy_input.cpu().numpy(),
+                "images": onnx_input.numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
             outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
@@ -1323,7 +1350,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self,
         out: PathLike,
         *,
-        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        precision: Literal["fp32", "fp16"] = "fp32",
         onnx_args: dict[str, Any] | None = None,
         max_batchsize: int = 1,
         opt_batchsize: int = 1,
@@ -1350,7 +1377,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 Path where the TensorRT engine will be saved.
             precision:
                 Precision for ONNX export and TensorRT engine building. Either
-                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
+                "fp32" or "fp16".
             onnx_args:
                 Optional arguments to pass to `export_onnx` when exporting
                 the ONNX model prior to building the TensorRT engine. If None,
@@ -1381,9 +1408,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            # FP32 attention scores required for FP16 model stability. Otherwise output
-            # contains NaN.
-            fp32_attention_scores=True,
+            # We convert the fp32 attention scores already during ONNX export
+            fp32_attention_scores=False,
             verbose=verbose,
         )
 

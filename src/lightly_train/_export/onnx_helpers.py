@@ -9,10 +9,17 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import logging
 from collections.abc import Iterator
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 import torch
+
+if TYPE_CHECKING:
+    import onnx
+
+logger = logging.getLogger(__name__)
 
 _PRECALCULATE_FOR_ONNX_EXPORT = contextvars.ContextVar(
     "PRECALCULATE_FOR_ONNX_EXPORT", default=False
@@ -42,6 +49,81 @@ def precalculate_for_onnx_export() -> Iterator[None]:
         yield
     finally:
         _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
+
+
+def remove_redundant_casts(model: onnx.ModelProto) -> None:
+    """Remove redundant -> Cast16 -> Cast32 -> pairs from an ONNX model in-place."""
+    from onnx import TensorProto
+
+    graph = model.graph
+
+    # Build a map of tensor name -> element type for all tensors in the graph.
+    tensor_types: dict[str, int] = {}
+    for inp in graph.input:
+        if inp.type.HasField("tensor_type"):
+            tensor_types[inp.name] = inp.type.tensor_type.elem_type
+    for init in graph.initializer:
+        tensor_types[init.name] = init.data_type
+    for vi in graph.value_info:
+        if vi.type.HasField("tensor_type"):
+            tensor_types[vi.name] = vi.type.tensor_type.elem_type
+    for node in graph.node:
+        if node.op_type == "Cast":
+            to_attr = next((a for a in node.attribute if a.name == "to"), None)
+            if to_attr:
+                tensor_types[node.output[0]] = to_attr.i
+
+    # Build a map of tensor name -> list of nodes that consume it.
+    input_to_consumers: dict[str, list[Any]] = {}
+    for node in graph.node:
+        for inp in node.input:
+            input_to_consumers.setdefault(inp, []).append(node)
+
+    nodes_to_remove: set[int] = set()
+    rewire: dict[str, str] = {}
+
+    # Find X(fp32) -> Cast16 -> Cast32 -> Y patterns and mark for removal.
+    for node in graph.node:
+        if node.op_type != "Cast":
+            continue
+        to_attr = next((a for a in node.attribute if a.name == "to"), None)
+        if to_attr is None or to_attr.i != TensorProto.FLOAT16:
+            continue
+
+        input_type = tensor_types.get(node.input[0])
+        if input_type != TensorProto.FLOAT:
+            continue
+
+        consumers = input_to_consumers.get(node.output[0], [])
+        for consumer in consumers:
+            if consumer.op_type != "Cast":
+                continue
+            to_attr2 = next((a for a in consumer.attribute if a.name == "to"), None)
+            if to_attr2 is None or to_attr2.i != TensorProto.FLOAT:
+                continue
+
+            # Only remove Cast16 if it has no other consumers.
+            if len(consumers) == 1:
+                nodes_to_remove.add(id(node))
+            # Always remove Cast32 and rewire its output to Cast16's fp32 input.
+            nodes_to_remove.add(id(consumer))
+            rewire[consumer.output[0]] = node.input[0]
+
+    # Apply rewiring: replace all references to removed Cast32 outputs.
+    for node in graph.node:
+        for i, inp in enumerate(node.input):
+            if inp in rewire:
+                node.input[i] = rewire[inp]
+
+    for out in graph.output:
+        if out.name in rewire:
+            out.name = rewire[out.name]
+
+    new_nodes = [n for n in graph.node if id(n) not in nodes_to_remove]
+    del graph.node[:]
+    graph.node.extend(new_nodes)
+
+    logger.info("Removed %d redundant Cast nodes", len(nodes_to_remove))
 
 
 class ONNXPrecision(str, Enum):
