@@ -629,6 +629,16 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.image_normalize = image_normalize
 
+        # Resolve the backbone's expected input channel count using the same
+        # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
+        # overrides image_normalize, which overrides the DINOv3 default of 3.
+        if backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels: int = backbone_args["in_chans"]
+        elif self.image_normalize is not None:
+            self._expected_input_channels = len(self.image_normalize["mean"])
+        else:
+            self._expected_input_channels = 3
+
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
         backbone_model_args: dict[str, Any] = {
@@ -810,12 +820,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         image_h, image_w = x.shape[-2:]
 
         # Expand grayscale to the expected channel count so images can be stacked.
-        # TODO(Nauryzbay, 05/26): Revisit grayscale handling. The previous
-        # implementation always expanded a 1-channel image to 3 channels because
-        # normalization assumed 3-channel statistics; now expected_c is derived
-        # from image_normalize, so the expansion/validation logic is different
-        # and should be aligned with the new normalization contract.
-        expected_c = len(self.image_normalize["mean"]) if self.image_normalize else 3
+        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
+        # 1-channel expansion is a convenience inherited from RGB-only models.
+        expected_c = self._expected_input_channels
         if x.shape[-3] == 1 and expected_c > 1:
             x = x.expand(expected_c, -1, -1)
         elif x.shape[-3] != expected_c:
