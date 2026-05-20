@@ -286,6 +286,67 @@ yolo detect train model=out/my_experiment/exported_models/exported_last.pt data=
   - `ultralytics/yolo12x-seg.pt`
   - `ultralytics/yolo12x.yaml`
   - `ultralytics/yolo12x.pt`
+- YOLO26
+  - `ultralytics/yolo26n-cls.yaml`
+  - `ultralytics/yolo26n-cls.pt`
+  - `ultralytics/yolo26n-obb.yaml`
+  - `ultralytics/yolo26n-obb.pt`
+  - `ultralytics/yolo26n-p2.yaml`
+  - `ultralytics/yolo26n-p6.yaml`
+  - `ultralytics/yolo26n-pose.yaml`
+  - `ultralytics/yolo26n-pose.pt`
+  - `ultralytics/yolo26n-seg.yaml`
+  - `ultralytics/yolo26n-seg.pt`
+  - `ultralytics/yolo26n.yaml`
+  - `ultralytics/yolo26n.pt`
+  - `ultralytics/yolo26s-cls.yaml`
+  - `ultralytics/yolo26s-cls.pt`
+  - `ultralytics/yolo26s-obb.yaml`
+  - `ultralytics/yolo26s-obb.pt`
+  - `ultralytics/yolo26s-p2.yaml`
+  - `ultralytics/yolo26s-p6.yaml`
+  - `ultralytics/yolo26s-pose.yaml`
+  - `ultralytics/yolo26s-pose.pt`
+  - `ultralytics/yolo26s-seg.yaml`
+  - `ultralytics/yolo26s-seg.pt`
+  - `ultralytics/yolo26s.yaml`
+  - `ultralytics/yolo26s.pt`
+  - `ultralytics/yolo26m-cls.yaml`
+  - `ultralytics/yolo26m-cls.pt`
+  - `ultralytics/yolo26m-obb.yaml`
+  - `ultralytics/yolo26m-obb.pt`
+  - `ultralytics/yolo26m-p2.yaml`
+  - `ultralytics/yolo26m-p6.yaml`
+  - `ultralytics/yolo26m-pose.yaml`
+  - `ultralytics/yolo26m-pose.pt`
+  - `ultralytics/yolo26m-seg.yaml`
+  - `ultralytics/yolo26m-seg.pt`
+  - `ultralytics/yolo26m.yaml`
+  - `ultralytics/yolo26m.pt`
+  - `ultralytics/yolo26l-cls.yaml`
+  - `ultralytics/yolo26l-cls.pt`
+  - `ultralytics/yolo26l-obb.yaml`
+  - `ultralytics/yolo26l-obb.pt`
+  - `ultralytics/yolo26l-p2.yaml`
+  - `ultralytics/yolo26l-p6.yaml`
+  - `ultralytics/yolo26l-pose.yaml`
+  - `ultralytics/yolo26l-pose.pt`
+  - `ultralytics/yolo26l-seg.yaml`
+  - `ultralytics/yolo26l-seg.pt`
+  - `ultralytics/yolo26l.yaml`
+  - `ultralytics/yolo26l.pt`
+  - `ultralytics/yolo26x-cls.yaml`
+  - `ultralytics/yolo26x-cls.pt`
+  - `ultralytics/yolo26x-obb.yaml`
+  - `ultralytics/yolo26x-obb.pt`
+  - `ultralytics/yolo26x-p2.yaml`
+  - `ultralytics/yolo26x-p6.yaml`
+  - `ultralytics/yolo26x-pose.yaml`
+  - `ultralytics/yolo26x-pose.pt`
+  - `ultralytics/yolo26x-seg.yaml`
+  - `ultralytics/yolo26x-seg.pt`
+  - `ultralytics/yolo26x.yaml`
+  - `ultralytics/yolo26x.pt`
 - RT-DETR
   - `ultralytics/rtdetr-l.yaml`
   - `ultralytics/rtdetr-l.pt`
