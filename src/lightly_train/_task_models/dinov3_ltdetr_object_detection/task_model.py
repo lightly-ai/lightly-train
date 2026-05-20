@@ -810,6 +810,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         image_h, image_w = x.shape[-2:]
 
         # Expand grayscale to the expected channel count so images can be stacked.
+        # TODO(Nauryzbay, 05/26): Revisit grayscale handling. The previous
+        # implementation always expanded a 1-channel image to 3 channels because
+        # normalization assumed 3-channel statistics; now expected_c is derived
+        # from image_normalize, so the expansion/validation logic is different
+        # and should be aligned with the new normalization contract.
         expected_c = len(self.image_normalize["mean"]) if self.image_normalize else 3
         if x.shape[-3] == 1 and expected_c > 1:
             x = x.expand(expected_c, -1, -1)
