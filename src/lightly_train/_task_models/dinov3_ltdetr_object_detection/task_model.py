@@ -854,6 +854,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         )
         out: list[dict[str, Tensor]] = []
         labels_batch, boxes_batch, scores_batch = postprocessor_out
+
+        labels_batch = self.internal_class_to_class[labels_batch]
         for i in range(len(metadata)):
             keep = scores_batch[i] > threshold
             out.append(
@@ -889,7 +891,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                   original image.
                 - "scores": Tensor of shape (N,) with confidence scores.
         """
-        self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
         return super().predict_batch(images, threshold=threshold)
