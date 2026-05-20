@@ -810,9 +810,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         image_h, image_w = x.shape[-2:]
 
         # Expand grayscale to the expected channel count so images can be stacked.
-        expected_c = (
-            len(self.image_normalize["mean"]) if self.image_normalize else 3
-        )
+        expected_c = len(self.image_normalize["mean"]) if self.image_normalize else 3
         if x.shape[-3] == 1 and expected_c > 1:
             x = x.expand(expected_c, -1, -1)
         elif x.shape[-3] != expected_c:
