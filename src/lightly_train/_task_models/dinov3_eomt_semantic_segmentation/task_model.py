@@ -26,6 +26,7 @@ from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
     SelfAttention,
+    rope_apply,
 )
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
@@ -595,23 +596,54 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         mask: Tensor | None,
     ) -> Tensor:
         # This mirrors DINOv3 Attention forward but with mask support.
+        # Uses unflatten/flatten and negative indexing for ONNX compatibility:
+        # the ONNX tracer can produce wrong constants from shape extraction
+        # (B, N, _ = tensor.shape) when the same method is called with
+        # different sequence lengths.
         qkv = module.qkv(x)
-        B, N, _ = qkv.shape
         C = module.qkv.in_features
 
-        qkv = qkv.reshape(B, N, 3, module.num_heads, C // module.num_heads)
+        qkv = qkv.unflatten(-1, (3, module.num_heads, C // module.num_heads))
         q, k, v = torch.unbind(qkv, 2)
         q, k, v = [t.transpose(1, 2) for t in [q, k, v]]
         if rope is not None:
-            q, k = module.apply_rope(q, k, rope)
+            assert isinstance(rope, tuple)
+            q, k = self._apply_rope(q, k, rope)
         if mask is not None:
             mask = mask[:, None, ...].expand(-1, module.num_heads, -1, -1)
         x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask)
         x = x.transpose(1, 2)
-        x = x.reshape([B, N, C])
+        x = x.flatten(2)
         x = module.proj(x)
         x = module.proj_drop(x)
         return x
+
+    @staticmethod
+    def _apply_rope(
+        q: Tensor, k: Tensor, rope: tuple[Tensor, Tensor]
+    ) -> tuple[Tensor, Tensor]:
+        sin, cos = rope
+        rope_dtype = sin.dtype
+        patch_count = sin.shape[-2]
+        q_dtype = q.dtype
+        k_dtype = k.dtype
+        q = q.to(dtype=rope_dtype)
+        k = k.to(dtype=rope_dtype)
+        q = torch.cat(
+            (
+                q[:, :, :-patch_count, :],
+                rope_apply(q[:, :, -patch_count:, :], sin, cos),
+            ),
+            dim=-2,
+        )
+        k = torch.cat(
+            (
+                k[:, :, :-patch_count, :],
+                rope_apply(k[:, :, -patch_count:, :], sin, cos),
+            ),
+            dim=-2,
+        )
+        return q.to(dtype=q_dtype), k.to(dtype=k_dtype)
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""

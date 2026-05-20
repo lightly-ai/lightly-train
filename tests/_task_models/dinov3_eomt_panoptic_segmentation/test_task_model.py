@@ -31,7 +31,6 @@ def model() -> DINOv3EoMTPanopticSegmentation:
     )
 
 
-@pytest.mark.xfail(strict=True, reason="dinov3 ONNX export shape mismatch")
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -41,7 +40,6 @@ def test_export_onnx(model: DINOv3EoMTPanopticSegmentation, tmp_path: Path) -> N
     model.export_onnx(out=out, simplify=False, verify=True)
 
 
-@pytest.mark.xfail(strict=True, reason="dinov3 ONNX export shape mismatch")
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

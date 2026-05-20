@@ -67,9 +67,6 @@ def test_export_onnx__dynamic_batch_size(
             assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
-@pytest.mark.xfail(
-    strict=True, reason="dinov3 ONNX export shape mismatch with static batch size"
-)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

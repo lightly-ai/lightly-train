@@ -25,6 +25,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+Fix ONNX export for `dinov3_eomt_instance_segmentation`,
+`dinov3_eomt_panoptic_segmentation` and `dinov3_eomt_semantic_segmentation`.
+
 ### Security
 
 ## [0.15.0] - 2026-04-16
