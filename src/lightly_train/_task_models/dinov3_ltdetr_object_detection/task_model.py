@@ -879,7 +879,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             )
         return out
 
-    @torch.no_grad()
     def predict_batch(  # type: ignore[override]
         self,
         images: Sequence[PathLike | PILImage | Tensor],
