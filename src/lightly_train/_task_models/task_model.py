@@ -121,7 +121,7 @@ class TaskModel(Module):
         raw_outputs: Any,
         metadata: Sequence[dict[str, Any]],
         **kwargs: Any,
-    ) -> list[dict[str, Tensor]]:
+    ) -> list[Any]:
         """Map raw outputs and per-image metadata into one result dict per image."""
         raise NotImplementedError()
 
@@ -130,7 +130,7 @@ class TaskModel(Module):
         self,
         images: Sequence[PathLike | PILImage | Tensor],
         **postprocess_kwargs: Any,
-    ) -> list[dict[str, Tensor]]:
+    ) -> list[Any]:
         """Run inference on a batch of images.
 
         Composes `preprocess_image`, `preprocess_batch`, `forward_backend`, and

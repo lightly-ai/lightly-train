@@ -849,31 +849,20 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             dtype=torch.int64,
             device=device,
         )
-        postprocessor_out = self.postprocessor(raw_outputs, orig_target_size)
+        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
+            raw_outputs, orig_target_size
+        )
         out: list[dict[str, Tensor]] = []
-        if isinstance(postprocessor_out, tuple):
-            # deploy_mode returns (labels, boxes, scores) as batched tensors.
-            labels_batch, boxes_batch, scores_batch = postprocessor_out
-            for i in range(len(metadata)):
-                keep = scores_batch[i] > threshold
-                out.append(
-                    {
-                        "labels": labels_batch[i][keep],
-                        "bboxes": boxes_batch[i][keep],
-                        "scores": scores_batch[i][keep],
-                    }
-                )
-        else:
-            result: list[dict[str, Tensor]] = postprocessor_out
-            for i in range(len(metadata)):
-                keep = result[i]["scores"] > threshold
-                out.append(
-                    {
-                        "labels": result[i]["labels"][keep],
-                        "bboxes": result[i]["boxes"][keep],
-                        "scores": result[i]["scores"][keep],
-                    }
-                )
+        labels_batch, boxes_batch, scores_batch = postprocessor_out
+        for i in range(len(metadata)):
+            keep = scores_batch[i] > threshold
+            out.append(
+                {
+                    "labels": labels_batch[i][keep],
+                    "bboxes": boxes_batch[i][keep],
+                    "scores": scores_batch[i][keep],
+                }
+            )
         return out
 
     @torch.no_grad()
