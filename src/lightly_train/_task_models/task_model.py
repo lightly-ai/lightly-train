@@ -7,8 +7,10 @@
 #
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
+import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
@@ -89,6 +91,74 @@ class TaskModel(Module):
                 shape (C, H, W).
         """
         raise NotImplementedError()
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        """Per-image preprocessing producing a tensor and metadata.
+
+        Runs once per input. Output tensors across the batch must share the same
+        shape so they can be stacked. Kept separate from `preprocess_batch` so
+        non-batchable work stays on the host.
+        """
+        raise NotImplementedError()
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        """Batch-level preprocessing on a stacked (B, C, H, W) tensor.
+
+        Kept separate from `preprocess_image` so this stage could be baked into an
+        exported graph (ONNX/TRT) — torchvision.transforms.v2 ops are batch-
+        friendly and run on GPU.
+        """
+        raise NotImplementedError()
+
+    def forward_backend(self, x: Tensor) -> Any:
+        """Run the model on a batched input and return raw outputs (pre-postprocess)."""
+        raise NotImplementedError()
+
+    def postprocess(
+        self,
+        raw_outputs: Any,
+        metadata: Sequence[dict[str, Any]],
+        **kwargs: Any,
+    ) -> list[dict[str, Tensor]]:
+        """Map raw outputs and per-image metadata into one result dict per image."""
+        raise NotImplementedError()
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        **postprocess_kwargs: Any,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images.
+
+        Composes `preprocess_image`, `preprocess_batch`, `forward_backend`, and
+        `postprocess`. Subclasses can override individual stages.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, PIL image, or tensor
+                of shape (C, H, W).
+            **postprocess_kwargs:
+                Forwarded to `postprocess`.
+
+        Returns:
+            One result dict per input image.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, **postprocess_kwargs)
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""

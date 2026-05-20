@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from copy import deepcopy
 from typing import Any, Literal
 
@@ -798,6 +799,103 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
         return self
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        # Expand grayscale to the expected channel count so images can be stacked.
+        expected_c = (
+            len(self.image_normalize["mean"]) if self.image_normalize else 3
+        )
+        if x.shape[-3] == 1 and expected_c > 1:
+            x = x.expand(expected_c, -1, -1)
+        elif x.shape[-3] != expected_c:
+            raise ValueError(
+                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
+            )
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        if self.image_normalize is not None:
+            batch = transforms_functional.normalize(
+                batch,
+                mean=list(self.image_normalize["mean"]),
+                std=list(self.image_normalize["std"]),
+            )
+        return batch
+
+    def forward_backend(self, x: Tensor) -> Any:
+        x = self.backbone(x)
+        x = self.encoder(x)
+        return self.decoder(x)
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: Any,
+        metadata: Sequence[dict[str, Any]],
+        threshold: float = 0.6,
+    ) -> list[dict[str, Tensor]]:
+        device = next(self.parameters()).device
+        # Postprocessor expects (W, H) per image.
+        orig_target_size = torch.tensor(
+            [[m["orig_w"], m["orig_h"]] for m in metadata],
+            dtype=torch.int64,
+            device=device,
+        )
+        result = self.postprocessor(raw_outputs, orig_target_size)
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+
+        out: list[dict[str, Tensor]] = []
+        for i in range(len(metadata)):
+            keep = scores[i] > threshold
+            out.append(
+                {
+                    "labels": labels[i][keep],
+                    "bboxes": boxes[i][keep],
+                    "scores": scores[i][keep],
+                }
+            )
+        return out
+
+    @torch.no_grad()
+    def predict_batch(  # type: ignore[override]
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image detections.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions
+                with scores <= threshold are discarded.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
+                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
+                  original image.
+                - "scores": Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        return super().predict_batch(images, threshold=threshold)
 
     @torch.no_grad()
     def predict(
