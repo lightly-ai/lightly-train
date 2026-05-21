@@ -76,9 +76,11 @@ def log_image_to_loggers(
     image: PILImage,
     step: int,
 ) -> None:
-    """Send a PIL image to every logger that supports images.
+    """Send a PIL image to supported logger implementations.
 
-    Loggers without image support (e.g. JSONLLogger) are silently skipped.
+    Images are logged to ``TensorBoardLogger``, ``WandbLogger``, and
+    ``MLFlowLogger``. Other loggers, such as ``JSONLLogger``, are silently
+    skipped.
     """
     image_tensor = None
     for log in loggers:
