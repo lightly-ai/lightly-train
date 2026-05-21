@@ -42,14 +42,9 @@ jobs:
         uses: astral-sh/setup-uv@v5
         id: setup-uv
         with:
-          version: 0.10.0
+          version: 0.11.15
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-          python-version: "3.13"
-      - name: Set Up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       - name: Set Up Environment
         run: |
           make install-dist
