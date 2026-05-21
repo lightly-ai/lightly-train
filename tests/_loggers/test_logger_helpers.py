@@ -200,7 +200,7 @@ def test_log_image_to_loggers__jsonl_skipped(
 
 @pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
 def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
-    tracking_uri = f"file:{tmp_path / 'mlruns'}"
+    tracking_uri = (tmp_path / "mlruns").as_uri()
     mlflow_logger = MLFlowLogger(
         experiment_name="test_exp",
         tracking_uri=tracking_uri,
