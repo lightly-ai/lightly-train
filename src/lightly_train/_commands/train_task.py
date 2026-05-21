@@ -31,7 +31,6 @@ from lightly_train import (
 )
 from lightly_train._commands import _warnings, common_helpers
 from lightly_train._commands import train_task_helpers as helpers
-from lightly_train._commands import train_task_visualization as visualization_helpers
 from lightly_train._commands.train_task_helpers import BestAggregatedMetricValues
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
@@ -1619,7 +1618,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
 
                 # Save label grid from the first microbatch of the training step.
                 if acc_step == 0 and step < 3 and fabric.global_rank == 0:
-                    visualization_helpers.save_train_step_visualizations(
+                    helpers.save_train_step_visualizations(
                         result=train_result,
                         out_dir=out_dir,
                         step=step,
@@ -1731,7 +1730,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
 
                     if val_step < 3 and fabric.global_rank == 0:
-                        visualization_helpers.save_val_step_visualizations(
+                        helpers.save_val_step_visualizations(
                             result=val_result,
                             out_dir=out_dir,
                             val_step=val_step,
