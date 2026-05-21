@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
@@ -125,40 +124,18 @@ class TaskModel(Module):
         """Map raw outputs and per-image metadata into one result dict per image."""
         raise NotImplementedError()
 
-    @torch.no_grad()
     def predict_batch(
         self,
         images: Sequence[PathLike | PILImage | Tensor],
-        **postprocess_kwargs: Any,
     ) -> list[Any]:
-        """Run inference on a batch of images.
-
-        Composes `preprocess_image`, `preprocess_batch`, `forward_backend`, and
-        `postprocess`. Subclasses can override individual stages.
+        """Returns predictions for the given batch of images.
 
         Args:
             images:
-                Sequence of input images. Each can be a path, PIL image, or tensor
-                of shape (C, H, W).
-            **postprocess_kwargs:
-                Forwarded to `postprocess`.
-
-        Returns:
-            One result dict per input image.
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape (C, H, W).
         """
-        self._track_inference()
-        if self.training:
-            self.eval()
-        tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
-        for image in images:
-            x, meta = self.preprocess_image(image)
-            tensors.append(x)
-            metadata.append(meta)
-        batch = torch.stack(tensors, dim=0)
-        batch = self.preprocess_batch(batch)
-        raw = self.forward_backend(batch)
-        return self.postprocess(raw, metadata, **postprocess_kwargs)
+        raise NotImplementedError()
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""

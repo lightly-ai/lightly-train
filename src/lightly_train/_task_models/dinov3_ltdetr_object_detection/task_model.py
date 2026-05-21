@@ -850,10 +850,14 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: Any,
+        raw_outputs: Any | dict[str, Tensor],
         metadata: Sequence[dict[str, Any]],
-        threshold: float = 0.6,
+        threshold: float,
     ) -> list[dict[str, Tensor]]:
+        if not isinstance(raw_outputs, dict):
+            raise ValueError(
+                f"Expected raw_outputs to be a dict, got {type(raw_outputs).__name__}."
+            )
         device = next(self.parameters()).device
         # Postprocessor expects (W, H) per image.
         orig_target_size = torch.tensor(
@@ -879,7 +883,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             )
         return out
 
-    def predict_batch(  # type: ignore[override]
+    @torch.no_grad()
+    def predict_batch(
         self,
         images: Sequence[PathLike | PILImage | Tensor],
         threshold: float = 0.6,
@@ -902,9 +907,19 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                   original image.
                 - "scores": Tensor of shape (N,) with confidence scores.
         """
+        self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
-        return super().predict_batch(images, threshold=threshold)
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
     def predict(
