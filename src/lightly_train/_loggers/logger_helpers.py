@@ -79,8 +79,11 @@ def log_image_to_loggers(
     """Send a PIL image to supported logger implementations.
 
     Images are logged to ``TensorBoardLogger``, ``WandbLogger``, and
-    ``MLFlowLogger``. Other loggers, such as ``JSONLLogger``, are silently
-    skipped.
+    ``MLFlowLogger``. ``JSONLLogger`` is skipped as it does not support image
+    logging.
+
+    Raises:
+        ValueError: If an unrecognized logger type is encountered.
     """
     image_tensor = None
     for log in loggers:
@@ -90,3 +93,9 @@ def log_image_to_loggers(
             log.experiment.add_image(tag=key, img_tensor=image_tensor, global_step=step)
         elif isinstance(log, (WandbLogger, MLFlowLogger)):
             log.log_image(key=key, images=[image], step=step)
+        elif isinstance(log, JSONLLogger):
+            pass  # JSONLLogger does not support image logging.
+        else:
+            raise ValueError(
+                f"Unrecognized logger type: {type(log)}. Cannot log images to this logger."
+            )

@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from lightning_fabric.loggers.logger import Logger as FabricLogger
 from PIL import Image as PILImageModule
+from pytest_mock import MockerFixture
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from lightly_train._loggers import logger_helpers
@@ -182,18 +184,78 @@ def test_log_image_to_loggers__tensorboard(tmp_path: Path) -> None:
     assert events[0].step == 7
 
 
-def test_log_image_to_loggers__jsonl_skipped(tmp_path: Path) -> None:
-    # JSONLLogger has no image support; the helper must silently skip it.
+def test_log_image_to_loggers__jsonl_skipped(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
     jsonl_logger = JSONLLogger(save_dir=tmp_path)
+    log_metrics_spy = mocker.spy(jsonl_logger, "log_metrics")
     image = PILImageModule.new("RGB", (4, 4))
 
     logger_helpers.log_image_to_loggers(
         loggers=[jsonl_logger], key="train/labels", image=image, step=0
     )
 
+    log_metrics_spy.assert_not_called()
 
-def test_log_image_to_loggers__no_loggers() -> None:
-    image = PILImageModule.new("RGB", (4, 4))
-    logger_helpers.log_image_to_loggers(
-        loggers=[], key="train/labels", image=image, step=0
+
+@pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
+def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
+    tracking_uri = f"file:{tmp_path / 'mlruns'}"
+    mlflow_logger = MLFlowLogger(
+        experiment_name="test_exp",
+        tracking_uri=tracking_uri,
+        save_dir=tmp_path,
     )
+    image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
+
+    logger_helpers.log_image_to_loggers(
+        loggers=[mlflow_logger], key="train/labels", image=image, step=7
+    )
+
+    client = mlflow_logger.experiment
+    png_artifacts = [
+        a
+        for a in client.list_artifacts(mlflow_logger.run_id, "images")
+        if a.path.endswith(".png")
+    ]
+    assert len(png_artifacts) == 1
+
+    local_path = client.download_artifacts(mlflow_logger.run_id, png_artifacts[0].path)
+    stored = PILImageModule.open(local_path)
+    assert stored.size == image.size
+    assert stored.getpixel((0, 0)) == (128, 0, 0)
+
+
+@pytest.mark.skipif(wandb is None, reason="Wandb not available")
+def test_log_image_to_loggers__wandb(tmp_path: Path) -> None:
+    wandb_logger = WandbLogger(
+        save_dir=str(tmp_path),
+        project="test_proj",
+        name="test_run",
+        offline=True,
+    )
+    image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
+
+    try:
+        logger_helpers.log_image_to_loggers(
+            loggers=[wandb_logger], key="train/labels", image=image, step=7
+        )
+    finally:
+        wandb_logger.experiment.finish()
+
+    # Wandb offline mode writes a PNG per logged image under
+    # wandb/offline-run-*/files/media/images/<key>/<filename>.png.
+    pngs = list(tmp_path.rglob("media/images/train/labels_*.png"))
+    assert len(pngs) == 1
+    stored = PILImageModule.open(pngs[0])
+    assert stored.size == image.size
+    assert stored.getpixel((0, 0)) == (128, 0, 0)
+
+
+def test_log_image_to_loggers__unrecognized_logger(mocker: MockerFixture) -> None:
+    unknown_logger = mocker.MagicMock(spec=FabricLogger)
+    image = PILImageModule.new("RGB", (4, 4))
+    with pytest.raises(ValueError, match="Unrecognized logger type"):
+        logger_helpers.log_image_to_loggers(
+            loggers=[unknown_logger], key="train/labels", image=image, step=0
+        )
