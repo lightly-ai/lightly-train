@@ -22,6 +22,8 @@ def _make_scheduler(
     *,
     total_steps: int = 1000,
     warmup_steps: int = 100,
+    flat_steps: int = 555,
+    no_aug_steps: int = 166,
 ) -> tuple[Optimizer, FlatCosineLRScheduler]:
     param = nn.Parameter(torch.ones(()))
     optimizer = SGD([param], lr=1.0)
@@ -29,6 +31,8 @@ def _make_scheduler(
         optimizer=optimizer,
         total_steps=total_steps,
         warmup_steps=warmup_steps,
+        flat_steps=flat_steps,
+        no_aug_steps=no_aug_steps,
     )
     return optimizer, scheduler
 

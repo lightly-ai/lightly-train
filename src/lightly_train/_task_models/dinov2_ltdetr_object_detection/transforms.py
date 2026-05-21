@@ -16,7 +16,7 @@ from pydantic import Field
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
-    resolve_ltdetr_step_schedule,
+    resolve_ltdetr_step_schedule_for_augmentation,
 )
 from lightly_train._transforms.transform import (
     CopyBlendArgs,
@@ -293,7 +293,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
 
         See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
         """
-        resolve_ltdetr_step_schedule(
+        resolve_ltdetr_step_schedule_for_augmentation(
             args=self,
             total_steps=total_steps,
             train_num_batches=train_num_batches,

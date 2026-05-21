@@ -1333,33 +1333,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             config.batch_size * config.gradient_accumulation_steps
         )
 
-        config.model_args = helpers.get_train_model_args(
-            model_args=config.model_args,
-            model_args_cls=train_model_args_cls,
-            total_steps=no_auto(config.steps),
-            model_name=config.model,
-            model_init_args=model_init_args,
-            data_args=config.data,
-        )
-        # TODO(Gabriel, 05/26): Split raw model_init_args from resolved
-        # model-dependent init args. For now we patch in values that transforms need,
-        # such as patch_size.
-        resolved_model_init_args = dict(model_init_args)
-        if hasattr(config.model_args, "patch_size"):
-            patch_size = getattr(config.model_args, "patch_size")
-            if patch_size not in (None, "auto"):
-                resolved_model_init_args["patch_size"] = patch_size
-
-        config.metric_args = helpers.get_metric_args(
-            train_model_cls=train_model_cls,
-            metric_args=config.metric_args,
-            data_args=config.data,
-        )
-        config.torch_compile_args = helpers.get_torch_compile_args(
-            train_model_cls=train_model_cls,
-            torch_compile_args=config.torch_compile_args,
-        )
-
         # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
         # Build dataloaders without a collate function; we install the
         # fully-resolved collate on the dataloader further below.
@@ -1377,6 +1350,36 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
+        )
+
+        config.model_args = helpers.get_train_model_args(
+            model_args=config.model_args,
+            model_args_cls=train_model_args_cls,
+            total_steps=no_auto(config.steps),
+            gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
+            train_num_batches=len(train_dataloader),
+            model_name=config.model,
+            model_init_args=model_init_args,
+            data_args=config.data,
+        )
+
+        # TODO(Gabriel, 05/26): Split raw model_init_args from resolved
+        # model-dependent init args. For now we patch in values that transforms need,
+        # such as patch_size.
+        resolved_model_init_args = dict(model_init_args)
+        if hasattr(config.model_args, "patch_size"):
+            patch_size = getattr(config.model_args, "patch_size")
+            if patch_size not in (None, "auto"):
+                resolved_model_init_args["patch_size"] = patch_size
+
+        config.metric_args = helpers.get_metric_args(
+            train_model_cls=train_model_cls,
+            metric_args=config.metric_args,
+            data_args=config.data,
+        )
+        config.torch_compile_args = helpers.get_torch_compile_args(
+            train_model_cls=train_model_cls,
+            torch_compile_args=config.torch_compile_args,
         )
 
         # Resolve transform args in a single pass now that we know the

@@ -754,6 +754,8 @@ def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
     model_args_cls: type[TrainModelArgs],
     total_steps: int,
+    gradient_accumulation_steps: int,
+    train_num_batches: int,
     model_name: str,
     model_init_args: dict[str, Any],
     data_args: TaskDataArgs,
@@ -764,6 +766,8 @@ def get_train_model_args(
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(
         total_steps=total_steps,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        train_num_batches=train_num_batches,
         model_name=model_name,
         model_init_args=model_init_args,
         data_args=data_args,

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any, Literal
 
 import numpy as np
@@ -28,6 +27,9 @@ from pydantic import ConfigDict
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
+from lightly_train._task_models.object_detection_components.ltdetr_schedule import (
+    resolve_ltdetr_step_schedule,
+)
 from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.copyblend import CopyBlend
@@ -116,101 +118,18 @@ class ObjectDetectionTransformArgs(TaskTransformArgs):
 
 _logger = logging.getLogger(__name__)
 
-# Matched upstream schedule profile for LTDETR.
-LTDETR_REFERENCE_WARMUP_EPOCHS = 4
-LTDETR_SHORT_RUN_TOTAL_EPOCHS = 12
-LTDETR_REFERENCE_TOTAL_EPOCHS = 72
-LTDETR_REFERENCE_NO_AUG_EPOCHS = 12
-LTDETR_REFERENCE_FLAT_EPOCHS = (
-    LTDETR_REFERENCE_WARMUP_EPOCHS + LTDETR_REFERENCE_TOTAL_EPOCHS // 2
-)
 
-
-def resolve_ltdetr_step_schedule(
+def resolve_ltdetr_step_schedule_for_augmentation(
     args: ObjectDetectionTransformArgs,
     total_steps: int,
     train_num_batches: int,
     gradient_accumulation_steps: int,
 ) -> None:
-    """Resolve ``"auto"`` step_start / step_stop on LTDETR augmentation args.
-
-    The algorithm converts LTDETR's epoch-based schedule into concrete step
-    boundaries using the effective number of optimizer steps per epoch,
-    ``train_num_batches / gradient_accumulation_steps``.
-
-    The calculation works in four stages:
-
-    1. Derive the effective training length in epochs as
-       ``total_steps / steps_per_epoch``.
-    2. Scale the canonical LTDETR no-augmentation tail from the matched
-       upstream profile:
-
-           no_aug_epochs_resolved = min(
-               _REFERENCE_NO_AUG_EPOCHS,
-               round(
-                   total_epochs
-                   * _REFERENCE_NO_AUG_EPOCHS
-                   / _REFERENCE_TOTAL_EPOCHS
-               ),
-           )
-
-    3. Convert that recipe into three epoch boundaries:
-       - ``epoch_stop_resolved = total_epochs - no_aug_epochs_resolved``
-       - short runs with ``total_epochs <= LTDETR_SHORT_RUN_TOTAL_EPOCHS`` compress
-         the warmup to
-         ``floor(total_epochs / (LTDETR_SHORT_RUN_TOTAL_EPOCHS / LTDETR_REFERENCE_WARMUP_EPOCHS))``
-         and set ``epoch_flat_resolved`` to
-         ``min(epoch_stop_resolved, epoch_start_resolved + floor(total_epochs / 2))``
-       - longer runs keep ``epoch_start_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS`` and use
-         ``epoch_flat_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS + floor(total_epochs / 2)``
-    4. Convert each epoch boundary back to integer steps with
-       ``floor(epoch * steps_per_epoch)``.
-
-    Only fields whose boundary is ``"auto"`` are rewritten:
-    - ``photometric_distort``, ``random_zoom_out``, ``random_iou_crop``, and
-      ``copyblend`` use [``step_start_resolved``, ``step_stop_resolved``)
-    - ``mixup`` and ``mosaic`` use [``step_start_resolved``, ``step_flat_resolved``)
-    - ``scale_jitter`` only resolves ``step_stop_resolved``
-
-    If an augmentation's final integer window is empty, it is disabled instead
-    of clamped to a minimum length. In practice this means:
-    - ``step_stop <= step_start`` disables the corresponding augmentation field
-    - ``scale_jitter`` is disabled when its resolved auto ``step_stop <= 0``
-    """
-    steps_per_epoch = train_num_batches / gradient_accumulation_steps
-    total_epochs = total_steps / steps_per_epoch
-
-    # Resolve no-aug tail from matched upstream profile.
-    no_aug_epochs_resolved = min(
-        LTDETR_REFERENCE_NO_AUG_EPOCHS,
-        round(
-            total_epochs
-            * LTDETR_REFERENCE_NO_AUG_EPOCHS
-            / LTDETR_REFERENCE_TOTAL_EPOCHS
-        ),
+    step_schedule = resolve_ltdetr_step_schedule(
+        total_steps=total_steps,
+        train_num_batches=train_num_batches,
+        gradient_accumulation_steps=gradient_accumulation_steps,
     )
-    epoch_stop_resolved = total_epochs - no_aug_epochs_resolved
-
-    # Compute epoch_start and epoch_flat with short-run compression.
-    if total_epochs <= LTDETR_SHORT_RUN_TOTAL_EPOCHS:
-        epoch_start_resolved = math.floor(
-            total_epochs
-            / (LTDETR_SHORT_RUN_TOTAL_EPOCHS / LTDETR_REFERENCE_WARMUP_EPOCHS)
-        )
-        epoch_flat_resolved = min(
-            epoch_stop_resolved,
-            epoch_start_resolved + math.floor(total_epochs / 2),
-        )
-    else:
-        epoch_start_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS
-        epoch_flat_resolved = LTDETR_REFERENCE_WARMUP_EPOCHS + math.floor(
-            total_epochs / 2
-        )
-
-    # Convert epoch boundaries to steps.
-    step_start_resolved = math.floor(epoch_start_resolved * steps_per_epoch)
-    step_stop_resolved = math.floor(epoch_stop_resolved * steps_per_epoch)
-    step_flat_resolved = math.floor(epoch_flat_resolved * steps_per_epoch)
 
     # Resolve each augmentation field.  We pre-check the final window before
     # assigning so that Pydantic's validate_assignment never sees an invalid
@@ -223,27 +142,27 @@ def resolve_ltdetr_step_schedule(
             "random_iou_crop",
             "copyblend",
         ),
-        step_start_resolved=step_start_resolved,
-        step_stop_resolved=step_stop_resolved,
+        step_start_resolved=step_schedule.step_start,
+        step_stop_resolved=step_schedule.step_stop,
     )
     _resolve_aug_fields(
         args=args,
         field_names=("mixup", "mosaic"),
-        step_start_resolved=step_start_resolved,
-        step_stop_resolved=step_flat_resolved,
+        step_start_resolved=step_schedule.step_start,
+        step_stop_resolved=step_schedule.step_flat,
     )
 
     # Scale jitter: only has step_stop, no step_start.
     if args.scale_jitter is not None and args.scale_jitter.step_stop == "auto":
-        if step_stop_resolved <= 0:
+        if step_schedule.step_stop <= 0:
             _logger.warning(
                 "Auto-derived step window for scale_jitter has "
-                f"step_stop ({step_stop_resolved}) <= 0. "
+                f"step_stop ({step_schedule.step_stop}) <= 0. "
                 "Disabling scale_jitter for this run."
             )
             args.scale_jitter = None
         else:
-            args.scale_jitter.step_stop = step_stop_resolved
+            args.scale_jitter.step_stop = step_schedule.step_stop
 
 
 def _resolve_aug_fields(
