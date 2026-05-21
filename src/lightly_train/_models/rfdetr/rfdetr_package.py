@@ -46,6 +46,7 @@ def _get_model_registry() -> dict[str, str]:
         raise RuntimeError(
             "rfdetr is installed but neither 'OPEN_SOURCE_MODELS' nor 'HOSTED_MODELS' "
             "was found in rfdetr.main. The installed rfdetr version may be incompatible."
+            "Make sure to install rfdetr through `pip install lightly-train[rfdetr]`."
         )
     return registry
 
