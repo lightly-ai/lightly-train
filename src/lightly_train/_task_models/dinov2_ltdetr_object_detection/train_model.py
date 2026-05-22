@@ -490,7 +490,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         backbone = self.model.backbone
         if isinstance(backbone, DINOv2STAs):
             # Only the pretrained ViT gets the low backbone LR.
-            backbone_params = list(backbone.dinov2.parameters())
+            backbone_params = list(backbone.backbone_model.parameters())
             # The connector modules (sta, convs, norms) are randomly initialized and
             # are merged into the detector group to train at the full LR.
             vit_params_ids = {id(p) for p in backbone_params}
