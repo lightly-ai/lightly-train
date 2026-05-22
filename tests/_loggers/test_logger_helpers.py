@@ -7,10 +7,15 @@
 #
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import pytest
+from lightning_fabric.loggers.logger import Logger as FabricLogger
+from PIL import Image as PILImageModule
+from pytest_mock import MockerFixture
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.jsonl import JSONLLogger, JSONLLoggerArgs
@@ -161,3 +166,97 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
     )  # MLFlowLogger uses the experiment id (will be 1).
     assert logger.save_dir is not None
     assert Path(logger.save_dir) == tmp_path  # Cannot check for log_dir as it is None.
+
+
+def test_log_image_to_loggers__tensorboard(tmp_path: Path) -> None:
+    # Verifies the image is written to TensorBoard with the correct tag and step.
+    tb_logger = TensorBoardLogger(save_dir=tmp_path)
+    image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
+
+    logger_helpers.log_image_to_loggers(
+        loggers=[tb_logger], key="train/labels", image=image, step=7
+    )
+    tb_logger.save()
+
+    acc = EventAccumulator(tb_logger.log_dir)
+    acc.Reload()
+    assert "train/labels" in acc.Tags()["images"]
+    events = acc.Images("train/labels")
+    assert len(events) == 1
+    assert events[0].step == 7
+
+
+def test_log_image_to_loggers__jsonl_skipped(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    # JSONLLogger does not support image logging and should be silently skipped.
+    jsonl_logger = JSONLLogger(save_dir=tmp_path)
+    log_metrics_spy = mocker.spy(jsonl_logger, "log_metrics")
+    image = PILImageModule.new("RGB", (4, 4))
+
+    logger_helpers.log_image_to_loggers(
+        loggers=[jsonl_logger], key="train/labels", image=image, step=0
+    )
+
+    log_metrics_spy.assert_not_called()
+
+
+@pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
+def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
+    # Verifies the image is written as a PNG artifact with correct pixel content.
+    mlflow_logger = MLFlowLogger(
+        experiment_name="test_exp",
+        tracking_uri=(tmp_path / "mlruns").as_uri(),
+        save_dir=tmp_path,
+    )
+    image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
+
+    logger_helpers.log_image_to_loggers(
+        loggers=[mlflow_logger], key="train/labels", image=image, step=7
+    )
+
+    pngs = list(tmp_path.rglob("*.png"))
+    assert len(pngs) == 1
+    stored = PILImageModule.open(pngs[0])
+    assert stored.size == image.size
+    assert stored.getpixel((0, 0)) == (128, 0, 0)
+
+
+@pytest.mark.skipif(wandb is None, reason="Wandb not available")
+def test_log_image_to_loggers__wandb(tmp_path: Path) -> None:
+    # Verifies the image is written as a PNG artifact with correct pixel content.
+    wandb_logger = WandbLogger(
+        save_dir=str(tmp_path),
+        project="test_proj",
+        name="test_run",
+        offline=True,
+    )
+    image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
+
+    try:
+        logger_helpers.log_image_to_loggers(
+            loggers=[wandb_logger], key="train/labels", image=image, step=7
+        )
+    finally:
+        wandb_logger.experiment.finish()
+
+    # Wandb offline mode writes a PNG per logged image under
+    # wandb/offline-run-*/files/media/images/<key>/<filename>.png.
+    pngs = list(tmp_path.rglob("media/images/train/labels_*.png"))
+    assert len(pngs) == 1
+    stored = PILImageModule.open(pngs[0])
+    assert stored.size == image.size
+    assert stored.getpixel((0, 0)) == (128, 0, 0)
+
+
+def test_log_image_to_loggers__unrecognized_logger(
+    mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    # An unknown logger type logs a warning and is skipped.
+    unknown_logger = mocker.MagicMock(spec=FabricLogger)
+    image = PILImageModule.new("RGB", (4, 4))
+    with caplog.at_level(logging.WARNING):
+        logger_helpers.log_image_to_loggers(
+            loggers=[unknown_logger], key="train/labels", image=image, step=0
+        )
+    assert "Unrecognized logger type" in caplog.text
