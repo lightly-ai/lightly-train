@@ -54,7 +54,7 @@ class DINOv3ConvNextWrapper(Module):
                         remapped, strict=strict, assign=assign
                     )
                 except RuntimeError:
-                    pass
+                    raise
             raise
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:
