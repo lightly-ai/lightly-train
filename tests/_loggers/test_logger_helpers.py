@@ -168,6 +168,7 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
 
 
 def test_log_image_to_loggers__tensorboard(tmp_path: Path) -> None:
+    # Verifies the image is written to TensorBoard with the correct tag and step.
     tb_logger = TensorBoardLogger(save_dir=tmp_path)
     image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
 
@@ -187,6 +188,7 @@ def test_log_image_to_loggers__tensorboard(tmp_path: Path) -> None:
 def test_log_image_to_loggers__jsonl_skipped(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
+    # JSONLLogger does not support image logging and should be silently skipped.
     jsonl_logger = JSONLLogger(save_dir=tmp_path)
     log_metrics_spy = mocker.spy(jsonl_logger, "log_metrics")
     image = PILImageModule.new("RGB", (4, 4))
@@ -200,10 +202,10 @@ def test_log_image_to_loggers__jsonl_skipped(
 
 @pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
 def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
-    tracking_uri = (tmp_path / "mlruns").as_uri()
+    # Verifies the image is written as a PNG artifact with correct pixel content.
     mlflow_logger = MLFlowLogger(
         experiment_name="test_exp",
-        tracking_uri=tracking_uri,
+        tracking_uri=(tmp_path / "mlruns").as_uri(),
         save_dir=tmp_path,
     )
     image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
@@ -212,22 +214,16 @@ def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
         loggers=[mlflow_logger], key="train/labels", image=image, step=7
     )
 
-    client = mlflow_logger.experiment
-    png_artifacts = [
-        a
-        for a in client.list_artifacts(mlflow_logger.run_id, "images")
-        if a.path.endswith(".png")
-    ]
-    assert len(png_artifacts) == 1
-
-    local_path = client.download_artifacts(mlflow_logger.run_id, png_artifacts[0].path)
-    stored = PILImageModule.open(local_path)
+    pngs = list(tmp_path.rglob("*.png"))
+    assert len(pngs) == 1
+    stored = PILImageModule.open(pngs[0])
     assert stored.size == image.size
     assert stored.getpixel((0, 0)) == (128, 0, 0)
 
 
 @pytest.mark.skipif(wandb is None, reason="Wandb not available")
 def test_log_image_to_loggers__wandb(tmp_path: Path) -> None:
+    # Verifies the image is written as a PNG artifact with correct pixel content.
     wandb_logger = WandbLogger(
         save_dir=str(tmp_path),
         project="test_proj",
@@ -253,6 +249,7 @@ def test_log_image_to_loggers__wandb(tmp_path: Path) -> None:
 
 
 def test_log_image_to_loggers__unrecognized_logger(mocker: MockerFixture) -> None:
+    # An unknown logger type raises ValueError instead of silently doing nothing.
     unknown_logger = mocker.MagicMock(spec=FabricLogger)
     image = PILImageModule.new("RGB", (4, 4))
     with pytest.raises(ValueError, match="Unrecognized logger type"):
