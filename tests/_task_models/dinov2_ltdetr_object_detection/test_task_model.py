@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+import torch
+from pytest_mock import MockerFixture
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 
@@ -19,6 +21,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
+    DINOv2LTDETRObjectDetection,
+)
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
     DINOv2LTDETRObjectDetectionTrainArgs,
@@ -167,3 +172,42 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
         train_model.get_optimizer(total_steps=1000, global_batch_size=16)
 
     assert "the schedule will not complete as intended" in caplog.text
+
+
+def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
+    model = DINOv2LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(224, 224),
+        load_weights=False,
+    )
+
+    preprocess_image_spy = mocker.spy(model, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
+    forward_backend_spy = mocker.spy(model, "forward_backend")
+    postprocess_spy = mocker.spy(model, "postprocess")
+
+    images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
+    result = model.predict_batch(images=images)
+
+    # Each input image goes through preprocess_image once.
+    assert preprocess_image_spy.call_count == 2
+
+    # The stacked batch is preprocessed in a single call with shape (B, C, H, W).
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert batch_in.shape == (2, 3, 224, 224)
+
+    # forward_backend receives the output of preprocess_batch.
+    assert forward_backend_spy.call_count == 1
+    (forward_in,) = forward_backend_spy.call_args.args
+    assert forward_in is preprocess_batch_spy.spy_return
+
+    # postprocess receives forward_backend's output and per-image metadata.
+    assert postprocess_spy.call_count == 1
+    raw_in, metadata = postprocess_spy.call_args.args
+    assert raw_in is forward_backend_spy.spy_return
+    assert len(metadata) == 2
+
+    # predict_batch returns whatever postprocess produced.
+    assert result is postprocess_spy.spy_return
