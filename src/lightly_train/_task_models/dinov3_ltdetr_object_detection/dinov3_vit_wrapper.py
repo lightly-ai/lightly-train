@@ -230,7 +230,7 @@ class DINOv3STAs(Module):
         )
 
         resized_feats: list[Tensor] = []
-        num_scales = len(sem_feats)
+        num_scales = len(sem_feats) - 2
         for i, sem_feat in enumerate(sem_feats):
             feat = sem_feat["features"]
             resize_H, resize_W = (
