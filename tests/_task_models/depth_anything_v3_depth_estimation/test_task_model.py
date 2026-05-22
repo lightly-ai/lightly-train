@@ -90,19 +90,38 @@ def test_task_model__forward_returns_depth_and_sky(
     assert out["sky"].shape == (2, 1, 56, 70)
 
 
-def test_task_model__load_official_state_dict_allows_missing_mask_token(
+def test_task_model__loads_state_dict_with_upstream_hf_layout(
     tiny_model_args: dict[str, Any],
 ) -> None:
+    """Loads a state dict in the official HF ``model.safetensors`` key layout.
+
+    Keys are prefixed ``model.backbone.pretrained.*`` / ``model.head.*`` and
+    ``mask_token`` is absent (it only exists during MIM pretraining). Values are
+    randomized so that a regression in the load path that silently skipped
+    parameters would be caught.
+    """
     model = DepthAnythingV3MonocularDepthEstimation(
         model_name="depth-anything-v3/da3mono-large",
         image_size=56,
         model_args=tiny_model_args,
         load_weights=False,
     )
-    state_dict: dict[str, Tensor] = dict(model.state_dict())
-    state_dict.pop("model.backbone.pretrained.mask_token")
 
-    model.load_train_state_dict(state_dict)
+    hf_layout_state_dict: dict[str, Tensor] = {}
+    for key, value in model.state_dict().items():
+        if key == "model.backbone.pretrained.mask_token":
+            continue
+        hf_layout_state_dict[key] = torch.randn_like(value)
+
+    before = model.model.head.scratch.layer1_rn.weight.detach().clone()
+    model.load_train_state_dict(hf_layout_state_dict)
+    after = model.model.head.scratch.layer1_rn.weight.detach()
+
+    assert not torch.allclose(before, after)
+    assert torch.allclose(
+        after,
+        hf_layout_state_dict["model.head.scratch.layer1_rn.weight"],
+    )
 
 
 def test_task_model__unsupported_model_name_fails() -> None:
