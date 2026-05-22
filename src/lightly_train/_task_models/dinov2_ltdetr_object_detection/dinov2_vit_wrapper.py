@@ -31,6 +31,9 @@ the terms of the DINOv3 License Agreement.
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -45,6 +48,8 @@ from torch.nn import (
 )
 
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class SpatialPriorModulev2(Module):
@@ -186,6 +191,35 @@ class DINOv2STAs(Module):
     @property
     def backbone_model(self):
         return self._model_wrapper._model
+
+    def load_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        strict: bool = True,
+        assign: bool = False,
+    ) -> torch.nn.modules.module._IncompatibleKeys:
+        try:
+            return super().load_state_dict(state_dict, strict=strict, assign=assign)
+        except RuntimeError:
+            old_prefix = "dinov2."
+            new_prefix = "_model_wrapper._model."
+            if any(k.startswith(old_prefix) for k in state_dict):
+                logger.info(
+                    "Detected old DINOv2STAs checkpoint format "
+                    "(dinov2. → _model_wrapper._model.). Remapping keys."
+                )
+                remapped = {}
+                for k, v in state_dict.items():
+                    if k.startswith(old_prefix):
+                        k = new_prefix + k[len(old_prefix) :]
+                    remapped[k] = v
+                try:
+                    return super().load_state_dict(
+                        remapped, strict=strict, assign=assign
+                    )
+                except RuntimeError:
+                    pass
+            raise
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
