@@ -164,6 +164,8 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
     },
 }
 
+_IMAGE_EXAMPLES_DIR = "image_examples"
+
 
 def get_out_dir(
     fabric: Fabric,
@@ -1497,9 +1499,6 @@ def get_torch_compile_args(
         train_model_cls.torch_compile_args_cls, torch_compile_args
     )
     return args
-
-
-_IMAGE_EXAMPLES_DIR = "image_examples"
 
 
 def save_train_step_visualizations(

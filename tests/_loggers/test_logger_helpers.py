@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -248,11 +249,14 @@ def test_log_image_to_loggers__wandb(tmp_path: Path) -> None:
     assert stored.getpixel((0, 0)) == (128, 0, 0)
 
 
-def test_log_image_to_loggers__unrecognized_logger(mocker: MockerFixture) -> None:
-    # An unknown logger type raises ValueError instead of silently doing nothing.
+def test_log_image_to_loggers__unrecognized_logger(
+    mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    # An unknown logger type logs a warning and is skipped.
     unknown_logger = mocker.MagicMock(spec=FabricLogger)
     image = PILImageModule.new("RGB", (4, 4))
-    with pytest.raises(ValueError, match="Unrecognized logger type"):
+    with caplog.at_level(logging.WARNING):
         logger_helpers.log_image_to_loggers(
             loggers=[unknown_logger], key="train/labels", image=image, step=0
         )
+    assert "Unrecognized logger type" in caplog.text
