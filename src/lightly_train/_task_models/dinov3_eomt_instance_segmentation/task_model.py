@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
@@ -314,6 +315,109 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             "masks": masks,
             "scores": scores,
         }
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        # Normalize before resize_and_pad so the zero padding inserted by
+        # resize_and_pad is identical to the per-image `predict` path.
+        x = transforms_functional.normalize(
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
+        )
+        x, (crop_h, crop_w) = self.resize_and_pad(x)
+        return x, {
+            "orig_h": image_h,
+            "orig_w": image_w,
+            "crop_h": crop_h,
+            "crop_w": crop_w,
+        }
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        return batch
+
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        return self._forward_logits(x)
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: tuple[Tensor, Tensor],
+        metadata: Sequence[dict[str, Any]],
+        threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        mask_logits_batch, class_logits_batch = raw_outputs
+        out: list[dict[str, Tensor]] = []
+        for i, meta in enumerate(metadata):
+            crop_h, crop_w = meta["crop_h"], meta["crop_w"]
+            orig_h, orig_w = meta["orig_h"], meta["orig_w"]
+            # (1, Q, crop_h, crop_w)
+            mask_logits = mask_logits_batch[i:i+1, ..., :crop_h, :crop_w]
+            # (1, Q, orig_h, orig_w)
+            mask_logits = F.interpolate(
+                mask_logits, size=(orig_h, orig_w), mode="bilinear"
+            )
+            class_logits = class_logits_batch[i:i+1]
+            labels, masks, scores = self.get_labels_masks_scores(
+                mask_logits=mask_logits, class_logits=class_logits
+            )
+            labels = self.internal_class_to_class[labels]
+            labels = labels.squeeze(0)
+            masks = masks.squeeze(0)
+            scores = scores.squeeze(0)
+            keep = scores >= threshold
+            out.append(
+                {
+                    "labels": labels[keep],
+                    "masks": masks[keep],
+                    "scores": scores[keep],
+                }
+            )
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.8,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image predictions.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                The confidence threshold for the predicted masks. Only masks with a
+                confidence score above this threshold are returned.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "masks": Tensor of shape (N, H, W) with predicted masks at the
+                  original image resolution.
+                - "scores": Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
