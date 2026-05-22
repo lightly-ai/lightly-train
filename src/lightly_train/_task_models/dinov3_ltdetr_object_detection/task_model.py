@@ -673,21 +673,24 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         config.resolve_auto(patch_size=patch_size)
 
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
+
         if isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
-            model_wrapper = DINOv3ViTModelWrapper(backbone)
+            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
             self.backbone = DINOv3STAs(
-                model_wrapper=model_wrapper,
+                model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
 
         else:
             # ConvNext models.
-            model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-            self.backbone = DINOv3ConvNextWrapper(model_wrapper=model_wrapper)
+            assert isinstance(backbone, ConvNeXt)
+            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()

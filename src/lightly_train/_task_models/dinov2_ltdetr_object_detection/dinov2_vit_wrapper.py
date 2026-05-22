@@ -32,7 +32,7 @@ the terms of the DINOv3 License Agreement.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Mapping
 
 import torch
 import torch.nn.functional as F
@@ -189,15 +189,15 @@ class DINOv2STAs(Module):
         )
 
     @property
-    def backbone_model(self):
+    def backbone_model(self) -> Module:
         return self._model_wrapper._model
 
     def load_state_dict(
         self,
-        state_dict: dict[str, Any],
+        state_dict: Mapping[str, Any],
         strict: bool = True,
         assign: bool = False,
-    ) -> torch.nn.modules.module._IncompatibleKeys:
+    ) -> Any:
         try:
             return super().load_state_dict(state_dict, strict=strict, assign=assign)
         except RuntimeError:

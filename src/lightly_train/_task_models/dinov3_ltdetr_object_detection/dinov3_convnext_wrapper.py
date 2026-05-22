@@ -8,9 +8,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Mapping
 
-import torch
 from torch import Tensor
 from torch.nn import Module
 
@@ -26,15 +25,15 @@ class DINOv3ConvNextWrapper(Module):
         self.patch_size = model_wrapper._model.patch_size
 
     @property
-    def backbone_model(self):
+    def backbone_model(self) -> Module:
         return self._model_wrapper._model
 
     def load_state_dict(
         self,
-        state_dict: dict[str, Any],
+        state_dict: Mapping[str, Any],
         strict: bool = True,
         assign: bool = False,
-    ) -> torch.nn.modules.module._IncompatibleKeys:
+    ) -> Any:
         try:
             return super().load_state_dict(state_dict, strict=strict, assign=assign)
         except RuntimeError:
