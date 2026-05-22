@@ -1259,6 +1259,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = ["labels", "boxes", "scores"]
 
+        # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
+        # expose orig_target_size as a second ONNX input to rescale boxes to original
+        # image coordinates inside the graph.
         torch.onnx.export(
             self,
             (dummy_input,),
