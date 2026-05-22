@@ -282,7 +282,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         x = x.unsqueeze(0)  # (1, C, H', W')
 
         # (1, Q, H', W'), (1, Q, K+1), Q = num_queries, K = len(self.classes)
-        mask_logits, class_logits = self._forward_logits(x)
+        mask_logits, class_logits = self.forward_backend(x)
 
         # Interpolate to original image size.
         mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
@@ -345,7 +345,22 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         return batch
 
     def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        return self._forward_logits(x)
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
+        # x is a batch of images with shape (B, C, H, W).
+        H, W = x.shape[-2:]
+
+        # Forward pass.
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            x, return_logits_per_layer=False
+        )
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
+
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
 
     def postprocess(  # type: ignore[override]
         self,
@@ -359,12 +374,12 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             crop_h, crop_w = meta["crop_h"], meta["crop_w"]
             orig_h, orig_w = meta["orig_h"], meta["orig_w"]
             # (1, Q, crop_h, crop_w)
-            mask_logits = mask_logits_batch[i:i+1, ..., :crop_h, :crop_w]
+            mask_logits = mask_logits_batch[i : i + 1, ..., :crop_h, :crop_w]
             # (1, Q, orig_h, orig_w)
             mask_logits = F.interpolate(
                 mask_logits, size=(orig_h, orig_w), mode="bilinear"
             )
-            class_logits = class_logits_batch[i:i+1]
+            class_logits = class_logits_batch[i : i + 1]
             labels, masks, scores = self.get_labels_masks_scores(
                 mask_logits=mask_logits, class_logits=class_logits
             )
@@ -422,7 +437,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
-        mask_logits, class_logits = self._forward_logits(x)
+        mask_logits, class_logits = self.forward_backend(x)
         labels, masks, scores = self.get_labels_masks_scores(
             mask_logits=mask_logits, class_logits=class_logits
         )
@@ -525,24 +540,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             mask_logits_per_layer,
             class_logits_per_layer,
         )
-
-    def _forward_logits(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        """Forward pass that returns the logits of the last layer. Intended for
-        inference."""
-        # x is a batch of images with shape (B, C, H, W).
-        H, W = x.shape[-2:]
-
-        # Forward pass.
-        # Only the logits of the last layer are returned.
-        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
-            x, return_logits_per_layer=False
-        )
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-
-        # Interpolate.
-        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-        return mask_logits, class_logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
         # TODO(Guarin, 08/25): Investigate if having different norms for queries and
