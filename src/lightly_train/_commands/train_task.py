@@ -1351,13 +1351,21 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             num_workers=config.num_workers,
             loader_args=config.loader_args,
         )
+        train_num_batches = len(train_dataloader)
+        if train_num_batches == 0:
+            raise RuntimeError(
+                "Training dataloader is empty. This can happen because training "
+                "uses drop_last=True and the dataset is smaller than the "
+                "per-device batch size. Reduce batch_size, use more training "
+                "samples, or set loader_args.drop_last=False."
+            )
 
         config.model_args = helpers.get_train_model_args(
             model_args=config.model_args,
             model_args_cls=train_model_args_cls,
             total_steps=no_auto(config.steps),
             gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
-            train_num_batches=len(train_dataloader),
+            train_num_batches=train_num_batches,
             model_name=config.model,
             model_init_args=model_init_args,
             data_args=config.data,
@@ -1392,7 +1400,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             ignore_index=getattr(config.data, "ignore_index", None),
             model_init_args=resolved_model_init_args,
             total_steps=no_auto(config.steps),
-            train_num_batches=len(train_dataloader),
+            train_num_batches=train_num_batches,
             gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
         )
 

@@ -69,16 +69,11 @@ def resolve_ltdetr_step_schedule(
     4. Convert each epoch boundary back to integer steps with
        ``floor(epoch * steps_per_epoch)``.
 
-    Only fields whose boundary is ``"auto"`` are rewritten:
-    - ``photometric_distort``, ``random_zoom_out``, ``random_iou_crop``, and
-      ``copyblend`` use [``step_start_resolved``, ``step_stop_resolved``)
-    - ``mixup`` and ``mosaic`` use [``step_start_resolved``, ``step_flat_resolved``)
-    - ``scale_jitter`` only resolves ``step_stop_resolved``
-
-    If an augmentation's final integer window is empty, it is disabled instead
-    of clamped to a minimum length. In practice this means:
-    - ``step_stop <= step_start`` disables the corresponding augmentation field
-    - ``scale_jitter`` is disabled when its resolved auto ``step_stop <= 0``
+    The returned schedule contains three step boundaries:
+    - ``step_start`` begins the scheduled LTDETR transition window.
+    - ``step_flat`` marks the boundary between the flat phase and the
+      no-augmentation tail.
+    - ``step_stop`` begins the no-augmentation tail.
     """
 
     steps_per_epoch = train_num_batches / gradient_accumulation_steps

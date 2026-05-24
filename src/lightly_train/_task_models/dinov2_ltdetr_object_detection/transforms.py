@@ -291,7 +291,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
     ) -> None:
         """Resolve ``"auto"`` step_start / step_stop values.
 
-        See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+        See :func:`resolve_ltdetr_step_schedule_for_augmentation`.
         """
         resolve_ltdetr_step_schedule_for_augmentation(
             args=self,
