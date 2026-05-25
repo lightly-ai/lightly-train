@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from copy import deepcopy
 from typing import Any, Literal
 
@@ -628,6 +629,16 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.image_normalize = image_normalize
 
+        # Resolve the backbone's expected input channel count using the same
+        # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
+        # overrides image_normalize, which overrides the DINOv3 default of 3.
+        if backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels: int = backbone_args["in_chans"]
+        elif self.image_normalize is not None:
+            self._expected_input_channels = len(self.image_normalize["mean"])
+        else:
+            self._expected_input_channels = 3
+
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
         backbone_model_args: dict[str, Any] = {
@@ -798,6 +809,117 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
         return self
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        # Expand grayscale to the expected channel count so images can be stacked.
+        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
+        # 1-channel expansion is a convenience inherited from RGB-only models.
+        expected_c = self._expected_input_channels
+        if x.shape[-3] == 1 and expected_c > 1:
+            x = x.expand(expected_c, -1, -1)
+        elif x.shape[-3] != expected_c:
+            raise ValueError(
+                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
+            )
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        if self.image_normalize is not None:
+            batch = transforms_functional.normalize(
+                batch,
+                mean=list(self.image_normalize["mean"]),
+                std=list(self.image_normalize["std"]),
+            )
+        return batch
+
+    def forward_backend(self, x: Tensor) -> Any:
+        x = self.backbone(x)
+        x = self.encoder(x)
+        return self.decoder(x)
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: Any | dict[str, Tensor],
+        metadata: Sequence[dict[str, Any]],
+        threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        if not isinstance(raw_outputs, dict):
+            raise ValueError(
+                f"Expected raw_outputs to be a dict, got {type(raw_outputs).__name__}."
+            )
+        device = next(self.parameters()).device
+        # Postprocessor expects (W, H) per image.
+        orig_target_size = torch.tensor(
+            [[m["orig_w"], m["orig_h"]] for m in metadata],
+            dtype=torch.int64,
+            device=device,
+        )
+        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
+            raw_outputs, orig_target_size
+        )
+        out: list[dict[str, Tensor]] = []
+        labels_batch, boxes_batch, scores_batch = postprocessor_out
+
+        labels_batch = self.internal_class_to_class[labels_batch]
+        for i in range(len(metadata)):
+            keep = scores_batch[i] > threshold
+            out.append(
+                {
+                    "labels": labels_batch[i][keep],
+                    "bboxes": boxes_batch[i][keep],
+                    "scores": scores_batch[i][keep],
+                }
+            )
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image detections.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions
+                with scores <= threshold are discarded.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
+                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
+                  original image.
+                - "scores": Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
     def predict(
@@ -1137,6 +1259,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = ["labels", "boxes", "scores"]
 
+        # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
+        # expose orig_target_size as a second ONNX input to rescale boxes to original
+        # image coordinates inside the graph.
         torch.onnx.export(
             self,
             (dummy_input,),
