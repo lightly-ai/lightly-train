@@ -58,6 +58,7 @@ def pretrain(
     embed_dim: int | None = None,
     epochs: int | Literal["auto"] = "auto",
     batch_size: int = 128,
+    gradient_accumulation_steps: int = 1,
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
     num_nodes: int = 1,
@@ -115,6 +116,10 @@ def pretrain(
         batch_size:
             Global batch size. The batch size per device/GPU is inferred from this value
             and the number of devices and nodes.
+        gradient_accumulation_steps:
+            Number of gradient accumulation steps. Set to 1 to disable gradient accumulation.
+            The effective global batch size is batch_size * gradient_accumulation_steps.
+            This is equivalent to passing trainer_args={"accumulate_grad_batches": N}.
         num_workers:
             Number of workers for the dataloader per device/GPU. 'auto' automatically
             sets the number of workers based on the available CPU cores.
@@ -251,6 +256,7 @@ def train(
     embed_dim: int | None = None,
     epochs: int | Literal["auto"] = "auto",
     batch_size: int = 128,
+    gradient_accumulation_steps: int = 1,
     num_workers: int | Literal["auto"] = "auto",
     devices: int | str | list[int] = "auto",
     num_nodes: int = 1,
@@ -421,6 +427,7 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
         trainer_instance = train_helpers.get_trainer(
             out=out_dir,
             epochs=config.epochs,
+            gradient_accumulation_steps=config.gradient_accumulation_steps,
             accelerator=config.accelerator,
             strategy=config.strategy,
             devices=config.devices,
@@ -536,6 +543,7 @@ class TrainConfig(PydanticConfig):
     embed_dim: int | None = None
     epochs: int | Literal["auto"] = "auto"
     batch_size: int = 128
+    gradient_accumulation_steps: int = 1
     num_workers: int | Literal["auto"] = "auto"
     devices: int | str | list[int] = "auto"
     num_nodes: int = 1
