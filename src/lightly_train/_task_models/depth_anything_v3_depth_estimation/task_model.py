@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -18,11 +19,25 @@ from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
-from lightly_train._task_models.depth_anything_v3_depth_estimation.model import (
-    DepthAnythingV3MonoNet,
+from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
+    MemEffAttention,
+    NestedTensorBlock,
+)
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
+from lightly_train._task_models.depth_anything_v3_depth_estimation.dpt_head import (
+    DPTHead,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+
+_BACKBONE_SPECS: dict[str, dict[str, int]] = {
+    "vits": {"embed_dim": 384, "depth": 12, "num_heads": 6},
+    "vitb": {"embed_dim": 768, "depth": 12, "num_heads": 12},
+    "vitl": {"embed_dim": 1024, "depth": 24, "num_heads": 16},
+    "vitg": {"embed_dim": 1536, "depth": 40, "num_heads": 24},
+}
 
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "da3mono-large": {
@@ -54,9 +69,7 @@ _DEFAULT_IMAGE_NORMALIZE = {
     "std": (0.229, 0.224, 0.225),
 }
 
-_ALLOWED_MISSING_OFFICIAL_KEYS = {
-    "model.backbone.pretrained.mask_token",
-}
+_ALLOWED_MISSING_OFFICIAL_KEYS = {"backbone.mask_token"}
 
 
 class DepthAnythingV3MonocularDepthEstimation(TaskModel):
@@ -91,7 +104,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
                 If omitted and ``load_weights=True``, weights are downloaded from the
                 official Hugging Face repository.
             model_args:
-                Additional arguments passed to :class:`DepthAnythingV3MonoNet`.
+                Additional arguments controlling backbone and DPT head construction.
             load_weights:
                 If False, no pretrained weights are loaded.
         """
@@ -108,8 +121,30 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         net_args = dict(config["model_args"])
         if model_args is not None:
             net_args.update(model_args)
-        self.model = DepthAnythingV3MonoNet(**net_args)
-        self.patch_size = int(net_args.get("patch_size", 14))
+
+        backbone_name: str = net_args["backbone_name"]
+        backbone_spec = _resolve_backbone_spec(
+            backbone_name=backbone_name,
+            backbone_args=net_args.get("backbone_args"),
+        )
+        patch_size = int(net_args.get("patch_size", 14))
+        dim_in = int(net_args.get("dim_in", backbone_spec["embed_dim"]))
+
+        self.out_layers: tuple[int, ...] = tuple(net_args["out_layers"])
+        self.patch_size = patch_size
+        self.backbone = _make_dinov2_backbone(
+            image_size=int(net_args["image_size"]),
+            patch_size=patch_size,
+            **backbone_spec,
+        )
+        self.head = DPTHead(
+            dim_in=dim_in,
+            patch_size=patch_size,
+            output_dim=int(net_args.get("output_dim", 1)),
+            features=int(net_args.get("features", 256)),
+            out_channels=tuple(net_args.get("out_channels", (256, 512, 1024, 1024))),
+            use_sky_head=bool(net_args.get("use_sky_head", True)),
+        )
 
         if load_weights:
             weights_path = (
@@ -179,9 +214,13 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     def forward(self, x: Tensor) -> dict[str, Tensor]:
         """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``."""
         if x.ndim != 4:
-            raise ValueError(f"Expected input shape (B, C, H, W), got {tuple(x.shape)}.")
-        out = self.model(x[:, None])
-        return {key: value[:, 0, None] for key, value in out.items()}
+            raise ValueError(
+                f"Expected input shape (B, C, H, W), got {tuple(x.shape)}."
+            )
+        feats = self._extract_features(x)
+        out = self.head(feats=feats, H=x.shape[-2], W=x.shape[-1])
+        _set_mono_sky_regions_to_max_depth(out)
+        return out
 
     def load_weights(self, path: PathLike) -> None:
         state_dict = _load_state_dict_file(Path(path))
@@ -190,6 +229,16 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict from a training checkpoint."""
         self._load_depth_anything_state_dict(state_dict)
+
+    def _extract_features(self, x: Tensor) -> list[Tensor]:
+        intermediate = self.backbone.get_intermediate_layers(
+            x,
+            n=self.out_layers,
+            reshape=False,
+            return_class_token=True,
+            norm=True,
+        )
+        return [patch_tokens for patch_tokens, _class_token in intermediate]
 
     def _preprocess_image(self, image: Tensor) -> Tensor:
         first_param = next(self.parameters())
@@ -213,28 +262,77 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         )
 
     def _load_depth_anything_state_dict(self, state_dict: Mapping[str, Any]) -> None:
-        errors = []
-        for candidate in _state_dict_key_candidates(state_dict):
-            try:
-                incompatible = self.load_state_dict(candidate, strict=False)
-            except RuntimeError as error:
-                errors.append(str(error))
-                continue
+        remapped = _remap_official_da3_keys(state_dict)
+        incompatible = self.load_state_dict(remapped, strict=False)
 
-            missing = set(incompatible.missing_keys)
-            unexpected = set(incompatible.unexpected_keys)
-            if missing <= _ALLOWED_MISSING_OFFICIAL_KEYS and not unexpected:
-                return
-            errors.append(
-                "Missing keys: "
-                f"{sorted(missing - _ALLOWED_MISSING_OFFICIAL_KEYS)}; "
+        missing = set(incompatible.missing_keys)
+        unexpected = set(incompatible.unexpected_keys)
+        if not missing <= _ALLOWED_MISSING_OFFICIAL_KEYS or unexpected:
+            raise RuntimeError(
+                "Could not load Depth Anything V3 state dict. "
+                f"Missing keys: {sorted(missing - _ALLOWED_MISSING_OFFICIAL_KEYS)}; "
                 f"unexpected keys: {sorted(unexpected)}"
             )
 
-        raise RuntimeError(
-            "Could not load Depth Anything V3 state dict. Tried raw, stripped, and "
-            f"prefixed key variants. Last errors: {errors[-3:]}"
+
+def _make_dinov2_backbone(
+    *,
+    image_size: int,
+    patch_size: int,
+    embed_dim: int,
+    depth: int,
+    num_heads: int,
+) -> DinoVisionTransformer:
+    return DinoVisionTransformer(
+        img_size=image_size,
+        patch_size=patch_size,
+        embed_dim=embed_dim,
+        depth=depth,
+        num_heads=num_heads,
+        mlp_ratio=4,
+        block_fn=partial(NestedTensorBlock, attn_class=MemEffAttention),
+        num_register_tokens=0,
+        init_values=1.0,
+        block_chunks=0,
+    )
+
+
+def _resolve_backbone_spec(
+    backbone_name: str, backbone_args: Mapping[str, Any] | None
+) -> dict[str, int]:
+    spec = dict(_BACKBONE_SPECS.get(backbone_name, {}))
+    if backbone_args is not None:
+        spec.update(backbone_args)
+    if not {"embed_dim", "depth", "num_heads"}.issubset(spec):
+        raise ValueError(
+            "backbone_args must define 'embed_dim', 'depth', and 'num_heads' "
+            "when using a custom DA3 backbone."
         )
+    return {key: int(spec[key]) for key in ("embed_dim", "depth", "num_heads")}
+
+
+def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
+    if "depth" not in out or "sky" not in out:
+        return
+
+    non_sky_mask = out["sky"] < 0.3
+    if non_sky_mask.sum() <= 10 or (~non_sky_mask).sum() <= 10:
+        return
+
+    non_sky_depth = out["depth"][non_sky_mask]
+    if non_sky_depth.numel() > 100_000:
+        idx = torch.randint(
+            0,
+            non_sky_depth.numel(),
+            (100_000,),
+            device=non_sky_depth.device,
+        )
+        non_sky_depth = non_sky_depth[idx]
+    non_sky_max = torch.quantile(non_sky_depth, 0.99)
+
+    depth = out["depth"].clone()
+    depth[~non_sky_mask] = non_sky_max
+    out["depth"] = depth
 
 
 def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
@@ -274,19 +372,23 @@ def _load_state_dict_file(path: Path) -> dict[str, Tensor]:
     raise ValueError(f"Unsupported checkpoint format in '{path}'.")
 
 
-def _state_dict_key_candidates(
-    state_dict: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    raw = dict(state_dict)
-    candidates = [raw]
+def _remap_official_da3_keys(state_dict: Mapping[str, Any]) -> dict[str, Any]:
+    """Remap Depth Anything V3 checkpoint keys onto the flat TaskModel layout.
 
-    if raw and all(key.startswith("model.") for key in raw):
-        candidates.append({key[len("model.") :]: value for key, value in raw.items()})
-
-    if raw and not all(key.startswith("model.") for key in raw):
-        candidates.append({f"model.{key}": value for key, value in raw.items()})
-
-    return candidates
+    Handles three input layouts:
+    - Flat (already matches the model): ``backbone.<rest>``, ``head.<rest>``
+    - Lightning training: ``model.backbone.<rest>``, ``model.head.<rest>``
+    - HF official: ``model.backbone.pretrained.<rest>``, ``model.head.<rest>``
+    """
+    remapped: dict[str, Any] = {}
+    for key, value in state_dict.items():
+        new_key = key
+        if new_key.startswith("model."):
+            new_key = new_key[len("model.") :]
+        if new_key.startswith("backbone.pretrained."):
+            new_key = "backbone." + new_key[len("backbone.pretrained.") :]
+        remapped[new_key] = value
+    return remapped
 
 
 def _ensure_three_channel_image(image: Tensor) -> Tensor:

@@ -14,9 +14,6 @@ import torch
 from PIL import Image
 from torch import Tensor
 
-from lightly_train._task_models.depth_anything_v3_depth_estimation.model import (
-    DepthAnythingV3MonoNet,
-)
 from lightly_train._task_models.depth_anything_v3_depth_estimation.task_model import (
     DepthAnythingV3MonocularDepthEstimation,
 )
@@ -38,21 +35,6 @@ def tiny_model_args() -> dict[str, Any]:
             "num_heads": 4,
         },
     }
-
-
-def test_depth_anything_v3_mono_net__forward(
-    tiny_model_args: dict[str, Any],
-) -> None:
-    model = DepthAnythingV3MonoNet(**tiny_model_args)
-    x = torch.randn(2, 1, 3, 56, 70)
-
-    out = model(x)
-
-    assert set(out) == {"depth", "sky"}
-    assert out["depth"].shape == (2, 1, 56, 70)
-    assert out["sky"].shape == (2, 1, 56, 70)
-    assert out["depth"].dtype == x.dtype
-    assert torch.isfinite(out["depth"]).all()
 
 
 def test_task_model__predict_returns_original_resolution(
@@ -109,13 +91,18 @@ def test_task_model__loads_state_dict_with_upstream_hf_layout(
 
     hf_layout_state_dict: dict[str, Tensor] = {}
     for key, value in model.state_dict().items():
-        if key == "model.backbone.pretrained.mask_token":
+        if key == "backbone.mask_token":
             continue
-        hf_layout_state_dict[key] = torch.randn_like(value)
+        if key.startswith("backbone."):
+            hf_key = f"model.backbone.pretrained.{key[len('backbone.') :]}"
+        else:
+            assert key.startswith("head.")
+            hf_key = f"model.{key}"
+        hf_layout_state_dict[hf_key] = torch.randn_like(value)
 
-    before = model.model.head.scratch.layer1_rn.weight.detach().clone()
+    before = model.head.scratch.layer1_rn.weight.detach().clone()
     model.load_train_state_dict(hf_layout_state_dict)
-    after = model.model.head.scratch.layer1_rn.weight.detach()
+    after = model.head.scratch.layer1_rn.weight.detach()
 
     assert not torch.allclose(before, after)
     assert torch.allclose(
