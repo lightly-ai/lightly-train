@@ -15,6 +15,7 @@ in LightlyTrain. For task-specific fine-tuning options, see the [](train-setting
 | [`embed_dim`](#embed_dim)                               | `int`                         | `None`           | Optional embedding dimensionality override.                                                       |
 | [`epochs`](#epochs)                                     | `int`                         | `auto`           | Number of training epochs. `auto` derives a value from dataset size and batch size.               |
 | [`batch_size`](#batch_size)                             | `int`                         | `128`            | Global batch size across all devices.                                                             |
+| [`gradient_accumulation_steps`](#gradient_accumulation_steps) | `int` | `1` | Number of gradient accumulation steps. |
 | [`num_workers`](#num_workers)                           | `int`                         | `"auto"`         | DataLoader worker processes per device. `"auto"` chooses a value based on available CPU cores.    |
 | [`devices`](#devices)                                   | `int`<br>`str`<br>`list[int]` | `"auto"`         | Devices to use for training. `"auto"` selects all available devices for the chosen `accelerator`. |
 | [`num_nodes`](#num_nodes)                               | `int`                         | `1`              | Number of nodes for distributed training.                                                         |
@@ -78,6 +79,12 @@ details on supported image formats.
 Global batch size across all devices. The per-device batch size is computed as
 `batch_size / (num_devices * num_nodes)`. Adjust this value to fit your memory budget.
 We recommend values between `128` and `2048`. The default is `128`.
+
+### `gradient_accumulation_steps`
+
+Number of gradient accumulation steps. The effective global batch size is:
+batch_size * gradient_accumulation_steps.  
+Set to 1 to disable gradient accumulation.
 
 ### `num_workers`
 
