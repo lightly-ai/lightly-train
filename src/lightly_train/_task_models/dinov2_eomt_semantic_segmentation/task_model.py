@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -303,6 +304,134 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         # Map internal class IDs to class IDs.
         masks = self.internal_class_to_class[masks]  # (1, H, W)
         return masks[0]
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.normalize(
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
+        )
+
+        # Crop size is the short side of the training image size. We resize the image
+        # such that the short side of the image matches the crop size. The long side
+        # therefore varies per image, so preprocessed tensors are NOT stackable across
+        # the batch.
+        crop_size = min(self.image_size)
+        x = transforms_functional.resize(x, size=[crop_size])
+
+        # Origins describe where each crop sits in the resized image. They are
+        # computed here (image_idx=0) so `postprocess` can untile without
+        # recomputing them.
+        _, origins = self.tile(images=[x])
+        return x, {
+            "orig_h": image_h,
+            "orig_w": image_w,
+            "resized_h": int(x.shape[-2]),
+            "resized_w": int(x.shape[-1]),
+            "origins": origins,
+            "num_crops": len(origins),
+        }
+
+    def preprocess_batch(  # type: ignore[override]
+        self, batch: Sequence[Tensor]
+    ) -> Tensor:
+        # Tile each variable-size image into square crops of size
+        # `min(image_size)` and stack them into a single (B, C, H, W) tensor.
+        crops_list, _ = self.tile(images=list(batch))
+        return torch.stack(crops_list)
+
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
+        # x is a batch of square crops with shape (B, C, H, W).
+        H, W = x.shape[-2:]
+
+        # Forward pass.
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            x, return_logits_per_layer=False
+        )
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
+
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: tuple[Tensor, Tensor],
+        metadata: Sequence[dict[str, Any]],
+    ) -> list[Tensor]:
+        mask_logits, class_logits = raw_outputs
+        # (sum N_i, K+1, crop_h, crop_w)
+        crop_logits_all = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+
+        # Split the batched crop logits back into one chunk per image.
+        crop_logits_per_image = torch.split(
+            crop_logits_all, [meta["num_crops"] for meta in metadata], dim=0
+        )
+
+        out: list[Tensor] = []
+        for image_crops, meta in zip(crop_logits_per_image, metadata):
+            # Untile back to the resized image size.
+            logits = self.untile(
+                crop_logits=image_crops,
+                origins=meta["origins"],
+                image_sizes=[(meta["resized_h"], meta["resized_w"])],
+            )[0]  # (K+1, H', W')
+
+            # Restrict to known classes and interpolate to original image size.
+            logits = logits[:-1].unsqueeze(0)  # (1, K, H', W')
+            logits = F.interpolate(
+                logits, size=(meta["orig_h"], meta["orig_w"]), mode="bilinear"
+            )
+            masks = logits.argmax(dim=1)  # (1, H, W)
+            masks = self.internal_class_to_class[masks]
+            out.append(masks[0])
+
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+    ) -> list[Tensor]:
+        """Returns the predicted masks for the given batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape (C, H, W).
+
+        Returns:
+            A list of predicted masks, one per input image. Each mask is a tensor
+            of shape (H, W) where the values represent the class IDs as defined in
+            the `classes` argument of your dataset. The model will always predict
+            the pixels as one of the known classes even when your dataset contains
+            ignored classes defined by the `ignore_classes` argument.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = self.preprocess_batch(tensors)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
