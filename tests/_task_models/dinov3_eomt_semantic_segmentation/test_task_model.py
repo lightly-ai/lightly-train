@@ -69,6 +69,7 @@ def test_predict_batch__composes_stages_in_order(
     # predict_batch returns whatever postprocess produced.
     assert result is postprocess_spy.spy_return
 
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
