@@ -268,56 +268,10 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
         if self.training:
             self.eval()
 
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-        )
-
-        x, (crop_h, crop_w) = self.resize_and_pad(x)
-        x = x.unsqueeze(0)  # (1, C, H', W')
-
-        # (1, Q, H', W'), (1, Q, K+1), Q = num_queries, K = len(self.classes)
-        mask_logits, class_logits = self.forward_backend(x)
-
-        # Interpolate to original image size.
-        mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
-        # (1, Q, H, W)
-        mask_logits = F.interpolate(
-            mask_logits, size=(image_h, image_w), mode="bilinear"
-        )
-
-        # (1, Q), (1, Q, H, W), (1, Q)
-        labels, masks, scores = self.get_labels_masks_scores(
-            mask_logits=mask_logits, class_logits=class_logits
-        )
-
-        # Map internal class IDs to class IDs.
-        labels = self.internal_class_to_class[labels]  # (1, Q)
-
-        # Remove batch dimension.
-        labels = labels.squeeze(0)
-        masks = masks.squeeze(0)
-        scores = scores.squeeze(0)
-
-        # Apply threshold.
-        keep = scores >= threshold
-        labels = labels[keep]
-        masks = masks[keep]
-        scores = scores[keep]
-
-        return {
-            "labels": labels,
-            "masks": masks,
-            "scores": scores,
-        }
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
