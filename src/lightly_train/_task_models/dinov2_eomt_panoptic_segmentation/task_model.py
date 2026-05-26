@@ -319,50 +319,16 @@ class DINOv2EoMTPanopticSegmentation(TaskModel):
         if self.training:
             self.eval()
 
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-        )
-
-        x, (crop_h, crop_w) = self.resize_and_pad(x)
-        x = x.unsqueeze(0)  # (1, C, H', W')
-
-        # (1, Q, H', W'), (1, Q, K+1)
-        # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self.forward_backend(x)
-
-        # Interpolate to original image size.
-        mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
-        # (1, Q, H, W)
-        mask_logits = F.interpolate(
-            mask_logits, size=(image_h, image_w), mode="bilinear"
-        )
-
-        # (H, W, 2), (num_segments), (num_segments)
-        masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
-            mask_logits=mask_logits[0],
-            class_logits=class_logits[0],
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(
+            raw,
+            [metadata],
             threshold=threshold,
             mask_threshold=mask_threshold,
             mask_overlap_threshold=mask_overlap_threshold,
-        )
-
-        # Map internal class IDs to class IDs.
-        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
-
-        return {
-            "masks": masks,
-            "segment_ids": segment_ids,
-            "scores": scores,
-        }
+        )[0]
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
