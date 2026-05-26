@@ -48,6 +48,8 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
             model_args={"patch_size": 14},
             model_args_cls=DINOv3LTDETRObjectDetectionTrainArgs,
             total_steps=1000,
+            gradient_accumulation_steps=1,
+            train_num_batches=100,
             model_name="dinov3/vitt16-notpretrained-ltdetr",
             model_init_args={},
             data_args=data_args,
