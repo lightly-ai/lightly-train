@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
+import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from pytorch_lightning import LightningModule
 from pytorch_lightning.loggers import WandbLogger as LightningWandbLogger
@@ -44,7 +45,10 @@ class TrainingStepResult:
 @dataclass
 class BatchStartEndTime:
     batch_start_s: float | None = None
-    batch_end_s: float | None = None
+    batch_end_s: float | None = None  # CPU-only
+    # CUDA-only: events bracketing the GPU step.
+    _start_event: torch.cuda.Event | None = None
+    _end_event: torch.cuda.Event | None = None
 
 
 class Method(LightningModule):
@@ -191,27 +195,40 @@ class Method(LightningModule):
                 )
 
     def _log_time_batch_start(self) -> None:
-        self.batch_start_end_time.batch_start_s = time.perf_counter()
-        if self.batch_start_end_time.batch_end_s is not None:
-            assert (
-                self.batch_start_end_time.batch_start_s
-                > self.batch_start_end_time.batch_end_s
-            )
-            self.log(
-                "profiling/data_time",
-                self.batch_start_end_time.batch_start_s
-                - self.batch_start_end_time.batch_end_s,
-            )
+        now = time.perf_counter()
+        t = self.batch_start_end_time
+
+        if self.device.type == "cuda":
+            # 1. Resolve previous step's GPU duration from events.
+            if t._start_event is not None and t._end_event is not None:
+                batch_time = t._start_event.elapsed_time(t._end_event) / 1e3  # type: ignore[no-untyped-call]
+                self.log("profiling/batch_time", batch_time)
+
+                # 2. data_time = wall gap (start → start) minus GPU duration.
+                if t.batch_start_s is not None:
+                    wall_gap = now - t.batch_start_s
+                    self.log("profiling/data_time", max(0.0, wall_gap - batch_time))
+
+            # 3. Begin new step: record start event.
+            t._start_event = torch.cuda.Event(enable_timing=True)  # type: ignore[no-untyped-call]
+            t._start_event.record()  # type: ignore[no-untyped-call]
+        else:
+            # CPU: data_time is simply the gap between previous step end and now.
+            if t.batch_end_s is not None:
+                self.log("profiling/data_time", now - t.batch_end_s)
+
+        t.batch_start_s = now
 
     def _log_time_batch_end(self) -> None:
-        self.batch_start_end_time.batch_end_s = time.perf_counter()
-        if self.batch_start_end_time.batch_start_s is not None:
-            assert (
-                self.batch_start_end_time.batch_end_s
-                > self.batch_start_end_time.batch_start_s
-            )
-            self.log(
-                "profiling/batch_time",
-                self.batch_start_end_time.batch_end_s
-                - self.batch_start_end_time.batch_start_s,
-            )
+        t = self.batch_start_end_time
+
+        if self.device.type == "cuda":
+            # Record end event — queried at next step start.
+            t._end_event = torch.cuda.Event(enable_timing=True)  # type: ignore[no-untyped-call]
+            t._end_event.record()  # type: ignore[no-untyped-call]
+        else:
+            # CPU: batch_time is just wall-clock step duration.
+            now = time.perf_counter()
+            if t.batch_start_s is not None:
+                self.log("profiling/batch_time", now - t.batch_start_s)
+            t.batch_end_s = now
