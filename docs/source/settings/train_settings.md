@@ -108,6 +108,8 @@ architecture. The table lists the most commonly tuned options:
 | [`backbone_weights`](#backbone_weights)         | `Path`<br>`str`<br>`None` | Path to backbone weights to load.   |
 | [`metric_log_classwise`](#metric_log_classwise) | `bool`                    | Whether to log class-wise metrics.  |
 | [`scheduler_name`](#scheduler_name)             | `str`                     | Scheduler mode for LTDETR training. |
+| `scheduler_flat_steps`                          | `int`<br>`"auto"`         | Flat-cosine flat phase boundary.    |
+| `scheduler_no_aug_steps`                        | `int`<br>`"auto"`         | Flat-cosine final tail length.      |
 
 #### `lr`
 
@@ -204,6 +206,9 @@ Scheduler mode for LTDETR object detection training. Supported values are:
 - `"flat-cosine"`: LT-DETR-style warmup, flat, cosine decay, and final tail
 
 Any other value raises a `ValueError`. The legacy `scheduler` key is no longer accepted.
+For `"flat-cosine"`, `scheduler_flat_steps` and `scheduler_no_aug_steps` default to
+`"auto"` and are resolved from the LTDETR setup and the configured `total_steps`.
+Override them only when you need custom phase boundaries.
 
 ```python
 import lightly_train
