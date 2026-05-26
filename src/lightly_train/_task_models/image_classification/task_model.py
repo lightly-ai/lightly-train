@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -205,46 +206,110 @@ class ImageClassification(TaskModel):
         self._track_inference()
         if self.training:
             self.eval()
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], topk=topk, threshold=threshold)[0]
 
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
         first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
+        device, dtype = first_param.device, first_param.dtype
 
-        # Load image
         x = file_helpers.as_image_tensor(image).to(device)
 
-        # Transform
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        # Normalize before resize_and_pad so the zero padding inserted by
+        # resize_and_pad is identical to the per-image `predict` path.
         if self.image_normalize is not None:
             x = transforms_functional.normalize(
-                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+                x,
+                mean=list(self.image_normalize["mean"]),
+                std=list(self.image_normalize["std"]),
             )
         x = self.resize_and_pad(x)[0]
-        x = x.unsqueeze(0)  # (1, C, H', W')
+        return x, {}
 
-        # Forward
-        logits = self.forward_train(x)  # (B, num_classes)
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        return batch
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: Tensor,
+        metadata: Sequence[dict[str, Any]],
+        topk: int,
+        threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        logits = raw_outputs  # (B, num_classes)
         labels, scores = self.get_labels_scores(logits, topk=topk, threshold=threshold)
 
+        out: list[dict[str, Tensor]] = []
         if self.classification_task == "multiclass":
+            # labels: (B, topk), scores: (B, topk)
             labels = self.internal_class_to_class[labels]
+            for i in range(len(metadata)):
+                out.append({"labels": labels[i], "scores": scores[i]})
         elif self.classification_task == "multilabel":
-            labels = self.internal_class_to_class[labels[..., 1]]
+            # labels: (num_labels, 2) where columns are (batch_idx, label).
+            # scores: (num_labels,)
+            batch_idx = labels[..., 0]
+            mapped_labels = self.internal_class_to_class[labels[..., 1]]
+            for i in range(len(metadata)):
+                keep = batch_idx == i
+                out.append(
+                    {
+                        "labels": mapped_labels[keep],
+                        "scores": scores[keep],
+                    }
+                )
         else:
             raise ValueError(
                 f"Invalid classification_task '{self.classification_task}'"
             )
+        return out
 
-        # Remove batch dimension.
-        if self.classification_task == "multiclass":
-            labels = labels.squeeze(0)  # Remove batch dimension
-            scores = scores.squeeze(0)  # Remove batch dimension
-        # Tensors are already in the correct shape for multilabel.
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        topk: int = 1,
+        threshold: float = 0.5,
+    ) -> list[dict[str, Tensor]]:
+        """Returns the predicted labels and scores for the given batch of images.
 
-        return {
-            "labels": labels,
-            "scores": scores,
-        }
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape (C, H, W).
+            topk:
+                Number of top predictions to return per image. Only used for
+                multiclass classification.
+            threshold:
+                Score threshold to filter low-confidence predictions. Only used
+                for multilabel classification.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "labels": Tensor of shape (topk,) for multiclass and
+                  (num_labels,) for multilabel where num_labels is the number of
+                  labels with score > threshold.
+                - "scores": Tensor with the same shape as labels containing the
+                  corresponding scores.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, topk=topk, threshold=threshold)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         """Forward for ONNX export.
@@ -254,7 +319,7 @@ class ImageClassification(TaskModel):
             (num_labels, 2) for multilabel where the columns are (batch_idx, label).
             Scores has shape (B, topk) for multiclass and (num_labels,) for multilabel.
         """
-        logits = self.forward_train(x)
+        logits = self.forward_backend(x)
         labels, scores = self.get_labels_scores(logits, topk=1, threshold=-1)
         if self.classification_task == "multiclass":
             labels = self.internal_class_to_class[labels]
@@ -266,8 +331,8 @@ class ImageClassification(TaskModel):
             )
         return labels, scores
 
-    def forward_train(self, x: Tensor) -> Tensor:
-        """Forward pass for training. Returns the class logits."""
+    def forward_backend(self, x: Tensor) -> Tensor:
+        """Returns the class logits."""
         features = self.backbone.forward_pool(self.backbone.forward_features(x))
         x = features["pooled_features"]  # (B, C, H, W)
         x = self.class_head(x.flatten(start_dim=1))  # (B, num_classes)
