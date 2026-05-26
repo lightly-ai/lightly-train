@@ -223,7 +223,22 @@ PossibleArgsTuple = (
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 
-def test_resolve_ltdetr_step_schedule_for_augmentation__applies_windows() -> None:
+@pytest.mark.parametrize(
+    ("augmentation_name", "step_start", "step_stop"),
+    [
+        ("photometric_distort", 100, 300),
+        ("random_zoom_out", 100, 300),
+        ("random_iou_crop", 100, 300),
+        ("copyblend", 100, 300),
+        ("mixup", 100, 200),
+        ("mosaic", 100, 200),
+    ],
+)
+def test_resolve_ltdetr_step_schedule_for_augmentation__applies_windows(
+    augmentation_name: str,
+    step_start: int,
+    step_stop: int,
+) -> None:
     transform_args = _get_ltdetr_train_transform_args()
     transform_args.resolve_auto(model_init_args={})
 
@@ -236,28 +251,19 @@ def test_resolve_ltdetr_step_schedule_for_augmentation__applies_windows() -> Non
         gradient_accumulation_steps=1,
     )
 
-    for aug in (
-        transform_args.photometric_distort,
-        transform_args.random_zoom_out,
-        transform_args.random_iou_crop,
-        transform_args.copyblend,
-    ):
-        assert aug is not None
-        assert aug.step_start == 100
-        assert aug.step_stop == 300
-
-    for mix_aug in (transform_args.mixup, transform_args.mosaic):
-        assert mix_aug is not None
-        assert mix_aug.step_start == 100
-        assert mix_aug.step_stop == 200
+    aug = getattr(transform_args, augmentation_name)
+    assert aug is not None
+    assert aug.step_start == step_start
+    assert aug.step_stop == step_stop
 
     assert transform_args.scale_jitter is not None
     assert transform_args.scale_jitter.step_stop == 300
 
 
-def test_resolve_ltdetr_step_schedule_for_augmentation__disables_empty_windows() -> (
-    None
-):
+@pytest.mark.parametrize("augmentation_name", ["mixup", "mosaic"])
+def test_resolve_ltdetr_step_schedule_for_augmentation__disables_empty_windows(
+    augmentation_name: str,
+) -> None:
     transform_args = _get_ltdetr_train_transform_args()
     transform_args.resolve_auto(model_init_args={})
 
@@ -270,18 +276,35 @@ def test_resolve_ltdetr_step_schedule_for_augmentation__disables_empty_windows()
         gradient_accumulation_steps=1,
     )
 
-    assert transform_args.mixup is None
-    assert transform_args.mosaic is None
+    assert getattr(transform_args, augmentation_name) is None
 
-    for aug in (
-        transform_args.photometric_distort,
-        transform_args.random_zoom_out,
-        transform_args.random_iou_crop,
-        transform_args.copyblend,
-    ):
-        assert aug is not None
-        assert aug.step_start == 0
-        assert aug.step_stop == 100
+    assert transform_args.scale_jitter is not None
+    assert transform_args.scale_jitter.step_stop == 100
+
+
+@pytest.mark.parametrize(
+    "augmentation_name",
+    ["photometric_distort", "random_zoom_out", "random_iou_crop", "copyblend"],
+)
+def test_resolve_ltdetr_step_schedule_for_augmentation__keeps_non_empty_windows(
+    augmentation_name: str,
+) -> None:
+    transform_args = _get_ltdetr_train_transform_args()
+    transform_args.resolve_auto(model_init_args={})
+
+    # total_steps=100 yields step_start=0, step_flat=0, step_stop=100, so
+    # augmentations using step_start->step_stop still receive a non-empty window.
+    resolve_ltdetr_step_schedule_for_augmentation(
+        args=transform_args,
+        total_steps=100,
+        train_num_batches=100,
+        gradient_accumulation_steps=1,
+    )
+
+    aug = getattr(transform_args, augmentation_name)
+    assert aug is not None
+    assert aug.step_start == 0
+    assert aug.step_stop == 100
 
     assert transform_args.scale_jitter is not None
     assert transform_args.scale_jitter.step_stop == 100
