@@ -210,36 +210,10 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         self._track_inference()
         if self.training:
             self.eval()
-
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-        )
-
-        # Crop size is the short side of the training image size. We resize the image
-        # such that the short side of the image matches the crop size.
-        crop_size = min(self.image_size)
-        # (C, H, W) -> (C, H', W')
-        x = transforms_functional.resize(x, size=[crop_size])
-        x = x.unsqueeze(0)  # (1, C, H', W')
-
-        logits = self._forward_logits(x)  # (1, K|K+1, H', W'), K=num_classes
-        if self.class_ignore_index is not None:
-            # Restrict logits to known classes only.
-            logits = logits[:, :-1]  # (1, K, H', W')
-        logits = F.interpolate(logits, size=(image_h, image_w), mode="bilinear")
-
-        masks = logits.argmax(dim=1)  # (1, H, W)
-        masks = self.internal_class_to_class[masks]  # (1, H, W)
-        return masks[0]
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch([x])
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata])[0]
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
