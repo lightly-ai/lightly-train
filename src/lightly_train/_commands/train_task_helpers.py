@@ -21,6 +21,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
+from PIL.Image import Image as PILImage
 from pydantic import TypeAdapter
 from torch.nn import Module
 from torch.optim import Optimizer  # type: ignore[attr-defined]
@@ -37,6 +38,7 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
+from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
@@ -87,6 +89,7 @@ from lightly_train._task_models.semantic_segmentation_multihead.train_model impo
     SemanticSegmentationMultiheadTrain,
 )
 from lightly_train._task_models.train_model import (
+    TaskStepResult,
     TrainModel,
     TrainModelArgs,
 )
@@ -160,6 +163,8 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
         "val_metric/map_large": "Val mAP (large)",
     },
 }
+
+_IMAGE_EXAMPLES_DIR = "image_examples"
 
 
 def get_out_dir(
@@ -1498,3 +1503,68 @@ def get_torch_compile_args(
         train_model_cls.torch_compile_args_cls, torch_compile_args
     )
     return args
+
+
+def save_train_step_visualizations(
+    *,
+    result: TaskStepResult,
+    out_dir: Path,
+    step: int,
+    loggers: Iterable[FabricLogger],
+) -> None:
+    image = result.create_label_image()
+    _save_images_to_dir_and_loggers(
+        image=image,
+        path=_image_examples_dir(out_dir) / f"train_labels_{step}.jpg",
+        loggers=loggers,
+        key=f"train_images/labels_{step}",
+        step=step,
+    )
+
+
+def save_val_step_visualizations(
+    *,
+    result: TaskStepResult,
+    out_dir: Path,
+    val_step: int,
+    global_step: int,
+    loggers: Iterable[FabricLogger],
+) -> None:
+    viz_dir = _image_examples_dir(out_dir)
+    _save_images_to_dir_and_loggers(
+        image=result.create_prediction_image(),
+        path=viz_dir / f"val_predictions_{val_step}.jpg",
+        loggers=loggers,
+        key=f"val_images/predictions_{val_step}",
+        step=global_step,
+    )
+    label_path = viz_dir / f"val_labels_{val_step}.jpg"
+    if not label_path.exists():
+        _save_images_to_dir_and_loggers(
+            image=result.create_label_image(),
+            path=label_path,
+            loggers=loggers,
+            key=f"val_images/labels_{val_step}",
+            step=global_step,
+        )
+
+
+def _image_examples_dir(out_dir: Path) -> Path:
+    return out_dir / _IMAGE_EXAMPLES_DIR
+
+
+def _save_images_to_dir_and_loggers(
+    *,
+    image: PILImage | None,
+    path: Path,
+    loggers: Iterable[FabricLogger],
+    key: str,
+    step: int,
+) -> None:
+    if image is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+    logger_helpers.log_image_to_loggers(
+        loggers=loggers, key=key, image=image, step=step
+    )
