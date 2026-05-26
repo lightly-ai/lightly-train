@@ -335,7 +335,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         # (1, Q, H', W'), (1, Q, K+1)
         # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self._forward_logits(x)
+        mask_logits, class_logits = self.forward_backend(x)
 
         # Interpolate to original image size.
         mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
@@ -511,7 +511,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1)
         # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self._forward_logits(x)
+        mask_logits, class_logits = self.forward_backend(x)
         # (H, W, 2), (num_segments), (num_segments)
         masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
             mask_logits=mask_logits[0],
@@ -627,24 +627,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             mask_logits_per_layer,
             class_logits_per_layer,
         )
-
-    def _forward_logits(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        """Forward pass that returns the logits of the last layer. Intended for
-        inference."""
-        # x is a batch of images with shape (B, C, H, W).
-        H, W = x.shape[-2:]
-
-        # Forward pass.
-        # Only the logits of the last layer are returned.
-        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
-            x, return_logits_per_layer=False
-        )
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-
-        # Interpolate.
-        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-        return mask_logits, class_logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
         # TODO(Guarin, 08/25): Investigate if having different norms for queries and
