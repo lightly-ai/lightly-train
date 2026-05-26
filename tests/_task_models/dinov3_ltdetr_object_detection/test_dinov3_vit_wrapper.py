@@ -64,6 +64,9 @@ class TestDINOv3STAs:
         state_dict = wrapper.state_dict()
         old_state_dict = _remap_to_old_format(state_dict)
         fresh_wrapper.load_state_dict(old_state_dict, strict=False)
+        # Verify backbone weights are actually loaded, not silently skipped.
+        for key, val in state_dict.items():
+            assert torch.equal(fresh_wrapper.state_dict()[key], val)
 
     def test_load_state_dict__unrecognizable_format_raises(
         self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs

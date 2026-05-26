@@ -34,28 +34,20 @@ class DINOv3ConvNextWrapper(Module):
         strict: bool = True,
         assign: bool = False,
     ) -> Any:
-        try:
-            return super().load_state_dict(state_dict, strict=strict, assign=assign)
-        except RuntimeError:
-            old_prefix = "backbone."
-            new_prefix = "_model_wrapper._model."
-            if any(k.startswith(old_prefix) for k in state_dict):
-                logger.info(
-                    "Detected old DINOv3ConvNextWrapper checkpoint format "
-                    "(backbone. → _model_wrapper._model.). Remapping keys."
-                )
-                remapped = {}
-                for k, v in state_dict.items():
-                    if k.startswith(old_prefix):
-                        k = new_prefix + k[len(old_prefix) :]
-                    remapped[k] = v
-                try:
-                    return super().load_state_dict(
-                        remapped, strict=strict, assign=assign
-                    )
-                except RuntimeError:
-                    raise
-            raise
+        old_prefix = "backbone."
+        new_prefix = "_model_wrapper._model."
+        if any(k.startswith(old_prefix) for k in state_dict):
+            logger.info(
+                "Detected old DINOv3ConvNextWrapper checkpoint format "
+                "(backbone. → _model_wrapper._model.). Remapping keys."
+            )
+            remapped = {}
+            for k, v in state_dict.items():
+                if k.startswith(old_prefix):
+                    k = new_prefix + k[len(old_prefix) :]
+                remapped[k] = v
+            state_dict = remapped
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:
         feats = self._model_wrapper.forward_multiscale_features(x, [1, 2, 3])

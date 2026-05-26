@@ -198,28 +198,20 @@ class DINOv2STAs(Module):
         strict: bool = True,
         assign: bool = False,
     ) -> Any:
-        try:
-            return super().load_state_dict(state_dict, strict=strict, assign=assign)
-        except RuntimeError:
-            old_prefix = "dinov2."
-            new_prefix = "_model_wrapper._model."
-            if any(k.startswith(old_prefix) for k in state_dict):
-                logger.info(
-                    "Detected old DINOv2STAs checkpoint format "
-                    "(dinov2. → _model_wrapper._model.). Remapping keys."
-                )
-                remapped = {}
-                for k, v in state_dict.items():
-                    if k.startswith(old_prefix):
-                        k = new_prefix + k[len(old_prefix) :]
-                    remapped[k] = v
-                try:
-                    return super().load_state_dict(
-                        remapped, strict=strict, assign=assign
-                    )
-                except RuntimeError:
-                    raise
-            raise
+        old_prefix = "dinov2."
+        new_prefix = "_model_wrapper._model."
+        if any(k.startswith(old_prefix) for k in state_dict):
+            logger.info(
+                "Detected old DINOv2STAs checkpoint format "
+                "(dinov2. → _model_wrapper._model.). Remapping keys."
+            )
+            remapped = {}
+            for k, v in state_dict.items():
+                if k.startswith(old_prefix):
+                    k = new_prefix + k[len(old_prefix) :]
+                remapped[k] = v
+            state_dict = remapped
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
