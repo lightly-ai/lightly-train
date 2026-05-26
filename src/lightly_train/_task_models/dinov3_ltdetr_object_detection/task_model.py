@@ -16,8 +16,10 @@ import torch
 from PIL.Image import Image as PILImage
 from pydantic import Field
 from torch import Tensor
+from torch import nn
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
+from lightning_fabric.connector import _PRECISION_INPUT
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
@@ -29,6 +31,11 @@ from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection._backends import (
+    ONNXBackend,
+    TensorRTBackend,
+    TorchBackend,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -560,8 +567,36 @@ class _DINOv3LTDETRObjectDetectionViTLConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
+class TorchBackendArgs(PydanticConfig):
+    backend_type: Literal["torch"] = "torch"
+
+
+class ONNXBackendArgs(PydanticConfig):
+    backend_type: Literal["onnx"] = "onnx"
+    out: PathLike
+    precision: Literal["auto", "fp32", "fp16"] = "auto"
+    batch_size: int = 1
+    dynamic_batch_size: bool = False
+    simplify: bool = True
+    verify: bool = True
+    format_args: dict[str, Any] | None = None
+    num_channels: int | None = None
+
+
+class TensorRTBackendArgs(PydanticConfig):
+    backend_type: Literal["tensorrt"] = "tensorrt"
+    out: PathLike
+    precision: Literal["auto", "fp16", "int8"] = "auto"
+    onnx_args: ONNXBackendArgs | None = None
+    max_batch_size: int = 1
+    opt_batch_size: int = 1
+    min_batch_size: int = 1
+    verbose: bool = False
+
+
 class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
+    _backend: TorchBackend | ONNXBackend | TensorRTBackend
 
     def __init__(
         self,
@@ -576,6 +611,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_args: dict[str, Any] | None = None,
         decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
+        backend_type: Literal["torch", "onnx", "tensorrt"] = "torch",
+        backend_args: TorchBackendArgs | ONNXBackendArgs | TensorRTBackendArgs | None = None
     ) -> None:
         """Create a DINOv3 LTDETR object detection model.
 
@@ -601,6 +638,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 Additional arguments to pass to the DINOv3 backbone.
             load_weights:
                 If False, then no pretrained weights are loaded.
+            backend_args:
+                Arguments on how to construct the backend for this model. None means
+                it will use the default Torch backend.
         """
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name=model_name)
@@ -699,20 +739,17 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
-            self.backbone = wrapper_cls(
+            backbone_wrapper = wrapper_cls(
                 model=backbone,
                 **config.backbone_wrapper.model_dump(),
             )
-
         else:
             # ConvNext models.
-            self.backbone = wrapper_cls(model=backbone)
+            backbone_wrapper = wrapper_cls(model=backbone)
 
-        self.encoder: HybridEncoder = HybridEncoder(
-            **config.hybrid_encoder.model_dump()
-        )
+        encoder = HybridEncoder(**config.hybrid_encoder.model_dump())
 
-        self.decoder = _build_decoder(
+        decoder = _build_decoder(
             config=config,
             decoder_name=config.decoder_name,
             num_classes=len(self.classes),
@@ -721,9 +758,27 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         postprocessor_config = config.rtdetr_postprocessor.model_dump()
         postprocessor_config.update({"num_classes": len(self.classes)})
-        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **postprocessor_config
+        postprocessor = RTDETRPostProcessor(**postprocessor_config)
+
+        torch_backend = TorchBackend(
+            backbone=backbone_wrapper,
+            encoder=encoder,
+            decoder=decoder,
+            postprocessor=postprocessor,
+            internal_class_to_class=self.internal_class_to_class,
         )
+        # Temporarily register as a submodule so export methods can reach parameters.
+        self._backend = torch_backend
+
+        final_backend = self._build_backend(
+            backend_type=backend_type,
+            backend_args=backend_args,
+            torch_backend=torch_backend,
+        )
+        if not isinstance(final_backend, TorchBackend):
+            # _build_backend has already unregistered the torch submodule and stored
+            # device/dtype on self.  Store the lightweight backend as a plain attr.
+            object.__setattr__(self, "_backend", final_backend)
 
         if self.backbone_freeze:
             self.freeze_backbone()
@@ -776,9 +831,112 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "backbone_name": backbone_name,
         }
 
+    # ------------------------------------------------------------------
+    # Proxy properties — give train_model.py transparent access to the
+    # submodules that now live inside TorchBackend.  Only valid when the
+    # active backend is TorchBackend.
+    # ------------------------------------------------------------------
+
+    @property
+    def backbone(self) -> nn.Module:
+        return self._backend.backbone  # type: ignore[union-attr]
+
+    @property
+    def encoder(self) -> nn.Module:
+        return self._backend.encoder  # type: ignore[union-attr]
+
+    @property
+    def decoder(self) -> nn.Module:
+        return self._backend.decoder  # type: ignore[union-attr]
+
+    @property
+    def postprocessor(self) -> nn.Module:
+        return self._backend.postprocessor  # type: ignore[union-attr]
+
+    # ------------------------------------------------------------------
+    # Backend construction
+    # ------------------------------------------------------------------
+
+    def _build_backend(
+        self,
+        backend_type: Literal["torch", "onnx", "tensorrt"],
+        backend_args: TorchBackendArgs | ONNXBackendArgs | TensorRTBackendArgs | None,
+        torch_backend: TorchBackend,
+    ) -> TorchBackend | ONNXBackend | TensorRTBackend:
+        if backend_type == "torch" or backend_args is None:
+            return torch_backend
+
+        device = next(torch_backend.parameters()).device
+        dtype = next(torch_backend.parameters()).dtype
+
+        if backend_type == "onnx":
+            assert isinstance(backend_args, ONNXBackendArgs)
+            self.export_onnx(
+                out=backend_args.out,
+                precision=backend_args.precision,
+                batch_size=backend_args.batch_size,
+                dynamic_batch_size=backend_args.dynamic_batch_size,
+                simplify=backend_args.simplify,
+                verify=backend_args.verify,
+                format_args=backend_args.format_args,
+                num_channels=backend_args.num_channels,
+            )
+            del self._modules["_backend"]
+            object.__setattr__(self, "_device", device)
+            object.__setattr__(self, "_dtype", dtype)
+            return ONNXBackend(session_path=backend_args.out, device=device, dtype=dtype)
+
+        elif backend_type == "tensorrt":
+            assert isinstance(backend_args, TensorRTBackendArgs)
+            onnx_args: dict[str, Any] | None = None
+            if backend_args.onnx_args is not None:
+                onnx_args = {
+                    k: v
+                    for k, v in backend_args.onnx_args.model_dump().items()
+                    if k != "backend_type"
+                }
+            self.export_tensorrt(
+                out=backend_args.out,
+                precision=backend_args.precision,  # type: ignore[arg-type]
+                onnx_args=onnx_args,
+                max_batchsize=backend_args.max_batch_size,
+                opt_batchsize=backend_args.opt_batch_size,
+                min_batchsize=backend_args.min_batch_size,
+                verbose=backend_args.verbose,
+            )
+            del self._modules["_backend"]
+            object.__setattr__(self, "_device", device)
+            object.__setattr__(self, "_dtype", dtype)
+            return TensorRTBackend(
+                engine_path=backend_args.out, device=device, dtype=dtype
+            )
+
+        else:
+            raise ValueError(f"Unknown backend_type: {backend_type!r}")
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _get_device_dtype(self) -> tuple[torch.device, torch.dtype]:
+        try:
+            p = next(self.parameters())
+            return p.device, p.dtype
+        except StopIteration:
+            return self._device, self._dtype  # type: ignore[attr-defined]
+
+    def _ensure_deployed(self) -> None:
+        if isinstance(self._backend, TorchBackend):
+            if self.training or not self._backend.deploy_mode:
+                self.deploy()
+
     def freeze_backbone(self) -> None:
-        self.backbone.eval()
-        self.backbone.requires_grad_(False)
+        if not isinstance(self._backend, TorchBackend):
+            raise RuntimeError(
+                f"freeze_backbone() requires TorchBackend, "
+                f"got {type(self._backend).__name__}."
+            )
+        self._backend.freeze_backbone()
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -802,19 +960,44 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                     new_state_dict[name] = param
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
+    def load_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        strict: bool = True,
+        assign: bool = False,
+    ) -> Any:
+        """Load state dict with backward compat for pre-backend-refactor checkpoints.
+
+        Old checkpoints have top-level keys like ``backbone.xxx``.  New checkpoints
+        produced after this refactor store weights under ``_backend.backbone.xxx``.
+        Detect the old format and redirect the load into ``_backend`` directly, since
+        ``TorchBackend.state_dict()`` uses those same top-level names.
+        """
+        _OLD_PREFIXES = {"backbone.", "encoder.", "decoder.", "postprocessor."}
+        is_old_format = any(
+            any(k.startswith(p) for p in _OLD_PREFIXES) for k in state_dict
+        ) and not any(k.startswith("_backend.") for k in state_dict)
+
+        if is_old_format:
+            if not isinstance(self._backend, TorchBackend):
+                raise ValueError(
+                    "Cannot load an old-format checkpoint (keys starting with "
+                    "'backbone.', 'encoder.', etc.) into a non-TorchBackend model."
+                )
+            return self._backend.load_state_dict(state_dict, strict=strict, assign=assign)
+
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
+
     def deploy(self) -> Self:
-        self.eval()
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        for m in self.modules():
-            if hasattr(m, "convert_to_deploy"):
-                m.convert_to_deploy()  # type: ignore[operator]
+        if isinstance(self._backend, TorchBackend):
+            self.eval()
+            self._backend.deploy()
         return self
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
     ) -> tuple[Tensor, dict[str, Any]]:
-        first_param = next(self.parameters())
-        device, dtype = first_param.device, first_param.dtype
+        device, dtype = self._get_device_dtype()
 
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
@@ -844,9 +1027,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         return batch
 
     def forward_backend(self, x: Tensor) -> Any:
-        x = self.backbone(x)
-        x = self.encoder(x)
-        return self.decoder(x)
+        assert isinstance(self._backend, TorchBackend), (
+            "forward_backend() is only supported for the TorchBackend "
+            f"(got {type(self._backend).__name__})."
+        )
+        return self._backend._forward_raw(x)
 
     def postprocess(  # type: ignore[override]
         self,
@@ -858,7 +1043,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             raise ValueError(
                 f"Expected raw_outputs to be a dict, got {type(raw_outputs).__name__}."
             )
-        device = next(self.parameters()).device
+        device, _ = self._get_device_dtype()
         # Postprocessor expects (W, H) per image.
         orig_target_size = torch.tensor(
             [[m["orig_w"], m["orig_h"]] for m in metadata],
@@ -908,8 +1093,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
-            self.deploy()
+        self._ensure_deployed()
         tensors: list[Tensor] = []
         metadata: list[dict[str, Any]] = []
         for image in images:
@@ -918,8 +1102,30 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
         batch = self.preprocess_batch(batch)
-        raw = self.forward_backend(batch)
-        return self.postprocess(raw, metadata, threshold=threshold)
+
+        if isinstance(self._backend, TorchBackend):
+            raw = self._backend._forward_raw(batch)
+            return self.postprocess(raw, metadata, threshold=threshold)
+
+        # ONNX / TRT backends return final (labels, boxes, scores) directly.
+        device, _ = self._get_device_dtype()
+        orig_target_size = torch.tensor(
+            [[m["orig_h"], m["orig_w"]] for m in metadata],
+            dtype=torch.int64,
+            device=device,
+        )
+        labels_b, boxes_b, scores_b = self._backend.forward(batch, orig_target_size)
+        out: list[dict[str, Tensor]] = []
+        for i in range(len(metadata)):
+            keep = scores_b[i] > threshold
+            out.append(
+                {
+                    "labels": labels_b[i][keep],
+                    "bboxes": boxes_b[i][keep],
+                    "scores": scores_b[i][keep],
+                }
+            )
+        return out
 
     @torch.no_grad()
     def predict(
@@ -943,12 +1149,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
-            self.deploy()
+        self._ensure_deployed()
 
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
+        device, dtype = self._get_device_dtype()
 
         # Load image
         x = file_helpers.as_image_tensor(image).to(device)
@@ -1020,10 +1223,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
-        if self.training or not self.postprocessor.deploy_mode:
-            self.deploy()
+        self._ensure_deployed()
 
-        device = next(self.parameters()).device
+        device, _ = self._get_device_dtype()
         x = file_helpers.as_image_tensor(image).to(device)
 
         # Tile the image.
@@ -1099,37 +1301,22 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def forward(
         self, x: Tensor, orig_target_size: Tensor | None = None
     ) -> tuple[Tensor, Tensor, Tensor]:
-        # Function used for ONNX export
+        # Delegates to the active backend.  TorchBackend.forward() mirrors the
+        # original logic; ONNX/TRT backends ignore orig_target_size (it is already
+        # baked into their exported graphs).
         if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
+            orig_target_size_ = None
         else:
-            # Flip from (H, W) to (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-
-            # Move to device.
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        # Forward the image through the model.
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(x)
-
-        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
-            self.postprocessor(x, orig_target_size_)
-        )
-        # Postprocessor must be in deploy mode at this point. It returns only tuples
-        # during deploy mode.
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]
-        return (labels, boxes, scores)
+            # Backends expect (H, W) and flip internally, so just normalise dtype/device.
+            orig_target_size_ = orig_target_size.to(dtype=torch.int64)
+        return self._backend.forward(x, orig_target_size_)
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(feats=x, targets=targets)
-        return x
+        assert isinstance(self._backend, TorchBackend), (
+            "_forward_train() is only supported for the TorchBackend "
+            f"(got {type(self._backend).__name__})."
+        )
+        return self._backend.forward_train(x, targets)
 
     @torch.no_grad()
     def export_onnx(
@@ -1184,6 +1371,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             None. Writes the ONNX model to `out`.
 
         """
+        if not isinstance(self._backend, TorchBackend):
+            raise RuntimeError(
+                f"export_onnx() requires TorchBackend, "
+                f"got {type(self._backend).__name__}."
+            )
+
         # Set up logging.
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
@@ -1192,12 +1385,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self.eval()
         self.deploy()
 
-        # Find the first parameter from the model.
-        first_parameter = next(self.parameters())
-
-        # Infer info from first parameter.
-        model_device = first_parameter.device
-        dtype = first_parameter.dtype
+        model_device, dtype = self._get_device_dtype()
 
         if precision == "fp32":
             dtype = torch.float32
@@ -1210,7 +1398,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.to(dtype)
         self.deploy()
-        model_device = next(self.parameters()).device
+        model_device, _ = self._get_device_dtype()
 
         # Try to infer num_channels if not provided.
         if num_channels is None:
@@ -1400,7 +1588,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             RuntimeError: If the ONNX cannot be parsed or engine building fails.
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
-        model_dtype = next(self.parameters()).dtype
+        if not isinstance(self._backend, TorchBackend):
+            raise RuntimeError(
+                f"export_tensorrt() requires TorchBackend, "
+                f"got {type(self._backend).__name__}."
+            )
+
+        _, model_dtype = self._get_device_dtype()
 
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
