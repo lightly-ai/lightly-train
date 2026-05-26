@@ -206,46 +206,10 @@ class ImageClassification(TaskModel):
         self._track_inference()
         if self.training:
             self.eval()
-
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-
-        # Transform
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        if self.image_normalize is not None:
-            x = transforms_functional.normalize(
-                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-            )
-        x = self.resize_and_pad(x)[0]
-        x = x.unsqueeze(0)  # (1, C, H', W')
-
-        # Forward
-        logits = self.forward_backend(x)  # (B, num_classes)
-        labels, scores = self.get_labels_scores(logits, topk=topk, threshold=threshold)
-
-        if self.classification_task == "multiclass":
-            labels = self.internal_class_to_class[labels]
-        elif self.classification_task == "multilabel":
-            labels = self.internal_class_to_class[labels[..., 1]]
-        else:
-            raise ValueError(
-                f"Invalid classification_task '{self.classification_task}'"
-            )
-
-        # Remove batch dimension.
-        if self.classification_task == "multiclass":
-            labels = labels.squeeze(0)  # Remove batch dimension
-            scores = scores.squeeze(0)  # Remove batch dimension
-        # Tensors are already in the correct shape for multilabel.
-
-        return {
-            "labels": labels,
-            "scores": scores,
-        }
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], topk=topk, threshold=threshold)[0]
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
@@ -292,7 +256,7 @@ class ImageClassification(TaskModel):
             batch_idx = labels[..., 0]
             mapped_labels = self.internal_class_to_class[labels[..., 1]]
             for i in range(len(metadata)):
-                keep = (batch_idx == i)
+                keep = batch_idx == i
                 out.append(
                     {
                         "labels": mapped_labels[keep],
