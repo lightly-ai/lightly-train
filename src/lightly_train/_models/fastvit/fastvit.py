@@ -38,11 +38,11 @@ class FastViTModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         x = self._model.forward_embeddings(x)  # type: ignore[operator]
         x = self._model.forward_tokens(x)  # type: ignore[operator]
-        x = self._model.conv_exp(x)  # type: ignore[operator]
         return {"features": x}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        features: Tensor = self._model.gap(x["features"])  # type: ignore[operator]
+        features: Tensor = self._model.conv_exp(x["features"])  # type: ignore[operator]
+        features = self._model.gap(features)  # type: ignore[operator]
         return {"pooled_features": features}
 
     def get_model(self) -> Module:
