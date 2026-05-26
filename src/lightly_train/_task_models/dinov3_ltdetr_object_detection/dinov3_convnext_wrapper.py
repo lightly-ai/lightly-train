@@ -7,20 +7,48 @@
 #
 from __future__ import annotations
 
+import logging
+from typing import Any, Mapping
+
 from torch import Tensor
 from torch.nn import Module
 
-from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class DINOv3ConvNextWrapper(Module):
-    def __init__(self, model: ConvNeXt) -> None:
+    def __init__(self, model_wrapper: DINOv3VConvNeXtModelWrapper) -> None:
         super().__init__()
-        self.backbone = model
-        self.patch_size = model.patch_size
+        self._model_wrapper = model_wrapper
+        self.patch_size = model_wrapper.get_model().patch_size
+
+    @property
+    def backbone_model(self) -> Module:
+        return self._model_wrapper.get_model()
+
+    def load_state_dict(
+        self,
+        state_dict: Mapping[str, Any],
+        strict: bool = True,
+        assign: bool = False,
+    ) -> Any:
+        old_prefix = "backbone."
+        new_prefix = "_model_wrapper._model."
+        if any(k.startswith(old_prefix) for k in state_dict):
+            logger.info(
+                "Detected old DINOv3ConvNextWrapper checkpoint format "
+                "(backbone. → _model_wrapper._model.). Remapping keys."
+            )
+            remapped = {}
+            for k, v in state_dict.items():
+                if k.startswith(old_prefix):
+                    k = new_prefix + k[len(old_prefix) :]
+                remapped[k] = v
+            state_dict = remapped
+        return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:
-        feats = self.backbone.get_intermediate_layers(x, n=3, reshape=True)
-        assert isinstance(feats, tuple)
-        assert all(isinstance(f, Tensor) for f in feats)
-        return feats
+        feats = self._model_wrapper.forward_multiscale_features(x, [1, 2, 3])
+        return tuple(f["features"] for f in feats)
