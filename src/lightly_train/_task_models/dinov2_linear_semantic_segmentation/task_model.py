@@ -21,10 +21,8 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -116,18 +114,19 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
             args.update(backbone_args)
 
         # Get the backbone.
-        self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
+        dinov2 = DINOV2_VIT_PACKAGE.get_model(
             model_name=parsed_name["backbone_name"],
             model_args=args,
             load_weights=load_weights,
         )
-        embed_dim = self.backbone.embed_dim
-        self.patch_size = self.backbone.patch_size
+        self.backbone: DINOv2ViTModelWrapper = DINOv2ViTModelWrapper(dinov2)
+        embed_dim = self.backbone.feature_dim()
+        self.patch_size = self.backbone.get_model().patch_size
 
         # TODO(Guarin, 07/25): Improve how mask tokens are handled for fine-tuning.
         # Should we drop them from the model? We disable grads here for DDP to work
         # without find_unused_parameters=True.
-        self.backbone.mask_token.requires_grad = False
+        self.backbone.get_model().mask_token.requires_grad = False
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
@@ -252,18 +251,15 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         return masks, logits
 
     def forward_train(self, x: Tensor) -> Tensor:
-        B, _, H, W = x.shape
+        _, _, H, W = x.shape
 
-        # Get the patch tokens -> (B, N, D) where N = H_patch * W_patch.
-        patch_tokens = self.backbone(x, is_training=True)["x_norm_patchtokens"]
+        # Get the patch tokens -> (B, D, H_patch, W_patch).
+        features = self.backbone.forward_features(x)["features"]
 
-        # Classify the patch tokens -> (B, N, K|K+1), K=num_classes
-        logits: Tensor = self.head(patch_tokens)
-
-        # Reshape back to (B, K|K+1, H_patch, W_patch).
-        H_patch = math.ceil(H / self.patch_size)
-        W_patch = math.ceil(W / self.patch_size)
-        logits = logits.permute(0, 2, 1).reshape(B, -1, H_patch, W_patch)
+        # Classify the patch tokens -> (B, K|K+1, H_patch, W_patch), K=num_classes.
+        features = features.permute(0, 2, 3, 1)  # (B, H_patch, W_patch, D)
+        logits: Tensor = self.head(features)  # (B, H_patch, W_patch, K|K+1)
+        logits = logits.permute(0, 3, 1, 2)  # (B, K|K+1, H_patch, W_patch)
 
         # Up-sample to match original image/mask resolution.
         # (B, K|K+1, H, W)
@@ -383,7 +379,9 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
 
         # Load the state dict into the backbone.
-        missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
+        missing, unexpected = self.backbone.get_model().load_state_dict(
+            state_dict, strict=False
+        )
 
         # Log missing and unexpected keys.
         if missing or unexpected:
