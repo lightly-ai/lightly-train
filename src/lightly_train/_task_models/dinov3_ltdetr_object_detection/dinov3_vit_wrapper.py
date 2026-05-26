@@ -137,7 +137,7 @@ class DINOv3STAs(Module):
 
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
-        self.patch_size = model_wrapper._model.patch_size
+        self.patch_size = model_wrapper.get_model().patch_size
 
         if not finetune:
             model_wrapper.eval()
@@ -191,7 +191,7 @@ class DINOv3STAs(Module):
 
     @property
     def backbone_model(self) -> Module:
-        return self._model_wrapper._model
+        return self._model_wrapper.get_model()
 
     def load_state_dict(
         self,

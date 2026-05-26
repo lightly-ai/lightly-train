@@ -22,11 +22,11 @@ class DINOv3ConvNextWrapper(Module):
     def __init__(self, model_wrapper: DINOv3VConvNeXtModelWrapper) -> None:
         super().__init__()
         self._model_wrapper = model_wrapper
-        self.patch_size = model_wrapper._model.patch_size
+        self.patch_size = model_wrapper.get_model().patch_size
 
     @property
     def backbone_model(self) -> Module:
-        return self._model_wrapper._model
+        return self._model_wrapper.get_model()
 
     def load_state_dict(
         self,
