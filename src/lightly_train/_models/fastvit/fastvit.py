@@ -42,18 +42,32 @@ class FastViTModelWrapper(
         self._model = model
         self._cached_feature_dims: list[int] | None = None
         self._cached_feature_strides: list[int] | None = None
+        self._cached_pooled_dim: int | None = None
 
     def feature_dim(self) -> int:
-        return self.multiscale_feature_dims()[-1]
+        if self._cached_pooled_dim is not None:
+            return self._cached_pooled_dim
+        was_training = self._model.training
+        self._model.eval()
+        try:
+            with torch.no_grad():
+                x = torch.randn(1, 3, 64, 64)
+                out = self.forward_features(x)
+                pooled = self.forward_pool(out)
+                self._cached_pooled_dim = pooled["pooled_features"].flatten(1).shape[1]
+        finally:
+            if was_training:
+                self._model.train()
+        return self._cached_pooled_dim
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         x = self._model.forward_embeddings(x)  # type: ignore[operator]
         x = self._model.forward_tokens(x)  # type: ignore[operator]
+        x = self._model.conv_exp(x)  # type: ignore[operator]
         return {"features": x}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        features: Tensor = self._model.conv_exp(x["features"])  # type: ignore[operator]
-        features = self._model.gap(features)  # type: ignore[operator]
+        features: Tensor = self._model.gap(x["features"])  # type: ignore[operator]
         return {"pooled_features": features}
 
     def get_model(self) -> Module:
