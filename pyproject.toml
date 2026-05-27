@@ -49,7 +49,7 @@ dependencies = [
     "tqdm>=4.0.0",
     "pycocotools>=2.0.11; python_version>='3.9'",
     "numpy>1.23.0; python_version>='3.12'",  # numpy<=1.23 fails to build on Python>3.12 (no distutils).
-    "fastervit>=1.0.0",
+
 ]
 
 [dependency-groups]
