@@ -11,7 +11,6 @@ import logging
 from typing import Sequence
 
 import torch
-import torch.nn as nn
 from torch import Tensor
 from torch.nn import Module
 
@@ -45,7 +44,7 @@ class FastViTModelWrapper(
         self._cached_feature_strides: list[int] | None = None
 
     def feature_dim(self) -> int:
-        return _get_feature_dim(self._model)
+        return self.multiscale_feature_dims()[-1]
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         x = self._model.forward_embeddings(x)  # type: ignore[operator]
@@ -136,13 +135,3 @@ class FastViTModelWrapper(
                 results[stage_idx] = x_stage
 
         return [{"features": results[idx]} for idx in layer_indices]
-
-
-def _get_feature_dim(model: Module) -> int:
-    head = getattr(model, "head", None)
-    if isinstance(head, nn.Linear):
-        return int(head.in_features)
-    raise ValueError(
-        "Cannot determine feature_dim for FastViT model: "
-        "model has no 'head' nn.Linear attribute."
-    )
