@@ -167,6 +167,22 @@ class PatchSize(Protocol):
 
 
 @runtime_checkable
+class MultiScaleFeatureStrides(Protocol):
+    def multiscale_feature_strides(self) -> list[int]:
+        """Returns the feature strides of each layer/stage in the model.
+
+        The returned list has one entry per layer/stage, indexed from 0 (earliest
+        layer/stage) to N-1 (last layer/stage). For a ViT all entries are typically
+        the same (equal to the patch size). For a ConvNeXt each stage has a different
+        stride (e.g. [4, 8, 16, 32] for a model with patch size 4).
+
+        The index of each entry corresponds to the layer indices accepted by
+        ``forward_multiscale_features``.
+        """
+        ...
+
+
+@runtime_checkable
 class ForwardMultiScaleFeatures(Protocol):
     def forward_multiscale_features(
         self, x: Tensor, layer_indices: Sequence[int]
@@ -192,11 +208,15 @@ class ForwardMultiScaleFeatures(Protocol):
         ...
 
 
-class MultiScaleFeatureViT(ForwardMultiScaleFeatures, PatchSize, Protocol):
+class MultiScaleFeatureViT(
+    ForwardMultiScaleFeatures, MultiScaleFeatureDims, PatchSize, Protocol
+):
     """Protocol for ViT models with multiscale feature extraction."""
 
 
-class MultiScaleFeatureCNN(ForwardMultiScaleFeatures, MultiScaleFeatureDims, Protocol):
+class MultiScaleFeatureCNN(
+    ForwardMultiScaleFeatures, MultiScaleFeatureDims, MultiScaleFeatureStrides, Protocol
+):
     """Protocol for CNN models with multiscale feature extraction."""
 
 

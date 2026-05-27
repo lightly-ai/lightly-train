@@ -158,7 +158,7 @@ class ConvNeXt(nn.Module):
         del ignored_kwargs
 
         # ==== ConvNeXt's original init =====
-        self.downsample_layers = (
+        self.downsample_layers: Sequence[nn.Sequential] = (
             nn.ModuleList()
         )  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
