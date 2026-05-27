@@ -108,10 +108,14 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
         # Disable drop path by default for DINOv2.
         args: dict[str, Any] = {}
-        # if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
-        #     args["drop_path_rate"] = 0.0
+        if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
+            args["drop_path_rate"] = 0.0
         if backbone_args is not None:
             args.update(backbone_args)
+        # Non-DINOv2 builders (e.g. DINOv3) hardcode drop_path_rate internally;
+        # passing it again causes a duplicate keyword argument error.
+        if parsed_name["package_name"] != DINOV2_VIT_PACKAGE.name:
+            args.pop("drop_path_rate", None)
 
         # Build the backbone via the package registry.
         num_channels = len(self.image_normalize["mean"])
