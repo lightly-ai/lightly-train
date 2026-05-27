@@ -18,11 +18,12 @@ from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    MultiScaleFeatureModelWrapper,
+    ModelWrapper,
+    MultiScaleFeatureCNN,
 )
 
 
-class DINOv3VConvNeXtModelWrapper(Module, MultiScaleFeatureModelWrapper):
+class DINOv3VConvNeXtModelWrapper(Module, ModelWrapper, MultiScaleFeatureCNN):
     def __init__(self, model: ConvNeXt) -> None:
         super().__init__()
         self._model = model

@@ -24,12 +24,13 @@ from lightly_train._models.model_wrapper import (
     ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    MultiScaleFeatureModelWrapper,
+    ModelWrapper,
+    MultiScaleFeatureViT,
 )
 
 
 class DINOv3ViTModelWrapper(
-    Module, MultiScaleFeatureModelWrapper, ArchitectureInfoGettable
+    Module, ModelWrapper, MultiScaleFeatureViT, ArchitectureInfoGettable
 ):
     def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
@@ -38,6 +39,9 @@ class DINOv3ViTModelWrapper(
 
     def feature_dim(self) -> int:
         return self._feature_dim
+
+    def patch_size(self) -> int:
+        return int(self._model.patch_size)
 
     def forward_features(
         self, x: Tensor, masks: Tensor | None = None, n_blocks: int = 1
