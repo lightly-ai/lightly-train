@@ -38,6 +38,9 @@ from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_wrapper import (
+    ECViTTinyAdapter,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -103,6 +106,8 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    backbone_type: Literal["dinov3", "ecvit"] = "dinov3"
+    ecvit_name: str = "ecvitt"
     patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
     decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
@@ -163,6 +168,17 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
     ) -> None:
+        if self.backbone_type == "ecvit":
+            if self.ecvit_name != "ecvitt":
+                raise ValueError(
+                    "Only ECViT tiny ('ecvitt') is supported in this prototype."
+                )
+            if self.patch_size in ("auto", None):
+                self.patch_size = 16
+            elif self.patch_size != 16:
+                raise ValueError("ECViT tiny only supports patch_size=16.")
+            return
+
         if self.patch_size == "auto":
             patch_size = model_init_args.get("patch_size", None)
             if patch_size is not None:
@@ -261,6 +277,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
             backbone_args=backbone_args,
+            backbone_type=model_args.backbone_type,
+            ecvit_name=model_args.ecvit_name,
             patch_size=no_auto(model_args.patch_size),
             backbone_weights=model_args.backbone_weights,
             decoder_name=model_args.decoder_name,
@@ -554,6 +572,9 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             connector_params = [
                 p for p in backbone.parameters() if id(p) not in vit_params_ids
             ]
+        elif isinstance(backbone, ECViTTinyAdapter):
+            backbone_params = list(backbone.backbone.parameters())
+            connector_params = list(backbone.projector.parameters())
         else:
             backbone_params = list(backbone.parameters())
             connector_params = []

@@ -22,6 +22,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_wrapper import (
+    ECViTTinyAdapter,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
     _RTDETRTransformerv2Config,
@@ -316,6 +319,76 @@ def test_transform_args__resolve_auto__rejects_incompatible_explicit_image_size(
         transform_args.resolve_auto(
             model_init_args={"patch_size": 14, "image_size": (658, 658)}
         )
+
+
+def test_ecvit_tiny_train_args__resolve_auto__uses_fixed_patch_size(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
+        backbone_type="ecvit",
+        ecvit_name="ecvitt",
+    )
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="dinov3/vitt16-ltdetr-coco",
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.patch_size == 16
+
+
+def test_ecvit_tiny_train_args__rejects_non_tiny_name(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
+        backbone_type="ecvit",
+        ecvit_name="ecvittplus",
+    )
+
+    with pytest.raises(ValueError, match="Only ECViT tiny"):
+        model_args.resolve_auto(
+            total_steps=1000,
+            gradient_accumulation_steps=1,
+            train_num_batches=100,
+            model_name="dinov3/vitt16-ltdetr-coco",
+            model_init_args={},
+            data_args=dummy_yolo_detection_data_args,
+        )
+
+
+def test_ecvit_tiny_task_model_forward_smoke() -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(128, 128),
+        patch_size=16,
+        image_normalize=None,
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        backbone_type="ecvit",
+        ecvit_name="ecvitt",
+        load_weights=False,
+    )
+
+    assert isinstance(model.backbone, ECViTTinyAdapter)
+
+    x = torch.randn(1, 3, 128, 128)
+    feats = model.backbone(x)
+    assert [tuple(feat.shape) for feat in feats] == [
+        (1, 192, 16, 16),
+        (1, 192, 8, 8),
+        (1, 192, 4, 4),
+    ]
+
+    enc_feats = model.encoder(feats)
+    targets = [{"boxes": torch.tensor([[0.5, 0.5, 0.2, 0.2]]), "labels": torch.tensor([0])}]
+    outputs = model.decoder(feats=enc_feats, targets=targets)
+    assert outputs is not None
 
 
 @pytest.mark.parametrize(

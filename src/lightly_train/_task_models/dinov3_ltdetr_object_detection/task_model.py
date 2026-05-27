@@ -36,6 +36,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_w
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_wrapper import (
+    ECViTTinyAdapter,
+)
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
     DFINETransformer,
@@ -574,6 +577,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        backbone_type: Literal["dinov3", "ecvit"] = "dinov3",
+        ecvit_name: str = "ecvitt",
         decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
     ) -> None:
@@ -599,6 +604,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 Path to the DINOv3 backbone weights.
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
+            backbone_type:
+                Switch between the existing DINOv3 path and the ECViT tiny prototype.
+            ecvit_name:
+                Only "ecvitt" is supported in this prototype.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -631,7 +640,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Resolve the backbone's expected input channel count using the same
         # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
-        # overrides image_normalize, which overrides the DINOv3 default of 3.
+        # overrides image_normalize, which overrides the default of 3.
         if backbone_args is not None and "in_chans" in backbone_args:
             self._expected_input_channels: int = backbone_args["in_chans"]
         elif self.image_normalize is not None:
@@ -639,74 +648,90 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         else:
             self._expected_input_channels = 3
 
-        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
-        # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
-            "patch_size": patch_size,
-        }
-        if backbone_args is not None:
-            backbone_model_args.update(backbone_args)
-        if backbone_weights is not None:
-            backbone_model_args["weights"] = str(backbone_weights)
+        if backbone_type == "ecvit":
+            if ecvit_name != "ecvitt":
+                raise ValueError(
+                    "Only ECViT tiny ('ecvitt') is supported in this prototype."
+                )
+            if backbone_args:
+                raise ValueError("backbone_args are not supported for ECViT tiny.")
+            if patch_size not in (None, 16):
+                raise ValueError("ECViT tiny only supports patch_size=16.")
 
-        get_model_kwargs = {}
-        if self.image_normalize is not None:
-            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+            config = _DINOv3LTDETRObjectDetectionViTTConfig()
+            config.decoder_name = decoder_name
+            config.resolve_auto(patch_size=16)
 
-        # Get the backbone.
-        backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
-            model_args=backbone_model_args,
-            load_weights=load_weights,
-            **get_model_kwargs,
-        )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
-
-        config_mapping = {
-            "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
-            "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
-            "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
-            "vitb16": (_DINOv3LTDETRObjectDetectionViTBConfig, DINOv3STAs),
-            "vitl16": (_DINOv3LTDETRObjectDetectionViTLConfig, DINOv3STAs),
-            "convnext-tiny": (
-                _DINOv3LTDETRObjectDetectionTinyConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-small": (
-                _DINOv3LTDETRObjectDetectionSmallConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-base": (
-                _DINOv3LTDETRObjectDetectionBaseConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-large": (
-                _DINOv3LTDETRObjectDetectionLargeConfig,
-                DINOv3ConvNextWrapper,
-            ),
-        }
-        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
-        config_name = config_name.replace("-noreg", "")
-        config_name = config_name.replace("-eupe", "")
-        config_cls, wrapper_cls = config_mapping[config_name]
-        config = config_cls()
-        config.decoder_name = decoder_name
-
-        config.resolve_auto(patch_size=patch_size)
-
-        if hasattr(config, "backbone_wrapper"):
-            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
-            backbone.mask_token.requires_grad = False  # type: ignore
-
-            # ViT models.
-            self.backbone = wrapper_cls(
-                model=backbone,
-                **config.backbone_wrapper.model_dump(),
+            self.backbone = ECViTTinyAdapter(
+                weights_path=backbone_weights,
+                load_weights=load_weights,
             )
-
         else:
-            # ConvNext models.
-            self.backbone = wrapper_cls(model=backbone)
+            # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
+            # set by DINOv3.
+            backbone_model_args: dict[str, Any] = {
+                "patch_size": patch_size,
+            }
+            if backbone_args is not None:
+                backbone_model_args.update(backbone_args)
+            if backbone_weights is not None:
+                backbone_model_args["weights"] = str(backbone_weights)
+            get_model_kwargs = {"num_input_channels": self._expected_input_channels}
+
+            # Get the backbone.
+            backbone = DINOV3_PACKAGE.get_model(
+                model_name=parsed_name["backbone_name"],
+                model_args=backbone_model_args,
+                load_weights=load_weights,
+                **get_model_kwargs,
+            )
+            assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
+
+            config_mapping = {
+                "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
+                "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
+                "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
+                "vitb16": (_DINOv3LTDETRObjectDetectionViTBConfig, DINOv3STAs),
+                "vitl16": (_DINOv3LTDETRObjectDetectionViTLConfig, DINOv3STAs),
+                "convnext-tiny": (
+                    _DINOv3LTDETRObjectDetectionTinyConfig,
+                    DINOv3ConvNextWrapper,
+                ),
+                "convnext-small": (
+                    _DINOv3LTDETRObjectDetectionSmallConfig,
+                    DINOv3ConvNextWrapper,
+                ),
+                "convnext-base": (
+                    _DINOv3LTDETRObjectDetectionBaseConfig,
+                    DINOv3ConvNextWrapper,
+                ),
+                "convnext-large": (
+                    _DINOv3LTDETRObjectDetectionLargeConfig,
+                    DINOv3ConvNextWrapper,
+                ),
+            }
+            config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
+            config_name = config_name.replace("-noreg", "")
+            config_name = config_name.replace("-eupe", "")
+            config_cls, wrapper_cls = config_mapping[config_name]
+            config = config_cls()
+            config.decoder_name = decoder_name
+
+            config.resolve_auto(patch_size=patch_size)
+
+            if hasattr(config, "backbone_wrapper"):
+                # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+                backbone.mask_token.requires_grad = False  # type: ignore
+
+                # ViT models.
+                self.backbone = wrapper_cls(
+                    model=backbone,
+                    **config.backbone_wrapper.model_dump(),
+                )
+
+            else:
+                # ConvNext models.
+                self.backbone = wrapper_cls(model=backbone)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
