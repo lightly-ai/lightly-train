@@ -1,6 +1,9 @@
 #
-# For acknowledgement see accompanying ACKNOWLEDGEMENTS file.
-# Copyright (C) 2023 Apple Inc. All rights reserved.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 #
 from typing import Tuple
 
@@ -69,9 +72,9 @@ class ReparamLargeKernelConv(nn.Module):
                 kernel_size=kernel_size, padding=self.padding
             )
             if small_kernel is not None:
-                assert (
-                    small_kernel <= kernel_size
-                ), "The kernel size for re-param cannot be larger than the large kernel!"
+                assert small_kernel <= kernel_size, (
+                    "The kernel size for re-param cannot be larger than the large kernel!"
+                )
                 self.small_conv = self._conv_bn(
                     kernel_size=small_kernel, padding=small_kernel // 2
                 )

@@ -1,15 +1,17 @@
 #
-# For licensing see accompanying LICENSE file.
-# Copyright (C) 2023 Apple Inc. All Rights Reserved.
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
 #
-import os
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 import copy
+import os
 from functools import partial
-from typing import List, Tuple, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.models.layers import DropPath, trunc_normal_
 from timm.models.registry import register_model
@@ -18,9 +20,8 @@ from .modules.mobileone import MobileOneBlock
 from .modules.replknet import ReparamLargeKernelConv
 
 try:
-    from mmseg.models.builder import BACKBONES as seg_BACKBONES
-    from mmseg.utils import get_root_logger
     from mmcv.runner import _load_checkpoint
+    from mmseg.utils import get_root_logger
 
     has_mmseg = True
 except ImportError:
@@ -28,9 +29,8 @@ except ImportError:
     has_mmseg = False
 
 try:
-    from mmdet.models.builder import BACKBONES as det_BACKBONES
-    from mmdet.utils import get_root_logger
     from mmcv.runner import _load_checkpoint
+    from mmdet.utils import get_root_logger
 
     has_mmdet = True
 except ImportError:
@@ -435,8 +435,7 @@ class RepCPE(nn.Module):
             f"get {type(spatial_shape)} instead."
         )
         assert len(spatial_shape) == 2, (
-            f'Length of "spatial_shape" should be 2, '
-            f"got {len(spatial_shape)} instead."
+            f'Length of "spatial_shape" should be 2, got {len(spatial_shape)} instead.'
         )
 
         self.spatial_shape = spatial_shape

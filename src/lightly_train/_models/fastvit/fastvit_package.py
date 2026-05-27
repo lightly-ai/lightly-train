@@ -38,8 +38,8 @@ def _get_model_factory() -> dict[str, Any]:
         fastvit_sa12,
         fastvit_sa24,
         fastvit_sa36,
-        fastvit_t12,
         fastvit_t8,
+        fastvit_t12,
     )
 
     return {
