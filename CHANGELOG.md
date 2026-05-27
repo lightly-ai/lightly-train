@@ -24,6 +24,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
 - Fix `data_time`, `batch_time` and `data_wait` to report correct metrics on cuda.
 
 ### Security
