@@ -617,15 +617,16 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # x is a batch of images with shape (B, C, H, W).
         _, _, H, W = x.shape
 
-        # The current implementation of tile and untile leads to large amounts of memory being consumed when
-        # running the model as ONNX. Therefore we add a fallback for the case when these methods are not necessary.
-        use_onnx_fallback = torch.onnx.is_in_onnx_export() and H == W
+        if torch.onnx.is_in_onnx_export() and H != W:
+            raise ValueError(
+                f"ONNX export requires square images (H == W), got H={H}, W={W}."
+            )
 
         # Tiling.
-        if use_onnx_fallback:
+        if torch.onnx.is_in_onnx_export() or H == W:
             crops = x
         else:
-            image_sizes = [img.shape[-2:] for img in x]
+            image_sizes = [(H, W)] * x.shape[0]
             crops_list, origins = self.tile(images=x)
             crops = torch.stack(crops_list)
         crop_h, crop_w = crops.shape[-2:]
@@ -641,7 +642,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Interpolate and untile.
         mask_logits = F.interpolate(mask_logits, (crop_h, crop_w), mode="bilinear")
         crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
-        if use_onnx_fallback:
+        if torch.onnx.is_in_onnx_export() or H == W:
             logits = crop_logits
         else:
             logits_list = self.untile(
@@ -792,6 +793,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         have a dynamic batch dimension for the input. The graph produces two
         outputs: masks and logits.
 
+        Only square images (height == width) are supported. Tiling for
+        non-square images is not compatible with ONNX export.
+
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
         ONNX Runtime.
@@ -808,9 +812,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 If True, the ONNX graph will have a dynamic batch dimension for the
                 input. If False, the batch dimension is fixed to `batch_size`.
             height:
-                Height of the ONNX input. If None, will be taken from `self.image_size`.
+                Height of the ONNX input. If None, will be taken from
+                `self.image_size`. Must be equal to `width`.
             width:
-                Width of the ONNX input. If None, will be taken from `self.image_size`.
+                Width of the ONNX input. If None, will be taken from
+                `self.image_size`. Must be equal to `height`.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -820,6 +826,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 reference forward pass.
             format_args:
                 Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Raises:
+            ValueError: If height != width.
 
         Returns:
             None. Writes the ONNX model to `out`.
@@ -850,11 +859,20 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
+        if height != width:
+            raise ValueError(
+                f"ONNX export requires square images (height == width), got "
+                f"height={height}, width={width}. Tiling for non-square images "
+                f"is not supported during ONNX export."
+            )
         num_channels = len(self.image_normalize["mean"])
 
         if dynamic_batch_size:
-            batch_size = 2
-        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+            batch_size = max(batch_size, 2)
+            batch_dim = torch.export.Dim("batch_size", min=1)
+            dynamic_shapes = ({0: batch_dim},)
+        else:
+            dynamic_shapes = None
 
         dummy_input = torch.randn(
             batch_size,
@@ -876,8 +894,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
+            dynamo=True,
+            dynamic_shapes=dynamic_shapes,
             **(format_args or {}),
         )
 

@@ -86,7 +86,7 @@ def test_export_onnx__dynamic_batch_size(
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
+    assert input_batch_dim.dim_param == "batch_size"
 
     import torch
 
@@ -107,9 +107,6 @@ def test_export_onnx__dynamic_batch_size(
             assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
-@pytest.mark.xfail(
-    strict=True, reason="dinov3 ONNX export shape mismatch with static batch size"
-)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -123,7 +120,11 @@ def test_export_onnx__static_batch_size(
     )
 
 
-@pytest.mark.xfail(strict=True, reason="dinov3 ONNX export shape mismatch")
+@pytest.mark.xfail(
+    reason="ONNX export does not support non-square images yet (requires tiling support).",
+    raises=ValueError,
+    strict=True,
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -131,5 +132,6 @@ def test_export_onnx__static_batch_size(
 def test_export_onnx__custom_height_width(
     model: DINOv3EoMTSemanticSegmentation, tmp_path: Path
 ) -> None:
+    # TODO: Support ONNX export with non-square images (height != width).
     out = tmp_path / "model.onnx"
     model.export_onnx(out=out, height=32, width=48, simplify=False, verify=True)

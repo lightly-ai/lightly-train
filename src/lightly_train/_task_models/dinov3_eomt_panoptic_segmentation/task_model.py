@@ -1098,7 +1098,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
+            dynamo=True,
             dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
