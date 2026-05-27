@@ -594,6 +594,10 @@ models are available:
   [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-large-ltdetr`
 
+### ECViT Prototype
+
+- `ecvit/ecvitt-ltdetr`
+
 Unless noted otherwise, all DINOv3 backbones are initialized from weights
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
 The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained

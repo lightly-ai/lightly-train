@@ -106,7 +106,9 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
+    # Deprecated: backbone selection is now resolved from ``model_name``.
     backbone_type: Literal["dinov3", "ecvit"] = "dinov3"
+    # Deprecated legacy knob; ignored in favor of ``model_name``.
     ecvit_name: str = "ecvitt"
     patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
@@ -168,16 +170,11 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
     ) -> None:
-        if self.backbone_type == "ecvit":
-            if self.ecvit_name != "ecvitt":
-                raise ValueError(
-                    "Only ECViT tiny ('ecvitt') is supported in this prototype."
-                )
+        if model_name.startswith("ecvit/"):
             if self.patch_size in ("auto", None):
                 self.patch_size = 16
             elif self.patch_size != 16:
                 raise ValueError("ECViT tiny only supports patch_size=16.")
-            return
 
         if self.patch_size == "auto":
             patch_size = model_init_args.get("patch_size", None)
@@ -277,8 +274,6 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
             backbone_args=backbone_args,
-            backbone_type=model_args.backbone_type,
-            ecvit_name=model_args.ecvit_name,
             patch_size=no_auto(model_args.patch_size),
             backbone_weights=model_args.backbone_weights,
             decoder_name=model_args.decoder_name,

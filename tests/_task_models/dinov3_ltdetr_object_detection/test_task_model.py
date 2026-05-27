@@ -137,11 +137,15 @@ def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
 
 @pytest.mark.parametrize(
     ("model_name", "expected_patch_size"),
-    [("dinov3/vitt16-ltdetr-coco", 16), ("dinov3/convnext-tiny-ltdetr-coco", None)],
+    [
+        ("dinov3/vitt16-ltdetr-coco", 16),
+        ("dinov3/convnext-tiny-ltdetr-coco", None),
+        ("ecvit/ecvitt-ltdetr", 16),
+    ],
 )
-def test_resolve_auto__uses_vit_model_name(
+def test_resolve_auto__uses_model_name(
     model_name: str,
-    expected_patch_size: int | str,
+    expected_patch_size: int | None,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
     model_args = DINOv3LTDETRObjectDetectionTrainArgs()
@@ -324,45 +328,45 @@ def test_transform_args__resolve_auto__rejects_incompatible_explicit_image_size(
 def test_ecvit_tiny_train_args__resolve_auto__uses_fixed_patch_size(
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
-        backbone_type="ecvit",
-        ecvit_name="ecvitt",
-    )
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
 
     model_args.resolve_auto(
         total_steps=1000,
         gradient_accumulation_steps=1,
         train_num_batches=100,
-        model_name="dinov3/vitt16-ltdetr-coco",
+        model_name="ecvit/ecvitt-ltdetr",
         model_init_args={},
         data_args=dummy_yolo_detection_data_args,
     )
 
     assert model_args.patch_size == 16
+    assert model_args.scheduler_flat_steps != "auto"
+    assert model_args.scheduler_no_aug_steps != "auto"
 
 
-def test_ecvit_tiny_train_args__rejects_non_tiny_name(
+def test_ecvit_tiny_train_args__rejects_non_16_patch_size(
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
-        backbone_type="ecvit",
-        ecvit_name="ecvittplus",
-    )
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=14)
 
-    with pytest.raises(ValueError, match="Only ECViT tiny"):
+    with pytest.raises(ValueError, match="ECViT tiny only supports patch_size=16"):
         model_args.resolve_auto(
             total_steps=1000,
             gradient_accumulation_steps=1,
             train_num_batches=100,
-            model_name="dinov3/vitt16-ltdetr-coco",
+            model_name="ecvit/ecvitt-ltdetr",
             model_init_args={},
             data_args=dummy_yolo_detection_data_args,
         )
 
 
+def test_ecvit_tiny_model_name_is_supported() -> None:
+    assert DINOv3LTDETRObjectDetection.is_supported_model("ecvit/ecvitt-ltdetr")
+
+
 def test_ecvit_tiny_task_model_forward_smoke() -> None:
     model = DINOv3LTDETRObjectDetection(
-        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_name="ecvit/ecvitt-ltdetr",
         classes={0: "class_0", 1: "class_1"},
         image_size=(128, 128),
         patch_size=16,
@@ -370,8 +374,6 @@ def test_ecvit_tiny_task_model_forward_smoke() -> None:
         backbone_freeze=False,
         backbone_weights=None,
         backbone_args=None,
-        backbone_type="ecvit",
-        ecvit_name="ecvitt",
         load_weights=False,
     )
 

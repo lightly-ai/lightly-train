@@ -605,9 +605,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             backbone_args:
                 Additional arguments to pass to the DINOv3 backbone.
             backbone_type:
-                Switch between the existing DINOv3 path and the ECViT tiny prototype.
+                Deprecated. Backbone selection is resolved from ``model_name``.
             ecvit_name:
-                Only "ecvitt" is supported in this prototype.
+                Deprecated. Kept for backward compatibility with older configs.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -648,11 +648,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         else:
             self._expected_input_channels = 3
 
-        if backbone_type == "ecvit":
-            if ecvit_name != "ecvitt":
-                raise ValueError(
-                    "Only ECViT tiny ('ecvitt') is supported in this prototype."
-                )
+        if parsed_name["backbone_type"] == "ecvit":
             if backbone_args:
                 raise ValueError("backbone_args are not supported for ECViT tiny.")
             if patch_size not in (None, 16):
@@ -756,7 +752,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
+            *(
+                f"{name}-{cls.model_suffix}"
+                for name in DINOV3_PACKAGE.list_model_names()
+            ),
+            f"ecvit/ecvitt-{cls.model_suffix}",
         ]
 
     @classmethod
@@ -788,18 +788,26 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
+        if package_name == DINOV3_PACKAGE.name:
+            try:
+                backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
+            except ValueError:
+                raise_invalid_name()
 
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
+            return {
+                "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+                "backbone_name": backbone_name,
+                "backbone_type": "dinov3",
+            }
 
-        return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
+        if package_name == "ecvit" and backbone_name == "ecvitt":
+            return {
+                "model_name": f"ecvit/{backbone_name}-{cls.model_suffix}",
+                "backbone_name": backbone_name,
+                "backbone_type": "ecvit",
+            }
+
+        raise_invalid_name()
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
