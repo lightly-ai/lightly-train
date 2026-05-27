@@ -1332,14 +1332,44 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             config.batch_size * config.gradient_accumulation_steps
         )
 
+        # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
+        # Build dataloaders without a collate function; we install the
+        # fully-resolved collate on the dataloader further below.
+        train_dataloader = helpers.get_train_dataloader(
+            fabric=fabric,
+            dataset=train_dataset,
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            loader_args=config.loader_args,
+        )
+        # TODO(Guarin, 07/25): Different batch_size/num_workers for validation?
+        val_dataloader = helpers.get_val_dataloader(
+            fabric=fabric,
+            dataset=val_dataset,
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            loader_args=config.loader_args,
+        )
+        train_num_batches = len(train_dataloader)
+        if train_num_batches == 0:
+            raise RuntimeError(
+                "Training dataloader is empty. This can happen because training "
+                "uses drop_last=True and the dataset is smaller than the "
+                "per-device batch size. Reduce batch_size, use more training "
+                "samples, or set loader_args.drop_last=False."
+            )
+
         config.model_args = helpers.get_train_model_args(
             model_args=config.model_args,
             model_args_cls=train_model_args_cls,
             total_steps=no_auto(config.steps),
+            gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
+            train_num_batches=train_num_batches,
             model_name=config.model,
             model_init_args=model_init_args,
             data_args=config.data,
         )
+
         # TODO(Gabriel, 05/26): Split raw model_init_args from resolved
         # model-dependent init args. For now we patch in values that transforms need,
         # such as patch_size.
@@ -1359,25 +1389,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             torch_compile_args=config.torch_compile_args,
         )
 
-        # TODO(Guarin, 07/25): Handle auto batch_size/num_workers.
-        # Build dataloaders without a collate function; we install the
-        # fully-resolved collate on the dataloader further below.
-        train_dataloader = helpers.get_train_dataloader(
-            fabric=fabric,
-            dataset=train_dataset,
-            batch_size=config.batch_size,
-            num_workers=config.num_workers,
-            loader_args=config.loader_args,
-        )
-        # TODO(Guarin, 07/25): Different batch_size/num_workers for validation?
-        val_dataloader = helpers.get_val_dataloader(
-            fabric=fabric,
-            dataset=val_dataset,
-            batch_size=config.batch_size,
-            num_workers=config.num_workers,
-            loader_args=config.loader_args,
-        )
-
         # Resolve transform args in a single pass now that we know the
         # dataloader length and gradient accumulation steps (required for
         # step-scheduled augmentations like LTDETR).
@@ -1388,7 +1399,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             ignore_index=getattr(config.data, "ignore_index", None),
             model_init_args=resolved_model_init_args,
             total_steps=no_auto(config.steps),
-            train_num_batches=len(train_dataloader),
+            train_num_batches=train_num_batches,
             gradient_accumulation_steps=no_auto(config.gradient_accumulation_steps),
         )
 
