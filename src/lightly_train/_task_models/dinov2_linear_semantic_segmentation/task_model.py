@@ -108,8 +108,8 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
 
         # Disable drop path by default for DINOv2.
         args: dict[str, Any] = {}
-        if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
-            args["drop_path_rate"] = 0.0
+        # if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
+        #     args["drop_path_rate"] = 0.0
         if backbone_args is not None:
             args.update(backbone_args)
 
