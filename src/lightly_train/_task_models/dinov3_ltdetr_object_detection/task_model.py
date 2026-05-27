@@ -940,35 +940,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
-
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-
-        # Normalize the image.
-        if self.image_normalize is not None:
-            x = transforms_functional.normalize(
-                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-            )
-        x = transforms_functional.resize(x, self.image_size)
-        x = x.unsqueeze(0)
-
-        labels, boxes, scores = self(
-            x, orig_target_size=torch.tensor([[image_h, image_w]])
-        )
-        keep = scores > threshold
-        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
