@@ -71,12 +71,12 @@ class FastViTModelWrapper(
         try:
             with torch.no_grad():
                 x = torch.randn(1, 3, 64, 64)
-                x = self._model.forward_embeddings(x)
+                x = self._model.forward_embeddings(x)  # type: ignore[operator]
                 dims: list[int] = []
                 net_idx = 0
                 for net_end_idx in _FASTVIT_STAGE_INDICES:
                     while net_idx <= net_end_idx:
-                        x = self._model.network[net_idx](x)  # type: ignore[operator]
+                        x = self._model.network[net_idx](x)  # type: ignore[operator, index]
                         net_idx += 1
                     dims.append(x.shape[1])
         finally:
@@ -94,12 +94,12 @@ class FastViTModelWrapper(
             with torch.no_grad():
                 h_in, w_in = 64, 64
                 x = torch.randn(1, 3, h_in, w_in)
-                x = self._model.forward_embeddings(x)
+                x = self._model.forward_embeddings(x)  # type: ignore[operator]
                 strides: list[int] = []
                 net_idx = 0
                 for net_end_idx in _FASTVIT_STAGE_INDICES:
                     while net_idx <= net_end_idx:
-                        x = self._model.network[net_idx](x)  # type: ignore[operator]
+                        x = self._model.network[net_idx](x)  # type: ignore[operator, index]
                         net_idx += 1
                     out_h = x.shape[-2]
                     strides.append(h_in // out_h)
@@ -118,12 +118,12 @@ class FastViTModelWrapper(
             f"got {list(requested)}"
         )
 
-        x = self._model.forward_embeddings(x)
+        x = self._model.forward_embeddings(x)  # type: ignore[operator]
         results: dict[int, Tensor] = {}
         net_idx = 0
         for stage_idx, net_end_idx in enumerate(_FASTVIT_STAGE_INDICES):
             while net_idx <= net_end_idx:
-                x = self._model.network[net_idx](x)  # type: ignore[operator]
+                x = self._model.network[net_idx](x)  # type: ignore[operator, index]
                 net_idx += 1
             if stage_idx in requested:
                 # Apply per-stage norm if available (when fork_feat is enabled).
