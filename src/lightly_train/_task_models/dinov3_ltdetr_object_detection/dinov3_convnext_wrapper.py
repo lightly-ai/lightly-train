@@ -47,7 +47,9 @@ class DINOv3ConvNextWrapper(Module):
                 "Detected old DINOv3ConvNextWrapper checkpoint format "
                 "(backbone. → _model_wrapper._model.). Remapping keys."
             )
-            for k in [k for k in list(state_dict.keys()) if k.startswith(old_subprefix)]:
+            for k in [
+                k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
+            ]:
                 state_dict[new_subprefix + k[len(old_subprefix) :]] = state_dict.pop(k)
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:

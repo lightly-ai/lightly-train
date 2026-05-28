@@ -144,7 +144,9 @@ class DINOv3STAs(Module):
             model_wrapper.eval()
             model_wrapper.requires_grad_(False)
 
-        _torch_helpers.register_load_state_dict_pre_hook(self, DINOv3STAs._remap_legacy_keys)
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, DINOv3STAs._remap_legacy_keys
+        )
 
         # init the feature pyramid
         self.use_sta = use_sta
@@ -211,7 +213,9 @@ class DINOv3STAs(Module):
                 "Detected old DINOv3STAs checkpoint format "
                 "(dinov3. → _model_wrapper._model.). Remapping keys."
             )
-            for k in [k for k in list(state_dict.keys()) if k.startswith(old_subprefix)]:
+            for k in [
+                k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
+            ]:
                 state_dict[new_subprefix + k[len(old_subprefix) :]] = state_dict.pop(k)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
