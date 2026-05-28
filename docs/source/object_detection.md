@@ -98,53 +98,6 @@ if __name__ == "__main__":
 
 <!-- TODO (Lionel, 10/25) Add instructions for re-using classification head when it is supported. -->
 
-(object-detection-pretrain-finetune)=
-
-## Pretrain and Fine-tune an Object Detection Model
-
-To further improve the performance of your object detection model, you can first
-pretrain a DINOv2 model on unlabeled data using self-supervised learning and then
-fine-tune it on your object detection dataset. This is especially useful if your dataset
-is only partially labeled or if you have access to a large amount of unlabeled data.
-
-The following example shows how to pretrain and fine-tune the model. Check out the page
-on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
-data.
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    # Pretrain a DINOv2 model.
-    lightly_train.pretrain(
-        out="out/my_pretrain_experiment",
-        data="my_pretrain_data_dir",
-        model="dinov2/vits14-noreg",
-        method="dinov2",
-    )
-
-    # Fine-tune the DINOv2 model for object detection.
-    lightly_train.train_object_detection(
-        out="out/my_experiment",
-        model="dinov2/vits14-noreg-ltdetr",
-        model_args={
-            # Path to your pretrained DINOv2 model.
-            "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_best.pt",
-        },
-        data={
-            "format": "yolo",
-            "path": "my_data_dir",
-            "train": "images/train2012",
-            "val": "images/val2012",
-            "names": {
-                0: "person",
-                1: "bicycle",
-                # ...
-            },
-        }
-    )
-```
-
 (object-detection-use-model-weights)=
 
 ### Load the Trained Model from Checkpoint and Predict
@@ -603,16 +556,6 @@ DINOv3 backbone weights instead. Models marked as EUPE use
 models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
-### LTDETR DINOv2 Models
-
-- `dinov2/vits14-ltdetr`
-- `dinov2/vitb14-ltdetr`
-- `dinov2/vitl14-ltdetr`
-- `dinov2/vitg14-ltdetr`
-
-All models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-
 ## Training Settings
 
 See [](train-settings) on how to configure training settings.
@@ -649,17 +592,6 @@ The following are the default image transform arguments. See
 ````
 ````{dropdown} Val
 ```{include} _auto/dinov3ltdetrobjectdetectiontrain_val_transform_args.md
-```
-````
-`````
-
-`````{dropdown} DINOv2 LTDETR Default Transform Arguments
-````{dropdown} Train
-```{include} _auto/dinov2ltdetrobjectdetectiontrain_train_transform_args.md
-```
-````
-````{dropdown} Val
-```{include} _auto/dinov2ltdetrobjectdetectiontrain_val_transform_args.md
 ```
 ````
 `````
