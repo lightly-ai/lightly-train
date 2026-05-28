@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -66,6 +67,9 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="ONNX dynamic batch export not supported on Windows"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
