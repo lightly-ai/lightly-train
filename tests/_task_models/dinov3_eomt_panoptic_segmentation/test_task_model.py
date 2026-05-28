@@ -76,9 +76,6 @@ def test_export_onnx(model: DINOv3EoMTPanopticSegmentation, tmp_path: Path) -> N
     model.export_onnx(out=out, simplify=False, verify=True)
 
 
-@pytest.mark.skipif(
-    not RequirementCache("torch>=2.8.0"), reason="requires PyTorch >= 2.8.0"
-)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
