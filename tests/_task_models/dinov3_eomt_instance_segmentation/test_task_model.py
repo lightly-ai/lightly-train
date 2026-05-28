@@ -119,6 +119,7 @@ def test_export_onnx__static_batch_size(
     )
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Does not work on Windows")
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
