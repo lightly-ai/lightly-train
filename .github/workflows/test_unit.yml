@@ -11,6 +11,7 @@ env:
   # Install packages into system environment.
   # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
   UV_SYSTEM_PYTHON: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,8 +24,8 @@ jobs:
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           list-files: shell
@@ -44,9 +45,9 @@ jobs:
     runs-on: ${{ matrix.runners }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set Up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         id: setup-uv
         with:
           version: 0.11.15
