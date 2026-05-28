@@ -763,7 +763,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         if dynamic_batch_size:
             batch_size = max(batch_size, 2)
-            batch_dim = torch.export.Dim("batch_size", min=1)
+            batch_dim = torch.export.Dim("batch_size", min=1, max=2**31 - 1)
             dynamic_shapes = ({0: batch_dim},)
         else:
             dynamic_shapes = None

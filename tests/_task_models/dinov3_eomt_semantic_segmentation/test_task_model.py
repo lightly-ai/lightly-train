@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 import torch
 from lightning_utilities.core.imports import RequirementCache
-from packaging import version
 from pytest_mock import MockerFixture
 
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
@@ -71,10 +70,6 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
-@pytest.mark.skipif(
-    version.parse(torch.__version__) < version.parse("2.8.0"),
-    reason="ONNX dynamic batch export requires PyTorch >= 2.8.0 (draft_export)",
-)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

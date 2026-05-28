@@ -1084,13 +1084,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         input_names = ["images"]
         output_names = ["masks", "segment_ids", "scores"]
 
-        # Define dynamic axes.
-        dynamic_axes = {
-            "masks": {1: "num_segments"},
-            "segment_ids": {1: "num_segments"},
-            "scores": {1: "num_segments"},
-        }
-
         torch.onnx.export(
             self,
             (dummy_input,),
@@ -1099,7 +1092,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=True,
-            dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
 

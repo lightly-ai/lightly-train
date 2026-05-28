@@ -76,6 +76,29 @@ def test_export_onnx(model: DINOv3EoMTPanopticSegmentation, tmp_path: Path) -> N
     model.export_onnx(out=out, simplify=False, verify=True)
 
 
+@pytest.mark.skipif(
+    not RequirementCache("torch>=2.8.0"), reason="requires PyTorch >= 2.8.0"
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_output_shapes(
+    model: DINOv3EoMTPanopticSegmentation, tmp_path: Path
+) -> None:
+    import onnx
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    onnx_model = onnx.load(out)
+    outputs_by_name = {o.name: o for o in onnx_model.graph.output}
+
+    for name in ("segment_ids", "scores"):
+        dim = outputs_by_name[name].type.tensor_type.shape.dim[1]
+        assert dim.dim_param != "", f"Expected dynamic dim 1 for output '{name}'"
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
