@@ -19,8 +19,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - ONNX export for models that support dynamic batch sizes can now specify if the batch
   size should be dynamic with the `dynamic_batch_size` keyword argument.
 - Explicit support for all YOLO26 variants.
-- Support `"auto"` resolution for LT-DETR scheduler params, deriving defaults from the
-  training steps.
 
 ### Changed
 
