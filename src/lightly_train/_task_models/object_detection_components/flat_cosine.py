@@ -29,15 +29,6 @@ import math
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from lightly_train._transforms.object_detection_transform import (
-    LTDETR_REFERENCE_FLAT_EPOCHS,
-    LTDETR_REFERENCE_NO_AUG_EPOCHS,
-    LTDETR_REFERENCE_TOTAL_EPOCHS,
-)
-
-_REFERENCE_TOTAL_PHASE = LTDETR_REFERENCE_TOTAL_EPOCHS
-_REFERENCE_FLAT_PHASE = LTDETR_REFERENCE_FLAT_EPOCHS
-_REFERENCE_NO_AUG_PHASE = LTDETR_REFERENCE_NO_AUG_EPOCHS
 _REFERENCE_LR_GAMMA = 0.5
 
 
@@ -71,8 +62,8 @@ def flat_cosine_schedule(
 class FlatCosineLRScheduler(LRScheduler):
     """Warmup + flat + cosine + final tail schedule.
 
-    The flat and no-augmentation phases follow the LT-DETR / DEIMv2 reference
-    config scaled to ``total_steps``.
+    The flat and no-augmentation phases are provided by LT-DETR train args.
+    The default values are automatically resolved according to the DEIMv2 setup.
     """
 
     def __init__(
@@ -80,6 +71,8 @@ class FlatCosineLRScheduler(LRScheduler):
         optimizer: Optimizer,
         total_steps: int,
         warmup_steps: int,
+        flat_steps: int,
+        no_aug_steps: int,
         *,
         min_factor: float = _REFERENCE_LR_GAMMA,
         last_epoch: int = -1,
@@ -88,31 +81,19 @@ class FlatCosineLRScheduler(LRScheduler):
             raise ValueError(f"total_steps must be positive, got {total_steps}.")
         if warmup_steps < 0:
             raise ValueError(f"warmup_steps must be non-negative, got {warmup_steps}.")
+        if flat_steps < 0:
+            raise ValueError(f"flat_steps must be non-negative, got {flat_steps}.")
+        if no_aug_steps < 0:
+            raise ValueError(f"no_aug_steps must be non-negative, got {no_aug_steps}.")
         if not 0.0 <= min_factor <= 1.0:
             raise ValueError(f"min_factor must be between 0 and 1, got {min_factor}.")
 
         self.total_steps = total_steps
         self.warmup_steps = min(warmup_steps, total_steps)
+        self.flat_steps = flat_steps
+        self.no_aug_steps = no_aug_steps
         self.min_factor = min_factor
 
-        self.flat_steps = min(
-            total_steps,
-            max(
-                0,
-                math.floor(
-                    total_steps * _REFERENCE_FLAT_PHASE / _REFERENCE_TOTAL_PHASE
-                ),
-            ),
-        )
-        self.no_aug_steps = min(
-            total_steps,
-            max(
-                0,
-                math.floor(
-                    total_steps * _REFERENCE_NO_AUG_PHASE / _REFERENCE_TOTAL_PHASE
-                ),
-            ),
-        )
         self.cosine_start_step = max(self.warmup_steps, self.flat_steps)
         self.cosine_end_step = max(
             self.cosine_start_step, total_steps - self.no_aug_steps

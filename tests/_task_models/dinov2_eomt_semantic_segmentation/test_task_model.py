@@ -10,7 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import torch
 from lightning_utilities.core.imports import RequirementCache
+from pytest_mock import MockerFixture
 
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.task_model import (
     DINOv2EoMTSemanticSegmentation,
@@ -29,6 +31,43 @@ def model() -> DINOv2EoMTSemanticSegmentation:
         num_joint_blocks=1,
         load_weights=False,
     )
+
+
+def test_predict_batch__composes_stages_in_order(
+    model: DINOv2EoMTSemanticSegmentation, mocker: MockerFixture
+) -> None:
+    preprocess_image_spy = mocker.spy(model, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
+    forward_backend_spy = mocker.spy(model, "forward_backend")
+    postprocess_spy = mocker.spy(model, "postprocess")
+
+    images = [torch.rand(3, 21, 28), torch.rand(3, 35, 21)]
+    result = model.predict_batch(images=images)
+
+    # Each input image goes through preprocess_image once.
+    assert preprocess_image_spy.call_count == 2
+
+    # preprocess_batch receives a sequence of per-image tensors with the same
+    # short side (= min(image_size)) but different long sides.
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert len(batch_in) == 2
+    assert all(t.shape[0] == 3 for t in batch_in)
+    assert all(min(t.shape[-2:]) == min(model.image_size) for t in batch_in)
+
+    # forward_backend receives the output of preprocess_batch.
+    assert forward_backend_spy.call_count == 1
+    (forward_in,) = forward_backend_spy.call_args.args
+    assert forward_in is preprocess_batch_spy.spy_return
+
+    # postprocess receives forward_backend's output and per-image metadata.
+    assert postprocess_spy.call_count == 1
+    raw_in, metadata = postprocess_spy.call_args.args
+    assert raw_in is forward_backend_spy.spy_return
+    assert len(metadata) == 2
+
+    # predict_batch returns whatever postprocess produced.
+    assert result is postprocess_spy.spy_return
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
