@@ -1259,6 +1259,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             #  Cast32 -> MatMul -> Cast16 -> Cast32 -> Softmax -> Cast16. Therefore, we need to remove the middle
             #  Cast16 -> Cast32.
             remove_redundant_casts(model_fp16)
+            onnx.utils.fix_topological_order(model_fp16)
             onnx.save(model_fp16, str(out))
 
         if simplify:
@@ -1398,6 +1399,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             ValueError: If batch size constraints are invalid or H/W are dynamic.
         """
         model_dtype = next(self.parameters()).dtype
+
+        onnx_args = dict(onnx_args) if onnx_args is not None else {}
+        onnx_args.setdefault("precision", precision)
 
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
