@@ -209,13 +209,13 @@ class ForwardMultiScaleFeatures(Protocol):
 
 
 class MultiScaleFeatureViT(
-    ForwardMultiScaleFeatures, MultiScaleFeatureDims, PatchSize, Protocol
+    ModelWrapper, ForwardMultiScaleFeatures, MultiScaleFeatureDims, PatchSize, Protocol
 ):
     """Protocol for ViT models with multiscale feature extraction."""
 
 
 class MultiScaleFeatureCNN(
-    ForwardMultiScaleFeatures, MultiScaleFeatureDims, MultiScaleFeatureStrides, Protocol
+    ModelWrapper, ForwardMultiScaleFeatures, MultiScaleFeatureDims, MultiScaleFeatureStrides, Protocol
 ):
     """Protocol for CNN models with multiscale feature extraction."""
 

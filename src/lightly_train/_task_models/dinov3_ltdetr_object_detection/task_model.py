@@ -32,11 +32,11 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
-    DINOv3ConvNextWrapper,
+from lightly_train._task_models.dinov3_ltdetr_object_detection.cnn_wrapper import (
+    CNNMultiScaleBackboneWrapper,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
+from lightly_train._task_models.dinov3_ltdetr_object_detection.vit_wrapper import (
+    ViTSTAsBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -684,7 +684,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         config.resolve_auto(patch_size=patch_size)
 
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
+        self.backbone: ViTSTAsBackboneWrapper | CNNMultiScaleBackboneWrapper
 
         if isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
@@ -692,7 +692,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
             # ViT models.
             vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
-            self.backbone = DINOv3STAs(
+            self.backbone = ViTSTAsBackboneWrapper(
                 model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
@@ -701,7 +701,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
             convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
+            self.backbone = CNNMultiScaleBackboneWrapper(model_wrapper=convnext_model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
