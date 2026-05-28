@@ -119,7 +119,7 @@ def test_export_onnx__dynamic_output_shapes(
         t = F.to_dtype(F.to_image(img), scale=True)
         t = F.resize(t, [h, w])
         t = F.normalize(t, mean=list(mean), std=list(std))
-        return t.unsqueeze(0).numpy()
+        return np.asarray(t.unsqueeze(0))
 
     # Real image with objects — should produce many segments.
     real_image_path = (

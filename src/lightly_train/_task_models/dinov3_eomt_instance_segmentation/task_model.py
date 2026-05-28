@@ -762,7 +762,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         num_channels = len(self.image_normalize["mean"])
 
         if dynamic_batch_size:
-            batch_size = max(batch_size, 2)
+            batch_size = 2
             batch_dim = torch.export.Dim("batch_size", min=1, max=2**31 - 1)
             dynamic_shapes = ({0: batch_dim},)
         else:
