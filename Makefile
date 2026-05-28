@@ -192,14 +192,17 @@ add-header:
 # run tests
 .PHONY: test
 test:
+	uv run --frozen python -c "from importlib.metadata import distributions; print('\n'.join(sorted(f'{d.metadata[\"Name\"]}=={d.version}' for d in distributions())))"
 	uv run --frozen pytest tests
 
 .PHONY: test-ci-minimal
 test-ci-minimal:
+	uv run --frozen --group pinned-torch-minimal python -c "from importlib.metadata import distributions; print('\n'.join(sorted(f'{d.metadata[\"Name\"]}=={d.version}' for d in distributions())))"
 	uv run --frozen --group pinned-torch-minimal pytest tests -v --durations=20
 
 .PHONY: test-ci-maximal
 test-ci-maximal:
+	uv run --frozen --group pinned-torch-maximal python -c "from importlib.metadata import distributions; print('\n'.join(sorted(f'{d.metadata[\"Name\"]}=={d.version}' for d in distributions())))"
 	uv run --frozen --group pinned-torch-maximal pytest tests -v --durations=20
 
 
