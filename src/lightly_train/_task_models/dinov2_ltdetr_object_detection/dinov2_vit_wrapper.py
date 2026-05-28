@@ -139,6 +139,13 @@ class DINOv2STAs(Module):
         self.interaction_indexes = interaction_indexes
         self.patch_size = model_wrapper.get_model().patch_size
 
+        if use_sta and self.patch_size != 16:
+            raise ValueError(
+                f"use_sta=True requires patch_size=16, but got patch_size={self.patch_size}. "
+                "SpatialPriorModulev2 extracts features at strides H/8, H/16, H/32, which only "
+                "aligns with ViT patch grids when patch_size=16."
+            )
+
         if not finetune:
             model_wrapper.eval()
             model_wrapper.requires_grad_(False)
@@ -246,21 +253,7 @@ class DINOv2STAs(Module):
         if self.use_sta:
             detail_feats = self.sta(x)
             for semantic_feat, detail_feat in zip(resized_feats, detail_feats):
-                detail_feat_interpolated = F.interpolate(
-                    detail_feat,
-                    size=semantic_feat.shape[-2:],
-                    mode="bilinear",
-                    align_corners=False,
-                )
-                fused_feats.append(
-                    torch.cat(
-                        [
-                            semantic_feat,
-                            detail_feat_interpolated,
-                        ],
-                        dim=1,
-                    )
-                )
+                fused_feats.append(torch.cat([semantic_feat, detail_feat], dim=1))
         else:
             fused_feats = resized_feats
 

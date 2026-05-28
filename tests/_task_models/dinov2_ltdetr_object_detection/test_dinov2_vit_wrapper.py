@@ -36,13 +36,13 @@ def _remap_to_old_format(
 @pytest.fixture
 def wrapper() -> DINOv2STAs:
     model_wrapper = dummy_dinov2_vit_model()
-    return DINOv2STAs(model_wrapper=model_wrapper)
+    return DINOv2STAs(model_wrapper=model_wrapper, use_sta=False)
 
 
 @pytest.fixture
 def fresh_wrapper() -> DINOv2STAs:
     model_wrapper = dummy_dinov2_vit_model()
-    return DINOv2STAs(model_wrapper=model_wrapper)
+    return DINOv2STAs(model_wrapper=model_wrapper, use_sta=False)
 
 
 class TestDINOv2STAs:
