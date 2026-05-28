@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 import torch
+from torch.nn import Module
 
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -74,3 +75,27 @@ class TestDINOv3ConvNextWrapper:
         fake_state_dict = {f"fake.{k}": v for k, v in wrapper.state_dict().items()}
         with pytest.raises(RuntimeError):
             fresh_wrapper.load_state_dict(fake_state_dict)
+
+    def test_load_state_dict__old_format_via_parent_module_succeeds(
+        self, wrapper: DINOv3ConvNextWrapper, fresh_wrapper: DINOv3ConvNextWrapper
+    ) -> None:
+        """Pre-hook must fire even when load_state_dict is called on a parent module."""
+
+        class _Container(Module):
+            def __init__(self, backbone: DINOv3ConvNextWrapper) -> None:
+                super().__init__()
+                self.backbone = backbone
+
+        container = _Container(wrapper)
+        fresh_container = _Container(fresh_wrapper)
+
+        # Build old-format full-model state dict: backbone.backbone.* instead of
+        # backbone._model_wrapper._model.*
+        full_old = {}
+        for k, v in container.state_dict().items():
+            full_old[k.replace("backbone." + NEW_PREFIX, "backbone." + OLD_PREFIX)] = v
+
+        # This should succeed and actually load the backbone weights.
+        fresh_container.load_state_dict(full_old, strict=True)
+        for key, val in container.state_dict().items():
+            assert torch.equal(fresh_container.state_dict()[key], val)

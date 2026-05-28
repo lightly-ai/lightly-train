@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Mapping
+from typing import Any
 
 from torch import Tensor
 from torch.nn import Module
 
+from lightly_train import _torch_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 
 logger = logging.getLogger(__name__)
@@ -23,31 +24,33 @@ class DINOv3ConvNextWrapper(Module):
         super().__init__()
         self._model_wrapper = model_wrapper
         self.patch_size = model_wrapper.get_model().patch_size
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, DINOv3ConvNextWrapper._remap_legacy_keys
+        )
 
     @property
     def backbone_model(self) -> Module:
         return self._model_wrapper.get_model()
 
-    def load_state_dict(
-        self,
-        state_dict: Mapping[str, Any],
-        strict: bool = True,
-        assign: bool = False,
-    ) -> Any:
-        old_prefix = "backbone."
-        new_prefix = "_model_wrapper._model."
-        if any(k.startswith(old_prefix) for k in state_dict):
+    @staticmethod
+    def _remap_legacy_keys(
+        module: Module,
+        state_dict: dict[str, Any],
+        prefix: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        old_subprefix = prefix + "backbone."
+        new_subprefix = prefix + "_model_wrapper._model."
+        if any(k.startswith(old_subprefix) for k in state_dict):
             logger.info(
                 "Detected old DINOv3ConvNextWrapper checkpoint format "
                 "(backbone. → _model_wrapper._model.). Remapping keys."
             )
-            remapped = {}
-            for k, v in state_dict.items():
-                if k.startswith(old_prefix):
-                    k = new_prefix + k[len(old_prefix) :]
-                remapped[k] = v
-            state_dict = remapped
-        return super().load_state_dict(state_dict, strict=strict, assign=assign)
+            for k in [
+                k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
+            ]:
+                state_dict[new_subprefix + k[len(old_subprefix) :]] = state_dict.pop(k)
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:
         feats = self._model_wrapper.forward_multiscale_features(x, [1, 2, 3])
