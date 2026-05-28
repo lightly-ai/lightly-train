@@ -30,9 +30,7 @@ logger = logging.getLogger(__name__)
 _FASTVIT_STAGE_INDICES = [0, 2, 4, 6]
 
 
-class FastViTModelWrapper(
-    Module, MultiScaleFeatureCNN, ArchitectureInfoGettable
-):
+class FastViTModelWrapper(Module, MultiScaleFeatureCNN, ArchitectureInfoGettable):
     def __init__(self, model: Module) -> None:
         for attr in ("forward_embeddings", "forward_tokens", "conv_exp", "gap"):
             if not hasattr(model, attr):

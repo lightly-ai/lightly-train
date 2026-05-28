@@ -26,9 +26,7 @@ from lightly_train._models.model_wrapper import (
 )
 
 
-class DINOv2ViTModelWrapper(
-    Module, MultiScaleFeatureViT, ArchitectureInfoGettable
-):
+class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettable):
     def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
         self._model = model

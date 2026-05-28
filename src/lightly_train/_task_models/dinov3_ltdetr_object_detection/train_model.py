@@ -35,9 +35,6 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.dinov3_ltdetr_object_detection.vit_wrapper import (
-    ViTSTAsBackboneWrapper,
-)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -46,6 +43,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
     DINOv3LTDETRObjectDetectionValTransform,
     DINOv3LTDETRObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.vit_wrapper import (
+    ViTSTAsBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components.dfine_criterion import (
     DFINECriterion,

@@ -128,6 +128,8 @@ class NNModule(Protocol):
 
     def modules(self) -> Iterator[Module]: ...
 
+    def requires_grad_(self, requires_grad: bool = True) -> Self: ...
+
 
 @runtime_checkable
 class ModelWrapper(
@@ -215,7 +217,11 @@ class MultiScaleFeatureViT(
 
 
 class MultiScaleFeatureCNN(
-    ModelWrapper, ForwardMultiScaleFeatures, MultiScaleFeatureDims, MultiScaleFeatureStrides, Protocol
+    ModelWrapper,
+    ForwardMultiScaleFeatures,
+    MultiScaleFeatureDims,
+    MultiScaleFeatureStrides,
+    Protocol,
 ):
     """Protocol for CNN models with multiscale feature extraction."""
 

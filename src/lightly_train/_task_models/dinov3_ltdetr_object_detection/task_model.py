@@ -701,7 +701,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
             convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-            self.backbone = CNNMultiScaleBackboneWrapper(model_wrapper=convnext_model_wrapper)
+            self.backbone = CNNMultiScaleBackboneWrapper(
+                model_wrapper=convnext_model_wrapper
+            )
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()

@@ -29,7 +29,7 @@ class CNNMultiScaleBackboneWrapper(Module):
 
     @property
     def backbone_model(self) -> Module:
-        return self._model_wrapper.get_model()
+        return self._model_wrapper.get_model()  # type: ignore[no-any-return]
 
     @staticmethod
     def _remap_legacy_keys(
