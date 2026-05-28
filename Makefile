@@ -200,7 +200,7 @@ test-ci-minimal:
 
 .PHONY: test-ci-maximal
 test-ci-maximal:
-	uv run --frozen --group pinned-torch-maximal uv pip list
+	uv run --frozen --group pinned-torch-maximal python -c "from importlib.metadata import distributions; print('\n'.join(sorted(f'{d.name}=={d.version}' for d in distributions())))"
 	uv run --frozen --group pinned-torch-maximal pytest tests -v --durations=20
 
 
