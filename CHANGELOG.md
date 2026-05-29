@@ -28,6 +28,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix ONNX export for DINOv3 EoMT panoptic, semantic, and instance segmentation models
+  by switching to dynamo-based export. Requires torch >= 2.5.0.
 - Fix PicoDet fine-tuning with mismatched `num_classes`.
 - Fix DINOv3 LT-DETR patch size precedence so `model_args.patch_size` overrides the
   backbone default.
