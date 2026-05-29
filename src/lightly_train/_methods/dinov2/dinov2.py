@@ -17,6 +17,7 @@ import torch
 from lightly.loss import (
     KoLeoLoss,
 )  # we use LightlySSL's KoLeoLoss for better numerical stability
+from lightly.loss.ibot_loss import IBOTPlusPlusPatchLoss
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pydantic import Field
@@ -30,8 +31,7 @@ from lightly_train._configs.validate import no_auto
 from lightly_train._methods.dinov2.dinov2_head import DINOv2ProjectionHead
 from lightly_train._methods.dinov2.dinov2_loss import (
     DINOLoss,
-    IBOTPatchLoss,
-)  # we use the original DINOLoss and IBOTPatchLoss
+)  # we use the original DINOLoss
 from lightly_train._methods.dinov2.dinov2_transform import (
     DINOv2ViTTransform,
 )
@@ -249,8 +249,12 @@ class DINOv2(Method):
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
-        self.ibot_loss = IBOTPatchLoss(
-            patch_out_dim=method_args.output_dim,
+        # iBOT++ (from TIPSv2) applies patch-level self-distillation to ALL
+        # patch tokens, not just the masked ones. Centering uses softmax+EMA
+        # internally; method_args.center_method only controls DINO centering.
+        self.ibot_loss = IBOTPlusPlusPatchLoss(
+            output_dim=method_args.output_dim,
+            teacher_temp=method_args.teacher_temp_start,
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
@@ -302,33 +306,23 @@ class DINOv2(Method):
         collated_masks = masks["collated_masks"].to(
             device=self.device, non_blocking=True
         )
-        mask_indices_list = masks["mask_indices_list"].to(
-            device=self.device, non_blocking=True
-        )
-        masks_weight = masks["masks_weight"].to(device=self.device, non_blocking=True)
-        n_masked_patches = mask_indices_list.shape[0]
 
         # Process global views through teacher and student networks
         # TODO(Jonas 06/25): kwargs
         # TODO(Jonas 06/25): consider to move all the forwards into a single forward
-        teacher_cls_tokens_centered, teacher_masked_patch_tokens_centered = (
-            self._forward_teacher(
-                global_views,
-                batch_size,
-                mask_indices_list,
-                n_masked_patches,
-                teacher_temp,
-            )  # [G, B, D], [M, D]
-        )
+        teacher_cls_tokens_centered, teacher_patch_tokens = self._forward_teacher(
+            global_views,
+            batch_size,
+            teacher_temp,
+        )  # [G, B, D], [G*B, N, D]
         (
             student_cls_tokens_global,
             student_cls_tokens_global_before_head,
-            student_masked_patch_tokens_global,
+            student_patch_tokens,
         ) = self._forward_student_global(
             x=global_views,
             masks=collated_masks,
-            mask_indices_list=mask_indices_list,
-        )  # [G*B, D], [M, D]
+        )  # [G*B, D], [G*B, N, D]
 
         # TODO(Jonas 06/25): clarify if we actually need this list variant --> simplify interface
         # Compute the DINO loss
@@ -365,13 +359,12 @@ class DINOv2(Method):
                 / (n_global_crops_loss_terms + n_local_crops_loss_terms)
             )
 
-        # Compute the iBOT loss
-        ibot_loss = self.ibot_loss.forward_masked(
-            student_patch_tokens_masked=student_masked_patch_tokens_global,
-            teacher_patch_tokens_masked=teacher_masked_patch_tokens_centered,
-            student_masks_flat=collated_masks,
-            n_masked_patches=n_masked_patches,
-            masks_weight=masks_weight,
+        # Compute the iBOT++ loss on all patch tokens. Centering and the EMA
+        # center update are handled inside IBOTPlusPlusPatchLoss.
+        ibot_loss = self.ibot_loss.forward(
+            teacher_out=teacher_patch_tokens,
+            student_out=student_patch_tokens,
+            teacher_temp=teacher_temp,
         )
 
         koleo_loss = sum(
@@ -401,8 +394,6 @@ class DINOv2(Method):
         self,
         x: Tensor,
         batch_size: int,
-        mask_indices_list: Tensor,
-        n_masked_patches: int,
         teacher_temp: float,
     ) -> tuple[Tensor, Tensor]:
         tokens = self.teacher_embedding_model.wrapped_model.forward_features(
@@ -419,21 +410,16 @@ class DINOv2(Method):
             cls_tokens
         )  # [G*B, D]
 
-        # process the masked patch tokens
+        # process all patch tokens; iBOT++ applies the loss on every patch
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
-        # TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
+        gb, _, h_p, w_p = patch_tokens.shape
+        n_patches = h_p * w_p
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, N, C]
+        patch_tokens_after_ibot = self.teacher_head.ibot_head.forward(
+            patch_tokens.flatten(0, 1)
+        ).view(gb, n_patches, -1)  # [G*B, N, D]
 
-        masked_patch_tokens = torch.index_select(
-            patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
-            dim=0,
-            index=mask_indices_list,
-        )  # [M, C]
-        masked_patch_tokens_after_ibot = self.teacher_head.ibot_head.forward(
-            masked_patch_tokens
-        )  # [M, D]
-
-        # centering
+        # DINO centering only; iBOT++ does its own centering inside forward.
         # TODO(Jonas 06/25): instantiate the centering method in the loss and remove the logic from here
         if self.method_args.center_method == "softmax":
             # TODO(Jonas 06/25): reshape the return inside the loss
@@ -441,41 +427,22 @@ class DINOv2(Method):
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
             self.dino_loss.update_center(cls_tokens_after_dino)
-
-            # TODO(Jonas 06/25): change the code inside the loss to avoid the unsqueeze
-            masked_patch_tokens_after_ibot = masked_patch_tokens_after_ibot.unsqueeze(0)
-            masked_patch_tokens_centered = self.ibot_loss.softmax_center_teacher(
-                masked_patch_tokens_after_ibot,
-                teacher_temp=teacher_temp,
-            )  # [M, D]
-            masked_patch_tokens_centered = masked_patch_tokens_centered.squeeze(0)
-            self.ibot_loss.update_center(masked_patch_tokens_after_ibot)
         elif self.method_args.center_method == "sinkhorn_knopp":
             # TODO(Jonas 06/25): reshape the return inside the loss
             cls_tokens_centered = self.dino_loss.sinkhorn_knopp_teacher(
                 cls_tokens_after_dino, teacher_temp=teacher_temp
             ).view(2, -1, *cls_tokens_after_dino.shape[1:])  # [G, B, D]
-
-            masked_patch_tokens_centered = self.ibot_loss.sinkhorn_knopp_teacher(
-                masked_patch_tokens_after_ibot,
-                teacher_temp=teacher_temp,
-                # TODO(Jonas 06/25): move this into the loss if required
-                n_masked_patches_tensor=torch.tensor(
-                    [n_masked_patches], dtype=torch.long
-                ).to(device=self.device, non_blocking=True),
-            )  # [M, D]
         else:
             raise ValueError(
                 f"Unknown centering method: {self.method_args.center_method}"
             )
 
-        return cls_tokens_centered, masked_patch_tokens_centered
+        return cls_tokens_centered, patch_tokens_after_ibot
 
     def _forward_student_global(
         self,
         x: Tensor,
         masks: Tensor,
-        mask_indices_list: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor]:
         wrapped_model: DINOv2ViTModelWrapper = (
             self.student_embedding_model.wrapped_model  # type: ignore[assignment]
@@ -488,21 +455,16 @@ class DINOv2(Method):
             cls_tokens
         )  # [G*B, D]
 
-        # process the patch tokens
+        # process all patch tokens; iBOT++ projects every patch through ibot_head
         patch_tokens = tokens["features"]  # [G*B, C, H/p, W/p]
-        # TODO(Jonas 06/25): why not flattening the patch tokens here all in one go?
-        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, H/p*W/p, C]
+        gb, _, h_p, w_p = patch_tokens.shape
+        n_patches = h_p * w_p
+        patch_tokens = patch_tokens.flatten(2).permute(0, 2, 1)  # [G*B, N, C]
+        patch_tokens_after_ibot = self.student_head.ibot_head.forward(
+            patch_tokens.flatten(0, 1)
+        ).view(gb, n_patches, -1)  # [G*B, N, D]
 
-        masked_patch_tokens = torch.index_select(
-            patch_tokens.flatten(0, 1),  # [G*B*H/p*W/p, C]
-            dim=0,
-            index=mask_indices_list,
-        )  # [M, C]
-        masked_patch_tokens_after_ibot = self.student_head.ibot_head.forward(
-            masked_patch_tokens
-        )  # [M, D]
-
-        return cls_tokens_after_dino, cls_tokens, masked_patch_tokens_after_ibot
+        return cls_tokens_after_dino, cls_tokens, patch_tokens_after_ibot
 
     def _forward_student_local(self, x: Tensor) -> Tensor:
         tokens = self.student_embedding_model.wrapped_model.forward_features(
