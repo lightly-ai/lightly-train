@@ -399,6 +399,33 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
     num_top_queries: int = 300
 
 
+class _HybridEncoderFastViTSAConfig(_HybridEncoderConfig):
+    in_channels: list[int] = [128, 256, 512]
+    feat_strides: list[int] = [8, 16, 32]
+    hidden_dim: int = 256
+    use_encoder_idx: list[int] = [2]
+    num_encoder_layers: int = 1
+    nhead: int = 8
+    dim_feedforward: int = 1024
+    dropout: float = 0.0
+    enc_act: str = "gelu"
+    expansion: float = 1.0
+    depth_mult: float = 1.0
+    act: str = "silu"
+
+
+class _RTDETRTransformerv2FastViTSAConfig(_RTDETRTransformerv2Config):
+    feat_channels: list[int] = [256, 256, 256]
+    hidden_dim: int = 256
+
+
+class _DFINETransformerFastViTSAConfig(_DFINETransformerConfig):
+    feat_channels: list[int] = [256, 256, 256]
+    hidden_dim: int = 256
+    num_layers: int = 3
+    dim_feedforward: int = 1024
+
+
 class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     decoder_name: _LTDETRDecoderName = "rtdetrv2"
     hybrid_encoder: _HybridEncoderConfig
@@ -560,102 +587,52 @@ class _DINOv3LTDETRObjectDetectionViTLConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
-_COMPATIBLE_PACKAGES: list[Package] = [DINOV3_PACKAGE, DINOV2_VIT_PACKAGE, FASTVIT_PACKAGE]
-
-
-def _build_dynamic_config(
-    model_wrapper: MultiScaleFeatureViT | MultiScaleFeatureCNN,
-) -> tuple[_DINOv3LTDETRObjectDetectionConfig, dict]:
-    """Build encoder/decoder config and ViT wrapper kwargs from backbone introspection.
-
-    Used for backbones not present in the hardcoded config_mapping (i.e., non-DINOv3
-    backbones). Returns a (config, vit_wrapper_kwargs) pair; vit_wrapper_kwargs is empty
-    for CNN backbones.
-    """
-    if isinstance(model_wrapper, MultiScaleFeatureViT):
-        embed_dim = model_wrapper.feature_dim()
-        num_blocks = len(model_wrapper.multiscale_feature_dims())
-        # Evenly spaced extraction points at ~1/3, ~2/3, and the final block.
-        i1 = max(0, num_blocks // 3 - 1)
-        i2 = max(i1 + 1, 2 * num_blocks // 3 - 1)
-        i3 = num_blocks - 1
-        interaction_indexes = [i1, i2, i3]
-        dim_feedforward = embed_dim * 4
-
-        hybrid_encoder = _HybridEncoderConfig(
-            in_channels=[embed_dim, embed_dim, embed_dim],
-            feat_strides=[8, 16, 32],
-            hidden_dim=embed_dim,
-            use_encoder_idx=[2],
-            num_encoder_layers=1,
-            nhead=8,
-            dim_feedforward=dim_feedforward,
-            dropout=0.0,
-            enc_act="gelu",
-            expansion=1.0,
-            depth_mult=1.0,
-            act="silu",
-        )
-        rtdetr_transformer = _RTDETRTransformerv2Config(
-            feat_channels=[embed_dim, embed_dim, embed_dim],
-            feat_strides="auto",
-            hidden_dim=embed_dim,
-            num_layers=4,
-            num_points=[3, 6, 3],
-            dim_feedforward=dim_feedforward,
-        )
-        dfine_transformer = _DFINETransformerConfig(
-            feat_channels=[embed_dim, embed_dim, embed_dim],
-            feat_strides=[8, 16, 32],
-            hidden_dim=embed_dim,
-            num_layers=4,
-            dim_feedforward=dim_feedforward,
-        )
-        vit_wrapper_kwargs = {
-            "interaction_indexes": interaction_indexes,
-            "hidden_dim": embed_dim,
-            "conv_inplane": 16,
-            "finetune": True,
-        }
-    else:
-        # CNN backbone: read per-stage channel dims, request stages [1, 2, 3].
-        stage_dims = model_wrapper.multiscale_feature_dims()
-        in_channels = stage_dims[1:4]
-        hidden_dim = 384
-
-        hybrid_encoder = _HybridEncoderConfig(
-            in_channels=in_channels,
-            feat_strides=[8, 16, 32],
-            hidden_dim=hidden_dim,
-            use_encoder_idx=[2],
-            num_encoder_layers=1,
-            nhead=8,
-            dim_feedforward=2048,
-            dropout=0.0,
-            enc_act="gelu",
-            expansion=1.0,
-            depth_mult=1.0,
-            act="silu",
-        )
-        rtdetr_transformer = _RTDETRTransformerv2Config(
-            feat_channels=[hidden_dim, hidden_dim, hidden_dim],
-            feat_strides="auto",
-            hidden_dim=hidden_dim,
-        )
-        dfine_transformer = _DFINETransformerConfig(
-            feat_channels=[hidden_dim, hidden_dim, hidden_dim],
-            feat_strides=[8, 16, 32],
-            hidden_dim=hidden_dim,
-        )
-        vit_wrapper_kwargs = {}
-
-    config = _DINOv3LTDETRObjectDetectionConfig(
-        hybrid_encoder=hybrid_encoder,
-        rtdetr_transformer=rtdetr_transformer,
-        dfine_transformer=dfine_transformer,
-        rtdetr_postprocessor=_RTDETRPostProcessorConfig(),
+class _DINOv3LTDETRObjectDetectionFastViTSA12Config(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderFastViTSAConfig = Field(
+        default_factory=_HybridEncoderFastViTSAConfig
     )
-    return config, vit_wrapper_kwargs
+    rtdetr_transformer: _RTDETRTransformerv2FastViTSAConfig = Field(
+        default_factory=_RTDETRTransformerv2FastViTSAConfig
+    )
+    dfine_transformer: _DFINETransformerFastViTSAConfig = Field(
+        default_factory=_DFINETransformerFastViTSAConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionFastViTSA24Config(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderFastViTSAConfig = Field(
+        default_factory=_HybridEncoderFastViTSAConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2FastViTSAConfig = Field(
+        default_factory=_RTDETRTransformerv2FastViTSAConfig
+    )
+    dfine_transformer: _DFINETransformerFastViTSAConfig = Field(
+        default_factory=_DFINETransformerFastViTSAConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+
+
+class _DINOv3LTDETRObjectDetectionFastViTSA36Config(_DINOv3LTDETRObjectDetectionConfig):
+    hybrid_encoder: _HybridEncoderFastViTSAConfig = Field(
+        default_factory=_HybridEncoderFastViTSAConfig
+    )
+    rtdetr_transformer: _RTDETRTransformerv2FastViTSAConfig = Field(
+        default_factory=_RTDETRTransformerv2FastViTSAConfig
+    )
+    dfine_transformer: _DFINETransformerFastViTSAConfig = Field(
+        default_factory=_DFINETransformerFastViTSAConfig
+    )
+    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
+        default_factory=_RTDETRPostProcessorConfig
+    )
+
+
+_COMPATIBLE_PACKAGES: list[Package] = [DINOV3_PACKAGE, DINOV2_VIT_PACKAGE, FASTVIT_PACKAGE]
 
 
 class DINOv3LTDETRObjectDetection(TaskModel):
@@ -774,6 +751,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
             "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
             "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
+            "fastvit_sa12": _DINOv3LTDETRObjectDetectionFastViTSA12Config,
+            "fastvit_sa24": _DINOv3LTDETRObjectDetectionFastViTSA24Config,
+            "fastvit_sa36": _DINOv3LTDETRObjectDetectionFastViTSA36Config,
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
@@ -786,7 +766,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 else {}
             )
         else:
-            config, vit_wrapper_kwargs = _build_dynamic_config(model_wrapper)
+            raise ValueError(
+                f"Backbone '{parsed_name['backbone_name']}' from package "
+                f"'{parsed_name['package_name']}' is not supported by LT-DETR. "
+                f"Supported backbones: {list(config_mapping)}."
+            )
         config.decoder_name = decoder_name
 
         # For ViT backbones, derive patch_size from the model wrapper itself so that
