@@ -114,7 +114,7 @@ def test_export_onnx__dynamic_output_shapes(
     std = model.image_normalize["std"]
 
     def preprocess(img: Image.Image) -> np.ndarray:
-        t = F.to_dtype(F.to_image(img), scale=True)
+        t = F.to_dtype(F.to_image(img), torch.float32, scale=True)
         t = F.resize(t, [h, w])
         t = F.normalize(t, mean=list(mean), std=list(std))
         return np.asarray(t.unsqueeze(0))
