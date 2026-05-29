@@ -92,6 +92,8 @@ def _create_train_model(
     )
     train_model_args.resolve_auto(
         total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
         model_name="dinov2/_vittest14-ltdetr",
         model_init_args={},
         data_args=data_args,
@@ -129,6 +131,8 @@ def test_get_optimizer__scheduler_modes(
         DINOv2LTDETRObjectDetectionTrainArgs(
             scheduler_name=scheduler_name,
             lr_warmup_steps=500,
+            scheduler_flat_steps=550,
+            scheduler_no_aug_steps=150,
         )
     )
     optimizer, scheduler = train_model.get_optimizer(

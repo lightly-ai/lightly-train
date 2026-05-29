@@ -72,6 +72,8 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     def resolve_auto(
         self,
         total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
@@ -175,7 +177,7 @@ class ImageClassificationTrain(TrainModel):
         return self.model
 
     def forward(self, images: Tensor) -> Tensor:
-        return self.model.forward_train(images)
+        return self.model.forward_backend(images)
 
     def training_step(
         self, fabric: Fabric, batch: ImageClassificationBatch, step: int

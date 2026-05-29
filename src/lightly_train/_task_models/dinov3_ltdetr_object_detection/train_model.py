@@ -57,6 +57,9 @@ from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
 )
+from lightly_train._task_models.object_detection_components.ltdetr_schedule import (
+    resolve_ltdetr_step_schedule,
+)
 from lightly_train._task_models.object_detection_components.matcher import (
     HungarianMatcher,
 )
@@ -148,10 +151,14 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         default=2000,
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
+    scheduler_flat_steps: int | Literal["auto"] = "auto"
+    scheduler_no_aug_steps: int | Literal["auto"] = "auto"
 
     def resolve_auto(
         self,
         total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
@@ -175,6 +182,18 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                         "Unable to resolve patch_size='auto' for model "
                         f"{model_name!r}. Please provide a concrete patch_size."
                     )
+        if self.scheduler_flat_steps == "auto" or self.scheduler_no_aug_steps == "auto":
+            scheduler_step_schedule = resolve_ltdetr_step_schedule(
+                total_steps=total_steps,
+                train_num_batches=train_num_batches,
+                gradient_accumulation_steps=gradient_accumulation_steps,
+            )
+            if self.scheduler_flat_steps == "auto":
+                self.scheduler_flat_steps = scheduler_step_schedule.step_flat
+            if self.scheduler_no_aug_steps == "auto":
+                self.scheduler_no_aug_steps = (
+                    total_steps - scheduler_step_schedule.step_stop
+                )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -607,6 +626,8 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
                 optimizer=optim,
                 total_steps=total_steps,
                 warmup_steps=self.model_args.lr_warmup_steps,
+                flat_steps=no_auto(self.model_args.scheduler_flat_steps),
+                no_aug_steps=no_auto(self.model_args.scheduler_no_aug_steps),
             )
         else:
             raise ValueError(
