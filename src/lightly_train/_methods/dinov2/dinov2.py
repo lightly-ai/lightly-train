@@ -384,7 +384,7 @@ class DINOv2(Method):
             log_dict={
                 "train_loss/dino_global_loss": dino_global_loss,
                 "train_loss/dino_local_loss": dino_local_loss,
-                "train_loss/ibot_loss": ibot_loss,
+                "train_loss/ibot_pp_loss": ibot_loss,
                 "train_loss/koleo_loss": koleo_loss,
             },
         )
