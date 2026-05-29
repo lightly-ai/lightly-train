@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
+from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import GELU, Embedding, Linear, Sequential
@@ -1083,6 +1084,13 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
         input_names = ["images"]
         output_names = ["masks", "segment_ids", "scores"]
+
+        torch_version = version.parse(torch.__version__.split("+", 1)[0])
+        if torch_version < version.parse("2.5.0"):
+            raise RuntimeError(
+                f"ONNX export for this model requires torch >= 2.5.0 "
+                f"(dynamo export), but found torch {torch.__version__}."
+            )
 
         torch.onnx.export(
             self,

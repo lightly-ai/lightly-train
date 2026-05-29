@@ -48,6 +48,16 @@ def lightly_train_cache_dir(
         shutil.rmtree(cache_dir, ignore_errors=True)
 
 
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    if os.environ.get("GITHUB_ACTIONS"):
+        skip_long = pytest.mark.skip(reason="long running test, skipped on Github CI")
+        for item in items:
+            if "long_running_test" in item.keywords:
+                item.add_marker(skip_long)
+
+
 @pytest.fixture(autouse=True)  # Apply to all tests
 def set_test_env_variables(
     mocker: MockerFixture,
