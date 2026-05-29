@@ -25,13 +25,11 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
-from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
-from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
-from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
+from lightly_train._models.fastvit.fastvit_package import FASTVIT_PACKAGE
+from lightly_train._models.model_wrapper import MultiScaleFeatureCNN, MultiScaleFeatureViT
+from lightly_train._models.package import Package
 from lightly_train._task_models.dinov3_ltdetr_object_detection.cnn_wrapper import (
     CNNMultiScaleBackboneWrapper,
 )
@@ -562,6 +560,104 @@ class _DINOv3LTDETRObjectDetectionViTLConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
+_COMPATIBLE_PACKAGES: list[Package] = [DINOV3_PACKAGE, DINOV2_VIT_PACKAGE, FASTVIT_PACKAGE]
+
+
+def _build_dynamic_config(
+    model_wrapper: MultiScaleFeatureViT | MultiScaleFeatureCNN,
+) -> tuple[_DINOv3LTDETRObjectDetectionConfig, dict]:
+    """Build encoder/decoder config and ViT wrapper kwargs from backbone introspection.
+
+    Used for backbones not present in the hardcoded config_mapping (i.e., non-DINOv3
+    backbones). Returns a (config, vit_wrapper_kwargs) pair; vit_wrapper_kwargs is empty
+    for CNN backbones.
+    """
+    if isinstance(model_wrapper, MultiScaleFeatureViT):
+        embed_dim = model_wrapper.feature_dim()
+        num_blocks = len(model_wrapper.multiscale_feature_dims())
+        # Evenly spaced extraction points at ~1/3, ~2/3, and the final block.
+        i1 = max(0, num_blocks // 3 - 1)
+        i2 = max(i1 + 1, 2 * num_blocks // 3 - 1)
+        i3 = num_blocks - 1
+        interaction_indexes = [i1, i2, i3]
+        dim_feedforward = embed_dim * 4
+
+        hybrid_encoder = _HybridEncoderConfig(
+            in_channels=[embed_dim, embed_dim, embed_dim],
+            feat_strides=[8, 16, 32],
+            hidden_dim=embed_dim,
+            use_encoder_idx=[2],
+            num_encoder_layers=1,
+            nhead=8,
+            dim_feedforward=dim_feedforward,
+            dropout=0.0,
+            enc_act="gelu",
+            expansion=1.0,
+            depth_mult=1.0,
+            act="silu",
+        )
+        rtdetr_transformer = _RTDETRTransformerv2Config(
+            feat_channels=[embed_dim, embed_dim, embed_dim],
+            feat_strides="auto",
+            hidden_dim=embed_dim,
+            num_layers=4,
+            num_points=[3, 6, 3],
+            dim_feedforward=dim_feedforward,
+        )
+        dfine_transformer = _DFINETransformerConfig(
+            feat_channels=[embed_dim, embed_dim, embed_dim],
+            feat_strides=[8, 16, 32],
+            hidden_dim=embed_dim,
+            num_layers=4,
+            dim_feedforward=dim_feedforward,
+        )
+        vit_wrapper_kwargs = {
+            "interaction_indexes": interaction_indexes,
+            "hidden_dim": embed_dim,
+            "conv_inplane": 16,
+            "finetune": True,
+        }
+    else:
+        # CNN backbone: read per-stage channel dims, request stages [1, 2, 3].
+        stage_dims = model_wrapper.multiscale_feature_dims()
+        in_channels = stage_dims[1:4]
+        hidden_dim = 384
+
+        hybrid_encoder = _HybridEncoderConfig(
+            in_channels=in_channels,
+            feat_strides=[8, 16, 32],
+            hidden_dim=hidden_dim,
+            use_encoder_idx=[2],
+            num_encoder_layers=1,
+            nhead=8,
+            dim_feedforward=2048,
+            dropout=0.0,
+            enc_act="gelu",
+            expansion=1.0,
+            depth_mult=1.0,
+            act="silu",
+        )
+        rtdetr_transformer = _RTDETRTransformerv2Config(
+            feat_channels=[hidden_dim, hidden_dim, hidden_dim],
+            feat_strides="auto",
+            hidden_dim=hidden_dim,
+        )
+        dfine_transformer = _DFINETransformerConfig(
+            feat_channels=[hidden_dim, hidden_dim, hidden_dim],
+            feat_strides=[8, 16, 32],
+            hidden_dim=hidden_dim,
+        )
+        vit_wrapper_kwargs = {}
+
+    config = _DINOv3LTDETRObjectDetectionConfig(
+        hybrid_encoder=hybrid_encoder,
+        rtdetr_transformer=rtdetr_transformer,
+        dfine_transformer=dfine_transformer,
+        rtdetr_postprocessor=_RTDETRPostProcessorConfig(),
+    )
+    return config, vit_wrapper_kwargs
+
+
 class DINOv3LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
@@ -643,26 +739,30 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
-            "patch_size": patch_size,
-        }
+        backbone_model_args: dict[str, Any] = {}
+        # patch_size is a DINOv3-specific constructor argument; other packages derive
+        # the patch size from the model architecture.
+        if parsed_name["package_name"] == DINOV3_PACKAGE.name:
+            backbone_model_args["patch_size"] = patch_size
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        get_model_kwargs = {}
-        if self.image_normalize is not None:
-            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
-
-        # Get the backbone.
-        backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
+        # Get the backbone wrapper (protocol-based, works for any compatible package).
+        model_wrapper = package_helpers.get_wrapped_model(
+            model=f"{parsed_name['package_name']}/{parsed_name['backbone_name']}",
+            num_input_channels=self._expected_input_channels,
             model_args=backbone_model_args,
             load_weights=load_weights,
-            **get_model_kwargs,
         )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
+        if not isinstance(model_wrapper, (MultiScaleFeatureViT, MultiScaleFeatureCNN)):
+            raise ValueError(
+                f"Backbone '{parsed_name['backbone_name']}' from package "
+                f"'{parsed_name['package_name']}' does not implement multi-scale "
+                "feature extraction (MultiScaleFeatureViT or MultiScaleFeatureCNN) "
+                "required by LT-DETR."
+            )
 
         config_mapping = {
             "vitt16": _DINOv3LTDETRObjectDetectionViTTConfig,
@@ -678,32 +778,42 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
         config_name = config_name.replace("-eupe", "")
-        config_cls = config_mapping[config_name]
-        config = config_cls()
+        if config_name in config_mapping:
+            config = config_mapping[config_name]()
+            vit_wrapper_kwargs: dict = (
+                config.backbone_wrapper.model_dump()
+                if isinstance(model_wrapper, MultiScaleFeatureViT)
+                else {}
+            )
+        else:
+            config, vit_wrapper_kwargs = _build_dynamic_config(model_wrapper)
         config.decoder_name = decoder_name
 
-        config.resolve_auto(patch_size=patch_size)
+        # For ViT backbones, derive patch_size from the model wrapper itself so that
+        # non-DINOv3 backbones (which don't accept patch_size as a constructor arg)
+        # still resolve strides correctly.
+        resolved_patch_size = (
+            model_wrapper.patch_size()
+            if isinstance(model_wrapper, MultiScaleFeatureViT)
+            else patch_size
+        )
+        config.resolve_auto(patch_size=resolved_patch_size)
 
         self.backbone: ViTSTAsBackboneWrapper | CNNMultiScaleBackboneWrapper
 
-        if isinstance(backbone, DinoVisionTransformer):
-            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
-            backbone.mask_token.requires_grad = False  # type: ignore
+        # Disable mask token gradient for models that use them (e.g. DINOv3 ViT).
+        # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+        underlying = model_wrapper.get_model()
+        if hasattr(underlying, "mask_token") and underlying.mask_token is not None:
+            underlying.mask_token.requires_grad = False
 
-            # ViT models.
-            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
+        if isinstance(model_wrapper, MultiScaleFeatureViT):
             self.backbone = ViTSTAsBackboneWrapper(
-                model_wrapper=vit_model_wrapper,
-                **config.backbone_wrapper.model_dump(),
+                model_wrapper=model_wrapper,
+                **vit_wrapper_kwargs,
             )
-
         else:
-            # ConvNext models.
-            assert isinstance(backbone, ConvNeXt)
-            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-            self.backbone = CNNMultiScaleBackboneWrapper(
-                model_wrapper=convnext_model_wrapper
-            )
+            self.backbone = CNNMultiScaleBackboneWrapper(model_wrapper=model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
@@ -728,7 +838,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
+            f"{name}-{cls.model_suffix}"
+            for pkg in _COMPATIBLE_PACKAGES
+            for name in pkg.list_model_names()
         ]
 
     @classmethod
@@ -760,16 +872,25 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
         try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
+            pkg = package_helpers.get_package(package_name)
         except ValueError:
             raise_invalid_name()
 
+        if pkg not in _COMPATIBLE_PACKAGES:
+            raise_invalid_name()
+
+        # Normalize the backbone name if the package supports it (e.g. DINOv3, DINOv2
+        # strip variant suffixes like -notpretrained, -noreg, etc.).
+        if hasattr(pkg, "parse_model_name"):
+            try:
+                backbone_name = pkg.parse_model_name(model_name=backbone_name)
+            except ValueError:
+                raise_invalid_name()
+
         return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
+            "package_name": package_name,
             "backbone_name": backbone_name,
         }
 
