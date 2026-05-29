@@ -5,36 +5,36 @@
 This page covers the settings available for self-supervised pretraining and distillation
 in LightlyTrain. For task-specific fine-tuning options, see the [](train-settings) page.
 
-| Name                                                    | Type                          | Default          | Description                                                                                       |
-| ------------------------------------------------------- | ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
-| [`out`](#out)                                           | `str`<br>`Path`               | —                | Output directory where checkpoints, logs, and exported models are written.                        |
-| [`data`](#data)                                         | `str`<br>`Path`<br>`list`     | —                | Path or list of paths to directory with training images.                                          |
-| [`model`](#model)                                       | `str`<br>`Path`<br>`Module`   | —                | Model identifier (e.g. "dinov2/vits14") or a custom PyTorch module to wrap.                       |
-| [`method`](#method)                                     | `str`                         | `"distillation"` | Self-supervised method to run (e.g. "dinov2", "simclr").                                          |
-| [`method_args`](#method_args)                           | `dict`                        | `None`           | Method-specific hyperparameters.                                                                  |
-| [`embed_dim`](#embed_dim)                               | `int`                         | `None`           | Optional embedding dimensionality override.                                                       |
-| [`epochs`](#epochs)                                     | `int`                         | `auto`           | Number of training epochs. `auto` derives a value from dataset size and batch size.               |
-| [`batch_size`](#batch_size)                             | `int`                         | `128`            | Global batch size across all devices.                                                             |
-| [`gradient_accumulation_steps`](#gradient_accumulation_steps) | `int` | `1` | Number of gradient accumulation steps. |
-| [`num_workers`](#num_workers)                           | `int`                         | `"auto"`         | DataLoader worker processes per device. `"auto"` chooses a value based on available CPU cores.    |
-| [`devices`](#devices)                                   | `int`<br>`str`<br>`list[int]` | `"auto"`         | Devices to use for training. `"auto"` selects all available devices for the chosen `accelerator`. |
-| [`num_nodes`](#num_nodes)                               | `int`                         | `1`              | Number of nodes for distributed training.                                                         |
-| [`resume_interrupted`](#resume_interrupted)             | `bool`                        | `False`          | Resume an interrupted run from the same `out` directory, including optimizer state and epoch.     |
-| [`checkpoint`](#checkpoint)                             | `str`<br>`Path`               | `None`           | Path to a checkpoint to initialize weights from before starting a new run.                        |
-| [`overwrite`](#overwrite)                               | `bool`                        | `False`          | If `True`, overwrite the `out` directory if it already exists.                                    |
-| [`accelerator`](#accelerator)                           | `str`                         | `"auto"`         | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.              |
-| [`strategy`](#strategy)                                 | `str`                         | `"auto"`         | Distributed training strategy (e.g. `ddp`). `"auto"` selects a suitable default.                  |
-| [`precision`](#precision)                               | `str`                         | `"auto"`         | Numeric precision mode (e.g. `bf16-mixed`, `16-mixed`).                                           |
-| [`float32_matmul_precision`](#float32_matmul_precision) | `str`                         | `"auto"`         | Precision for float32 matrix multiplication.                                                      |
-| [`seed`](#seed)                                         | `int`                         | `0`              | Random seed for reproducibility.                                                                  |
-| [`loggers`](#loggers)                                   | `dict`                        | `None`           | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.    |
-| [`callbacks`](#callbacks)                               | `dict`                        | `None`           | Callback configuration dict. `None` enables the recommended defaults.                             |
-| [`optim`](#optim)                                       | `str`                         | `"auto"`         | Optimizer selection (`"auto"`, `"adamw"`, `"lars"`, `"sgd"`).                                     |
-| [`optim_args`](#optim_args)                             | `dict`                        | `None`           | Overrides for optimizer hyperparameters.                                                          |
-| [`transform_args`](#transform_args)                     | `dict`                        | `None`           | Data transform configuration (e.g. image size, normalization).                                    |
-| [`loader_args`](#loader_args)                           | `dict`                        | `None`           | Advanced DataLoader keyword arguments.                                                            |
-| [`trainer_args`](#trainer_args)                         | `dict`                        | `None`           | Additional Lightning Trainer keyword arguments.                                                   |
-| [`model_args`](#model_args)                             | `dict`                        | `None`           | Arguments forwarded to model construction.                                                        |
+| Name                                                          | Type                          | Default          | Description                                                                                       |
+| ------------------------------------------------------------- | ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------- |
+| [`out`](#out)                                                 | `str`<br>`Path`               | —                | Output directory where checkpoints, logs, and exported models are written.                        |
+| [`data`](#data)                                               | `str`<br>`Path`<br>`list`     | —                | Path or list of paths to directory with training images.                                          |
+| [`model`](#model)                                             | `str`<br>`Path`<br>`Module`   | —                | Model identifier (e.g. "dinov2/vits14") or a custom PyTorch module to wrap.                       |
+| [`method`](#method)                                           | `str`                         | `"distillation"` | Self-supervised method to run (e.g. "dinov2", "simclr").                                          |
+| [`method_args`](#method_args)                                 | `dict`                        | `None`           | Method-specific hyperparameters.                                                                  |
+| [`embed_dim`](#embed_dim)                                     | `int`                         | `None`           | Optional embedding dimensionality override.                                                       |
+| [`epochs`](#epochs)                                           | `int`                         | `auto`           | Number of training epochs. `auto` derives a value from dataset size and batch size.               |
+| [`batch_size`](#batch_size)                                   | `int`                         | `128`            | Global batch size across all devices.                                                             |
+| [`gradient_accumulation_steps`](#gradient_accumulation_steps) | `int`                         | `1`              | Number of gradient accumulation steps.                                                            |
+| [`num_workers`](#num_workers)                                 | `int`                         | `"auto"`         | DataLoader worker processes per device. `"auto"` chooses a value based on available CPU cores.    |
+| [`devices`](#devices)                                         | `int`<br>`str`<br>`list[int]` | `"auto"`         | Devices to use for training. `"auto"` selects all available devices for the chosen `accelerator`. |
+| [`num_nodes`](#num_nodes)                                     | `int`                         | `1`              | Number of nodes for distributed training.                                                         |
+| [`resume_interrupted`](#resume_interrupted)                   | `bool`                        | `False`          | Resume an interrupted run from the same `out` directory, including optimizer state and epoch.     |
+| [`checkpoint`](#checkpoint)                                   | `str`<br>`Path`               | `None`           | Path to a checkpoint to initialize weights from before starting a new run.                        |
+| [`overwrite`](#overwrite)                                     | `bool`                        | `False`          | If `True`, overwrite the `out` directory if it already exists.                                    |
+| [`accelerator`](#accelerator)                                 | `str`                         | `"auto"`         | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.              |
+| [`strategy`](#strategy)                                       | `str`                         | `"auto"`         | Distributed training strategy (e.g. `ddp`). `"auto"` selects a suitable default.                  |
+| [`precision`](#precision)                                     | `str`                         | `"auto"`         | Numeric precision mode (e.g. `bf16-mixed`, `16-mixed`).                                           |
+| [`float32_matmul_precision`](#float32_matmul_precision)       | `str`                         | `"auto"`         | Precision for float32 matrix multiplication.                                                      |
+| [`seed`](#seed)                                               | `int`                         | `0`              | Random seed for reproducibility.                                                                  |
+| [`loggers`](#loggers)                                         | `dict`                        | `None`           | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.    |
+| [`callbacks`](#callbacks)                                     | `dict`                        | `None`           | Callback configuration dict. `None` enables the recommended defaults.                             |
+| [`optim`](#optim)                                             | `str`                         | `"auto"`         | Optimizer selection (`"auto"`, `"adamw"`, `"lars"`, `"sgd"`).                                     |
+| [`optim_args`](#optim_args)                                   | `dict`                        | `None`           | Overrides for optimizer hyperparameters.                                                          |
+| [`transform_args`](#transform_args)                           | `dict`                        | `None`           | Data transform configuration (e.g. image size, normalization).                                    |
+| [`loader_args`](#loader_args)                                 | `dict`                        | `None`           | Advanced DataLoader keyword arguments.                                                            |
+| [`trainer_args`](#trainer_args)                               | `dict`                        | `None`           | Additional Lightning Trainer keyword arguments.                                                   |
+| [`model_args`](#model_args)                                   | `dict`                        | `None`           | Arguments forwarded to model construction.                                                        |
 
 ```{tip}
 LightlyTrain automatically selects suitable default values based on the chosen
@@ -82,8 +82,8 @@ We recommend values between `128` and `2048`. The default is `128`.
 
 ### `gradient_accumulation_steps`
 
-Number of gradient accumulation steps. The effective global batch size is:
-batch_size * gradient_accumulation_steps.  
+Number of gradient accumulation steps. The effective global batch size is: batch_size \*
+gradient_accumulation_steps.\
 Set to 1 to disable gradient accumulation.
 
 ### `num_workers`

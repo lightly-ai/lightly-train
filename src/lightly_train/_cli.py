@@ -95,7 +95,7 @@ _PRETRAIN_HELP_MSG = f"""
         gradient_accumulation_steps:
             Number of gradient accumulation steps. Set to 1 to disable gradient accumulation.
             The effective global batch size is batch_size * gradient_accumulation_steps.
-            This is equivalent to passing trainer_args={"accumulate_grad_batches": N}.
+            This is equivalent to passing trainer_args={{"accumulate_grad_batches": N}}.
             Default: {_train_cfg.gradient_accumulation_steps}
         num_workers (int | "auto"):
             Number of workers for the dataloader per device/GPU. 'auto' automatically  
