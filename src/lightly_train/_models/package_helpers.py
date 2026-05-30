@@ -16,6 +16,7 @@ from lightly_train._models import model_wrapper
 from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
+from lightly_train._models.fastvit.fastvit_package import FASTVIT_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage, Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
@@ -31,6 +32,7 @@ from lightly_train.errors import UnknownModelError
 def list_base_packages() -> list[BasePackage]:
     """Lists all supported packages."""
     return [
+        FASTVIT_PACKAGE,
         RFDETR_PACKAGE,
         SUPER_GRADIENTS_PACKAGE,
         TIMM_PACKAGE,

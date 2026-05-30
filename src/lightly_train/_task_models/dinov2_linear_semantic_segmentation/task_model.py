@@ -23,9 +23,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
+from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -65,10 +63,10 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
             image_normalize:
                 The normalization parameters for images. Default uses ImageNet stats.
             backbone_weights:
-                The path to the DINOv2 backbone weights. The weights must be exported
+                The path to the backbone weights. The weights must be exported
                 using LightlyTrain.
             backbone_args:
-                Additional arguments to pass to the DINOv2 backbone.
+                Additional arguments to pass to the backbone.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -108,27 +106,36 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         if self.class_ignore_index is not None:
             self.included_classes[self.class_ignore_index] = "ignored"
 
-        # Disable drop path by default.
-        args = {
-            "drop_path_rate": 0.0,
-            "in_chans": len(self.image_normalize["mean"]),
-        }
+        # Disable drop path by default for DINOv2.
+        args: dict[str, Any] = {}
+        if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
+            args["drop_path_rate"] = 0.0
         if backbone_args is not None:
             args.update(backbone_args)
+        # Non-DINOv2 builders (e.g. DINOv3) hardcode drop_path_rate internally;
+        # passing it again causes a duplicate keyword argument error.
+        if parsed_name["package_name"] != DINOV2_VIT_PACKAGE.name:
+            args.pop("drop_path_rate", None)
 
-        # Get the backbone.
-        self.backbone: DinoVisionTransformer = DINOV2_VIT_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
+        # Build the backbone via the package registry.
+        num_channels = len(self.image_normalize["mean"])
+        self.backbone: ModelWrapper = package_helpers.get_wrapped_model(
+            model=f"{parsed_name['package_name']}/{parsed_name['backbone_name']}",
+            num_input_channels=num_channels,
             model_args=args,
             load_weights=load_weights,
         )
-        embed_dim = self.backbone.embed_dim
-        self.patch_size = self.backbone.patch_size
+        embed_dim = self.backbone.feature_dim()
+
+        # patch_size is only available on ViT backbones.
+        underlying = self.backbone.get_model()
+        self.patch_size: int | None = getattr(underlying, "patch_size", None)
 
         # TODO(Guarin, 07/25): Improve how mask tokens are handled for fine-tuning.
         # Should we drop them from the model? We disable grads here for DDP to work
         # without find_unused_parameters=True.
-        self.backbone.mask_token.requires_grad = False
+        if hasattr(underlying, "mask_token"):
+            underlying.mask_token.requires_grad = False
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.
@@ -144,7 +151,8 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
     def list_model_names(cls) -> list[str]:
         return [
             f"{name}-{cls.model_suffix}"
-            for name in DINOV2_VIT_PACKAGE.list_model_names()
+            for pkg in package_helpers.list_packages()
+            for name in pkg.list_model_names()
         ]
 
     @classmethod
@@ -176,19 +184,22 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV2_VIT_PACKAGE.name:
-            raise_invalid_name()
-
         try:
-            backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
-                model_name=backbone_name
-            )
+            package = package_helpers.get_package(package_name)
         except ValueError:
             raise_invalid_name()
 
+        # Canonicalize the backbone name if the package supports it.
+        if hasattr(package, "parse_model_name"):
+            try:
+                backbone_name = package.parse_model_name(model_name=backbone_name)
+            except (ValueError, KeyError):
+                raise_invalid_name()
+
         return {
-            "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
+            "package_name": package_name,
         }
 
     @torch.no_grad()
@@ -343,18 +354,15 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         return masks, logits
 
     def forward_train(self, x: Tensor) -> Tensor:
-        B, _, H, W = x.shape
+        _, _, H, W = x.shape
 
-        # Get the patch tokens -> (B, N, D) where N = H_patch * W_patch.
-        patch_tokens = self.backbone(x, is_training=True)["x_norm_patchtokens"]
+        # Get the patch tokens -> (B, D, H_patch, W_patch).
+        features = self.backbone.forward_features(x)["features"]
 
-        # Classify the patch tokens -> (B, N, K|K+1), K=num_classes
-        logits: Tensor = self.head(patch_tokens)
-
-        # Reshape back to (B, K|K+1, H_patch, W_patch).
-        H_patch = math.ceil(H / self.patch_size)
-        W_patch = math.ceil(W / self.patch_size)
-        logits = logits.permute(0, 2, 1).reshape(B, -1, H_patch, W_patch)
+        # Classify the patch tokens -> (B, K|K+1, H_patch, W_patch), K=num_classes.
+        features = features.permute(0, 2, 3, 1)  # (B, H_patch, W_patch, D)
+        logits: Tensor = self.head(features)  # (B, H_patch, W_patch, K|K+1)
+        logits = logits.permute(0, 3, 1, 2)  # (B, K|K+1, H_patch, W_patch)
 
         # Up-sample to match original image/mask resolution.
         # (B, K|K+1, H, W)
@@ -474,7 +482,9 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         state_dict = torch.load(path, map_location="cpu", weights_only=False)
 
         # Load the state dict into the backbone.
-        missing, unexpected = self.backbone.load_state_dict(state_dict, strict=False)
+        missing, unexpected = self.backbone.get_model().load_state_dict(
+            state_dict, strict=False
+        )
 
         # Log missing and unexpected keys.
         if missing or unexpected:
@@ -495,5 +505,5 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         self.load_state_dict(new_state_dict, strict=True)
 
     def freeze_backbone(self) -> None:
-        self.backbone.eval()
-        self.backbone.requires_grad_(False)
+        self.backbone.eval()  # type: ignore[attr-defined]
+        self.backbone.requires_grad_(False)  # type: ignore[attr-defined]
