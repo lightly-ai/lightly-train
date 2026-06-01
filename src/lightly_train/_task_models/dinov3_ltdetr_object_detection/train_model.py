@@ -35,9 +35,6 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
-)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -46,6 +43,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
     DINOv3LTDETRObjectDetectionValTransform,
     DINOv3LTDETRObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.vit_wrapper import (
+    ViTSTAsBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components.dfine_criterion import (
     DFINECriterion,
@@ -176,6 +176,8 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                 if match is not None:
                     self.patch_size = int(match.group("patch_size"))
                 elif re.match(r"dinov3/convnext.*", model_name) is not None:
+                    self.patch_size = None
+                elif re.match(r"fastvit/.*", model_name) is not None:
                     self.patch_size = None
                 else:
                     raise ValueError(
@@ -545,7 +547,7 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         backbone_lr = lr * self.model_args.backbone_lr_factor
 
         backbone = self.model.backbone
-        if isinstance(backbone, DINOv3STAs):
+        if isinstance(backbone, ViTSTAsBackboneWrapper):
             # Only the pretrained ViT gets the low backbone LR.
             backbone_params = list(backbone.backbone_model.parameters())
             # The connector modules (sta, convs, norms) are randomly initialized and
