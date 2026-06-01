@@ -26,7 +26,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._task_models.depth_anything_v3_depth_estimation.dpt_head import (
+from lightly_train._task_models.dinov2_dav3_depth_estimation.dpt_head import (
     DPTHead,
 )
 from lightly_train._task_models.task_model import TaskModel

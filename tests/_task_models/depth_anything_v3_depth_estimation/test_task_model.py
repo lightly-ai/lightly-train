@@ -14,7 +14,7 @@ import torch
 from PIL import Image
 from torch import Tensor
 
-from lightly_train._task_models.depth_anything_v3_depth_estimation.task_model import (
+from lightly_train._task_models.dinov2_dav3_depth_estimation.task_model import (
     DepthAnythingV3MonocularDepthEstimation,
 )
 
