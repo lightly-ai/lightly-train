@@ -53,7 +53,11 @@ def test_removes_fp32_fp16_fp32_pair(tmp_path: Path) -> None:
     model = onnx.load(model_path)
     remove_redundant_casts(model)
 
-    assert len(model.graph.node) == 0
+    # Both Cast nodes removed, but an Identity is inserted to preserve the
+    # graph output name "Y".
+    assert len(model.graph.node) == 1
+    assert model.graph.node[0].op_type == "Identity"
+    assert model.graph.output[0].name == "Y"
 
 
 def test_preserves_non_cast_nodes(tmp_path: Path) -> None:
@@ -82,10 +86,11 @@ def test_preserves_non_cast_nodes(tmp_path: Path) -> None:
     model = onnx.load(model_path)
     remove_redundant_casts(model)
 
-    assert len(model.graph.node) == 1
-    assert model.graph.node[0].op_type == "Relu"
-    # Relu output should feed directly to the graph output after rewiring.
-    assert model.graph.output[0].name == "X_relu"
+    op_types = [n.op_type for n in model.graph.node]
+    assert "Relu" in op_types
+    # An Identity is inserted so that the graph output name "Y" is preserved.
+    assert "Identity" in op_types
+    assert model.graph.output[0].name == "Y"
 
 
 def test_keeps_fp16_cast_with_multiple_consumers(tmp_path: Path) -> None:
@@ -216,7 +221,10 @@ def test_removes_multiple_pairs(tmp_path: Path) -> None:
     model = onnx.load(model_path)
     remove_redundant_casts(model)
 
-    assert len(model.graph.node) == 0
+    # 6 Cast nodes removed, 3 Identity nodes inserted to preserve output names.
+    assert len(model.graph.node) == 3
+    assert all(n.op_type == "Identity" for n in model.graph.node)
+    assert {out.name for out in model.graph.output} == {"Y0", "Y1", "Y2"}
 
 
 def test_in_place_overwrite(tmp_path: Path) -> None:
@@ -243,7 +251,10 @@ def test_in_place_overwrite(tmp_path: Path) -> None:
     onnx.save(model, model_path)
 
     reloaded = onnx.load(model_path)
-    assert len(reloaded.graph.node) == 0
+    # Identity node preserves the output name "Y".
+    assert len(reloaded.graph.node) == 1
+    assert reloaded.graph.node[0].op_type == "Identity"
+    assert reloaded.graph.output[0].name == "Y"
 
 
 def test_rewires_downstream_consumers(tmp_path: Path) -> None:

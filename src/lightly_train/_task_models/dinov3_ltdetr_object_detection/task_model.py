@@ -1278,75 +1278,77 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             import onnx
             import onnxruntime as ort
 
-            if precision == "fp16" and not torch.cuda.is_available():
+            onnx.checker.check_model(out, full_check=True)
+
+            providers = ort.get_available_providers()
+            if precision == "fp16" and "CUDAExecutionProvider" not in providers:
                 logger.warning(
-                    "Skipping ONNX full model check for fp16 model because no "
-                    "GPU is available. Run on a GPU to enable full verification."
+                    "Skipping ONNX runtime verification for fp16 model because "
+                    "CUDAExecutionProvider is not available in onnxruntime. "
+                    "Install onnxruntime-gpu to enable full verification."
                 )
             else:
-                onnx.checker.check_model(out, full_check=True)
-
-            # Always run the reference input in float32 and on cpu for consistency.
-            reference_model = deepcopy(self).cpu().to(torch.float32).eval()
-            reference_model.deploy()
-            reference_outputs = reference_model(
-                dummy_input.cpu().to(torch.float32),
-            )
-
-            # Get outputs from the ONNX model. Load from bytes to avoid
-            # ORT errors about missing external data when weights are inline.
-            with open(out, "rb") as f:
-                session = ort.InferenceSession(f.read())
-            onnx_input = dummy_input.cpu()
-            if precision == "fp16":
-                onnx_input = onnx_input.half()
-            input_feed = {
-                "images": onnx_input.numpy(),
-            }
-            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
-            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
-
-            # Verify that the outputs from both models are close.
-            if len(outputs_onnx) != len(reference_outputs):
-                raise AssertionError(
-                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                # Always run the reference input in float32 and on cpu for consistency.
+                reference_model = deepcopy(self).cpu().to(torch.float32).eval()
+                reference_model.deploy()
+                reference_outputs = reference_model(
+                    dummy_input.cpu().to(torch.float32),
                 )
-            for output_onnx, output_model, output_name in zip(
-                outputs_onnx, reference_outputs, output_names
-            ):
 
-                def msg(s: str) -> str:
-                    return f'ONNX validation failed for output "{output_name}": {s}'
+                # Get outputs from the ONNX model. Load from bytes to avoid
+                # ORT errors about missing external data when weights are inline.
+                with open(out, "rb") as f:
+                    session = ort.InferenceSession(f.read())
+                onnx_input = dummy_input.cpu()
+                if precision == "fp16":
+                    onnx_input = onnx_input.half()
+                input_feed = {
+                    "images": onnx_input.numpy(),
+                }
+                outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+                outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
-                # Due to the presence of top-k operations in the model, the outputs may be
-                # in different order but still valid. To account for this, we sum
-                # over the query dimension before comparing.
-                output_model = output_model.sum(dim=1)
-                if output_onnx.is_floating_point:
-                    # Convert to fp32 to avoid overflow issues when summing in fp16.
-                    output_onnx = output_onnx.float()
-                output_onnx = output_onnx.sum(dim=1)
-
-                if output_model.is_floating_point:
-                    # Absolute and relative tolerances are a bit arbitrary and taken from here:
-                    # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
-                    torch.testing.assert_close(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                        equal_nan=True,
-                        check_device=False,
-                        check_dtype=False,
-                        check_layout=False,
-                        atol=5e-3,
-                        rtol=1e-1,
+                # Verify that the outputs from both models are close.
+                if len(outputs_onnx) != len(reference_outputs):
+                    raise AssertionError(
+                        f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
                     )
-                else:
-                    _torch_testing.assert_most_equal(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                    )
+                for output_onnx, output_model, output_name in zip(
+                    outputs_onnx, reference_outputs, output_names
+                ):
+
+                    def msg(s: str) -> str:
+                        return f'ONNX validation failed for output "{output_name}": {s}'
+
+                    # Due to the presence of top-k operations in the model, the outputs may be
+                    # in different order but still valid. To account for this, we sum
+                    # over the query dimension before comparing.
+                    output_model = output_model.sum(dim=1)
+                    if output_onnx.is_floating_point:
+                        # Convert to fp32 to avoid overflow issues when summing in fp16.
+                        output_onnx = output_onnx.float()
+                    output_onnx = output_onnx.sum(dim=1)
+
+                    if output_model.is_floating_point:
+                        # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                        # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                        torch.testing.assert_close(
+                            output_onnx,
+                            output_model,
+                            msg=msg,
+                            equal_nan=True,
+                            check_device=False,
+                            check_dtype=False,
+                            check_layout=False,
+                            atol=5e-3,
+                            rtol=1e-1,
+                        )
+                    else:
+                        _torch_testing.assert_most_equal(
+                            output_onnx,
+                            output_model,
+                            msg=msg,
+                        )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
 

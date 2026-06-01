@@ -53,6 +53,7 @@ def precalculate_for_onnx_export() -> Iterator[None]:
 
 def remove_redundant_casts(model: onnx.ModelProto) -> None:
     """Remove redundant -> Cast16 -> Cast32 -> pairs from an ONNX model in-place."""
+    import onnx
     from onnx import TensorProto
 
     graph = model.graph
@@ -115,11 +116,15 @@ def remove_redundant_casts(model: onnx.ModelProto) -> None:
             if inp in rewire:
                 node.input[i] = rewire[inp]
 
+    identity_nodes = []
     for out in graph.output:
         if out.name in rewire:
-            out.name = rewire[out.name]
+            identity_nodes.append(
+                onnx.helper.make_node("Identity", [rewire[out.name]], [out.name])
+            )
 
     new_nodes = [n for n in graph.node if id(n) not in nodes_to_remove]
+    new_nodes.extend(identity_nodes)
     del graph.node[:]
     graph.node.extend(new_nodes)
 
