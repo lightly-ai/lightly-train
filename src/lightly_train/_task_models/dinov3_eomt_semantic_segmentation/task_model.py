@@ -816,7 +816,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             simplify:
                 If True, run onnxslim to simplify and overwrite the exported model.
             verify:
-                If True, validate the ONNX filef and compare outputs to a float32 CPU
+                If True, validate the ONNX file and compare outputs to a float32 CPU
                 reference forward pass.
             format_args:
                 Optional extra keyword arguments forwarded to `torch.onnx.export`.
