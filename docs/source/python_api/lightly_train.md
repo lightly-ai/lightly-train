@@ -25,6 +25,10 @@ Documentation of the public API of the `lightly_train` package.
     :members: export_onnx, export_tensorrt, predict
     :exclude-members: __init__, __new__
 
+.. autoclass:: lightly_train._task_models.dinov2_ltdetr_object_detection.task_model.DINOv2LTDETRObjectDetection
+    :members: predict, predict_sahi
+    :exclude-members: __init__, __new__
+
 .. autoclass:: lightly_train._task_models.dinov3_ltdetr_object_detection.task_model.DINOv3LTDETRObjectDetection
     :members: export_onnx, export_tensorrt, predict, predict_sahi
     :exclude-members: __init__, __new__

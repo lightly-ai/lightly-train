@@ -602,7 +602,7 @@ def train_object_detection(
             https://docs.lightly.ai/train/stable/object_detection.html#data
         model:
             The model to train. For example, "dinov3/convnext-tiny-ltdetr-coco",
-            or a path to a local model checkpoint.
+            "dinov2/vits14-ltdetr", or a path to a local model checkpoint.
 
             If you want to resume training from an interrupted or crashed run, use the
             ``resume_interrupted`` parameter.

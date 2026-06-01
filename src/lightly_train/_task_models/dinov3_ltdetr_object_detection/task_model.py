@@ -28,7 +28,10 @@ from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.fastvit.fastvit_package import FASTVIT_PACKAGE
-from lightly_train._models.model_wrapper import MultiScaleFeatureCNN, MultiScaleFeatureViT
+from lightly_train._models.model_wrapper import (
+    MultiScaleFeatureCNN,
+    MultiScaleFeatureViT,
+)
 from lightly_train._models.package import Package
 from lightly_train._task_models.dinov3_ltdetr_object_detection.cnn_wrapper import (
     CNNMultiScaleBackboneWrapper,
@@ -632,7 +635,11 @@ class _DINOv3LTDETRObjectDetectionFastViTSA36Config(_DINOv3LTDETRObjectDetection
     )
 
 
-_COMPATIBLE_PACKAGES: list[Package] = [DINOV3_PACKAGE, DINOV2_VIT_PACKAGE, FASTVIT_PACKAGE]
+_COMPATIBLE_PACKAGES: list[Package] = [
+    DINOV3_PACKAGE,
+    DINOV2_VIT_PACKAGE,
+    FASTVIT_PACKAGE,
+]
 
 
 class DINOv3LTDETRObjectDetection(TaskModel):
