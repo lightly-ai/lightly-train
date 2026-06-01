@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from copy import deepcopy
 from typing import Any, Literal
 
@@ -24,11 +25,13 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
@@ -628,6 +631,16 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.image_normalize = image_normalize
 
+        # Resolve the backbone's expected input channel count using the same
+        # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
+        # overrides image_normalize, which overrides the DINOv3 default of 3.
+        if backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels: int = backbone_args["in_chans"]
+        elif self.image_normalize is not None:
+            self._expected_input_channels = len(self.image_normalize["mean"])
+        else:
+            self._expected_input_channels = 3
+
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
         backbone_model_args: dict[str, Any] = {
@@ -652,50 +665,43 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
 
         config_mapping = {
-            "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
-            "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
-            "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
-            "vitb16": (_DINOv3LTDETRObjectDetectionViTBConfig, DINOv3STAs),
-            "vitl16": (_DINOv3LTDETRObjectDetectionViTLConfig, DINOv3STAs),
-            "convnext-tiny": (
-                _DINOv3LTDETRObjectDetectionTinyConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-small": (
-                _DINOv3LTDETRObjectDetectionSmallConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-base": (
-                _DINOv3LTDETRObjectDetectionBaseConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-large": (
-                _DINOv3LTDETRObjectDetectionLargeConfig,
-                DINOv3ConvNextWrapper,
-            ),
+            "vitt16": _DINOv3LTDETRObjectDetectionViTTConfig,
+            "vitt16plus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
+            "vits16": _DINOv3LTDETRObjectDetectionViTSConfig,
+            "vitb16": _DINOv3LTDETRObjectDetectionViTBConfig,
+            "vitl16": _DINOv3LTDETRObjectDetectionViTLConfig,
+            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
+            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
+            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
+            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
         config_name = config_name.replace("-eupe", "")
-        config_cls, wrapper_cls = config_mapping[config_name]
+        config_cls = config_mapping[config_name]
         config = config_cls()
         config.decoder_name = decoder_name
 
         config.resolve_auto(patch_size=patch_size)
 
-        if hasattr(config, "backbone_wrapper"):
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
+
+        if isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
-            self.backbone = wrapper_cls(
-                model=backbone,
+            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
+            self.backbone = DINOv3STAs(
+                model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
 
         else:
             # ConvNext models.
-            self.backbone = wrapper_cls(model=backbone)
+            assert isinstance(backbone, ConvNeXt)
+            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
@@ -799,6 +805,117 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 m.convert_to_deploy()  # type: ignore[operator]
         return self
 
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        # Expand grayscale to the expected channel count so images can be stacked.
+        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
+        # 1-channel expansion is a convenience inherited from RGB-only models.
+        expected_c = self._expected_input_channels
+        if x.shape[-3] == 1 and expected_c > 1:
+            x = x.expand(expected_c, -1, -1)
+        elif x.shape[-3] != expected_c:
+            raise ValueError(
+                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
+            )
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        if self.image_normalize is not None:
+            batch = transforms_functional.normalize(
+                batch,
+                mean=list(self.image_normalize["mean"]),
+                std=list(self.image_normalize["std"]),
+            )
+        return batch
+
+    def forward_backend(self, x: Tensor) -> Any:
+        x = self.backbone(x)
+        x = self.encoder(x)
+        return self.decoder(x)
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: Any | dict[str, Tensor],
+        metadata: Sequence[dict[str, Any]],
+        threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        if not isinstance(raw_outputs, dict):
+            raise ValueError(
+                f"Expected raw_outputs to be a dict, got {type(raw_outputs).__name__}."
+            )
+        device = next(self.parameters()).device
+        # Postprocessor expects (W, H) per image.
+        orig_target_size = torch.tensor(
+            [[m["orig_w"], m["orig_h"]] for m in metadata],
+            dtype=torch.int64,
+            device=device,
+        )
+        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
+            raw_outputs, orig_target_size
+        )
+        out: list[dict[str, Tensor]] = []
+        labels_batch, boxes_batch, scores_batch = postprocessor_out
+
+        labels_batch = self.internal_class_to_class[labels_batch]
+        for i in range(len(metadata)):
+            keep = scores_batch[i] > threshold
+            out.append(
+                {
+                    "labels": labels_batch[i][keep],
+                    "bboxes": boxes_batch[i][keep],
+                    "scores": scores_batch[i][keep],
+                }
+            )
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image detections.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions
+                with scores <= threshold are discarded.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
+                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
+                  original image.
+                - "scores": Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
+
     @torch.no_grad()
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
@@ -823,35 +940,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
-
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-
-        # Normalize the image.
-        if self.image_normalize is not None:
-            x = transforms_functional.normalize(
-                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-            )
-        x = transforms_functional.resize(x, self.image_size)
-        x = x.unsqueeze(0)
-
-        labels, boxes, scores = self(
-            x, orig_target_size=torch.tensor([[image_h, image_w]])
-        )
-        keep = scores > threshold
-        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
@@ -1137,6 +1229,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = ["labels", "boxes", "scores"]
 
+        # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
+        # expose orig_target_size as a second ONNX input to rescale boxes to original
+        # image coordinates inside the graph.
         torch.onnx.export(
             self,
             (dummy_input,),

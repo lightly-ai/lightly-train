@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
@@ -316,50 +317,152 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         if self.training:
             self.eval()
 
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(
+            raw,
+            [metadata],
+            threshold=threshold,
+            mask_threshold=mask_threshold,
+            mask_overlap_threshold=mask_overlap_threshold,
+        )[0]
 
-        # Load image
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
         )
-
         x, (crop_h, crop_w) = self.resize_and_pad(x)
-        x = x.unsqueeze(0)  # (1, C, H', W')
+        return x, {
+            "orig_h": image_h,
+            "orig_w": image_w,
+            "crop_h": crop_h,
+            "crop_w": crop_w,
+        }
 
-        # (1, Q, H', W'), (1, Q, K+1)
-        # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self._forward_logits(x)
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        return batch
 
-        # Interpolate to original image size.
-        mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
-        # (1, Q, H, W)
-        mask_logits = F.interpolate(
-            mask_logits, size=(image_h, image_w), mode="bilinear"
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
+        # x is a batch of images with shape (B, C, H, W).
+        H, W = x.shape[-2:]
+
+        # Forward pass.
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            x, return_logits_per_layer=False
         )
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
 
-        # (H, W, 2), (num_segments), (num_segments)
-        masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
-            mask_logits=mask_logits[0],
-            class_logits=class_logits[0],
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: tuple[Tensor, Tensor],
+        metadata: Sequence[dict[str, Any]],
+        threshold: float,
+        mask_threshold: float,
+        mask_overlap_threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        mask_logits_batch, class_logits_batch = raw_outputs
+        out: list[dict[str, Tensor]] = []
+        for i, meta in enumerate(metadata):
+            crop_h, crop_w = meta["crop_h"], meta["crop_w"]
+            orig_h, orig_w = meta["orig_h"], meta["orig_w"]
+            # (1, Q, crop_h, crop_w)
+            mask_logits = mask_logits_batch[i : i + 1, ..., :crop_h, :crop_w]
+            # (1, Q, orig_h, orig_w)
+            mask_logits = F.interpolate(
+                mask_logits, size=(orig_h, orig_w), mode="bilinear"
+            )
+            masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
+                mask_logits=mask_logits[0],
+                class_logits=class_logits_batch[i],
+                threshold=threshold,
+                mask_threshold=mask_threshold,
+                mask_overlap_threshold=mask_overlap_threshold,
+            )
+            # Map internal class IDs to class IDs.
+            masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
+            out.append(
+                {
+                    "masks": masks,
+                    "segment_ids": segment_ids,
+                    "scores": scores,
+                }
+            )
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.8,
+        mask_threshold: float = 0.5,
+        mask_overlap_threshold: float = 0.8,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image predictions.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                The confidence threshold to keep predicted masks.
+            mask_threshold:
+                The threshold to convert predicted mask logits to binary masks.
+            mask_overlap_threshold:
+                The overlap area threshold for the predicted masks. Used to filter
+                out or merge disconnected mask regions for every instance.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "masks": Tensor of shape (H, W, 2) at the original image
+                  resolution where the last dimension has two channels:
+                    - Channel 0: class label per pixel
+                    - Channel 1: segment id per pixel. Id -1 indicates pixels
+                      without an assigned segment.
+                - "segment_ids": Tensor of shape (num_segments,) with the
+                  segment ids. There can be multiple segments with the same id
+                  if they belong to the same stuff class.
+                - "scores": Tensor of shape (num_segments,) with the confidence
+                  score for each segment.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(
+            raw,
+            metadata,
             threshold=threshold,
             mask_threshold=mask_threshold,
             mask_overlap_threshold=mask_overlap_threshold,
         )
-
-        # Map internal class IDs to class IDs.
-        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
-
-        return {
-            "masks": masks,
-            "segment_ids": segment_ids,
-            "scores": scores,
-        }
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
@@ -374,7 +477,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1)
         # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self._forward_logits(x)
+        mask_logits, class_logits = self.forward_backend(x)
         # (H, W, 2), (num_segments), (num_segments)
         masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
             mask_logits=mask_logits[0],
@@ -490,24 +593,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             mask_logits_per_layer,
             class_logits_per_layer,
         )
-
-    def _forward_logits(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        """Forward pass that returns the logits of the last layer. Intended for
-        inference."""
-        # x is a batch of images with shape (B, C, H, W).
-        H, W = x.shape[-2:]
-
-        # Forward pass.
-        # Only the logits of the last layer are returned.
-        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
-            x, return_logits_per_layer=False
-        )
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-
-        # Interpolate.
-        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-        return mask_logits, class_logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
         # TODO(Guarin, 08/25): Investigate if having different norms for queries and

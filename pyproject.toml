@@ -108,7 +108,7 @@ dicom = [
     "pydicom>=2.1.0",
 ]
 mlflow = [
-    "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
+    "mlflow>=2.8.0", # 2.8.0 added stepped image logging (key/step args to log_image)
     "pandas>=2.2.3; python_version>='3.12'",  # pandas<2.2.3 fails to build on Python>3.12 (no pkg_resources).
 ]
 notebook = [

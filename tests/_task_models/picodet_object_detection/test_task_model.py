@@ -188,6 +188,8 @@ def _create_train_model(
     )
     train_model_args.resolve_auto(
         total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
         model_name="picodet/s-416",
         model_init_args={},
         data_args=data_args,

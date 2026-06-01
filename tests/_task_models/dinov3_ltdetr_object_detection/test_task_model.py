@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pytest
+import torch
 from lightning_utilities.core.imports import RequirementCache
+from pytest_mock import MockerFixture
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
 
@@ -55,6 +57,8 @@ def _create_train_model(
     )
     train_model_args.resolve_auto(
         total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
         model_name=model_name,
         model_init_args={} if model_init_args is None else model_init_args,
         data_args=data_args,
@@ -141,6 +145,8 @@ def test_resolve_auto__uses_vit_model_name(
 
     model_args.resolve_auto(
         total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
         model_name=model_name,
         model_init_args={},
         data_args=dummy_yolo_detection_data_args,
@@ -162,6 +168,8 @@ def test_resolve_auto__uses_model_init_args_patch_size(
 
     model_args.resolve_auto(
         total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
         model_name=model_name,
         model_init_args={"patch_size": expected_patch_size},
         data_args=dummy_yolo_detection_data_args,
@@ -183,6 +191,8 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
 
     model_args.resolve_auto(
         total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
         model_name=model_name,
         model_init_args={},
         data_args=dummy_yolo_detection_data_args,
@@ -323,6 +333,8 @@ def test_get_optimizer__scheduler_modes(
         DINOv3LTDETRObjectDetectionTrainArgs(
             scheduler_name=scheduler_name,
             lr_warmup_steps=500,
+            scheduler_flat_steps=550,
+            scheduler_no_aug_steps=150,
         )
     )
     optimizer, scheduler = train_model.get_optimizer(
@@ -387,6 +399,45 @@ def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     )
 
     config.resolve_auto(patch_size=patch_size)
+
+
+def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    preprocess_image_spy = mocker.spy(model, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
+    forward_backend_spy = mocker.spy(model, "forward_backend")
+    postprocess_spy = mocker.spy(model, "postprocess")
+
+    images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
+    result = model.predict_batch(images=images)
+
+    # Each input image goes through preprocess_image once.
+    assert preprocess_image_spy.call_count == 2
+
+    # The stacked batch is preprocessed in a single call with shape (B, C, H, W).
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert batch_in.shape == (2, 3, 256, 256)
+
+    # forward_backend receives the output of preprocess_batch.
+    assert forward_backend_spy.call_count == 1
+    (forward_in,) = forward_backend_spy.call_args.args
+    assert forward_in is preprocess_batch_spy.spy_return
+
+    # postprocess receives forward_backend's output and per-image metadata.
+    assert postprocess_spy.call_count == 1
+    raw_in, metadata = postprocess_spy.call_args.args
+    assert raw_in is forward_backend_spy.spy_return
+    assert len(metadata) == 2
+
+    # predict_batch returns whatever postprocess produced.
+    assert result is postprocess_spy.spy_return
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")

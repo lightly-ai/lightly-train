@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from PIL.Image import Image as PILImage
@@ -88,6 +89,52 @@ class TaskModel(Module):
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape (C, H, W).
+        """
+        raise NotImplementedError()
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        """Per-image preprocessing producing a tensor and metadata.
+
+        Runs once per input. Output tensors across the batch must share the same
+        shape so they can be stacked. Kept separate from `preprocess_batch` so
+        non-batchable work stays on the host.
+        """
+        raise NotImplementedError()
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        """Batch-level preprocessing on a stacked (B, C, H, W) tensor.
+
+        Kept separate from `preprocess_image` so this stage could be baked into an
+        exported graph (ONNX/TRT) — torchvision.transforms.v2 ops are batch-
+        friendly and run on GPU.
+        """
+        raise NotImplementedError()
+
+    def forward_backend(self, x: Tensor) -> Any:
+        """Run the model on a batched input and return raw outputs (pre-postprocess)."""
+        raise NotImplementedError()
+
+    def postprocess(
+        self,
+        raw_outputs: Any,
+        metadata: Sequence[dict[str, Any]],
+        **kwargs: Any,
+    ) -> list[Any]:
+        """Map raw outputs and per-image metadata into one result dict per image."""
+        raise NotImplementedError()
+
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+    ) -> list[Any]:
+        """Returns predictions for the given batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape (C, H, W).
         """
         raise NotImplementedError()
 
