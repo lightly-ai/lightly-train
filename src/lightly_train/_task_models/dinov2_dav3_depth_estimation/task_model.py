@@ -7,9 +7,6 @@
 #
 from __future__ import annotations
 
-from collections.abc import Mapping
-from functools import partial
-from pathlib import Path
 from typing import Any
 
 import torch
@@ -19,37 +16,21 @@ from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
-    MemEffAttention,
-    NestedTensorBlock,
-)
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.dinov2_dav3_depth_estimation.dpt_head import (
     DPTHead,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
-_BACKBONE_SPECS: dict[str, dict[str, int]] = {
-    "vits": {"embed_dim": 384, "depth": 12, "num_heads": 6},
-    "vitb": {"embed_dim": 768, "depth": 12, "num_heads": 12},
-    "vitl": {"embed_dim": 1024, "depth": 24, "num_heads": 16},
-    "vitg": {"embed_dim": 1536, "depth": 40, "num_heads": 24},
-}
-
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "da3mono-large": {
         "canonical_name": "depth-anything-v3/da3mono-large",
-        "hf_repo_id": "depth-anything/DA3MONO-LARGE",
-        "hf_filename": "model.safetensors",
+        "backbone_name": "vitl14-noreg",
         "model_args": {
-            "backbone_name": "vitl",
             "out_layers": (4, 11, 17, 23),
             "image_size": 518,
             "patch_size": 14,
-            "dim_in": 1024,
             "features": 256,
             "out_channels": (256, 512, 1024, 1024),
             "output_dim": 1,
@@ -69,8 +50,6 @@ _DEFAULT_IMAGE_NORMALIZE = {
     "std": (0.229, 0.224, 0.225),
 }
 
-_ALLOWED_MISSING_OFFICIAL_KEYS = {"backbone.mask_token"}
-
 
 class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     """Depth Anything V3 monocular relative-depth inference model."""
@@ -83,8 +62,8 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         model_name: str = "depth-anything-v3/da3mono-large",
         image_size: int = 504,
         image_normalize: dict[str, tuple[float, ...]] | None = None,
-        weights: PathLike | None = None,
         model_args: dict[str, Any] | None = None,
+        backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
     ) -> None:
         """
@@ -99,16 +78,25 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
                 size. The official DA3 inference default is 504.
             image_normalize:
                 Image normalization parameters. Defaults to ImageNet statistics.
-            weights:
-                Optional path to a local ``.pt``/``.pth``/``.safetensors`` checkpoint.
-                If omitted and ``load_weights=True``, weights are downloaded from the
-                official Hugging Face repository.
             model_args:
-                Additional arguments controlling backbone and DPT head construction.
+                Additional arguments controlling the DPT decoder and feature
+                extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
+                ``output_dim``, or ``use_sky_head``.
+            backbone_args:
+                Additional arguments passed to the DINOv2 backbone construction (see
+                ``DINOV2_VIT_PACKAGE.get_model``), e.g. ``in_chans`` or
+                ``drop_path_rate``. These override the Depth Anything V3 defaults.
             load_weights:
-                If False, no pretrained weights are loaded.
+                If True, the backbone is initialized from the pretrained DINOv2
+                ViT-L/14 weights that Depth Anything V3 was fine-tuned from. The DPT
+                head is always randomly initialized. To obtain the fully pretrained
+                depth model, use ``lightly_train.load_model(<exported .pt>)``; the
+                ``convert_checkpoint`` script produces that file from the official
+                Depth Anything V3 weights. Set to False to skip the backbone download,
+                e.g. when the weights are loaded from an exported checkpoint via
+                ``load_train_state_dict``.
         """
-        super().__init__(locals(), ignore_args={"weights", "load_weights"})
+        super().__init__(locals(), ignore_args={"load_weights"})
         parsed_name = self.parse_model_name(model_name)
         config = _MODEL_CONFIGS[parsed_name]
 
@@ -122,40 +110,44 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         if model_args is not None:
             net_args.update(model_args)
 
-        backbone_name: str = net_args["backbone_name"]
-        backbone_spec = _resolve_backbone_spec(
-            backbone_name=backbone_name,
-            backbone_args=net_args.get("backbone_args"),
-        )
         patch_size = int(net_args.get("patch_size", 14))
-        dim_in = int(net_args.get("dim_in", backbone_spec["embed_dim"]))
-
         self.out_layers: tuple[int, ...] = tuple(net_args["out_layers"])
         self.patch_size = patch_size
-        self.backbone = _make_dinov2_backbone(
-            image_size=int(net_args["image_size"]),
-            patch_size=patch_size,
-            **backbone_spec,
+
+        # Reuse the DINOv2 backbone owned by the package. The overrides reproduce the
+        # plain (register-free, unchunked, MLP-FFN) ViT-L that Depth Anything V3 is
+        # built on, so the backbone state dict keys match the official checkpoint.
+        # `block_chunks=0` is essential: chunked blocks would change the key layout
+        # from `blocks.{i}.` to `blocks.{chunk}.{i}.` and break loading.
+        # When `load_weights` is True the backbone is initialized from the DINOv2
+        # ViT-L/14 weights that DA3 was fine-tuned from; this is skipped when the model
+        # is reconstructed from an exported checkpoint, whose weights are loaded by
+        # `load_train_state_dict` instead.
+        backbone_model_args: dict[str, Any] = {
+            "img_size": int(net_args["image_size"]),
+            "ffn_layer": "mlp",
+            "block_chunks": 0,
+            "drop_path_rate": 0.0,
+            "init_values": 1.0,
+            "num_register_tokens": 0,
+            "interpolate_antialias": False,
+            "interpolate_offset": 0.1,
+        }
+        if backbone_args is not None:
+            backbone_model_args.update(backbone_args)
+        self.backbone = DINOV2_VIT_PACKAGE.get_model(
+            model_name=config["backbone_name"],
+            model_args=backbone_model_args,
+            load_weights=load_weights,
         )
-        self.head = DPTHead(
-            dim_in=dim_in,
+        self.decoder = DPTHead(
+            dim_in=int(self.backbone.embed_dim),
             patch_size=patch_size,
             output_dim=int(net_args.get("output_dim", 1)),
             features=int(net_args.get("features", 256)),
             out_channels=tuple(net_args.get("out_channels", (256, 512, 1024, 1024))),
             use_sky_head=bool(net_args.get("use_sky_head", True)),
         )
-
-        if load_weights:
-            weights_path = (
-                _download_huggingface_weights(
-                    repo_id=config["hf_repo_id"],
-                    filename=config["hf_filename"],
-                )
-                if weights is None
-                else Path(weights).expanduser()
-            )
-            self.load_weights(weights_path)
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -218,17 +210,18 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
                 f"Expected input shape (B, C, H, W), got {tuple(x.shape)}."
             )
         feats = self._extract_features(x)
-        out = self.head(feats=feats, H=x.shape[-2], W=x.shape[-1])
+        out = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
         _set_mono_sky_regions_to_max_depth(out)
         return out
 
-    def load_weights(self, path: PathLike) -> None:
-        state_dict = _load_state_dict_file(Path(path))
-        self._load_depth_anything_state_dict(state_dict)
-
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
-        """Load the state dict from a training checkpoint."""
-        self._load_depth_anything_state_dict(state_dict)
+        """Load the state dict from an exported LightlyTrain checkpoint.
+
+        The state dict is expected to already match this model's layout (flat
+        ``backbone.*`` / ``decoder.*`` keys). Converting the official Depth Anything V3
+        weights into this layout is the job of the ``convert_checkpoint`` script.
+        """
+        self.load_state_dict(state_dict, strict=True)
 
     def _extract_features(self, x: Tensor) -> list[Tensor]:
         intermediate = self.backbone.get_intermediate_layers(
@@ -261,55 +254,6 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
             std=self.image_normalize["std"],
         )
 
-    def _load_depth_anything_state_dict(self, state_dict: Mapping[str, Any]) -> None:
-        remapped = _remap_official_da3_keys(state_dict)
-        incompatible = self.load_state_dict(remapped, strict=False)
-
-        missing = set(incompatible.missing_keys)
-        unexpected = set(incompatible.unexpected_keys)
-        if not missing <= _ALLOWED_MISSING_OFFICIAL_KEYS or unexpected:
-            raise RuntimeError(
-                "Could not load Depth Anything V3 state dict. "
-                f"Missing keys: {sorted(missing - _ALLOWED_MISSING_OFFICIAL_KEYS)}; "
-                f"unexpected keys: {sorted(unexpected)}"
-            )
-
-
-def _make_dinov2_backbone(
-    *,
-    image_size: int,
-    patch_size: int,
-    embed_dim: int,
-    depth: int,
-    num_heads: int,
-) -> DinoVisionTransformer:
-    return DinoVisionTransformer(
-        img_size=image_size,
-        patch_size=patch_size,
-        embed_dim=embed_dim,
-        depth=depth,
-        num_heads=num_heads,
-        mlp_ratio=4,
-        block_fn=partial(NestedTensorBlock, attn_class=MemEffAttention),
-        num_register_tokens=0,
-        init_values=1.0,
-        block_chunks=0,
-    )
-
-
-def _resolve_backbone_spec(
-    backbone_name: str, backbone_args: Mapping[str, Any] | None
-) -> dict[str, int]:
-    spec = dict(_BACKBONE_SPECS.get(backbone_name, {}))
-    if backbone_args is not None:
-        spec.update(backbone_args)
-    if not {"embed_dim", "depth", "num_heads"}.issubset(spec):
-        raise ValueError(
-            "backbone_args must define 'embed_dim', 'depth', and 'num_heads' "
-            "when using a custom DA3 backbone."
-        )
-    return {key: int(spec[key]) for key in ("embed_dim", "depth", "num_heads")}
-
 
 def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
     if "depth" not in out or "sky" not in out:
@@ -333,62 +277,6 @@ def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
     depth = out["depth"].clone()
     depth[~non_sky_mask] = non_sky_max
     out["depth"] = depth
-
-
-def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
-    try:
-        from huggingface_hub import hf_hub_download
-    except ImportError as error:
-        raise ImportError(
-            "Loading Depth Anything V3 weights from Hugging Face requires "
-            "'huggingface-hub'. Install it or pass a local weights path."
-        ) from error
-
-    return Path(hf_hub_download(repo_id=repo_id, filename=filename))
-
-
-def _load_state_dict_file(path: Path) -> dict[str, Tensor]:
-    if not path.is_file():
-        raise ValueError(f"Checkpoint file '{path}' does not exist.")
-
-    if path.suffix == ".safetensors":
-        try:
-            from safetensors.torch import load_file
-        except ImportError as error:
-            raise ImportError(
-                "Loading '.safetensors' Depth Anything V3 weights requires "
-                "'safetensors'. Install it or pass a PyTorch checkpoint."
-            ) from error
-        return load_file(path)
-
-    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-    if isinstance(checkpoint, Mapping):
-        for key in ("state_dict", "model", "train_model"):
-            value = checkpoint.get(key)
-            if isinstance(value, Mapping):
-                return dict(value)
-        return dict(checkpoint)
-
-    raise ValueError(f"Unsupported checkpoint format in '{path}'.")
-
-
-def _remap_official_da3_keys(state_dict: Mapping[str, Any]) -> dict[str, Any]:
-    """Remap Depth Anything V3 checkpoint keys onto the flat TaskModel layout.
-
-    Handles three input layouts:
-    - Flat (already matches the model): ``backbone.<rest>``, ``head.<rest>``
-    - Lightning training: ``model.backbone.<rest>``, ``model.head.<rest>``
-    - HF official: ``model.backbone.pretrained.<rest>``, ``model.head.<rest>``
-    """
-    remapped: dict[str, Any] = {}
-    for key, value in state_dict.items():
-        new_key = key
-        if new_key.startswith("model."):
-            new_key = new_key[len("model.") :]
-        if new_key.startswith("backbone.pretrained."):
-            new_key = "backbone." + new_key[len("backbone.pretrained.") :]
-        remapped[new_key] = value
-    return remapped
 
 
 def _ensure_three_channel_image(image: Tensor) -> Tensor:
