@@ -203,7 +203,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="fastvit/fastvit_sa12-ltdetr",
+        model="dinov3/vitt16-notpretrained-ltdetr",
         data={
             "path": data,
             "train": Path("train", "images"),

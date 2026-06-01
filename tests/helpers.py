@@ -48,7 +48,6 @@ from lightly_train._models.dinov3.dinov3_src.hub.backbones import (
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.fastvit.fastvit import FastViTModelWrapper
 from lightly_train._models.model_wrapper import (
     ArchitectureInfo,
     ArchitectureInfoGettable,
@@ -1077,10 +1076,3 @@ def dummy_dinov3_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv3ViTModel
 
 def dummy_dinov3_convnext_model(**kwargs: Any) -> DINOv3VConvNeXtModelWrapper:
     return DINOv3VConvNeXtModelWrapper(model=_dinov3_convnext_test(**kwargs))
-
-
-def dummy_fastvit_model(**kwargs: Any) -> FastViTModelWrapper:
-    from lightly_train._models.fastvit.components.models.fastvit import fastvit_t8
-
-    model = fastvit_t8(pretrained=False, **kwargs)
-    return FastViTModelWrapper(model=model)

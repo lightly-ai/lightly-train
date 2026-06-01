@@ -27,7 +27,6 @@ from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
-from lightly_train._models.fastvit.fastvit_package import FASTVIT_PACKAGE
 from lightly_train._models.model_wrapper import (
     MultiScaleFeatureCNN,
     MultiScaleFeatureViT,
@@ -402,33 +401,6 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
     num_top_queries: int = 300
 
 
-class _HybridEncoderFastViTSAConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [128, 256, 512]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 256
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 1024
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1.0
-    act: str = "silu"
-
-
-class _RTDETRTransformerv2FastViTSAConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [256, 256, 256]
-    hidden_dim: int = 256
-
-
-class _DFINETransformerFastViTSAConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [256, 256, 256]
-    hidden_dim: int = 256
-    num_layers: int = 3
-    dim_feedforward: int = 1024
-
-
 class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
     decoder_name: _LTDETRDecoderName = "rtdetrv2"
     hybrid_encoder: _HybridEncoderConfig
@@ -590,55 +562,9 @@ class _DINOv3LTDETRObjectDetectionViTLConfig(_DINOv3LTDETRObjectDetectionConfig)
     )
 
 
-class _DINOv3LTDETRObjectDetectionFastViTSA12Config(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderFastViTSAConfig = Field(
-        default_factory=_HybridEncoderFastViTSAConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2FastViTSAConfig = Field(
-        default_factory=_RTDETRTransformerv2FastViTSAConfig
-    )
-    dfine_transformer: _DFINETransformerFastViTSAConfig = Field(
-        default_factory=_DFINETransformerFastViTSAConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionFastViTSA24Config(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderFastViTSAConfig = Field(
-        default_factory=_HybridEncoderFastViTSAConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2FastViTSAConfig = Field(
-        default_factory=_RTDETRTransformerv2FastViTSAConfig
-    )
-    dfine_transformer: _DFINETransformerFastViTSAConfig = Field(
-        default_factory=_DFINETransformerFastViTSAConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionFastViTSA36Config(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderFastViTSAConfig = Field(
-        default_factory=_HybridEncoderFastViTSAConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2FastViTSAConfig = Field(
-        default_factory=_RTDETRTransformerv2FastViTSAConfig
-    )
-    dfine_transformer: _DFINETransformerFastViTSAConfig = Field(
-        default_factory=_DFINETransformerFastViTSAConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
 _COMPATIBLE_PACKAGES: list[Package] = [
     DINOV3_PACKAGE,
     DINOV2_VIT_PACKAGE,
-    FASTVIT_PACKAGE,
 ]
 
 
@@ -758,9 +684,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
             "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
             "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
-            "fastvit_sa12": _DINOv3LTDETRObjectDetectionFastViTSA12Config,
-            "fastvit_sa24": _DINOv3LTDETRObjectDetectionFastViTSA24Config,
-            "fastvit_sa36": _DINOv3LTDETRObjectDetectionFastViTSA36Config,
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")

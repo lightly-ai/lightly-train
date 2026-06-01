@@ -177,8 +177,6 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                     self.patch_size = int(match.group("patch_size"))
                 elif re.match(r"dinov3/convnext.*", model_name) is not None:
                     self.patch_size = None
-                elif re.match(r"fastvit/.*", model_name) is not None:
-                    self.patch_size = None
                 else:
                     raise ValueError(
                         "Unable to resolve patch_size='auto' for model "

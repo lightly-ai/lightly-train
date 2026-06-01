@@ -329,7 +329,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
                     # map and we make a multi-scale from it with the next scales
                     # (H/2)x(W/2), (H)x(W) and (2H)x(2W). That's why we need it to be divisible_by
                     # 2*patch_size, to account for this 2x smaller feature map.
-                    # You can take a look at the forward of the ViTSTAsBackboneWrapper class.
+                    # You can take a look at the forward of the DINOv3STAs class.
                     self.scale_jitter.divisible_by = ltdetr_image_size_divisor(
                         patch_size
                     )

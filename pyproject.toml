@@ -37,19 +37,18 @@ dependencies = [
     "nvidia-ml-py>=12", # For GPU monitoring
     "pytorch_lightning>=2.1",
     "tensorboard>=2.10.0",
-    "torch>=2.1.0",
+    "torch>=2.1.0",    
     "torchmetrics[detection]>=0.8",    # Torchmetrics is needed for fine-tuning.
-    # 0.8 is required by SuperGradients
-    # 1.5.2 is the last version that supports Python 3.8
-    # 1.7 is recommended version
+                            # 0.8 is required by SuperGradients
+                            # 1.5.2 is the last version that supports Python 3.8
+                            # 1.7 is recommended version
     "torchvision>=0.16.0",  # torchvision 0.15.0 was yanked
     "transformers>=4.46",   # Transformers is needed for fine-tuning.
-    # 4.46 is last version that supports Python 3.8.
-    # 4.51.3 is the default for EoMT
+                            # 4.46 is last version that supports Python 3.8.
+                            # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
     "pycocotools>=2.0.11; python_version>='3.9'",
     "numpy>1.23.0; python_version>='3.12'",  # numpy<=1.23 fails to build on Python>3.12 (no distutils).
-
 ]
 
 [dependency-groups]
@@ -191,8 +190,7 @@ ignore_missing_imports = true
 module = [
     "lightly_train._models.dinov2_vit.dinov2_vit_src.*",
     "lightly_train._models.dinov3.dinov3_src.*",
-    "lightly_train._task_models.object_detection_components.*",
-    "lightly_train._models.fastvit.components.*",
+    "lightly_train._task_models.object_detection_components.*"
 ]
 ignore_errors = true
 
