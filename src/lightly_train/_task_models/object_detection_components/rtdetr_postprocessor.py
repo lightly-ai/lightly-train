@@ -41,17 +41,14 @@ class RTDETRPostProcessor(nn.Module):
         self.num_top_queries = num_top_queries
         self.num_classes = int(num_classes)
         self.remap_mscoco_category = remap_mscoco_category
-        self.deploy_mode = False
 
     def extra_repr(self) -> str:
         return f"use_focal_loss={self.use_focal_loss}, num_classes={self.num_classes}, num_top_queries={self.num_top_queries}"
 
-    # def forward(self, outputs, orig_target_sizes):
     def forward(
         self, outputs, orig_target_sizes: torch.Tensor
-    ) -> list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor]:
+    ) -> list[dict[str, Tensor]]:
         logits, boxes = outputs["pred_logits"], outputs["pred_boxes"]
-        # orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
 
         bbox_pred = torchvision.ops.box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
         bbox_pred *= orig_target_sizes.repeat(1, 2).unsqueeze(1)
@@ -77,11 +74,6 @@ class RTDETRPostProcessor(nn.Module):
                     boxes, dim=1, index=index.unsqueeze(-1).tile(1, 1, boxes.shape[-1])
                 )
 
-        # TODO for onnx export
-        if self.deploy_mode:
-            return labels, boxes, scores
-
-        # TODO
         if self.remap_mscoco_category:
             from ...data.dataset import mscoco_label2category
 
@@ -99,10 +91,3 @@ class RTDETRPostProcessor(nn.Module):
             results.append(result)
 
         return results
-
-    def deploy(
-        self,
-    ):
-        self.eval()
-        self.deploy_mode = True
-        return self

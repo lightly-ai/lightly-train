@@ -536,6 +536,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             **postprocessor_config
         )
+        self._deployed: bool = False
 
         if self.backbone_freeze:
             self.freeze_backbone()
@@ -646,10 +647,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
 
     def deploy(self) -> Self:
         self.eval()
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
+        self._deployed = True
         return self
 
     def preprocess_image(
@@ -707,20 +708,18 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             dtype=torch.int64,
             device=device,
         )
-        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
+        postprocessor_out: list[dict[str, Tensor]] = self.postprocessor(
             raw_outputs, orig_target_size
         )
         out: list[dict[str, Tensor]] = []
-        labels_batch, boxes_batch, scores_batch = postprocessor_out
-
-        labels_batch = self.internal_class_to_class[labels_batch]
-        for i in range(len(metadata)):
-            keep = scores_batch[i] > threshold
+        for result in postprocessor_out:
+            labels = self.internal_class_to_class[result["labels"]]  # type: ignore[index]
+            keep = result["scores"] > threshold
             out.append(
                 {
-                    "labels": labels_batch[i][keep],
-                    "bboxes": boxes_batch[i][keep],
-                    "scores": scores_batch[i][keep],
+                    "labels": labels[keep],
+                    "bboxes": result["boxes"][keep],
+                    "scores": result["scores"][keep],
                 }
             )
         return out
@@ -750,7 +749,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self._deployed:
             self.deploy()
         tensors: list[Tensor] = []
         metadata: list[dict[str, Any]] = []
@@ -785,7 +784,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self._deployed:
             self.deploy()
         x, metadata = self.preprocess_image(image)
         batch = self.preprocess_batch(x.unsqueeze(0))
@@ -837,7 +836,7 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self._deployed:
             self.deploy()
 
         device = next(self.parameters()).device
@@ -863,15 +862,23 @@ class DINOv2LTDETRObjectDetection(TaskModel):
                 std=self.image_normalize["std"],
             )
 
-        # Prepare the image/tiles sizes.
-        orig_target_sizes = torch.tensor([self.image_size], device=device).repeat(
-            len(tiles), 1
-        )
-        orig_target_sizes[0, 0] = h
-        orig_target_sizes[0, 1] = w
-
         # Feed the tiles in parallel to the model.
-        labels, boxes, scores = self(tiles, orig_target_size=orig_target_sizes)
+        raw = self.forward_backend(tiles)
+
+        # Build per-tile sizes in (W, H) format as required by the postprocessor.
+        # All tiles use model image_size; the global image uses the original dimensions.
+        tile_target_sizes = torch.tensor(
+            [[self.image_size[1], self.image_size[0]]], device=device
+        ).repeat(len(tiles), 1)
+        tile_target_sizes[0, 0] = w  # global image W
+        tile_target_sizes[0, 1] = h  # global image H
+
+        postprocessor_out = self.postprocessor(raw, tile_target_sizes)
+        labels = self.internal_class_to_class[  # type: ignore[index]
+            torch.stack([r["labels"] for r in postprocessor_out])
+        ]
+        boxes = torch.stack([r["boxes"] for r in postprocessor_out])
+        scores = torch.stack([r["scores"] for r in postprocessor_out])
 
         # Add coordinates of the tiles to the boxes.
         tiles_coordinates = (
@@ -913,35 +920,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
             "scores": scores,
         }
 
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None = None
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Function used for ONNX export
-        # TODO (Simon, 05/26) This class does not seem to have an export_onnx function
-        if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
-        else:
-            # Flip from (H, W) to (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-
-            # Move to device.
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        # Forward the image through the model.
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
         x = self.backbone(x)
         x = self.encoder(x)
-        x = self.decoder(x)
-
-        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
-            self.postprocessor(x, orig_target_size_)
-        )
-        # Postprocessor must be in deploy mode at this point. It returns only tuples
-        # during deploy mode.
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]
-        return (labels, boxes, scores)
+        return self.decoder(x)  # type: ignore[return-value]
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)

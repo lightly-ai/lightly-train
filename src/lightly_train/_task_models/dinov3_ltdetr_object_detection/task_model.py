@@ -15,13 +15,11 @@ from typing import Any, Literal
 import torch
 from PIL.Image import Image as PILImage
 from pydantic import Field
-from torch import Tensor
-from torch import nn
+from torch import Tensor, nn
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
-from lightning_fabric.connector import _PRECISION_INPUT
 
-from lightly_train import _logging, _torch_testing
+from lightly_train import _logging
 from lightly_train._commands import _warnings
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
@@ -612,7 +610,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
         backend_type: Literal["torch", "onnx", "tensorrt"] = "torch",
-        backend_args: TorchBackendArgs | ONNXBackendArgs | TensorRTBackendArgs | None = None
+        backend_args: TorchBackendArgs
+        | ONNXBackendArgs
+        | TensorRTBackendArgs
+        | None = None,
     ) -> None:
         """Create a DINOv3 LTDETR object detection model.
 
@@ -758,14 +759,12 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         postprocessor_config = config.rtdetr_postprocessor.model_dump()
         postprocessor_config.update({"num_classes": len(self.classes)})
-        postprocessor = RTDETRPostProcessor(**postprocessor_config)
+        self.postprocessor = RTDETRPostProcessor(**postprocessor_config)
 
         torch_backend = TorchBackend(
             backbone=backbone_wrapper,
             encoder=encoder,
             decoder=decoder,
-            postprocessor=postprocessor,
-            internal_class_to_class=self.internal_class_to_class,
         )
         # Temporarily register as a submodule so export methods can reach parameters.
         self._backend = torch_backend
@@ -849,10 +848,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
     def decoder(self) -> nn.Module:
         return self._backend.decoder  # type: ignore[union-attr]
 
-    @property
-    def postprocessor(self) -> nn.Module:
-        return self._backend.postprocessor  # type: ignore[union-attr]
-
     # ------------------------------------------------------------------
     # Backend construction
     # ------------------------------------------------------------------
@@ -884,7 +879,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             del self._modules["_backend"]
             object.__setattr__(self, "_device", device)
             object.__setattr__(self, "_dtype", dtype)
-            return ONNXBackend(session_path=backend_args.out, device=device, dtype=dtype)
+            return ONNXBackend(
+                session_path=backend_args.out, device=device, dtype=dtype
+            )
 
         elif backend_type == "tensorrt":
             assert isinstance(backend_args, TensorRTBackendArgs)
@@ -927,7 +924,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     def _ensure_deployed(self) -> None:
         if isinstance(self._backend, TorchBackend):
-            if self.training or not self._backend.deploy_mode:
+            if self.training or not self._backend._deployed:
                 self.deploy()
 
     def freeze_backbone(self) -> None:
@@ -984,7 +981,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                     "Cannot load an old-format checkpoint (keys starting with "
                     "'backbone.', 'encoder.', etc.) into a non-TorchBackend model."
                 )
-            return self._backend.load_state_dict(state_dict, strict=strict, assign=assign)
+            return self._backend.load_state_dict(
+                state_dict, strict=strict, assign=assign
+            )
 
         return super().load_state_dict(state_dict, strict=strict, assign=assign)
 
@@ -1026,12 +1025,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             )
         return batch
 
-    def forward_backend(self, x: Tensor) -> Any:
-        assert isinstance(self._backend, TorchBackend), (
-            "forward_backend() is only supported for the TorchBackend "
-            f"(got {type(self._backend).__name__})."
-        )
-        return self._backend._forward_raw(x)
+    def forward_backend(self, x: Tensor) -> dict[str, Tensor]:
+        return self._backend.forward(x)
 
     def postprocess(  # type: ignore[override]
         self,
@@ -1050,20 +1045,18 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             dtype=torch.int64,
             device=device,
         )
-        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
+        postprocessor_out: list[dict[str, Tensor]] = self.postprocessor(
             raw_outputs, orig_target_size
         )
         out: list[dict[str, Tensor]] = []
-        labels_batch, boxes_batch, scores_batch = postprocessor_out
-
-        labels_batch = self.internal_class_to_class[labels_batch]
-        for i in range(len(metadata)):
-            keep = scores_batch[i] > threshold
+        for result in postprocessor_out:
+            labels = self.internal_class_to_class[result["labels"]]  # type: ignore[index]
+            keep = result["scores"] > threshold
             out.append(
                 {
-                    "labels": labels_batch[i][keep],
-                    "bboxes": boxes_batch[i][keep],
-                    "scores": scores_batch[i][keep],
+                    "labels": labels[keep],
+                    "bboxes": result["boxes"][keep],
+                    "scores": result["scores"][keep],
                 }
             )
         return out
@@ -1103,29 +1096,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         batch = torch.stack(tensors, dim=0)
         batch = self.preprocess_batch(batch)
 
-        if isinstance(self._backend, TorchBackend):
-            raw = self._backend._forward_raw(batch)
-            return self.postprocess(raw, metadata, threshold=threshold)
-
-        # ONNX / TRT backends return final (labels, boxes, scores) directly.
-        device, _ = self._get_device_dtype()
-        orig_target_size = torch.tensor(
-            [[m["orig_h"], m["orig_w"]] for m in metadata],
-            dtype=torch.int64,
-            device=device,
-        )
-        labels_b, boxes_b, scores_b = self._backend.forward(batch, orig_target_size)
-        out: list[dict[str, Tensor]] = []
-        for i in range(len(metadata)):
-            keep = scores_b[i] > threshold
-            out.append(
-                {
-                    "labels": labels_b[i][keep],
-                    "bboxes": boxes_b[i][keep],
-                    "scores": scores_b[i][keep],
-                }
-            )
-        return out
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
     def predict(
@@ -1149,8 +1121,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
-            self.deploy()
+        self._ensure_deployed()
         x, metadata = self.preprocess_image(image)
         batch = self.preprocess_batch(x.unsqueeze(0))
         raw = self.forward_backend(batch)
@@ -1226,15 +1197,23 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 std=self.image_normalize["std"],
             )
 
-        # Prepare the image/tiles sizes.
-        orig_target_sizes = torch.tensor([self.image_size], device=device).repeat(
-            len(tiles), 1
-        )
-        orig_target_sizes[0, 0] = h
-        orig_target_sizes[0, 1] = w
-
         # Feed the tiles in parallel to the model.
-        labels, boxes, scores = self(tiles, orig_target_size=orig_target_sizes)
+        raw = self.forward_backend(tiles)
+
+        # Build per-tile sizes in (W, H) format as required by the postprocessor.
+        # All tiles use model image_size; the global image uses the original dimensions.
+        tile_target_sizes = torch.tensor(
+            [[self.image_size[1], self.image_size[0]]], device=device
+        ).repeat(len(tiles), 1)
+        tile_target_sizes[0, 0] = w  # global image W
+        tile_target_sizes[0, 1] = h  # global image H
+
+        postprocessor_out = self.postprocessor(raw, tile_target_sizes)
+        labels = self.internal_class_to_class[  # type: ignore[index]
+            torch.stack([r["labels"] for r in postprocessor_out])
+        ]
+        boxes = torch.stack([r["boxes"] for r in postprocessor_out])
+        scores = torch.stack([r["scores"] for r in postprocessor_out])
 
         # Add coordinates of the tiles to the boxes.
         tiles_coordinates = (
@@ -1276,18 +1255,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "scores": scores,
         }
 
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None = None
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Delegates to the active backend.  TorchBackend.forward() mirrors the
-        # original logic; ONNX/TRT backends ignore orig_target_size (it is already
-        # baked into their exported graphs).
-        if orig_target_size is None:
-            orig_target_size_ = None
-        else:
-            # Backends expect (H, W) and flip internally, so just normalise dtype/device.
-            orig_target_size_ = orig_target_size.to(dtype=torch.int64)
-        return self._backend.forward(x, orig_target_size_)
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
+        return self._backend.forward(x)
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         assert isinstance(self._backend, TorchBackend), (
@@ -1423,11 +1392,8 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Set the input/output names.
         input_names = ["images"]
-        output_names = ["labels", "boxes", "scores"]
+        output_names = ["pred_logits", "pred_boxes"]
 
-        # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
-        # expose orig_target_size as a second ONNX input to rescale boxes to original
-        # image coordinates inside the graph.
         torch.onnx.export(
             self,
             (dummy_input,),
@@ -1458,8 +1424,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
-            reference_model.deploy()
-            reference_outputs = reference_model(
+            reference_outputs: dict[str, Tensor] = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -1469,49 +1434,32 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 "images": dummy_input.cpu().numpy(),
             }
             outputs_onnx = session.run(output_names=None, input_feed=input_feed)
-            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
 
             # Verify that the outputs from both models are close.
-            if len(outputs_onnx) != len(reference_outputs):
+            if len(outputs_onnx) != len(output_names):
                 raise AssertionError(
-                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                    f"Number of onnx outputs should be {len(output_names)} but is {len(outputs_onnx)}"
                 )
-            for output_onnx, output_model, output_name in zip(
-                outputs_onnx, reference_outputs, output_names
-            ):
+            for output_name, output_onnx_np in zip(output_names, outputs_onnx):
+                output_onnx = torch.from_numpy(output_onnx_np).float()
+                output_model = reference_outputs[output_name].cpu().float()
 
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                # Due to the presence of top-k operations in the model, the outputs may be
-                # in different order but still valid. To account for this, we sum
-                # over the query dimension before comparing.
-                output_model = output_model.sum(dim=1)
-                if output_onnx.is_floating_point:
-                    # Convert to fp32 to avoid overflow issues when summing in fp16.
-                    output_onnx = output_onnx.float()
-                output_onnx = output_onnx.sum(dim=1)
-
-                if output_model.is_floating_point:
-                    # Absolute and relative tolerances are a bit arbitrary and taken from here:
-                    # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
-                    torch.testing.assert_close(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                        equal_nan=True,
-                        check_device=False,
-                        check_dtype=False,
-                        check_layout=False,
-                        atol=5e-3,
-                        rtol=1e-1,
-                    )
-                else:
-                    _torch_testing.assert_most_equal(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                    )
+                # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                torch.testing.assert_close(
+                    output_onnx,
+                    output_model,
+                    msg=msg,
+                    equal_nan=True,
+                    check_device=False,
+                    check_dtype=False,
+                    check_layout=False,
+                    atol=5e-3,
+                    rtol=1e-1,
+                )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
 

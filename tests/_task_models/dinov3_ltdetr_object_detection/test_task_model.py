@@ -473,13 +473,10 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     with torch.no_grad():
         torch_outputs = model(torch.from_numpy(inputs))
 
-    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs.values()):
         onnx_tensor = torch.from_numpy(onnx_out)
-        if torch_out.is_floating_point():
-            close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
-            assert close.float().mean() > 0.95
-        else:
-            assert (onnx_tensor == torch_out).float().mean() > 0.95
+        close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
+        assert close.float().mean() > 0.95
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")

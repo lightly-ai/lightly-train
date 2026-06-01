@@ -20,75 +20,38 @@ logger = logging.getLogger(__name__)
 
 
 class InferenceBackend(Protocol):
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None
-    ) -> tuple[Tensor, Tensor, Tensor]: ...
+    def forward(self, x: Tensor) -> dict[str, Tensor]: ...
 
 
 class TorchBackend(nn.Module):
-    """PyTorch inference backend owning backbone, encoder, decoder, and postprocessor."""
+    """PyTorch inference backend owning backbone, encoder, and decoder."""
 
     def __init__(
         self,
         backbone: nn.Module,
         encoder: nn.Module,
         decoder: nn.Module,
-        postprocessor: nn.Module,
-        internal_class_to_class: Tensor,
     ) -> None:
         super().__init__()
         self.backbone = backbone
         self.encoder = encoder
         self.decoder = decoder
-        self.postprocessor = postprocessor
-        self.register_buffer(
-            "internal_class_to_class",
-            internal_class_to_class,
-            persistent=False,
-        )
-
-    @property
-    def deploy_mode(self) -> bool:
-        return self.postprocessor.deploy_mode  # type: ignore[no-any-return]
+        self._deployed: bool = False
 
     def deploy(self) -> None:
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
+        self._deployed = True
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
         self.backbone.requires_grad_(False)
 
-    def forward(
-        self,
-        x: Tensor,
-        orig_target_size: Tensor | None = None,
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
-        else:
-            # Input is (H, W); postprocessor expects (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        feats = self.backbone(x)
-        feats = self.encoder(feats)
-        feats = self.decoder(feats)
-
-        result: tuple[Tensor, Tensor, Tensor] = self.postprocessor(feats, orig_target_size_)
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]  # type: ignore[index]
-        return (labels, boxes, scores)
-
-    def _forward_raw(self, x: Tensor) -> Any:
-        """Return raw decoder output dict (training / postprocess path)."""
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
         x = self.backbone(x)
         x = self.encoder(x)
-        return self.decoder(x)
+        return self.decoder(x)  # type: ignore[return-value]
 
     def forward_train(self, x: Tensor, targets: Any) -> Any:
         x = self.backbone(x)
@@ -117,18 +80,15 @@ class ONNXBackend:
         self._device = device
         self._dtype = dtype
 
-    def forward(
-        self,
-        x: Tensor,
-        orig_target_size: Tensor | None = None,  # ignored — baked into the ONNX graph
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        del orig_target_size
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
         x_np = x.cpu().numpy()
-        outputs = self._session.run(None, {"images": x_np})
-        labels = torch.from_numpy(outputs[0]).to(self._device)
-        boxes = torch.from_numpy(outputs[1]).to(self._device)
-        scores = torch.from_numpy(outputs[2]).to(self._device)
-        return (labels, boxes, scores)
+        pred_logits_np, pred_boxes_np = self._session.run(
+            ["pred_logits", "pred_boxes"], {"images": x_np}
+        )
+        return {
+            "pred_logits": torch.from_numpy(pred_logits_np).to(self._device),
+            "pred_boxes": torch.from_numpy(pred_boxes_np).to(self._device),
+        }
 
 
 class TensorRTBackend:
@@ -168,12 +128,7 @@ class TensorRTBackend:
                     trt, self._engine.get_tensor_dtype(name)
                 )
 
-    def forward(
-        self,
-        x: Tensor,
-        orig_target_size: Tensor | None = None,  # ignored — baked into the TRT engine
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        del orig_target_size
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
         x = x.to(device=self._device, dtype=self._dtype)
         if not x.is_contiguous():
             x = x.contiguous()
@@ -187,7 +142,9 @@ class TensorRTBackend:
             shape = tuple(self._context.get_tensor_shape(name))
             # Replace any still-dynamic dim with the actual batch size.
             shape = tuple(batch_size if s == -1 else s for s in shape)
-            buf = torch.empty(shape, dtype=self._output_dtypes[name], device=self._device)
+            buf = torch.empty(
+                shape, dtype=self._output_dtypes[name], device=self._device
+            )
             outputs[name] = buf
             self._context.set_tensor_address(name, buf.data_ptr())
 
@@ -195,7 +152,10 @@ class TensorRTBackend:
         self._context.execute_async_v3(stream_handle=stream)
         torch.cuda.synchronize(self._device)
 
-        return (outputs["labels"], outputs["boxes"], outputs["scores"])
+        return {
+            "pred_logits": outputs["pred_logits"],
+            "pred_boxes": outputs["pred_boxes"],
+        }
 
 
 def _trt_dtype_to_torch(trt: Any, trt_dtype: Any) -> torch.dtype:
