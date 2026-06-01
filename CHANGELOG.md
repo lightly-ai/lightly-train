@@ -5,10 +5,13 @@ All notable changes to Lightly**Train** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.1] - 2026-05-28
 
 ### Added
 
+- Add image logging for all fine-tuning tasks. Sample predictions are saved locally and
+  forwarded to configured loggers (TensorBoard, Weights & Biases, MLflow).
+- Add `predict_batch` for batched inference across all fine-tuning tasks.
 - Configurable `patch_size` for DINOv3 LT-DETR models.
 - Added decoder and losses from [D-FINE](https://github.com/Peterande/D-FINE).
 - Add support for choosing LR scheduler for LTDETR object detection. You can specify the
@@ -24,6 +27,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+- Fix PicoDet fine-tuning with mismatched `num_classes`.
+- Fix DINOv3 LT-DETR patch size precedence so `model_args.patch_size` overrides the
+  backbone default.
 
 ### Security
 
