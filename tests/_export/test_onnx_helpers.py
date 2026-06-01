@@ -13,7 +13,10 @@ from typing import Any
 import pytest
 from lightning_utilities.core.imports import RequirementCache
 
-from lightly_train._export.onnx_helpers import remove_redundant_casts
+from lightly_train._export.onnx_helpers import (
+    fix_topological_order,
+    remove_redundant_casts,
+)
 
 pytestmark = pytest.mark.skipif(
     not RequirementCache("onnx"), reason="onnx not installed"
@@ -275,3 +278,130 @@ def test_rewires_downstream_consumers(tmp_path: Path) -> None:
     assert relu_node.op_type == "Relu"
     # Relu should now consume "X" directly, not "X_back".
     assert relu_node.input[0] == "X"
+
+
+# --- fix_topological_order tests ---
+
+
+def _node_names(model: Any) -> list[str]:
+    return [n.name for n in model.graph.node]
+
+
+def test_fix_topological_order_already_sorted() -> None:
+    """Nodes already in topological order should remain unchanged."""
+    import onnx
+
+    relu = onnx.helper.make_node("Relu", ["X"], ["A"], name="relu")
+    sigmoid = onnx.helper.make_node("Sigmoid", ["A"], ["Y"], name="sigmoid")
+    graph = onnx.helper.make_graph(
+        [relu, sigmoid],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1])],
+        [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1])],
+    )
+    model = _make_model(graph)
+    fix_topological_order(model)
+    assert _node_names(model) == ["relu", "sigmoid"]
+
+
+def test_fix_topological_order_reversed() -> None:
+    """Nodes in reverse order should be sorted so producers come first."""
+    import onnx
+
+    sigmoid = onnx.helper.make_node("Sigmoid", ["A"], ["Y"], name="sigmoid")
+    relu = onnx.helper.make_node("Relu", ["X"], ["A"], name="relu")
+    graph = onnx.helper.make_graph(
+        [sigmoid, relu],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1])],
+        [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1])],
+    )
+    model = _make_model(graph)
+    fix_topological_order(model)
+    assert _node_names(model) == ["relu", "sigmoid"]
+
+
+def test_fix_topological_order_diamond() -> None:
+    """Diamond dependency: A -> {B, C} -> D. All valid orderings place A first
+    and D last."""
+    import onnx
+
+    a = onnx.helper.make_node("Relu", ["X"], ["A"], name="a")
+    b = onnx.helper.make_node("Relu", ["A"], ["B"], name="b")
+    c = onnx.helper.make_node("Sigmoid", ["A"], ["C"], name="c")
+    d = onnx.helper.make_node("Add", ["B", "C"], ["Y"], name="d")
+    graph = onnx.helper.make_graph(
+        [d, c, b, a],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1])],
+        [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1])],
+    )
+    model = _make_model(graph)
+    fix_topological_order(model)
+    names = _node_names(model)
+    assert names[0] == "a"
+    assert names[-1] == "d"
+    assert set(names[1:3]) == {"b", "c"}
+
+
+def test_fix_topological_order_independent_chains() -> None:
+    """Two independent chains should both appear in valid order."""
+    import onnx
+
+    r1 = onnx.helper.make_node("Relu", ["X1"], ["A1"], name="r1")
+    s1 = onnx.helper.make_node("Sigmoid", ["A1"], ["Y1"], name="s1")
+    r2 = onnx.helper.make_node("Relu", ["X2"], ["A2"], name="r2")
+    s2 = onnx.helper.make_node("Sigmoid", ["A2"], ["Y2"], name="s2")
+    graph = onnx.helper.make_graph(
+        [s2, s1, r2, r1],
+        "test",
+        [
+            onnx.helper.make_tensor_value_info("X1", onnx.TensorProto.FLOAT, [1]),
+            onnx.helper.make_tensor_value_info("X2", onnx.TensorProto.FLOAT, [1]),
+        ],
+        [
+            onnx.helper.make_tensor_value_info("Y1", onnx.TensorProto.FLOAT, [1]),
+            onnx.helper.make_tensor_value_info("Y2", onnx.TensorProto.FLOAT, [1]),
+        ],
+    )
+    model = _make_model(graph)
+    fix_topological_order(model)
+    names = _node_names(model)
+    assert names.index("r1") < names.index("s1")
+    assert names.index("r2") < names.index("s2")
+
+
+def test_fix_topological_order_empty_graph() -> None:
+    """An empty graph should not raise."""
+    import onnx
+
+    graph = onnx.helper.make_graph(
+        [],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1])],
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1])],
+    )
+    model = _make_model(graph)
+    fix_topological_order(model)
+    assert len(model.graph.node) == 0
+
+
+def test_fix_topological_order_uses_initializers() -> None:
+    """Nodes consuming initializers (not graph inputs) should be treated as
+    having no graph-node dependencies."""
+    import numpy as np
+    import onnx
+
+    add = onnx.helper.make_node("Add", ["X", "bias"], ["A"], name="add")
+    relu = onnx.helper.make_node("Relu", ["A"], ["Y"], name="relu")
+    bias = onnx.numpy_helper.from_array(np.zeros(1, dtype=np.float32), name="bias")
+    graph = onnx.helper.make_graph(
+        [relu, add],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1])],
+        [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1])],
+        initializer=[bias],
+    )
+    model = _make_model(graph)
+    fix_topological_order(model)
+    assert _node_names(model) == ["add", "relu"]

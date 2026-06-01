@@ -24,7 +24,10 @@ from lightly_train._commands import _warnings
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
-from lightly_train._export.onnx_helpers import remove_redundant_casts
+from lightly_train._export.onnx_helpers import (
+    fix_topological_order,
+    remove_redundant_casts,
+)
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
@@ -1259,7 +1262,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             #  Cast32 -> MatMul -> Cast16 -> Cast32 -> Softmax -> Cast16. Therefore, we need to remove the middle
             #  Cast16 -> Cast32.
             remove_redundant_casts(model_fp16)
-            onnx.utils.fix_topological_order(model_fp16)
+            fix_topological_order(model_fp16)
             onnx.save(model_fp16, str(out))
 
         if simplify:

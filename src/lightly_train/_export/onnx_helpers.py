@@ -126,6 +126,52 @@ def remove_redundant_casts(model: onnx.ModelProto) -> None:
     logger.info("Removed %d redundant Cast nodes", len(nodes_to_remove))
 
 
+def fix_topological_order(model: onnx.ModelProto) -> None:
+    """Sort graph nodes into topological order in-place."""
+    from collections import deque
+
+    graph = model.graph
+    nodes = list(graph.node)
+    if not nodes:
+        return
+
+    available: set[str] = set()
+    for inp in graph.input:
+        available.add(inp.name)
+    for init in graph.initializer:
+        available.add(init.name)
+
+    output_to_node: dict[str, int] = {}
+    for i, node in enumerate(nodes):
+        for out in node.output:
+            output_to_node[out] = i
+
+    deps: dict[int, set[int]] = {i: set() for i in range(len(nodes))}
+    for i, node in enumerate(nodes):
+        for inp in node.input:
+            if inp and inp not in available and inp in output_to_node:
+                deps[i].add(output_to_node[inp])
+
+    in_degree = {i: len(d) for i, d in deps.items()}
+    dependents: dict[int, list[int]] = {i: [] for i in range(len(nodes))}
+    for i, dep_set in deps.items():
+        for d in dep_set:
+            dependents[d].append(i)
+
+    queue: deque[int] = deque(i for i, d in in_degree.items() if d == 0)
+    sorted_nodes = []
+    while queue:
+        idx = queue.popleft()
+        sorted_nodes.append(nodes[idx])
+        for dep in dependents[idx]:
+            in_degree[dep] -= 1
+            if in_degree[dep] == 0:
+                queue.append(dep)
+
+    del graph.node[:]
+    graph.node.extend(sorted_nodes)
+
+
 class ONNXPrecision(str, Enum):
     F16_TRUE = "16-true"
     F32_TRUE = "32-true"
