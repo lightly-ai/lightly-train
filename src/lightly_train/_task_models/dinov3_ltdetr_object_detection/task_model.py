@@ -25,11 +25,13 @@ from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
@@ -663,50 +665,43 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
 
         config_mapping = {
-            "vitt16": (_DINOv3LTDETRObjectDetectionViTTConfig, DINOv3STAs),
-            "vitt16plus": (_DINOv3LTDETRObjectDetectionViTTPlusConfig, DINOv3STAs),
-            "vits16": (_DINOv3LTDETRObjectDetectionViTSConfig, DINOv3STAs),
-            "vitb16": (_DINOv3LTDETRObjectDetectionViTBConfig, DINOv3STAs),
-            "vitl16": (_DINOv3LTDETRObjectDetectionViTLConfig, DINOv3STAs),
-            "convnext-tiny": (
-                _DINOv3LTDETRObjectDetectionTinyConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-small": (
-                _DINOv3LTDETRObjectDetectionSmallConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-base": (
-                _DINOv3LTDETRObjectDetectionBaseConfig,
-                DINOv3ConvNextWrapper,
-            ),
-            "convnext-large": (
-                _DINOv3LTDETRObjectDetectionLargeConfig,
-                DINOv3ConvNextWrapper,
-            ),
+            "vitt16": _DINOv3LTDETRObjectDetectionViTTConfig,
+            "vitt16plus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
+            "vits16": _DINOv3LTDETRObjectDetectionViTSConfig,
+            "vitb16": _DINOv3LTDETRObjectDetectionViTBConfig,
+            "vitl16": _DINOv3LTDETRObjectDetectionViTLConfig,
+            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
+            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
+            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
+            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
         config_name = config_name.replace("-eupe", "")
-        config_cls, wrapper_cls = config_mapping[config_name]
+        config_cls = config_mapping[config_name]
         config = config_cls()
         config.decoder_name = decoder_name
 
         config.resolve_auto(patch_size=patch_size)
 
-        if hasattr(config, "backbone_wrapper"):
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
+
+        if isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
-            self.backbone = wrapper_cls(
-                model=backbone,
+            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
+            self.backbone = DINOv3STAs(
+                model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
 
         else:
             # ConvNext models.
-            self.backbone = wrapper_cls(model=backbone)
+            assert isinstance(backbone, ConvNeXt)
+            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()

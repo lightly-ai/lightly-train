@@ -14,6 +14,7 @@ from typing import (
     Literal,
     Mapping,
     Protocol,
+    Sequence,
     overload,
     runtime_checkable,
 )
@@ -137,6 +138,47 @@ class ModelWrapper(
     NNModule,
     Protocol,
 ): ...
+
+
+class MultiScaleFeatureDim(Protocol):
+    def multiscale_feature_dims(self) -> list[int]:
+        """Returns the feature dimensions of each layer/stage in the model.
+
+        The returned list has one entry per layer/stage, indexed from 0 (earliest
+        layer/stage) to N-1 (last layer/stage). For a ViT all entries are typically
+        the same (equal to ``embed_dim``). For a ConvNeXt each stage has a different
+        dimension (e.g. [96, 192, 384, 768]).
+
+        The index of each entry corresponds to the layer indices accepted by
+        ``forward_multiscale_features``.
+        """
+        ...
+
+
+@runtime_checkable
+class MultiScaleFeatureModelWrapper(ModelWrapper, MultiScaleFeatureDim, Protocol):
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        """Extracts multi-scale features from the specified layers/stages.
+
+        The ``layer_indices`` are 0-based indices from the beginning of the network,
+        corresponding to the indices of ``multiscale_feature_dims()``. For a ViT each
+        index refers to a transformer block. For a ConvNeXt each index refers to a
+        stage (downsample stage + residual blocks).
+
+        Args:
+            x: Inputs with shape (B, C_in, H_in, W_in).
+            layer_indices: Indices of the layers/stages to extract features from.
+
+        Returns:
+            List of dicts, one per requested layer/stage, in the same order as
+            ``layer_indices``. Each dict has a ``"features"`` entry containing the
+            extracted features with shape (B, feature_dim, H_out, W_out), and
+            optionally a ``"cls_token"`` entry. Features are normalized. Different
+            entries may have different feature dimensions and spatial resolutions.
+        """
+        ...
 
 
 def missing_model_wrapper_attrs(

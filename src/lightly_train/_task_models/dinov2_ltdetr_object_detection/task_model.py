@@ -23,6 +23,7 @@ from typing_extensions import Self
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
     DINOv2STAs,
@@ -513,8 +514,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
         dinov2.mask_token.requires_grad = False  # type: ignore
 
+        model_wrapper = DINOv2ViTModelWrapper(dinov2)
         self.backbone: DINOv2STAs = DINOv2STAs(
-            model=dinov2,
+            model_wrapper=model_wrapper,
             # Disable STA for DINOv2 as it doesn't work well with patch size 14.
             use_sta=False,
             **config.backbone_wrapper.model_dump(),
@@ -1014,8 +1016,9 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         config = config_cls()
         config.decoder_name = decoder_name
 
+        model_wrapper = DINOv2ViTModelWrapper(dinov2)
         self.backbone: DINOv2STAs = DINOv2STAs(
-            model=dinov2,
+            model_wrapper=model_wrapper,
             # Disable STA for DINOv2 as it doesn't work well with patch size 14.
             use_sta=False,
             **config.backbone_wrapper.model_dump(),

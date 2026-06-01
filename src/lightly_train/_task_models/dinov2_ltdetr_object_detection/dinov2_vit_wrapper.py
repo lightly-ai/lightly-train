@@ -31,6 +31,9 @@ the terms of the DINOv3 License Agreement.
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -44,9 +47,10 @@ from torch.nn import (
     SyncBatchNorm,
 )
 
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer,
-)
+from lightly_train import _torch_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class SpatialPriorModulev2(Module):
@@ -119,7 +123,7 @@ class SpatialPriorModulev2(Module):
 class DINOv2STAs(Module):
     def __init__(
         self,
-        model: DinoVisionTransformer,
+        model_wrapper: DINOv2ViTModelWrapper,
         interaction_indexes: list[int] = [5, 8, 11],
         finetune: bool = True,
         use_sta: bool = True,
@@ -128,16 +132,27 @@ class DINOv2STAs(Module):
     ):
         super().__init__()
 
-        self.dinov2 = model
-        embed_dim = self.dinov2.embed_dim
+        self._model_wrapper = model_wrapper
+        embed_dim = self._model_wrapper.feature_dim()
 
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
-        self.patch_size = model.patch_size
+        self.patch_size = model_wrapper.get_model().patch_size
+
+        if use_sta and self.patch_size != 16:
+            raise ValueError(
+                f"use_sta=True requires patch_size=16, but got patch_size={self.patch_size}. "
+                "SpatialPriorModulev2 extracts features at strides H/8, H/16, H/32, which only "
+                "aligns with ViT patch grids when patch_size=16."
+            )
 
         if not finetune:
-            self.dinov2.eval()
-            self.dinov2.requires_grad_(False)
+            model_wrapper.eval()
+            model_wrapper.requires_grad_(False)
+
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, DINOv2STAs._remap_legacy_keys
+        )
 
         # init the feature pyramid
         self.use_sta = use_sta
@@ -185,54 +200,62 @@ class DINOv2STAs(Module):
             ]
         )
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
-        # Code for matching with oss
-        H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
-        bs, _, _, _ = x.shape
+    @property
+    def backbone_model(self) -> Module:
+        return self._model_wrapper.get_model()
 
-        if len(self.interaction_indexes) > 0:
-            all_layers = self.dinov2.get_intermediate_layers(
-                x, n=self.interaction_indexes, return_class_token=True
+    @staticmethod
+    def _remap_legacy_keys(
+        module: Module,
+        state_dict: dict[str, Any],
+        prefix: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        old_subprefix = prefix + "dinov2."
+        new_subprefix = prefix + "_model_wrapper._model."
+        if any(k.startswith(old_subprefix) for k in state_dict):
+            logger.info(
+                "Detected old DINOv2STAs checkpoint format "
+                "(dinov2. → _model_wrapper._model.). Remapping keys."
             )
-        else:
-            # With the assert in the __init__ this branch is never used.
-            all_layers = self.dinov2(x)
+            for k in [
+                k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
+            ]:
+                state_dict[new_subprefix + k[len(old_subprefix) :]] = state_dict.pop(k)
 
-        sem_feats = []
-        num_scales = len(all_layers) - 2
-        for i, sem_feat in enumerate(all_layers):
-            feat, _ = sem_feat  # type: ignore[misc]
-            sem_feat_ = (
-                feat.transpose(1, 2).view(bs, -1, H_c, W_c).contiguous()
-            )  # [B, D, H, W]
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
+
+        sem_feats = self._model_wrapper.forward_multiscale_features(
+            x, self.interaction_indexes
+        )
+
+        resized_feats: list[Tensor] = []
+        num_scales = len(sem_feats) - 2
+        for i, sem_feat in enumerate(sem_feats):
+            feat = sem_feat["features"]
             resize_H, resize_W = (
                 int(H_c * 2 ** (num_scales - i)),
                 int(W_c * 2 ** (num_scales - i)),
             )
-            sem_feat_ = F.interpolate(
-                sem_feat_,
-                size=[resize_H, resize_W],
-                mode="bilinear",
-                align_corners=False,
+            resized_feats.append(
+                F.interpolate(
+                    feat,
+                    size=[resize_H, resize_W],
+                    mode="bilinear",
+                    align_corners=False,
+                )
             )
-            sem_feats.append(sem_feat_)
-
-        # Normalize sem feats type to tensors.
-        # If feat is a Tensor it is the spatial tokens
-        # If feat is a Tuple, the first entry contains the spatial tokens.
-        # With the default args from get_intermediate_layers it is a Tensor.
-        sem_feats_t: list[torch.Tensor] = [
-            feat if isinstance(feat, torch.Tensor) else feat[0] for feat in sem_feats
-        ]
 
         # fusion
         fused_feats = []
         if self.use_sta:
             detail_feats = self.sta(x)
-            for sem_feat_, detail_feat in zip(sem_feats_t, detail_feats):
-                fused_feats.append(torch.cat([sem_feat_, detail_feat], dim=1))
+            for semantic_feat, detail_feat in zip(resized_feats, detail_feats):
+                fused_feats.append(torch.cat([semantic_feat, detail_feat], dim=1))
         else:
-            fused_feats = sem_feats_t
+            fused_feats = resized_feats
 
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))
