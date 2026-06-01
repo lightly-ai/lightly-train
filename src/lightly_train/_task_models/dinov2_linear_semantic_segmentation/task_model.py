@@ -23,7 +23,11 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer as DINOv2VisionTransformer,
+)
 from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.package import ModelNameParser, MultiScaleFeaturePackage
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -112,10 +116,6 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
             args["drop_path_rate"] = 0.0
         if backbone_args is not None:
             args.update(backbone_args)
-        # Non-DINOv2 builders (e.g. DINOv3) hardcode drop_path_rate internally;
-        # passing it again causes a duplicate keyword argument error.
-        if parsed_name["package_name"] != DINOV2_VIT_PACKAGE.name:
-            args.pop("drop_path_rate", None)
 
         # Build the backbone via the package registry.
         num_channels = len(self.image_normalize["mean"])
@@ -127,14 +127,11 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         )
         embed_dim = self.backbone.feature_dim()
 
-        # patch_size is only available on ViT backbones.
-        underlying = self.backbone.get_model()
-        self.patch_size: int | None = getattr(underlying, "patch_size", None)
-
         # TODO(Guarin, 07/25): Improve how mask tokens are handled for fine-tuning.
         # Should we drop them from the model? We disable grads here for DDP to work
         # without find_unused_parameters=True.
-        if hasattr(underlying, "mask_token"):
+        underlying = self.backbone.get_model()
+        if isinstance(underlying, DINOv2VisionTransformer):
             underlying.mask_token.requires_grad = False
 
         # Load the backbone weights if a path is provided.
@@ -153,6 +150,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
             f"{name}-{cls.model_suffix}"
             for pkg in package_helpers.list_packages()
             for name in pkg.list_model_names()
+            if isinstance(pkg, MultiScaleFeaturePackage)
         ]
 
     @classmethod
@@ -189,11 +187,14 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         except ValueError:
             raise_invalid_name()
 
+        if not isinstance(package, MultiScaleFeaturePackage):
+            raise_invalid_name()
+
         # Canonicalize the backbone name if the package supports it.
-        if hasattr(package, "parse_model_name"):
+        if isinstance(package, ModelNameParser):
             try:
                 backbone_name = package.parse_model_name(model_name=backbone_name)
-            except (ValueError, KeyError):
+            except ValueError:
                 raise_invalid_name()
 
         return {

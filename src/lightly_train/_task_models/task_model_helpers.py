@@ -39,6 +39,14 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     #### Object Detection
+    "dinov2/vits14-noreg-ltdetr-coco": (
+        "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt",
+        "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717",
+    ),
+    "dinov2/vits14-ltdetr-dsp-coco": (
+        "dinov2_vits14_ltdetr_dsp_coco_251218_fa435184.pt",
+        "fa435184c775205469056f46456941ea271266ee522c656642853d061317f8ae",
+    ),
     "dinov3/vitt16-ltdetr-coco": (
         "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt",
         "dfd34210a1a3375793d149a55d9b49e6e8b783458bdd4cd76fd28fa2d61dbb37",

@@ -31,7 +31,7 @@ from lightly_train._models.model_wrapper import (
     MultiScaleFeatureCNN,
     MultiScaleFeatureViT,
 )
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._task_models.dinov3_ltdetr_object_detection.cnn_wrapper import (
     CNNMultiScaleBackboneWrapper,
 )
@@ -647,32 +647,26 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         else:
             self._expected_input_channels = 3
 
-        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
-        # set by DINOv3.
         backbone_model_args: dict[str, Any] = {}
         # patch_size is a DINOv3-specific constructor argument; other packages derive
         # the patch size from the model architecture.
         if parsed_name["package_name"] == DINOV3_PACKAGE.name:
             backbone_model_args["patch_size"] = patch_size
+        # For DINOv2 ViT backbones, set drop_path_rate to 0.0, DINOv3 does this by
+        # default.
+        if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
+            backbone_model_args["drop_path_rate"] = 0.0
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        # Get the backbone wrapper (protocol-based, works for any compatible package).
         model_wrapper = package_helpers.get_wrapped_model(
             model=f"{parsed_name['package_name']}/{parsed_name['backbone_name']}",
             num_input_channels=self._expected_input_channels,
             model_args=backbone_model_args,
             load_weights=load_weights,
         )
-        if not isinstance(model_wrapper, (MultiScaleFeatureViT, MultiScaleFeatureCNN)):
-            raise ValueError(
-                f"Backbone '{parsed_name['backbone_name']}' from package "
-                f"'{parsed_name['package_name']}' does not implement multi-scale "
-                "feature extraction (MultiScaleFeatureViT or MultiScaleFeatureCNN) "
-                "required by LT-DETR."
-            )
 
         config_mapping = {
             "vitt16": _DINOv3LTDETRObjectDetectionViTTConfig,
@@ -789,6 +783,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         try:
             pkg = package_helpers.get_package(package_name)
         except ValueError:
+            raise_invalid_name()
+
+        if not isinstance(pkg, MultiScaleFeaturePackage):
             raise_invalid_name()
 
         if pkg not in _COMPATIBLE_PACKAGES:
