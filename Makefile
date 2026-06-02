@@ -130,6 +130,8 @@ add-header:
 		   src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
+		   src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
+		   src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 
 	# Apply Lightly's header to tiling_utils.py
