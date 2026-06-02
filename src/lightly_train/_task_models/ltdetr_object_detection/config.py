@@ -58,7 +58,7 @@ LTDETR_MODEL_REGISTRY = ModelRegistry()
 
 class HybridEncoderConfig(PydanticConfig):
     in_channels: list[int]
-    feat_strides: list[int]
+    feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int
     use_encoder_idx: list[int]
     num_encoder_layers: int
@@ -70,6 +70,13 @@ class HybridEncoderConfig(PydanticConfig):
     depth_mult: float
     act: str
     upsample: bool = True
+
+    def resolve_auto(self, patch_size: int | None) -> None:
+        patch_size = patch_size or 16
+        if self.feat_strides == "auto":
+            self.feat_strides = [
+                int(patch_size * (2 ** (i - 1))) for i in range(len(self.in_channels))
+            ]
 
 
 class LTDETRHybridEncoderConfig(ConfigsNamespace):
@@ -131,7 +138,6 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 
     class ViTT(HybridEncoderConfig):
         in_channels: list[int] = [192, 192, 192]
-        feat_strides: list[int] = [8, 16, 32]
         hidden_dim: int = 192
         use_encoder_idx: list[int] = [2]
         num_encoder_layers: int = 1
@@ -145,7 +151,6 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 
     class ViTTPlus(HybridEncoderConfig):
         in_channels: list[int] = [256, 256, 256]
-        feat_strides: list[int] = [8, 16, 32]
         hidden_dim: int = 256
         use_encoder_idx: list[int] = [2]
         num_encoder_layers: int = 1
@@ -159,7 +164,6 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 
     class ViTS(HybridEncoderConfig):
         in_channels: list[int] = [224, 224, 224]
-        feat_strides: list[int] = [8, 16, 32]
         hidden_dim: int = 224
         use_encoder_idx: list[int] = [2]
         num_encoder_layers: int = 1
@@ -173,7 +177,6 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 
     class ViTB(HybridEncoderConfig):
         in_channels: list[int] = [768, 768, 768]
-        feat_strides: list[int] = [8, 16, 32]
         hidden_dim: int = 768
         use_encoder_idx: list[int] = [2]
         num_encoder_layers: int = 1
@@ -187,12 +190,24 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 
     class ViTL(HybridEncoderConfig):
         in_channels: list[int] = [1024, 1024, 1024]
-        feat_strides: list[int] = [8, 16, 32]
         hidden_dim: int = 1024
         use_encoder_idx: list[int] = [2]
         num_encoder_layers: int = 1
         nhead: int = 8
         dim_feedforward: int = 4096
+        dropout: float = 0.0
+        enc_act: str = "gelu"
+        expansion: float = 1.0
+        depth_mult: float = 1.0
+        act: str = "silu"
+
+    class ViTG(HybridEncoderConfig):
+        in_channels: list[int] = [1536, 1536, 1536]
+        hidden_dim: int = 1536
+        use_encoder_idx: list[int] = [2]
+        num_encoder_layers: int = 1
+        nhead: int = 8
+        dim_feedforward: int = 6144
         dropout: float = 0.0
         enc_act: str = "gelu"
         expansion: float = 1.0
@@ -212,6 +227,7 @@ class RTDETRTransformerv2Config(PydanticConfig):
     box_noise_scale: float = 1.0
     eval_idx: int = -1
     num_points: list[int] = [4, 4, 4]
+    query_select_method: str = "default"
 
     def resolve_auto(self, patch_size: int | None) -> None:
         patch_size = patch_size or 16
@@ -269,10 +285,17 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
         num_points: list[int] = [3, 6, 3]
         dim_feedforward: int = 8192
 
+    class ViTG(RTDETRTransformerv2Config):
+        feat_channels: list[int] = [1536, 1536, 1536]
+        hidden_dim: int = 1536
+        num_layers: int = 4
+        num_points: list[int] = [3, 6, 3]
+        dim_feedforward: int = 12288
+
 
 class DFINETransformerConfig(PydanticConfig):
     feat_channels: list[int]
-    feat_strides: list[int] = [8, 16, 32]
+    feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int = 256
     num_levels: int = 3
     num_layers: int
@@ -289,22 +312,33 @@ class DFINETransformerConfig(PydanticConfig):
     reg_scale: float = 4.0
     layer_scale: float = 1.0
 
+    def resolve_auto(self, patch_size: int | None) -> None:
+        patch_size = patch_size or 16
+        if self.feat_strides == "auto":
+            self.feat_strides = [
+                int(patch_size * (2 ** (i - 1))) for i in range(self.num_levels)
+            ]
+
 
 class LTDETRDFINETransformerConfig(ConfigsNamespace):
     class CNNTiny(DFINETransformerConfig):
         feat_channels: list[int] = [384, 384, 384]
+        feat_strides: list[int] = [8, 16, 32]
         num_layers: int = 3
 
     class CNNSmall(DFINETransformerConfig):
         feat_channels: list[int] = [384, 384, 384]
+        feat_strides: list[int] = [8, 16, 32]
         num_layers: int = 3
 
     class CNNBase(DFINETransformerConfig):
         feat_channels: list[int] = [384, 384, 384]
+        feat_strides: list[int] = [8, 16, 32]
         num_layers: int = 4
 
     class CNNLarge(DFINETransformerConfig):
         feat_channels: list[int] = [384, 384, 384]
+        feat_strides: list[int] = [8, 16, 32]
         num_layers: int = 6
         reg_scale: float = 8.0
 
@@ -338,13 +372,25 @@ class LTDETRDFINETransformerConfig(ConfigsNamespace):
         num_layers: int = 4
         dim_feedforward: int = 8192
 
+    class ViTG(DFINETransformerConfig):
+        feat_channels: list[int] = [1536, 1536, 1536]
+        hidden_dim: int = 1536
+        num_layers: int = 4
+        dim_feedforward: int = 12288
+
 
 class RTDETRBackboneWrapperConfig(PydanticConfig):
     interaction_indexes: list[int]
     finetune: bool
     use_sta: bool
-    conv_inplane: int
+    conv_inplane: int | Literal["auto"] = "auto"
+    conv_inplane_factor: int = 2
     hidden_dim: int
+
+    def resolve_auto(self, patch_size: int | None) -> None:
+        patch_size = patch_size or 16
+        if self.conv_inplane == "auto":
+            self.conv_inplane = self.conv_inplane_factor * patch_size
 
 
 class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
@@ -366,22 +412,29 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         interaction_indexes: list[int] = [5, 8, 11]
         finetune: bool = True
         use_sta: bool = True
-        conv_inplane: int = 32
+        conv_inplane_factor: int = 2
         hidden_dim: int = 224
 
     class ViTB(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
         finetune: bool = True
         use_sta: bool = True
-        conv_inplane: int = 64
+        conv_inplane_factor: int = 4
         hidden_dim: int = 768
 
     class ViTL(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [11, 17, 23]
         finetune: bool = True
         use_sta: bool = True
-        conv_inplane: int = 64
+        conv_inplane_factor: int = 4
         hidden_dim: int = 1024
+
+    class ViTG(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [19, 29, 39]
+        finetune: bool = True
+        use_sta: bool = True
+        conv_inplane: int = 64
+        hidden_dim: int = 1536
 
 
 class RTDETRPostProcessorConfig(PydanticConfig):
@@ -396,7 +449,12 @@ class ObjectDetectionConfig(PydanticConfig):
     rtdetr_postprocessor: RTDETRPostProcessorConfig
 
     def resolve_auto(self, patch_size: int | None) -> None:
+        wrapper = getattr(self, "backbone_wrapper", None)
+        if wrapper is not None:
+            wrapper.resolve_auto(patch_size=patch_size)
+        self.hybrid_encoder.resolve_auto(patch_size=patch_size)
         self.rtdetr_transformer.resolve_auto(patch_size=patch_size)
+        self.dfine_transformer.resolve_auto(patch_size=patch_size)
 
 
 class LTDETRObjectDetectionConfig(ConfigsNamespace):
@@ -496,7 +554,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTPlus
         )
 
-    LTDETR_MODEL_REGISTRY.register("vits16")
+    LTDETR_MODEL_REGISTRY.register("vits16", "vits14", "_vittest14")
     class ViTS(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTS
@@ -514,7 +572,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTS
         )
 
-    LTDETR_MODEL_REGISTRY.register("vitb16")
+    LTDETR_MODEL_REGISTRY.register("vitb16", "vitb14")
     class ViTB(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTB
@@ -532,7 +590,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTB
         )
 
-    LTDETR_MODEL_REGISTRY.register("vitl16")
+    LTDETR_MODEL_REGISTRY.register("vitl16", "vitl14")
     class ViTL(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTL
@@ -548,4 +606,22 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTL
+        )
+
+    LTDETR_MODEL_REGISTRY.register("vitg14")
+    class ViTG(ObjectDetectionConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.ViTG
+        )
+        rtdetr_transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTG
+        )
+        dfine_transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTG
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=RTDETRPostProcessorConfig
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTG
         )
