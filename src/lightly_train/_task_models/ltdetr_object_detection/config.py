@@ -379,6 +379,10 @@ class LTDETRDFINETransformerConfig(ConfigsNamespace):
         dim_feedforward: int = 12288
 
 
+class CNNBackboneWrapperConfig(PydanticConfig):
+    finetune: bool = True
+
+
 class RTDETRBackboneWrapperConfig(PydanticConfig):
     interaction_indexes: list[int]
     finetune: bool
@@ -472,7 +476,10 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-    
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+
     LTDETR_MODEL_REGISTRY.register("convnext-base")
     class CNNBase(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -486,6 +493,9 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
+        )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
         )
 
     LTDETR_MODEL_REGISTRY.register("convnext-small")
@@ -502,6 +512,9 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
 
     LTDETR_MODEL_REGISTRY.register("convnext-tiny")
     class CNNTiny(ObjectDetectionConfig):
@@ -516,6 +529,9 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
+        )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
         )
 
     LTDETR_MODEL_REGISTRY.register("vitt16")

@@ -20,13 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv3ConvNextWrapper(Module):
-    def __init__(self, model_wrapper: DINOv3VConvNeXtModelWrapper) -> None:
+    def __init__(
+        self, model_wrapper: DINOv3VConvNeXtModelWrapper, finetune: bool = True
+    ) -> None:
         super().__init__()
         self._model_wrapper = model_wrapper
         self.patch_size = model_wrapper.get_model().patch_size
         _torch_helpers.register_load_state_dict_pre_hook(
             self, DINOv3ConvNextWrapper._remap_legacy_keys
         )
+        if not finetune:
+            model_wrapper.eval()
+            model_wrapper.requires_grad_(False)
 
     @property
     def backbone_model(self) -> Module:

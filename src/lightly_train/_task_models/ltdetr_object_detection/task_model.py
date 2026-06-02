@@ -207,7 +207,10 @@ class LTDETRObjectDetection(TaskModel):
             # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
             convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
+            self.backbone = DINOv3ConvNextWrapper(
+                model_wrapper=convnext_model_wrapper,
+                **config.backbone_wrapper.model_dump(),
+            )
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
