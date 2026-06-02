@@ -5,18 +5,25 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+# Portions of this file are based on Depth Anything 3:
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
+# Licensed under the Apache License, Version 2.0.
+#
+
 from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import functional as F
-from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._task_models.depth_estimation_components.input_processor import (
+    InputProcessor,
+)
 from lightly_train._task_models.dinov2_dav3_depth_estimation.dpt_head import (
     DPTHead,
 )
@@ -106,6 +113,13 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
             _DEFAULT_IMAGE_NORMALIZE if image_normalize is None else image_normalize
         )
 
+        # Reuse the official Depth Anything V3 input pipeline so that resizing and
+        # normalization match the reference implementation exactly. The mono model
+        # bounds the longest side and rounds both sides to a patch multiple, then
+        # applies the official ImageNet normalization.
+        self.process_res_method = "upper_bound_resize"
+        self._input_processor = InputProcessor()  # type: ignore[no-untyped-call]
+
         net_args = dict(config["model_args"])
         if model_args is not None:
             net_args.update(model_args)
@@ -183,25 +197,18 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
                 shape ``(C, H, W)``.
 
         Returns:
-            A depth tensor of shape ``(H, W)`` at the original input resolution.
-            Larger values correspond to farther scene content.
+            A depth tensor of shape ``(H, W)`` at the Depth Anything V3 processing
+            resolution (the longest side resized to ``image_size``, both sides rounded
+            to a multiple of the patch size). This matches the official ``Prediction``
+            resolution. Larger values correspond to farther scene content.
         """
         self._track_inference()
         if self.training:
             self.eval()
 
-        x = file_helpers.as_image_tensor(image)
-        image_h, image_w = x.shape[-2:]
-        x = self._preprocess_image(x)
-
+        x = self._preprocess_image(image)
         out = self.forward(x.unsqueeze(0))
-        depth = F.interpolate(
-            out["depth"],
-            size=(image_h, image_w),
-            mode="bilinear",
-            align_corners=False,
-        )
-        return depth[0, 0]
+        return out["depth"][0, 0]
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
         """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``."""
@@ -233,26 +240,19 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         )
         return [patch_tokens for patch_tokens, _class_token in intermediate]
 
-    def _preprocess_image(self, image: Tensor) -> Tensor:
+    def _preprocess_image(self, image: PathLike | PILImage | Tensor) -> Tensor:
+        # Delegate resizing and normalization to the official DA3 `InputProcessor`
+        # so the result is bit-faithful to the reference: cv2 INTER_CUBIC (upscale) /
+        # INTER_AREA (downscale) resizing in uint8 space and ImageNet normalization.
+        proc_input = _as_input_processor_image(image)
+        batch, _exts, _intrinsics = self._input_processor(
+            [proc_input],
+            process_res=self.image_size,
+            process_res_method=self.process_res_method,
+            num_workers=1,
+        )
         first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        image = _ensure_three_channel_image(image).to(device)
-        image = transforms_functional.to_dtype(image, dtype=dtype, scale=True)
-        image = _resize_longest_side_to_upper_bound(
-            image=image,
-            upper_bound=self.image_size,
-        )
-        image = _resize_to_nearest_patch_multiple(
-            image=image,
-            patch_size=self.patch_size,
-        )
-        return transforms_functional.normalize(
-            image,
-            mean=self.image_normalize["mean"],
-            std=self.image_normalize["std"],
-        )
+        return batch[0].to(device=first_param.device, dtype=first_param.dtype)
 
 
 def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
@@ -269,9 +269,8 @@ def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
             0,
             non_sky_depth.numel(),
             (100_000,),
-            device=non_sky_depth.device,
         )
-        non_sky_depth = non_sky_depth[idx]
+        non_sky_depth = non_sky_depth[idx.to(non_sky_depth.device)]
     non_sky_max = torch.quantile(non_sky_depth, 0.99)
 
     depth = out["depth"].clone()
@@ -279,42 +278,27 @@ def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
     out["depth"] = depth
 
 
-def _ensure_three_channel_image(image: Tensor) -> Tensor:
-    if image.ndim != 3:
-        raise ValueError(f"Expected image shape (C, H, W), got {tuple(image.shape)}.")
+def _as_input_processor_image(image: PathLike | PILImage | Tensor) -> np.ndarray:
+    """Converts an input image to an ``(H, W, C)`` / ``(H, W)`` uint8 array.
 
-    channels = image.shape[0]
-    if channels == 1:
-        return image.expand(3, -1, -1)
-    if channels == 3:
-        return image
-    if channels >= 4:
-        return image[:3]
-    raise ValueError(f"Expected 1, 3, or 4 image channels, got {channels}.")
+    Routes through LightlyTrain's loaders so paths, URLs, PIL images, and tensors are
+    all supported, then returns a NumPy image that the official DA3 ``InputProcessor``
+    accepts (it applies ``Image.fromarray(...).convert("RGB")``, matching the
+    reference RGB conversion).
 
+    Args:
+        image: The input image as a path, URL, PIL image, or ``(C, H, W)`` tensor.
 
-def _resize_longest_side_to_upper_bound(image: Tensor, upper_bound: int) -> Tensor:
-    h, w = image.shape[-2:]
-    longest = max(h, w)
-    if longest == upper_bound:
-        return image
+    Returns:
+        The image as a uint8 array, shaped ``(H, W, C)`` or ``(H, W)`` for a single
+        channel.
+    """
+    tensor = file_helpers.as_image_tensor(image)
+    if tensor.ndim != 3:
+        raise ValueError(f"Expected image shape (C, H, W), got {tuple(tensor.shape)}.")
 
-    scale = upper_bound / float(longest)
-    new_h = max(1, int(round(h * scale)))
-    new_w = max(1, int(round(w * scale)))
-    return transforms_functional.resize(image, size=[new_h, new_w])
-
-
-def _resize_to_nearest_patch_multiple(image: Tensor, patch_size: int) -> Tensor:
-    h, w = image.shape[-2:]
-    new_h = max(patch_size, _nearest_multiple(h, patch_size))
-    new_w = max(patch_size, _nearest_multiple(w, patch_size))
-    if (new_h, new_w) == (h, w):
-        return image
-    return transforms_functional.resize(image, size=[new_h, new_w])
-
-
-def _nearest_multiple(value: int, multiple: int) -> int:
-    down = (value // multiple) * multiple
-    up = down + multiple
-    return up if abs(up - value) <= abs(value - down) else down
+    array = tensor.permute(1, 2, 0).cpu().numpy()
+    if array.shape[2] == 1:
+        # `Image.fromarray` expects a 2D array for single-channel images.
+        array = array[:, :, 0]
+    return np.ascontiguousarray(array)
