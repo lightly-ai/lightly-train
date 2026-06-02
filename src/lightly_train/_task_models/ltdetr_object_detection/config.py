@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Literal, Type
 
 from pydantic import Field
 
@@ -17,6 +17,43 @@ from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 logger = logging.getLogger(__name__)
 
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
+
+
+class ModelRegistry:
+    def __init__(self):
+        # Maps an alias (str) to the specific dataclass Type
+        self._registry: dict[str, Type] = {}
+
+    def register(self, *aliases: str):
+        """
+        A decorator to register a dataclass under one or multiple aliases.
+        Raises a ValueError if any alias is already taken.
+        """
+        def decorator(cls: Type):
+            for alias in aliases:
+                # Enforce uniqueness
+                if alias in self._registry:
+                    existing_cls = self._registry[alias].__name__
+                    raise ValueError(
+                        f"Conflict detected! The alias '{alias}' is already registered "
+                        f"to the class '{existing_cls}'."
+                    )
+                self._registry[alias] = cls
+            return cls
+        return decorator
+
+    def get(self, alias: str) -> Type:
+        """Retrieve the dataclass associated with the alias."""
+        if alias not in self._registry:
+            raise KeyError(f"No model configuration registered under the alias '{alias}'.")
+        return self._registry[alias]
+
+    def list_aliases(self) -> dict[str, str]:
+        """Returns a mapping of current aliases to their class names for debugging."""
+        return {alias: cls.__name__ for alias, cls in self._registry.items()}
+
+# Create singleton instance of the registry to be used across the module.
+LTDETR_MODEL_REGISTRY = ModelRegistry()
 
 
 class HybridEncoderConfig(PydanticConfig):
@@ -352,7 +389,7 @@ class RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class ObjectDetectionConfig(PydanticConfig):
-    decoder_name: _LTDETRDecoderName = "rtdetrv2"
+    decoder_name: _LTDETRDecoderName = "dfine"
     hybrid_encoder: HybridEncoderConfig
     rtdetr_transformer: RTDETRTransformerv2Config
     dfine_transformer: DFINETransformerConfig
@@ -363,6 +400,7 @@ class ObjectDetectionConfig(PydanticConfig):
 
 
 class LTDETRObjectDetectionConfig(ConfigsNamespace):
+    LTDETR_MODEL_REGISTRY.register("convnext-large")
     class CNNLarge(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNLarge
@@ -376,7 +414,8 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-
+    
+    LTDETR_MODEL_REGISTRY.register("convnext-base")
     class CNNBase(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNBase
@@ -391,6 +430,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=RTDETRPostProcessorConfig
         )
 
+    LTDETR_MODEL_REGISTRY.register("convnext-small")
     class CNNSmall(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNSmall
@@ -405,6 +445,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=RTDETRPostProcessorConfig
         )
 
+    LTDETR_MODEL_REGISTRY.register("convnext-tiny")
     class CNNTiny(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNTiny
@@ -419,6 +460,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=RTDETRPostProcessorConfig
         )
 
+    LTDETR_MODEL_REGISTRY.register("vitt16")
     class ViTT(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTT
@@ -436,6 +478,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTT
         )
 
+    LTDETR_MODEL_REGISTRY.register("vitt16-plus")
     class ViTTPlus(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTTPlus
@@ -453,6 +496,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTPlus
         )
 
+    LTDETR_MODEL_REGISTRY.register("vits16")
     class ViTS(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTS
@@ -470,6 +514,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTS
         )
 
+    LTDETR_MODEL_REGISTRY.register("vitb16")
     class ViTB(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTB
@@ -487,6 +532,7 @@ class LTDETRObjectDetectionConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTB
         )
 
+    LTDETR_MODEL_REGISTRY.register("vitl16")
     class ViTL(ObjectDetectionConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTL
