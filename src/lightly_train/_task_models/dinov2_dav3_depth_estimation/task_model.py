@@ -265,12 +265,15 @@ def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
 
     non_sky_depth = out["depth"][non_sky_mask]
     if non_sky_depth.numel() > 100_000:
+        generator = torch.Generator(device=non_sky_depth.device).manual_seed(42)
         idx = torch.randint(
             0,
             non_sky_depth.numel(),
             (100_000,),
+            generator=generator,
+            device=non_sky_depth.device,
         )
-        non_sky_depth = non_sky_depth[idx.to(non_sky_depth.device)]
+        non_sky_depth = non_sky_depth[idx]
     non_sky_max = torch.quantile(non_sky_depth, 0.99)
 
     depth = out["depth"].clone()
