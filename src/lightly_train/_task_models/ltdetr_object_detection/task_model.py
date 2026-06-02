@@ -26,7 +26,6 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
-from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
@@ -37,11 +36,10 @@ from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
-)
+from lightly_train._task_models.ltdetr_object_detection.cnn_wrapper import CNNMultiScaleBackboneWrapper
+from lightly_train._task_models.ltdetr_object_detection.vit_wrapper import ViTSTAsBackboneWrapper
 from lightly_train._task_models.ltdetr_object_detection.config import (
-    ObjectDetectionConfig, LTDETRObjectDetectionConfig,
+    LTDETR_MODEL_REGISTRY,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -64,10 +62,6 @@ logger = logging.getLogger(__name__)
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
 
 
-class LTDETRNameRegistry:
-    
-
-
 class LTDETRObjectDetection(TaskModel):
     model_suffix = "ltdetr"
 
@@ -82,14 +76,13 @@ class LTDETRObjectDetection(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: _LTDETRDecoderName = "rtdetrv2",
         load_weights: bool = True,
     ) -> None:
         """Create an LTDETR object detection model.
 
         Args:
             model_name:
-                The model name. For example ``"vitt16-ltdetr"``.
+                The model name. For example ``"dinov3/vitt16-ltdetr"``.
             classes:
                 A dict mapping class IDs to class names.
             image_size:
@@ -111,12 +104,13 @@ class LTDETRObjectDetection(TaskModel):
                 If False, then no pretrained weights are loaded.
         """
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
 
-        self.model_name = parsed_name["model_name"]
+        config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+
         self.image_size = image_size
         self.classes = classes
-        self.backbone_freeze = backbone_freeze
+        if backbone_freeze:
+            config.backbone_wrapper.finetune = False
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -147,15 +141,10 @@ class LTDETRObjectDetection(TaskModel):
         else:
             self._expected_input_channels = 3
 
-        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
-        # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
-            "patch_size": patch_size,
-        }
         if backbone_args is not None:
-            backbone_model_args.update(backbone_args)
+            config.backbone_args.update(backbone_args)
         if backbone_weights is not None:
-            backbone_model_args["weights"] = str(backbone_weights)
+            config.backbone_args["weights"] = str(backbone_weights)
 
         get_model_kwargs = {}
         if self.image_normalize is not None:
@@ -163,34 +152,19 @@ class LTDETRObjectDetection(TaskModel):
 
         # Get the backbone.
         backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
-            model_args=backbone_model_args,
+            model_name=model_name.split("/")[1], # TODO (Lionel, 06/26): Not working.
+            model_args=config.backbone_args,
             load_weights=load_weights,
             **get_model_kwargs,
         )
         assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
 
-        config_mapping = {
-            "vitt16": LTDETRObjectDetectionConfig.ViTT,
-            "vitt16plus": LTDETRObjectDetectionConfig.ViTTPlus,
-            "vits16": LTDETRObjectDetectionConfig.ViTS,
-            "vitb16": LTDETRObjectDetectionConfig.ViTB,
-            "vitl16": LTDETRObjectDetectionConfig.ViTL,
-            "convnext-tiny": LTDETRObjectDetectionConfig.CNNTiny,
-            "convnext-small": LTDETRObjectDetectionConfig.CNNSmall,
-            "convnext-base": LTDETRObjectDetectionConfig.CNNBase,
-            "convnext-large": LTDETRObjectDetectionConfig.CNNLarge,
-        }
-        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
-        config_name = config_name.replace("-noreg", "")
-        config_name = config_name.replace("-eupe", "")
-        config_cls = config_mapping[config_name]
-        config = config_cls()
-        config.decoder_name = decoder_name
+        # config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
+        # config_name = config_name.replace("-noreg", "")
 
         config.resolve_auto(patch_size=patch_size)
 
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
+        self.backbone: ViTSTAsBackboneWrapper | CNNMultiScaleBackboneWrapper
 
         if isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
@@ -229,9 +203,6 @@ class LTDETRObjectDetection(TaskModel):
             **postprocessor_config
         )
 
-        if self.backbone_freeze:
-            self.freeze_backbone()
-
     @classmethod
     def list_model_names(cls) -> list[str]:
         return [
@@ -246,43 +217,6 @@ class LTDETRObjectDetection(TaskModel):
             return False
         else:
             return True
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}."
-            )
-
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
-        return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
-
-    def freeze_backbone(self) -> None:
-        self.backbone.eval()
-        self.backbone.requires_grad_(False)
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
