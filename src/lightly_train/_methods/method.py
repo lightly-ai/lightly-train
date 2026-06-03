@@ -200,7 +200,11 @@ class Method(LightningModule):
 
         if self.device.type == "cuda":
             # 1. Resolve previous step's GPU duration from events.
-            if t._start_event is not None and t._end_event is not None:
+            if (
+                t._start_event is not None
+                and t._end_event is not None
+                and t._end_event.query()  # type: ignore[no-untyped-call]
+            ):
                 batch_time = t._start_event.elapsed_time(t._end_event) / 1e3  # type: ignore[no-untyped-call]
                 self.log("profiling/batch_time", batch_time)
 
