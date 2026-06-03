@@ -5,10 +5,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-# Portions of this file are based on Depth Anything 3:
-# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates.
-# Licensed under the Apache License, Version 2.0.
-#
 
 from __future__ import annotations
 
@@ -24,8 +20,8 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._task_models.depth_estimation_components.input_processor import (
     InputProcessor,
 )
-from lightly_train._task_models.dinov2_dav3_depth_estimation.dpt_head import (
-    DPTHead,
+from lightly_train._task_models.dinov2_dav3_depth_estimation.dpt import (
+    DPT,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
@@ -154,7 +150,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
             model_args=backbone_model_args,
             load_weights=load_weights,
         )
-        self.decoder = DPTHead(
+        self.decoder = DPT(
             dim_in=int(self.backbone.embed_dim),
             patch_size=patch_size,
             output_dim=int(net_args.get("output_dim", 1)),
