@@ -26,6 +26,8 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
+from lightly_train._models.model_wrapper import MultiScaleFeatureCNN, MultiScaleFeatureViT
+from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
@@ -111,6 +113,7 @@ class LTDETRObjectDetection(TaskModel):
         self.classes = classes
         if backbone_freeze:
             config.backbone_wrapper.finetune = False
+        config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -150,21 +153,27 @@ class LTDETRObjectDetection(TaskModel):
         if self.image_normalize is not None:
             get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
 
-        # Get the backbone.
-        backbone = DINOV3_PACKAGE.get_model(
-            model_name=model_name.split("/")[1], # TODO (Lionel, 06/26): Not working.
-            model_args=config.backbone_args,
-            load_weights=load_weights,
-            **get_model_kwargs,
-        )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
-
         # config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         # config_name = config_name.replace("-noreg", "")
 
-        config.resolve_auto(patch_size=patch_size)
+        # Get the backbone.
+        modelwrapper_backbone = package_helpers.get_wrapped_model(
+            model=model_name,
+            model_args=config.backbone_args,
+            load_weights=load_weights,
+            **get_model_kwargs
+        )
 
         self.backbone: ViTSTAsBackboneWrapper | CNNMultiScaleBackboneWrapper
+        if isinstance(modelwrapper_backbone, MultiScaleFeatureCNN):
+            self.backbone = CNNMultiScaleBackboneWrapper(
+                model_wrapper=modelwrapper_backbone,
+                finetune=config.backbone_wrapper.finetune,
+            )
+        elif isinstance(modelwrapper_backbone, MultiScaleFeatureViT):
+            self.backbone = ViTSTAsBackboneWrapper(
+                
+            )
 
         if isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.

@@ -343,7 +343,7 @@ class _BackboneWrapperViTLConfig(PydanticConfig):
 class _BackboneWrapperViTGConfig(PydanticConfig):
     interaction_indexes: list[int] = [19, 29, 39]
     finetune: bool = True
-    conv_inplane: int = 64
+    conv_inplane: int = 64  # Likely faulty: should be 4 * patch_size = 56 for patch_size=14
     hidden_dim: int = 1536
 
 

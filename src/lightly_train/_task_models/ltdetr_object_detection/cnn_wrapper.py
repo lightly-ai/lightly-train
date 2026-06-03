@@ -20,12 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 class CNNMultiScaleBackboneWrapper(Module):
-    def __init__(self, model_wrapper: MultiScaleFeatureCNN) -> None:
+    def __init__(self, model_wrapper: MultiScaleFeatureCNN, finetune: bool = True) -> None:
         super().__init__()
         self._model_wrapper = model_wrapper
         _torch_helpers.register_load_state_dict_pre_hook(
             self, CNNMultiScaleBackboneWrapper._remap_legacy_keys
         )
+        if not finetune:
+            model_wrapper.eval()
+            model_wrapper.requires_grad_(False)
 
     @property
     def backbone_model(self) -> Module:
