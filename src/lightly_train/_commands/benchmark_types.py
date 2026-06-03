@@ -214,6 +214,7 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
     steps: int | None = None
     num_workers: int | Literal["auto"] = "auto"
     overwrite: bool = False
+    debug: bool = False
     metric_args: BenchmarkObjectDetectionMetricArgs = Field(
         default_factory=BenchmarkObjectDetectionMetricArgs
     )
