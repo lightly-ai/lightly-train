@@ -8,55 +8,17 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any, Literal, Type, Callable
+from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
+from lightly_train._configs.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
-class ModelRegistry:
-    def __init__(self) -> None:
-        # Maps an alias' to
-        self._registry: dict[str, Type[PydanticConfig]] = {}
-
-    def register(self, *aliases: str) -> Callable[[Type[PydanticConfig]], Type[PydanticConfig]]:
-        """
-        A decorator to register a dataclass under one or multiple aliases.
-        Raises a ValueError if any alias is already taken.
-        """
-
-        def decorator(cls: Type[PydanticConfig]) -> Type[PydanticConfig]:
-            for alias in aliases:
-                # Enforce uniqueness
-                if alias in self._registry:
-                    existing_cls = self._registry[alias].__name__
-                    raise ValueError(
-                        f"Conflict detected! The alias '{alias}' is already registered "
-                        f"to the class '{existing_cls}'."
-                    )
-                self._registry[alias] = cls
-            return cls
-
-        return decorator
-
-    def get(self, alias: str) -> Type[PydanticConfig]:
-        """Retrieve the dataclass associated with the alias."""
-        if alias not in self._registry:
-            raise KeyError(
-                f"No model configuration registered under the alias '{alias}'."
-            )
-        return self._registry[alias]
-
-    def list_aliases(self) -> dict[str, str]:
-        """Returns a mapping of current aliases to their class names for debugging."""
-        return {alias: cls.__name__ for alias, cls in self._registry.items()}
-
-
-# Create singleton instance of the registry to be used across the package.
-LTDETR_MODEL_REGISTRY = ModelRegistry()
+LTDETR_MODEL_REGISTRY: ModelRegistry[PydanticConfig] = ModelRegistry()
 
 
 class HybridEncoderConfig(PydanticConfig):

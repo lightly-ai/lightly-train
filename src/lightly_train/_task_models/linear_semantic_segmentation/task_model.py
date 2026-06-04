@@ -22,19 +22,22 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import ModelNameParser, MultiScaleFeaturePackage
+from lightly_train._task_models.linear_semantic_segmentation.config import (
+    LINEAR_SEG_MODEL_REGISTRY,
+    LinearSegConfigRegistry,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
 
-class DINOv2LinearSemanticSegmentation(TaskModel):
+class LinearSemanticSegmentation(TaskModel):
     model_suffix = "linear"
 
     def __init__(
@@ -110,10 +113,11 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         if self.class_ignore_index is not None:
             self.included_classes[self.class_ignore_index] = "ignored"
 
-        # Disable drop path by default for DINOv2.
-        args: dict[str, Any] = {}
-        if parsed_name["package_name"] == DINOV2_VIT_PACKAGE.name:
-            args["drop_path_rate"] = 0.0
+        config_cls = LINEAR_SEG_MODEL_REGISTRY.get(
+            parsed_name["model_name"],
+            default=LinearSegConfigRegistry.Fallback,
+        )
+        args: dict[str, Any] = dict(config_cls().backbone_args)
         if backbone_args is not None:
             args.update(backbone_args)
 
