@@ -411,14 +411,14 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = True
-        conv_inplane: int = 16
+        conv_inplane_factor: int = 1
         hidden_dim: int = 192
 
     class ViTTPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = True
-        conv_inplane: int = 16
+        conv_inplane_factor: int = 1
         hidden_dim: int = 256
 
     class ViTS(RTDETRBackboneWrapperConfig):
@@ -446,7 +446,51 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         interaction_indexes: list[int] = [19, 29, 39]
         finetune: bool = True
         use_sta: bool = True
-        conv_inplane: int = 64
+        conv_inplane_factor: int = 4
+        hidden_dim: int = 1536
+
+
+class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
+    class ViTT(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [3, 7, 11]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 1
+        hidden_dim: int = 192
+
+    class ViTTPlus(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [3, 7, 11]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 1
+        hidden_dim: int = 256
+
+    class ViTS(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [5, 8, 11]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 2
+        hidden_dim: int = 224
+
+    class ViTB(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [5, 8, 11]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 4
+        hidden_dim: int = 768
+
+    class ViTL(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [11, 17, 23]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 4
+        hidden_dim: int = 1024
+
+    class ViTG(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [19, 29, 39]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 4
         hidden_dim: int = 1536
 
 
@@ -649,6 +693,26 @@ class LTDETRBaseConfig(ConfigsNamespace):
         )
         backbone_args: dict[str, Any]
 
+    class DINOv2ViTS(ViTS):
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTS
+        )
+
+    class DINOv2ViTB(ViTB):
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTB
+        )
+
+    class DINOv2ViTL(ViTL):
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTL
+        )
+
+    class DINOv2ViTG(ViTG):
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTG
+        )
+
 
 class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register(
@@ -657,8 +721,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-tiny-eupe-ltdetr",
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict)
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/convnext-small-ltdetr-coco",
@@ -666,8 +730,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-small-eupe-ltdetr",
     )
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict)
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/convnext-base-ltdetr-coco",
@@ -675,66 +739,66 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-base-eupe-ltdetr",
     )
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict)
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/convnext-large-ltdetr-coco", "dinov3/convnext-large-ltdetr"
     )
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict)
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16-ltdetr-coco", "dinov3/vitt16-ltdetr", "dinov3/vitt16-eupe-ltdetr"
     )
     class DINOv3ViTT(LTDETRBaseConfig.ViTT):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=16))
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-ltdetr-coco", "dinov3/vitt16plus-ltdetr"
     )
     class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=16))
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vits16-ltdetr-coco", "dinov3/vits16-ltdetr", "dinov3/vits16-eupe-ltdetr"
     )
     class DINOv3ViTS(LTDETRBaseConfig.ViTS):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=16))
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
     class DINOv3ViTB(LTDETRBaseConfig.ViTB):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=16))
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTL(LTDETRBaseConfig.ViTL):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=16))
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
-    class DINOv2ViTS(LTDETRBaseConfig.ViTS):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=14, drop_path_rate=0.0))
+    class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetr")
-    class DINOv2ViTB(LTDETRBaseConfig.ViTB):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=14, drop_path_rate=0.0))
+    class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetr")
-    class DINOv2ViTL(LTDETRBaseConfig.ViTL):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=14, drop_path_rate=0.0))
+    class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetr")
-    class DINOv2ViTG(LTDETRBaseConfig.ViTG):
-        decoder_name = "rtdetrv2"
-        backbone_args = Field(default_factory=dict(patch_size=14, drop_path_rate=0.0))
+    class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
+        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
@@ -744,5 +808,90 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-tiny-eupe-ltdetrv2",
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
-        decoder_name = "dfine"
-        backbone_args = Field(default_factory=dict)
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/convnext-small-ltdetrv2-coco",
+        "dinov3/convnext-small-ltdetrv2",
+        "dinov3/convnext-small-eupe-ltdetrv2",
+    )
+    class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/convnext-base-ltdetrv2-coco",
+        "dinov3/convnext-base-ltdetrv2",
+        "dinov3/convnext-base-eupe-ltdetrv2",
+    )
+    class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/convnext-large-ltdetrv2-coco",
+        "dinov3/convnext-large-ltdetrv2",
+    )
+    class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/vitt16-ltdetrv2-coco",
+        "dinov3/vitt16-ltdetrv2",
+        "dinov3/vitt16-eupe-ltdetrv2",
+    )
+    class DINOv3ViTT(LTDETRBaseConfig.ViTT):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/vitt16plus-ltdetrv2-coco",
+        "dinov3/vitt16plus-ltdetrv2",
+    )
+    class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/vits16-ltdetrv2-coco",
+        "dinov3/vits16-ltdetrv2",
+        "dinov3/vits16-eupe-ltdetrv2",
+    )
+    class DINOv3ViTS(LTDETRBaseConfig.ViTS):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov3/vitb16-ltdetrv2",
+        "dinov3/vitb16-eupe-ltdetrv2",
+    )
+    class DINOv3ViTB(LTDETRBaseConfig.ViTB):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetrv2")
+    class DINOv3ViTL(LTDETRBaseConfig.ViTL):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetrv2")
+    class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetrv2")
+    class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetrv2")
+    class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetrv2")
+    class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
+        decoder_name: _LTDETRDecoderName = "dfine"
+        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
