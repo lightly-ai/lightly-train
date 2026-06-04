@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Official Hugging Face weights per (parsed) model name.
 _HF_WEIGHTS: dict[str, dict[str, str]] = {
-    "da3mono-large": {
+    "dinov2/dav3mono-large": {
         "repo_id": "depth-anything/DA3MONO-LARGE",
         "filename": "model.safetensors",
     },
@@ -54,7 +54,7 @@ _ALLOWED_MISSING_OFFICIAL_KEYS = {"backbone.mask_token"}
 
 def convert_checkpoint(
     out: Path,
-    model_name: str = "depth-anything-v3/da3mono-large",
+    model_name: str = "dinov2/dav3mono-large",
     weights: Path | None = None,
 ) -> Path:
     """Convert official Depth Anything V3 weights into a LightlyTrain checkpoint.
@@ -125,7 +125,7 @@ def main() -> None:
     parser.add_argument(
         "--model-name",
         type=str,
-        default="depth-anything-v3/da3mono-large",
+        default="dinov2/dav3mono-large",
         help="The Depth Anything V3 model name to convert.",
     )
     parser.add_argument(

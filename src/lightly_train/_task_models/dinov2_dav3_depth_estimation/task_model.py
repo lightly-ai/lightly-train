@@ -27,8 +27,8 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
-    "da3mono-large": {
-        "canonical_name": "depth-anything-v3/da3mono-large",
+    "dinov2/dav3mono-large": {
+        "canonical_name": "dinov2/dav3mono-large",
         "backbone_name": "vitl14-noreg",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -42,10 +42,10 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     }
 }
 
+# A single canonical name for now. Aliases mapping to the same config key can be
+# added here later to make the model easier to find for users.
 _MODEL_ALIASES: dict[str, str] = {
-    "da3mono-large": "da3mono-large",
-    "depth-anything-v3/da3mono-large": "da3mono-large",
-    "depth-anything/da3mono-large": "da3mono-large",
+    "dinov2/dav3mono-large": "dinov2/dav3mono-large",
 }
 
 _DEFAULT_IMAGE_NORMALIZE = {
@@ -57,12 +57,12 @@ _DEFAULT_IMAGE_NORMALIZE = {
 class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     """Depth Anything V3 monocular relative-depth inference model."""
 
-    model_suffix = "depth-estimation"
+    model_suffix = "dav3"
 
     def __init__(
         self,
         *,
-        model_name: str = "depth-anything-v3/da3mono-large",
+        model_name: str = "dinov2/dav3mono-large",
         image_size: int = 504,
         image_normalize: dict[str, tuple[float, ...]] | None = None,
         model_args: dict[str, Any] | None = None,
@@ -72,9 +72,8 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         """
         Args:
             model_name:
-                The Depth Anything V3 model name. Supported names are
-                ``"depth-anything-v3/da3mono-large"``, ``"depth-anything/DA3MONO-LARGE"``,
-                and ``"da3mono-large"``.
+                The Depth Anything V3 model name. The only supported name is
+                ``"dinov2/dav3mono-large"``.
             image_size:
                 Upper bound for the longest image side during inference. The resized
                 height and width are rounded to the nearest multiple of the DA3 patch
@@ -120,7 +119,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         if model_args is not None:
             net_args.update(model_args)
 
-        patch_size = int(net_args.get("patch_size", 14))
+        patch_size = int(net_args["patch_size"])
         self.out_layers: tuple[int, ...] = tuple(net_args["out_layers"])
         self.patch_size = patch_size
 
@@ -153,10 +152,10 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         self.decoder = DPT(
             dim_in=int(self.backbone.embed_dim),
             patch_size=patch_size,
-            output_dim=int(net_args.get("output_dim", 1)),
-            features=int(net_args.get("features", 256)),
-            out_channels=tuple(net_args.get("out_channels", (256, 512, 1024, 1024))),
-            use_sky_head=bool(net_args.get("use_sky_head", True)),
+            output_dim=int(net_args["output_dim"]),
+            features=int(net_args["features"]),
+            out_channels=tuple(net_args["out_channels"]),
+            use_sky_head=bool(net_args["use_sky_head"]),
         )
 
     @classmethod

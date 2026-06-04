@@ -89,7 +89,7 @@ class DPT(nn.Module):
         elif norm_type == "idt":
             self.norm = nn.Identity()
         else:
-            raise Exception(
+            raise ValueError(
                 f"Unknown norm_type {norm_type}, should be 'layer' or 'idt'."
             )
         self.projects = nn.ModuleList(

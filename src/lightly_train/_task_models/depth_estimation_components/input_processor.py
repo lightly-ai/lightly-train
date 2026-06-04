@@ -197,7 +197,7 @@ class InputProcessor:
 
         min_h = min(h for h, _ in out_sizes)
         min_w = min(w for _, w in out_sizes)
-        logger.warn(
+        logger.warning(
             f"Images in batch have different sizes {out_sizes}; "
             f"center-cropping all to smallest ({min_h},{min_w})"
         )
