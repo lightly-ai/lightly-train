@@ -42,6 +42,9 @@ from lightly_train._task_models.ltdetr_object_detection.cnn_wrapper import CNNMu
 from lightly_train._task_models.ltdetr_object_detection.vit_wrapper import ViTSTAsBackboneWrapper
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
+    DetectorConfig,
+    DFINETransformerConfig,
+    RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -201,7 +204,6 @@ class LTDETRObjectDetection(TaskModel):
 
         self.decoder = _build_decoder(
             config=config,
-            decoder_name=config.decoder_name,
             num_classes=len(self.classes),
             image_size=self.image_size,
         )
@@ -873,24 +875,20 @@ class LTDETRObjectDetection(TaskModel):
 
 def _build_decoder(
     *,
-    config: ObjectDetectionConfig,
-    decoder_name: _LTDETRDecoderName,
+    config: DetectorConfig,
     num_classes: int,
     image_size: tuple[int, int],
 ) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder_name == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
+    decoder_config = config.transformer.model_dump(exclude={"decoder_name"})
+    decoder_config["num_classes"] = num_classes
+    if isinstance(config.transformer, RTDETRTransformerv2Config):
         return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
             **decoder_config,
             eval_spatial_size=image_size,
         )
-    elif decoder_name == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
+    elif isinstance(config.transformer, DFINETransformerConfig):
         return DFINETransformer(  # type: ignore[no-untyped-call]
             **decoder_config,
             eval_spatial_size=image_size,
         )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")
+    raise ValueError(f"Unsupported transformer type: {type(config.transformer)}")

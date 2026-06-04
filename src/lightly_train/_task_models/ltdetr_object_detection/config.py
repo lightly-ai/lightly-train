@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal, Type
+from typing import Annotated, Any, Literal, Type, Callable
 
 from pydantic import Field
 
@@ -16,21 +16,19 @@ from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 
 logger = logging.getLogger(__name__)
 
-_LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
-
 
 class ModelRegistry:
-    def __init__(self):
+    def __init__(self) -> None:
         # Maps an alias' to
-        self._registry: dict[str, Type] = {}
+        self._registry: dict[str, Type[PydanticConfig]] = {}
 
-    def register(self, *aliases: str):
+    def register(self, *aliases: str) -> Callable[[Type[PydanticConfig]], Type[PydanticConfig]]:
         """
         A decorator to register a dataclass under one or multiple aliases.
         Raises a ValueError if any alias is already taken.
         """
 
-        def decorator(cls: Type):
+        def decorator(cls: Type[PydanticConfig]) -> Type[PydanticConfig]:
             for alias in aliases:
                 # Enforce uniqueness
                 if alias in self._registry:
@@ -44,7 +42,7 @@ class ModelRegistry:
 
         return decorator
 
-    def get(self, alias: str) -> Type:
+    def get(self, alias: str) -> Type[PydanticConfig]:
         """Retrieve the dataclass associated with the alias."""
         if alias not in self._registry:
             raise KeyError(
@@ -221,6 +219,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 
 
 class RTDETRTransformerv2Config(PydanticConfig):
+    decoder_name: Literal["rtdetrv2"] = "rtdetrv2"
     feat_channels: list[int]
     feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int = 256
@@ -299,6 +298,7 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
 
 
 class DFINETransformerConfig(PydanticConfig):
+    decoder_name: Literal["dfine"] = "dfine"
     feat_channels: list[int]
     feat_strides: list[int] | Literal["auto"] = "auto"
     hidden_dim: int = 256
@@ -499,9 +499,11 @@ class RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class DetectorConfig(PydanticConfig):
-    decoder_name: _LTDETRDecoderName
     hybrid_encoder: HybridEncoderConfig
-    transformer: RTDETRTransformerv2Config | DFINETransformerConfig
+    transformer: Annotated[
+        RTDETRTransformerv2Config | DFINETransformerConfig,
+        Field(discriminator="decoder_name"),
+    ]
     rtdetr_postprocessor: RTDETRPostProcessorConfig
     backbone_wrapper: RTDETRBackboneWrapperConfig | CNNBackboneWrapperConfig
 
@@ -516,13 +518,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNLarge
         )
-        # TODO: Discriminated Union
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNLarge
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.CNNLarge
-        )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
@@ -534,12 +529,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
     class CNNBase(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNBase
-        )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNBase
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.CNNBase
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -553,12 +542,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNSmall
         )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNSmall
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.CNNSmall
-        )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
@@ -570,12 +553,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
     class CNNTiny(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.CNNTiny
-        )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNTiny
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.CNNTiny
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -589,12 +566,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTT
         )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTT
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTT
-        )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
@@ -606,12 +577,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
     class ViTTPlus(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTTPlus
-        )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTTPlus
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -625,12 +590,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTS
         )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTS
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTS
-        )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
@@ -642,12 +601,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
     class ViTB(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTB
-        )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTB
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTB
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -661,12 +614,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTL
         )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTL
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTL
-        )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
@@ -678,12 +625,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
     class ViTG(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTG
-        )
-        rtdetr_transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTG
-        )
-        dfine_transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTG
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -721,7 +662,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-tiny-eupe-ltdetr",
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.CNNTiny
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -730,7 +673,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-small-eupe-ltdetr",
     )
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.CNNSmall
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -739,65 +684,87 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-base-eupe-ltdetr",
     )
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.CNNBase
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/convnext-large-ltdetr-coco", "dinov3/convnext-large-ltdetr"
     )
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.CNNLarge
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16-ltdetr-coco", "dinov3/vitt16-ltdetr", "dinov3/vitt16-eupe-ltdetr"
     )
     class DINOv3ViTT(LTDETRBaseConfig.ViTT):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTT
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-ltdetr-coco", "dinov3/vitt16plus-ltdetr"
     )
     class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTTPlus
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vits16-ltdetr-coco", "dinov3/vits16-ltdetr", "dinov3/vits16-eupe-ltdetr"
     )
     class DINOv3ViTS(LTDETRBaseConfig.ViTS):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTS
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
     class DINOv3ViTB(LTDETRBaseConfig.ViTB):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTB
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTL(LTDETRBaseConfig.ViTL):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTL
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
     class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTS
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetr")
     class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTB
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetr")
     class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTL
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetr")
     class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
-        decoder_name: _LTDETRDecoderName = "rtdetrv2"
+        transformer: RTDETRTransformerv2Config = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTG
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
 
@@ -808,7 +775,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-tiny-eupe-ltdetrv2",
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNTiny
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -817,7 +786,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-small-eupe-ltdetrv2",
     )
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNSmall
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -826,7 +797,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-base-eupe-ltdetrv2",
     )
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNBase
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -834,7 +807,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-large-ltdetrv2",
     )
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNLarge
+        )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -843,7 +818,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/vitt16-eupe-ltdetrv2",
     )
     class DINOv3ViTT(LTDETRBaseConfig.ViTT):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTT
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -851,7 +828,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/vitt16plus-ltdetrv2",
     )
     class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -860,7 +839,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/vits16-eupe-ltdetrv2",
     )
     class DINOv3ViTS(LTDETRBaseConfig.ViTS):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTS
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register(
@@ -868,30 +849,42 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         "dinov3/vitb16-eupe-ltdetrv2",
     )
     class DINOv3ViTB(LTDETRBaseConfig.ViTB):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTB
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetrv2")
     class DINOv3ViTL(LTDETRBaseConfig.ViTL):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTL
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetrv2")
     class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTS
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetrv2")
     class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTB
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetrv2")
     class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTL
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetrv2")
     class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
-        decoder_name: _LTDETRDecoderName = "dfine"
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTG
+        )
         backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
