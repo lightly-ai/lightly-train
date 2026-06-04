@@ -43,12 +43,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     }
 }
 
-# A single canonical name for now. Aliases mapping to the same config key can be
-# added here later to make the model easier to find for users.
-_MODEL_ALIASES: dict[str, str] = {
-    "dinov2/dav3mono-large": "dinov2/dav3mono-large",
-}
-
 
 class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     """Depth Anything V3 monocular relative-depth inference model."""
@@ -164,13 +158,12 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     @classmethod
     def parse_model_name(cls, model_name: str) -> str:
         key = model_name.lower()
-        try:
-            return _MODEL_ALIASES[key]
-        except KeyError:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. Available models are: "
-                f"{cls.list_model_names()}."
-            )
+        if key in _MODEL_CONFIGS:
+            return key
+        raise ValueError(
+            f"Model name '{model_name}' is not supported. Available models are: "
+            f"{cls.list_model_names()}."
+        )
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
