@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
@@ -264,7 +265,9 @@ def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
     out["depth"] = depth
 
 
-def _as_input_processor_image(image: PathLike | PILImage | Tensor) -> np.ndarray:
+def _as_input_processor_image(
+    image: PathLike | PILImage | Tensor,
+) -> NDArray[np.uint8]:
     """Converts an input image to an ``(H, W, C)`` / ``(H, W)`` uint8 array.
 
     Routes through LightlyTrain's loaders so paths, URLs, PIL images, and tensors are
