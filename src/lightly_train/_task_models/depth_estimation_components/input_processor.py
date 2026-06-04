@@ -6,17 +6,15 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-"""
-Input processor for Depth Anything 3 (parallelized).
+"""Input processor for Depth Anything 3.
 
-This version removes the square center-crop step for "*crop" methods (same as your note).
-In addition, it parallelizes per-image preprocessing using the provided `parallel_execution`.
+Converts a list of images into a single model-ready batch tensor, processing each
+image sequentially. The square center-crop step is omitted for "*crop" methods.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Sequence
 
 import cv2
 import numpy as np
@@ -24,18 +22,15 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 
-from lightly_train._task_models.depth_estimation_components.parallel_utils import (
-    parallel_execution,
-)
-
 logger = logging.getLogger(__name__)
 
 
 class InputProcessor:
     """Prepares a batch of images for model inference.
+
     This processor converts a list of image file paths into a single, model-ready
-    tensor. The processing pipeline is executed in parallel across multiple workers
-    for efficiency.
+    tensor. Each image is processed sequentially and the order of outputs matches
+    the input order.
 
     Pipeline:
       1) Load image and convert to RGB
@@ -46,10 +41,6 @@ class InputProcessor:
          - "*crop"   methods: each dimension is floored to nearest multiple via center crop
       4) Convert to tensor and apply ImageNet normalization
       5) Stack into (1, N, 3, H, W)
-
-    Parallelization:
-      - Each image is processed independently in a worker.
-      - Order of outputs matches the input order.
     """
 
     NORMALIZE = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -68,32 +59,22 @@ class InputProcessor:
         intrinsics: np.ndarray | None = None,
         process_res: int = 504,
         process_res_method: str = "upper_bound_resize",
-        *,
-        num_workers: int = 8,
-        print_progress: bool = False,
-        sequential: bool | None = None,
-        desc: str | None = "Preprocess",
     ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
         """
         Returns:
             (tensor, extrinsics_list, intrinsics_list)
             tensor shape: (1, N, 3, H, W)
         """
-        sequential = self._resolve_sequential(sequential, num_workers)
         exts_list, ixts_list = self._validate_and_pack_meta(
             image, extrinsics, intrinsics
         )
 
-        results = self._run_parallel(
+        results = self._process_all(
             image=image,
             exts_list=exts_list,
             ixts_list=ixts_list,
             process_res=process_res,
             process_res_method=process_res_method,
-            num_workers=num_workers,
-            print_progress=print_progress,
-            sequential=sequential,
-            desc=desc,
         )
 
         proc_imgs, out_sizes, out_ixts, out_exts = self._unpack_results(results)
@@ -117,9 +98,6 @@ class InputProcessor:
     # -----------------------------
     # __call__ helpers
     # -----------------------------
-    def _resolve_sequential(self, sequential: bool | None, num_workers: int) -> bool:
-        return (num_workers <= 1) if sequential is None else sequential
-
     def _validate_and_pack_meta(
         self,
         images: list[np.ndarray | Image.Image | str],
@@ -134,7 +112,7 @@ class InputProcessor:
         ixts_list = [k for k in intrinsics] if intrinsics is not None else None
         return exts_list, ixts_list
 
-    def _run_parallel(
+    def _process_all(
         self,
         *,
         image: list[np.ndarray | Image.Image | str],
@@ -142,26 +120,20 @@ class InputProcessor:
         ixts_list: list[np.ndarray | None] | None,
         process_res: int,
         process_res_method: str,
-        num_workers: int,
-        print_progress: bool,
-        sequential: bool,
-        desc: str | None,
     ):
-        results = parallel_execution(
-            image,
-            exts_list,
-            ixts_list,
-            action=self._process_one,  # (img, extrinsic, intrinsic, ...)
-            num_processes=num_workers,
-            print_progress=print_progress,
-            sequential=sequential,
-            desc=desc,
-            process_res=process_res,
-            process_res_method=process_res_method,
-        )
+        results = [
+            self._process_one(
+                img=img,
+                extrinsic=exts_list[i] if exts_list is not None else None,
+                intrinsic=ixts_list[i] if ixts_list is not None else None,
+                process_res=process_res,
+                process_res_method=process_res_method,
+            )
+            for i, img in enumerate(image)
+        ]
         if not results:
             raise RuntimeError(
-                "No preprocessing results returned. Check inputs and parallel_execution."
+                "No preprocessing results returned; the input image list is empty."
             )
         return results
 
@@ -174,7 +146,7 @@ class InputProcessor:
             processed_images, out_sizes, out_intrinsics, out_extrinsics = zip(*results)
         except Exception as e:
             raise RuntimeError(
-                "Unexpected results structure from parallel_execution: "
+                "Unexpected results structure from preprocessing: "
                 f"{type(results)} / sample: {results[0]}"
             ) from e
 
@@ -393,131 +365,3 @@ class InputProcessor:
         interpolation = cv2.INTER_CUBIC if upscale else cv2.INTER_AREA
         arr = cv2.resize(np.asarray(img), (new_w, new_h), interpolation=interpolation)
         return Image.fromarray(arr)
-
-
-# Backward compatibility alias
-InputAdapter = InputProcessor
-
-
-# ===========================
-# Minimal test runner (parallel execution)
-# ===========================
-if __name__ == "__main__":
-    """
-    Minimal test suite:
-      - Creates pairs of images so batch shapes match.
-      - Tests all four process_res_methods.
-      - Prints fx fy cx cy IN->OUT per image.
-      - Includes cases with K/E provided and with None.
-    """
-
-    def fmt_k_line(K: np.ndarray | None) -> str:
-        if K is None:
-            return "None"
-        fx, fy, cx, cy = float(K[0, 0]), float(K[1, 1]), float(K[0, 2]), float(K[1, 2])
-        return f"fx={fx:.3f} fy={fy:.3f} cx={cx:.3f} cy={cy:.3f}"
-
-    def show_result(
-        tag: str,
-        tensor: torch.Tensor,
-        Ks_in: Sequence[np.ndarray | None] | None = None,
-        Ks_out: Sequence[np.ndarray | None] | None = None,
-    ):
-        B, N, C, H, W = tensor.shape
-        print(
-            f"[{tag}] shape={tuple(tensor.shape)}  HxW=({H},{W})  div14=({H % 14 == 0},{W % 14 == 0})"
-        )
-        assert H % 14 == 0 and W % 14 == 0, f"{tag}: output size not divisible by 14!"
-        if Ks_in is not None or Ks_out is not None:
-            Ks_in = Ks_in or [None] * N
-            Ks_out = Ks_out or [None] * N
-            for i in range(N):
-                print(f"  K[{i}]: {fmt_k_line(Ks_in[i])}  ->  {fmt_k_line(Ks_out[i])}")
-
-    proc = InputProcessor()
-    process_res = 504
-    methods = [
-        "upper_bound_resize",
-        "upper_bound_crop",
-        "lower_bound_resize",
-        "lower_bound_crop",
-    ]
-
-    # Example sizes (two orientations)
-    small_sizes = [(680, 1208), (1208, 680)]
-    large_sizes = [(1208, 680), (680, 1208)]
-
-    def make_K(w, h, fx=1200.0, fy=1100.0):
-        cx, cy = w / 2.0, h / 2.0
-        K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float32)
-        return K
-
-    def run_suite(suite_name: str, sizes: list[tuple[int, int]]):
-        print(f"\n===== {suite_name} =====")
-        for w, h in sizes:
-            img = Image.new("RGB", (w, h), color=(123, 222, 100))
-            batch_imgs = [img, img]
-
-            # intrinsics / extrinsics examples
-            Ks_in = [make_K(w, h), make_K(w, h)]
-            Es_in = [np.eye(4, dtype=np.float32), np.eye(4, dtype=np.float32)]
-
-            for m in methods:
-                tensor, Es_out, Ks_out = proc(
-                    image=batch_imgs,
-                    process_res=process_res,
-                    process_res_method=m,
-                    num_workers=8,
-                    print_progress=False,
-                    intrinsics=Ks_in,  # test with non-None
-                    extrinsics=Es_in,
-                )
-                show_result(f"{suite_name} size=({w},{h}) | {m}", tensor, Ks_in, Ks_out)
-
-            # Also test None path
-            tensor2, Es_out2, Ks_out2 = proc(
-                image=batch_imgs,
-                process_res=process_res,
-                process_res_method="upper_bound_resize",
-                num_workers=8,
-                intrinsics=None,
-                extrinsics=None,
-            )
-            show_result(
-                f"{suite_name} size=({w},{h}) | upper_bound_resize | no K/E",
-                tensor2,
-                None,
-                Ks_out2,
-            )
-
-    run_suite("SMALL", small_sizes)
-    run_suite("LARGE", large_sizes)
-
-    # Extra sanity for 504x376
-    print("\n===== EXTRA sanity for 504x376 =====")
-    img_example = Image.new("RGB", (504, 376), color=(10, 20, 30))
-    Ks_in_extra = [
-        make_K(504, 376, fx=900.0, fy=900.0),
-        make_K(504, 376, fx=900.0, fy=900.0),
-    ]
-
-    out_r, _, Ks_out_r = proc(
-        image=[img_example, img_example],
-        process_res=504,
-        process_res_method="upper_bound_resize",
-        num_workers=8,
-        intrinsics=Ks_in_extra,
-    )
-    out_c, _, Ks_out_c = proc(
-        image=[img_example, img_example],
-        process_res=504,
-        process_res_method="upper_bound_crop",
-        num_workers=8,
-        intrinsics=Ks_in_extra,
-    )
-    _, _, _, Hr, Wr = out_r.shape
-    _, _, _, Hc, Wc = out_c.shape
-    print(f"upper_bound_resize -> ({Hr},{Wr})  (rounded to nearest multiple of 14)")
-    show_result("Ks after upper_bound_resize", out_r, Ks_in_extra, Ks_out_r)
-    print(f"upper_bound_crop   -> ({Hc},{Wc})  (floored to multiple of 14)")
-    show_result("Ks after upper_bound_crop", out_c, Ks_in_extra, Ks_out_c)

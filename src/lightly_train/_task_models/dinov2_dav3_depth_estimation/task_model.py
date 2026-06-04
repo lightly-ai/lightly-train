@@ -244,7 +244,6 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
             [proc_input],
             process_res=self.image_size,
             process_res_method=self.process_res_method,
-            num_workers=1,
         )
         first_param = next(self.parameters())
         return batch[0].to(device=first_param.device, dtype=first_param.dtype)
