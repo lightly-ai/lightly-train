@@ -26,6 +26,37 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 
+class CpuDeviceInfo(PydanticConfig):
+    """Information about CPU device used for benchmarking."""
+
+    device_type: Literal["cpu"] = "cpu"
+    cpu_model: str | None = None
+    cpu_cores: int | None = None
+    cpu_threads: int | None = None
+    smt_enabled: bool | None = None
+    ram_gb: float | None = None
+
+
+class CudaDeviceInfo(PydanticConfig):
+    """Information about CUDA device used for benchmarking."""
+
+    device_type: Literal["cuda"] = "cuda"
+    # GPU fields
+    gpu_name: str | None = None
+    gpu_memory_gb: float | None = None
+    cuda_version: str | None = None
+    cudnn_version: str | None = None
+    # System fields
+    cpu_model: str | None = None
+    cpu_cores: int | None = None
+    cpu_threads: int | None = None
+    smt_enabled: bool | None = None
+    ram_gb: float | None = None
+
+
+DeviceInfo = Union[CpuDeviceInfo, CudaDeviceInfo]
+
+
 class DescriptiveStatistics(PydanticConfig):
     """Descriptive statistics for a series of measurements."""
 
@@ -59,6 +90,7 @@ class BenchmarkResult(PydanticConfig):
     out: str
     model_name: str
     backend_args: BenchmarkBackendArgs
+    device_info: Annotated[DeviceInfo, Field(discriminator="device_type")]
     dataset_format: str
     num_images: int
     batch_size: int
@@ -81,14 +113,48 @@ class BenchmarkResult(PydanticConfig):
         lines.append(f"- **Model**: {self.model_name}")
         ba = self.backend_args
         backend_str: str = ba.format
-        if isinstance(ba, ONNXBackendArgs):
-            backend_str = f"{ba.format} ({ba.provider})"
+        provider = getattr(ba, "provider", None)
+        if ba.format == "onnx" and provider:
+            backend_str = f"{ba.format} ({provider})"
+        if getattr(ba, "compile", False):
+            backend_str += ", compiled"
+        # Show precision for ONNX and TensorRT backends.
+        precision = getattr(ba, "precision", None)
+        if precision:
+            backend_str += f", {precision}"
         lines.append(f"- **Backend**: {backend_str}")
         lines.append(f"- **Dataset**: {self.dataset_format} ({self.num_images} images)")
         lines.append(f"- **Batch Size**: {self.batch_size}")
         lines.append(f"- **Warmup Steps**: {self.warmup_steps}")
         steps_str = str(self.steps) if self.steps is not None else "all"
         lines.append(f"- **Steps**: {steps_str}")
+        lines.append("")
+
+        # Device Info.
+        lines.append("## Device Info")
+        lines.append("")
+        di = self.device_info
+        if isinstance(di, CudaDeviceInfo):
+            lines.append(f"- **GPU**: {di.gpu_name}")
+            if di.gpu_memory_gb is not None:
+                lines.append(f"- **GPU Memory**: {di.gpu_memory_gb:.1f} GB")
+            if di.cuda_version:
+                lines.append(f"- **CUDA**: {di.cuda_version}")
+            if di.cudnn_version:
+                lines.append(f"- **cuDNN**: {di.cudnn_version}")
+        if di.cpu_model:
+            lines.append(f"- **CPU**: {di.cpu_model}")
+        if di.cpu_cores and di.cpu_threads:
+            smt_str = ""
+            if di.smt_enabled is not None:
+                smt_str = " (SMT enabled)" if di.smt_enabled else " (SMT disabled)"
+            lines.append(
+                f"- **CPU Cores/Threads**: {di.cpu_cores}/{di.cpu_threads}{smt_str}"
+            )
+        elif di.cpu_threads:
+            lines.append(f"- **CPU Threads**: {di.cpu_threads}")
+        if di.ram_gb is not None:
+            lines.append(f"- **RAM**: {di.ram_gb:.1f} GB")
         lines.append("")
 
         # Performance Metrics.
@@ -182,6 +248,7 @@ class TorchBackendArgs(PydanticConfig):
     """Backend arguments for PyTorch inference."""
 
     format: Literal["torch"] = "torch"
+    compile: bool = False
 
 
 class ONNXBackendArgs(PydanticConfig):
@@ -189,6 +256,7 @@ class ONNXBackendArgs(PydanticConfig):
 
     format: Literal["onnx"] = "onnx"
     provider: Literal["cpu", "cuda", "tensorrt"] = "cpu"
+    precision: Literal["fp32", "fp16"] = "fp32"
     export_args: dict[str, Any] | None = None
 
 
@@ -196,6 +264,7 @@ class TensorRTBackendArgs(PydanticConfig):
     """Backend arguments for TensorRT inference."""
 
     format: Literal["tensorrt"] = "tensorrt"
+    precision: Literal["fp32", "fp16"] = "fp32"
     export_args: dict[str, Any] | None = None
 
 
@@ -215,6 +284,7 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
     num_workers: int | Literal["auto"] = "auto"
     overwrite: bool = False
     debug: bool = False
+    device: str | None = None
     metric_args: BenchmarkObjectDetectionMetricArgs = Field(
         default_factory=BenchmarkObjectDetectionMetricArgs
     )

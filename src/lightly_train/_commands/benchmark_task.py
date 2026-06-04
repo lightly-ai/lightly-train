@@ -25,7 +25,10 @@ from lightly_train._commands.benchmark_types import (
     BenchmarkResult,
     BenchmarkStatistics,
     BenchmarkTimingResult,
+    CpuDeviceInfo,
+    CudaDeviceInfo,
     DescriptiveStatistics,
+    DeviceInfo,
     ONNXBackendArgs,
     TensorRTBackendArgs,
 )
@@ -65,6 +68,7 @@ def benchmark_object_detection(
     num_workers: int | Literal["auto"] = "auto",
     overwrite: bool = False,
     debug: bool = False,
+    device: str | None = None,
     metric_args: dict[str, Any] | None = None,
     backend_args: dict[str, Any] | None = None,
 ) -> BenchmarkResult:
@@ -145,31 +149,62 @@ def _benchmark_object_detection_from_config(
     class_names = list(data_args.included_classes.values())
     metric = _create_metric(metric_args=metric_args, class_names=class_names)
 
+    # Determine device from backend if not specified.
+    device = config.device
+    if device is None:
+        if isinstance(backend_args, ONNXBackendArgs):
+            device = "cpu" if backend_args.provider == "cpu" else "cuda"
+        elif isinstance(backend_args, TensorRTBackendArgs):
+            device = "cuda"
+        else:
+            # Torch backend: default to cuda if available.
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
     # Set up inference pipeline based on backend.
     if isinstance(backend_args, ONNXBackendArgs):
+        if backend_args.provider == "cpu":
+            if device != "cpu":
+                import warnings
+
+                warnings.warn(
+                    f"ONNX CPU provider requested but device='{device}'. "
+                    "Moving model to CPU for export."
+                )
+            model = model.to("cpu")
+        else:
+            model = model.to(device)
         preprocess_fn, infer_fn, postprocess_fn = _create_onnx_pipeline(
             model=model,
             out_dir=out_dir,
             export_args=backend_args.export_args,
             batch_size=config.batch_size,
             provider=backend_args.provider,
+            precision=backend_args.precision,
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
+        model = model.to(device)
         preprocess_fn, infer_fn, postprocess_fn = _create_tensorrt_pipeline(
             model=model,
             out_dir=out_dir,
             export_args=backend_args.export_args,
             batch_size=config.batch_size,
+            precision=backend_args.precision,
         )
     else:
+        # Move model to requested device.
+        model = model.to(device)
+        # Deploy model for inference (sets eval mode and enables optimized postprocessing).
+        if hasattr(model, "deploy"):
+            model.deploy()  # type: ignore[operator]
+        else:
+            model.eval()
+        # Compile forward_backend if requested (this is the actual NN computation).
+        if backend_args.compile:
+            print("Compiling model.forward_backend with torch.compile...")
+            model.forward_backend = torch.compile(model.forward_backend)  # type: ignore[method-assign]
         preprocess_fn, infer_fn, postprocess_fn = _create_torch_pipeline(model=model)
 
     # Warmup.
-    # Deploy model for inference (sets eval mode and enables optimized postprocessing).
-    if hasattr(model, "deploy"):
-        model.deploy()
-    else:
-        model.eval()
     if config.warmup_steps > 0:
         print(f"Running {config.warmup_steps} warmup steps...")
         with torch.no_grad():
@@ -228,11 +263,11 @@ def _benchmark_object_detection_from_config(
                 total_time = t_end - t_load
                 print(
                     f"[DEBUG] Batch {step} timing: "
-                    f"load={load_time:.3f}s ({100*load_time/total_time:.1f}%) | "
-                    f"preprocess={preprocess_time:.3f}s ({100*preprocess_time/total_time:.1f}%) | "
-                    f"infer={infer_time:.3f}s ({100*infer_time/total_time:.1f}%) | "
-                    f"postprocess={postprocess_time:.3f}s ({100*postprocess_time/total_time:.1f}%) | "
-                    f"metrics={metrics_time:.3f}s ({100*metrics_time/total_time:.1f}%) | "
+                    f"load={load_time:.3f}s ({100 * load_time / total_time:.1f}%) | "
+                    f"preprocess={preprocess_time:.3f}s ({100 * preprocess_time / total_time:.1f}%) | "
+                    f"infer={infer_time:.3f}s ({100 * infer_time / total_time:.1f}%) | "
+                    f"postprocess={postprocess_time:.3f}s ({100 * postprocess_time / total_time:.1f}%) | "
+                    f"metrics={metrics_time:.3f}s ({100 * metrics_time / total_time:.1f}%) | "
                     f"total={total_time:.3f}s",
                     flush=True,
                 )
@@ -272,10 +307,13 @@ def _benchmark_object_detection_from_config(
     else:
         model_name = str(config.model)
 
+    device_info = _get_device_info(device)
+
     result = BenchmarkResult(
         out=str(out_dir),
         model_name=model_name,
         backend_args=backend_args,
+        device_info=device_info,
         dataset_format=data_args.format,
         num_images=total_images,
         batch_size=config.batch_size,
@@ -323,6 +361,29 @@ class _BenchmarkValBatch(TypedDict):
     targets: list[dict[str, Tensor]]
 
 
+class _BenchmarkCollateFunction:
+    """Picklable collate function for benchmark dataloader."""
+
+    def __init__(self) -> None:
+        self._inner_collate = ObjectDetectionCollateFunction(
+            split="val",
+            transform_args=_BenchmarkTransformArgs(),
+        )
+
+    def __call__(self, batch: list[Any]) -> _BenchmarkValBatch:
+        od_batch = self._inner_collate(batch)
+        boxes_xyxy = _yolo_to_xyxy(od_batch["bboxes"])
+        boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, od_batch["original_size"])
+        targets = [
+            {"boxes": boxes, "labels": classes}
+            for boxes, classes in zip(boxes_denorm, od_batch["classes"])
+        ]
+        return _BenchmarkValBatch(
+            image_path=od_batch["image_path"],
+            targets=targets,
+        )
+
+
 def _create_val_dataloader(
     data_args: TaskDataArgs,
     batch_size: int,
@@ -337,25 +398,6 @@ def _create_val_dataloader(
         image_info=image_info,
         transform=transform,
     )
-    inner_collate = ObjectDetectionCollateFunction(
-        split="val",
-        transform_args=_BenchmarkTransformArgs(),
-    )
-
-    def collate_fn(
-        batch: list[Any],
-    ) -> _BenchmarkValBatch:
-        od_batch = inner_collate(batch)
-        boxes_xyxy = _yolo_to_xyxy(od_batch["bboxes"])
-        boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, od_batch["original_size"])
-        targets = [
-            {"boxes": boxes, "labels": classes}
-            for boxes, classes in zip(boxes_denorm, od_batch["classes"])
-        ]
-        return _BenchmarkValBatch(
-            image_path=od_batch["image_path"],
-            targets=targets,
-        )
 
     return DataLoader(
         dataset=dataset,  # type: ignore[arg-type]
@@ -363,7 +405,10 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=collate_fn,
+        collate_fn=_BenchmarkCollateFunction(),
+        multiprocessing_context="spawn" if num_workers > 0 else None,
+        persistent_workers=num_workers > 0,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
 
 
@@ -429,6 +474,7 @@ def _create_onnx_pipeline(
     export_args: dict[str, Any] | None,
     batch_size: int,
     provider: str = "cpu",
+    precision: Literal["fp32", "fp16"] = "fp32",
 ) -> tuple[_PreprocessFn, _InferFn, _PostprocessFn]:
     """Export the model to ONNX and create a preprocess/infer/postprocess pipeline."""
     import onnxruntime as ort
@@ -438,6 +484,10 @@ def _create_onnx_pipeline(
     export_kwargs.setdefault("dynamic_batch_size", True)
     export_kwargs.setdefault("simplify", True)
     export_kwargs.setdefault("verify", False)
+    export_kwargs["precision"] = precision
+    # If dynamic_batch_size is disabled, enforce the batch_size matches the benchmark batch_size.
+    if not export_kwargs.get("dynamic_batch_size", True):
+        export_kwargs["batch_size"] = batch_size
     model.export_onnx(out=onnx_path, **export_kwargs)  # type: ignore[operator]
 
     providers = _ONNX_PROVIDERS.get(provider, _ONNX_PROVIDERS["cpu"])
@@ -453,7 +503,7 @@ def _create_onnx_pipeline(
         for p in providers
     ]
     sess_options = ort.SessionOptions()
-    sess_options.log_severity_level = 0  # 0=Verbose, 1=Info, 2=Warning, 3=Error
+    sess_options.log_severity_level = 2  # 0=Verbose, 1=Info, 2=Warning, 3=Error
     session = ort.InferenceSession(
         str(onnx_path),
         sess_options=sess_options,
@@ -482,6 +532,8 @@ def _create_onnx_pipeline(
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
         batch = model.preprocess_batch(batch)
+        if precision == "fp16":
+            batch = batch.half()
         return {
             "input_feed": {"images": batch.cpu().numpy()},
             "metadata": metadata,
@@ -541,9 +593,10 @@ def _create_tensorrt_pipeline(
     out_dir: Path,
     export_args: dict[str, Any] | None,
     batch_size: int,
+    precision: Literal["fp32", "fp16"] = "fp32",
 ) -> tuple[_PreprocessFn, _InferFn, _PostprocessFn]:
     """Export the model to TensorRT and create a preprocess/infer/postprocess pipeline."""
-    import tensorrt as trt
+    import tensorrt as trt  # type: ignore[import-untyped]
 
     engine_path = out_dir / "model.engine"
     export_kwargs = dict(export_args) if export_args else {}
@@ -551,11 +604,19 @@ def _create_tensorrt_pipeline(
     export_kwargs.setdefault("opt_batchsize", batch_size)
     export_kwargs.setdefault("min_batchsize", 1)
     export_kwargs.setdefault("verbose", False)
+    export_kwargs["precision"] = precision
     # Disable ONNX verification by default to avoid numerical precision mismatches.
     onnx_args = export_kwargs.pop("onnx_args", {})
     onnx_args.setdefault("verify", False)
+    # If dynamic_batch_size is disabled in onnx_args, enforce the batch_size matches
+    # and set all TensorRT profile batch sizes to match (static shape).
+    if not onnx_args.get("dynamic_batch_size", True):
+        onnx_args["batch_size"] = batch_size
+        export_kwargs["min_batchsize"] = batch_size
+        export_kwargs["opt_batchsize"] = batch_size
+        export_kwargs["max_batchsize"] = batch_size
     export_kwargs["onnx_args"] = onnx_args
-    model.export_tensorrt(out=engine_path, **export_kwargs)
+    model.export_tensorrt(out=engine_path, **export_kwargs)  # type: ignore[operator]
 
     # Load TensorRT engine.
     trt_logger = trt.Logger(trt.Logger.INFO)
@@ -573,7 +634,7 @@ def _create_tensorrt_pipeline(
     input_shape = list(engine.get_tensor_shape(input_name))
 
     # Create CUDA stream for async execution.
-    stream = torch.cuda.Stream()
+    stream = torch.cuda.Stream()  # type: ignore[no-untyped-call]
 
     def preprocess_fn(image_paths: list[str]) -> dict[str, Any]:
         tensors: list[Tensor] = []
@@ -584,6 +645,8 @@ def _create_tensorrt_pipeline(
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
         batch = model.preprocess_batch(batch)
+        if precision == "fp16":
+            batch = batch.half()
         return {
             "batch": batch.cuda().contiguous(),
             "metadata": metadata,
@@ -722,3 +785,84 @@ def _get_out_dir(out: PathLike, overwrite: bool) -> Path:
             )
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
+
+
+def _get_device_info(device: str) -> DeviceInfo:
+    """Collect information about the device used for benchmarking."""
+    import os
+
+    cpu_model = None
+    cpu_cores = None
+    cpu_threads = os.cpu_count()
+    smt_enabled = None
+    ram_gb = None
+
+    # Try to get CPU model name and physical core count from /proc/cpuinfo (Linux)
+    try:
+        physical_ids = set()
+        core_ids = set()
+        with open("/proc/cpuinfo") as f:
+            current_physical_id = None
+            for line in f:
+                if line.startswith("model name") and cpu_model is None:
+                    cpu_model = line.split(":")[1].strip()
+                elif line.startswith("physical id"):
+                    current_physical_id = line.split(":")[1].strip()
+                elif line.startswith("core id"):
+                    core_id = line.split(":")[1].strip()
+                    if current_physical_id is not None:
+                        physical_ids.add(current_physical_id)
+                        core_ids.add((current_physical_id, core_id))
+        if core_ids:
+            cpu_cores = len(core_ids)
+            smt_enabled = cpu_threads is not None and cpu_threads > cpu_cores
+    except Exception:
+        pass
+
+    # Try to check SMT status directly (Linux)
+    if smt_enabled is None:
+        try:
+            with open("/sys/devices/system/cpu/smt/active") as f:
+                smt_enabled = f.read().strip() == "1"
+        except Exception:
+            pass
+
+    # Try to get total RAM from /proc/meminfo (Linux)
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal"):
+                    mem_kb = int(line.split()[1])
+                    ram_gb = mem_kb / (1024**2)
+                    break
+    except Exception:
+        pass
+
+    if device.startswith("cuda"):
+        gpu_name = torch.cuda.get_device_name(0)
+        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        cuda_version = torch.version.cuda
+        cudnn_version = (
+            str(torch.backends.cudnn.version())  # type: ignore[no-untyped-call]
+            if torch.backends.cudnn.is_available()  # type: ignore[no-untyped-call]
+            else None
+        )
+        return CudaDeviceInfo(
+            gpu_name=gpu_name,
+            gpu_memory_gb=gpu_memory_gb,
+            cuda_version=cuda_version,
+            cudnn_version=cudnn_version,
+            cpu_model=cpu_model,
+            cpu_cores=cpu_cores,
+            cpu_threads=cpu_threads,
+            smt_enabled=smt_enabled,
+            ram_gb=ram_gb,
+        )
+    else:
+        return CpuDeviceInfo(
+            cpu_model=cpu_model,
+            cpu_cores=cpu_cores,
+            cpu_threads=cpu_threads,
+            smt_enabled=smt_enabled,
+            ram_gb=ram_gb,
+        )
