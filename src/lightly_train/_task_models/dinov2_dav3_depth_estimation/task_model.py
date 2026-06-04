@@ -48,11 +48,6 @@ _MODEL_ALIASES: dict[str, str] = {
     "dinov2/dav3mono-large": "dinov2/dav3mono-large",
 }
 
-_DEFAULT_IMAGE_NORMALIZE = {
-    "mean": (0.485, 0.456, 0.406),
-    "std": (0.229, 0.224, 0.225),
-}
-
 
 class DepthAnythingV3MonocularDepthEstimation(TaskModel):
     """Depth Anything V3 monocular relative-depth inference model."""
@@ -63,8 +58,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         self,
         *,
         model_name: str = "dinov2/dav3mono-large",
-        image_size: int = 504,
-        image_normalize: dict[str, tuple[float, ...]] | None = None,
+        process_resolution: int = 504,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -74,12 +68,10 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
             model_name:
                 The Depth Anything V3 model name. The only supported name is
                 ``"dinov2/dav3mono-large"``.
-            image_size:
+            process_resolution:
                 Upper bound for the longest image side during inference. The resized
                 height and width are rounded to the nearest multiple of the DA3 patch
                 size. The official DA3 inference default is 504.
-            image_normalize:
-                Image normalization parameters. Defaults to ImageNet statistics.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
@@ -103,10 +95,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         config = _MODEL_CONFIGS[parsed_name]
 
         self.model_name = config["canonical_name"]
-        self.image_size = image_size
-        self.image_normalize = (
-            _DEFAULT_IMAGE_NORMALIZE if image_normalize is None else image_normalize
-        )
+        self.process_resolution = process_resolution
 
         # Reuse the official Depth Anything V3 input pipeline so that resizing and
         # normalization match the reference implementation exactly. The mono model
@@ -193,7 +182,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
 
         Returns:
             A depth tensor of shape ``(H, W)`` at the Depth Anything V3 processing
-            resolution (the longest side resized to ``image_size``, both sides rounded
+            resolution (the longest side resized to ``process_resolution``, both sides rounded
             to a multiple of the patch size). This matches the official ``Prediction``
             resolution. Larger values correspond to farther scene content.
         """
@@ -242,7 +231,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         proc_input = _as_input_processor_image(image)
         batch, _exts, _intrinsics = self._input_processor(
             [proc_input],
-            process_res=self.image_size,
+            process_res=self.process_resolution,
             process_res_method=self.process_res_method,
         )
         first_param = next(self.parameters())
