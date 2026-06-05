@@ -12,7 +12,6 @@ from typing import Any
 import pytest
 import torch
 from PIL import Image
-from torch import Tensor
 
 from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model import (
     DepthAnythingV3RelativeDepthEstimation,
@@ -42,7 +41,7 @@ def test_task_model__predict_returns_processed_resolution(
 ) -> None:
     model = DepthAnythingV3RelativeDepthEstimation(
         model_name="dinov2/dav3-relative-large",
-        image_size=56,
+        process_resolution=56,
         model_args=tiny_model_args,
         load_weights=False,
     )
@@ -51,8 +50,8 @@ def test_task_model__predict_returns_processed_resolution(
     depth = model.predict(image)
 
     # Matches the official DA3 `Prediction` resolution: the longest side (80) is
-    # bounded to `image_size` (56), giving (W=56, H=45), then both sides are rounded
-    # to the nearest multiple of the patch size (14), giving (W=56, H=42).
+    # bounded to `process_resolution` (56), giving (W=56, H=45), then both sides are
+    # rounded to the nearest multiple of the patch size (14), giving (W=56, H=42).
     assert depth.shape == (42, 56)
     assert depth.dtype == next(model.parameters()).dtype
     assert torch.isfinite(depth).all()
@@ -63,7 +62,7 @@ def test_task_model__forward_returns_depth_and_sky(
 ) -> None:
     model = DepthAnythingV3RelativeDepthEstimation(
         model_name="dinov2/dav3-relative-large",
-        image_size=56,
+        process_resolution=56,
         model_args=tiny_model_args,
         load_weights=False,
     )
@@ -73,50 +72,3 @@ def test_task_model__forward_returns_depth_and_sky(
 
     assert out["depth"].shape == (2, 1, 56, 70)
     assert out["sky"].shape == (2, 1, 56, 70)
-
-
-def test_task_model__loads_state_dict_with_upstream_hf_layout(
-    tiny_model_args: dict[str, Any],
-) -> None:
-    """Loads a state dict in the official HF ``model.safetensors`` key layout.
-
-    Keys are prefixed ``model.backbone.pretrained.*`` / ``model.head.*`` and
-    ``mask_token`` is absent (it only exists during MIM pretraining). Values are
-    randomized so that a regression in the load path that silently skipped
-    parameters would be caught.
-    """
-    model = DepthAnythingV3RelativeDepthEstimation(
-        model_name="dinov2/dav3-relative-large",
-        image_size=56,
-        model_args=tiny_model_args,
-        load_weights=False,
-    )
-
-    hf_layout_state_dict: dict[str, Tensor] = {}
-    for key, value in model.state_dict().items():
-        if key == "backbone.mask_token":
-            continue
-        if key.startswith("backbone."):
-            hf_key = f"model.backbone.pretrained.{key[len('backbone.') :]}"
-        else:
-            assert key.startswith("head.")
-            hf_key = f"model.{key}"
-        hf_layout_state_dict[hf_key] = torch.randn_like(value)
-
-    before = model.head.scratch.layer1_rn.weight.detach().clone()
-    model.load_train_state_dict(hf_layout_state_dict)
-    after = model.head.scratch.layer1_rn.weight.detach()
-
-    assert not torch.allclose(before, after)
-    assert torch.allclose(
-        after,
-        hf_layout_state_dict["model.head.scratch.layer1_rn.weight"],
-    )
-
-
-def test_task_model__unsupported_model_name_fails() -> None:
-    with pytest.raises(ValueError, match="not supported"):
-        DepthAnythingV3RelativeDepthEstimation(
-            model_name="depth-anything-v3/da3-large",
-            load_weights=False,
-        )

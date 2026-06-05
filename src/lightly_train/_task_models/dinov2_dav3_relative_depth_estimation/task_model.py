@@ -196,6 +196,10 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         x = self._preprocess_image(image)
         out = self.forward(x.unsqueeze(0))
         _set_sky_regions_to_max_depth(out)
+        # TODO(Nauryzbay, 06/2026): Resize the depth map back to the original input
+        # (H, W) before returning. The official DA3 inference keeps the depth at the
+        # processing resolution and we mirror that here to stay close to their code,
+        # but the public `predict` API and users expect the original input resolution.
         return out["depth"][0, 0]
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
@@ -205,7 +209,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 f"Expected input shape (B, C, H, W), got {tuple(x.shape)}."
             )
         feats = self._extract_features(x)
-        out = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
+        out: dict[str, Tensor] = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
