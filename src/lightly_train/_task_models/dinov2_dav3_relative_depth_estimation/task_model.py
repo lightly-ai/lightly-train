@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -16,7 +19,8 @@ from numpy.typing import NDArray
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
-from lightly_train._data import file_helpers
+from lightly_train._data import cache, download, file_helpers
+from lightly_train._env import Env
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.depth_estimation_components.input_processor import (
     InputProcessor,
@@ -27,10 +31,15 @@ from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.dpt import
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
+logger = logging.getLogger(__name__)
+
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav3-relative-large": {
         "canonical_name": "dinov2/dav3-relative-large",
         "backbone_name": "vitl14-noreg",
+        # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
+        # `load_weights=True` can download it. Until then pass a local `weights` path.
+        "weights_url": None,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
             "image_size": 518,
@@ -57,6 +66,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
+        weights: PathLike | None = None,
     ) -> None:
         """
         Args:
@@ -76,26 +86,23 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 ``DINOV2_VIT_PACKAGE.get_model``), e.g. ``in_chans`` or
                 ``drop_path_rate``. These override the Depth Anything V3 defaults.
             load_weights:
-                If True, the backbone is initialized from the pretrained DINOv2
-                ViT-L/14 weights that Depth Anything V3 was fine-tuned from. The DPT
-                head is always randomly initialized. To obtain the fully pretrained
-                depth model, use ``lightly_train.load_model(<exported .pt>)``; the
-                ``convert_checkpoint`` script produces that file from the official
-                Depth Anything V3 weights. Set to False to skip the backbone download,
-                e.g. when the weights are loaded from an exported checkpoint via
-                ``load_train_state_dict``.
+                If True, load the converted Depth Anything V3 weights (backbone and DPT
+                head) so the model is a ready-to-use depth predictor; a local
+                ``weights`` path takes precedence over the hosted URL. If False, the
+                model is randomly initialized, e.g. when restoring from an exported
+                checkpoint via ``load_train_state_dict``.
+            weights:
+                Optional path to a converted Depth Anything V3 checkpoint (the
+                ``convert_checkpoint`` output) to load instead of the hosted weights.
+                Intended for debugging before the checkpoint is hosted.
         """
-        super().__init__(locals(), ignore_args={"load_weights"})
+        super().__init__(locals(), ignore_args={"load_weights", "weights"})
         parsed_name = self.parse_model_name(model_name)
         config = _MODEL_CONFIGS[parsed_name]
 
         self.model_name = config["canonical_name"]
         self.process_resolution = process_resolution
 
-        # Reuse the official Depth Anything V3 input pipeline so that resizing and
-        # normalization match the reference implementation exactly. The model
-        # bounds the longest side and rounds both sides to a patch multiple, then
-        # applies the official ImageNet normalization.
         self.process_res_method = "upper_bound_resize"
         self._input_processor = InputProcessor()  # type: ignore[no-untyped-call]
 
@@ -107,15 +114,10 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         self.out_layers: tuple[int, ...] = tuple(net_args["out_layers"])
         self.patch_size = patch_size
 
-        # Reuse the DINOv2 backbone owned by the package. The overrides reproduce the
-        # plain (register-free, unchunked, MLP-FFN) ViT-L that Depth Anything V3 is
-        # built on, so the backbone state dict keys match the official checkpoint.
-        # `block_chunks=0` is essential: chunked blocks would change the key layout
-        # from `blocks.{i}.` to `blocks.{chunk}.{i}.` and break loading.
-        # When `load_weights` is True the backbone is initialized from the DINOv2
-        # ViT-L/14 weights that DA3 was fine-tuned from; this is skipped when the model
-        # is reconstructed from an exported checkpoint, whose weights are loaded by
-        # `load_train_state_dict` instead.
+        # Reproduce the plain (register-free, unchunked, MLP-FFN) ViT-L that DA3 is
+        # built on so the state dict keys match the checkpoint; `block_chunks=0` keeps
+        # the `blocks.{i}.` key layout. The backbone is built without weights: when
+        # `load_weights` is True the converted DA3 checkpoint is loaded below instead.
         backbone_model_args: dict[str, Any] = {
             "img_size": int(net_args["image_size"]),
             "ffn_layer": "mlp",
@@ -131,7 +133,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         self.backbone = DINOV2_VIT_PACKAGE.get_model(
             model_name=config["backbone_name"],
             model_args=backbone_model_args,
-            load_weights=load_weights,
+            load_weights=False,
         )
         self.decoder = DPT(
             dim_in=int(self.backbone.embed_dim),
@@ -141,6 +143,13 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             out_channels=tuple(net_args["out_channels"]),
             use_sky_head=bool(net_args["use_sky_head"]),
         )
+
+        if load_weights:
+            _load_pretrained_weights(
+                model=self,
+                weights_url=config["weights_url"],
+                weights=weights,
+            )
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -186,6 +195,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
 
         x = self._preprocess_image(image)
         out = self.forward(x.unsqueeze(0))
+        _set_sky_regions_to_max_depth(out)
         return out["depth"][0, 0]
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
@@ -196,16 +206,9 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             )
         feats = self._extract_features(x)
         out = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
-        _set_sky_regions_to_max_depth(out)
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
-        """Load the state dict from an exported LightlyTrain checkpoint.
-
-        The state dict is expected to already match this model's layout (flat
-        ``backbone.*`` / ``decoder.*`` keys). Converting the official Depth Anything V3
-        weights into this layout is the job of the ``convert_checkpoint`` script.
-        """
         self.load_state_dict(state_dict, strict=True)
 
     def _extract_features(self, x: Tensor) -> list[Tensor]:
@@ -219,9 +222,6 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         return [patch_tokens for patch_tokens, _class_token in intermediate]
 
     def _preprocess_image(self, image: PathLike | PILImage | Tensor) -> Tensor:
-        # Delegate resizing and normalization to the official DA3 `InputProcessor`
-        # so the result is bit-faithful to the reference: cv2 INTER_CUBIC (upscale) /
-        # INTER_AREA (downscale) resizing in uint8 space and ImageNet normalization.
         proc_input = _as_input_processor_image(image)
         batch, _exts, _intrinsics = self._input_processor(
             [proc_input],
@@ -258,22 +258,60 @@ def _set_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
     out["depth"] = depth
 
 
+def _load_pretrained_weights(
+    model: DepthAnythingV3RelativeDepthEstimation,
+    *,
+    weights_url: str | None,
+    weights: PathLike | None,
+) -> None:
+    """Loads the converted Depth Anything V3 checkpoint into the model in place.
+
+    A local ``weights`` path takes precedence; otherwise the checkpoint is downloaded
+    from ``weights_url`` into the model cache. Both come from ``convert_checkpoint``.
+    """
+    if weights is not None:
+        checkpoint_path = Path(weights).expanduser()
+        if not checkpoint_path.is_file():
+            raise ValueError(f"Checkpoint file '{checkpoint_path}' does not exist.")
+    elif weights_url is not None:
+        checkpoint_path = cache.get_model_cache_dir() / Path(weights_url).name
+        if not checkpoint_path.exists():
+            logger.info(
+                f"Downloading Depth Anything V3 weights from '{weights_url}' to "
+                f"'{checkpoint_path}'."
+            )
+            download.download_from_url(
+                weights_url,
+                checkpoint_path,
+                timeout=Env.LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC.value,
+            )
+        else:
+            logger.info(
+                f"Using cached Depth Anything V3 weights from '{checkpoint_path}'."
+            )
+    else:
+        raise RuntimeError(
+            "No pretrained Depth Anything V3 checkpoint is available yet: the hosted "
+            "weights URL is not set. Pass `weights=<converted .pt>` (produced by the "
+            "convert_checkpoint script) to load a local checkpoint, or set "
+            "`load_weights=False`."
+        )
+
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if isinstance(checkpoint, Mapping) and "train_model" in checkpoint:
+        state_dict = dict(checkpoint["train_model"])
+    else:
+        state_dict = dict(checkpoint)
+    model.load_train_state_dict(state_dict)
+
+
 def _as_input_processor_image(
     image: PathLike | PILImage | Tensor,
 ) -> NDArray[np.uint8]:
     """Converts an input image to an ``(H, W, C)`` / ``(H, W)`` uint8 array.
 
-    Routes through LightlyTrain's loaders so paths, URLs, PIL images, and tensors are
-    all supported, then returns a NumPy image that the official DA3 ``InputProcessor``
-    accepts (it applies ``Image.fromarray(...).convert("RGB")``, matching the
-    reference RGB conversion).
-
-    Args:
-        image: The input image as a path, URL, PIL image, or ``(C, H, W)`` tensor.
-
-    Returns:
-        The image as a uint8 array, shaped ``(H, W, C)`` or ``(H, W)`` for a single
-        channel.
+    Routes through LightlyTrain's loaders (paths, URLs, PIL images, tensors) and
+    returns a NumPy image that the official DA3 ``InputProcessor`` accepts.
     """
     tensor = file_helpers.as_image_tensor(image)
     if tensor.ndim != 3:
