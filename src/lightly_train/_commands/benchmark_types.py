@@ -88,7 +88,8 @@ class BenchmarkResult(PydanticConfig):
     """Result of a benchmark run."""
 
     out: str
-    model_name: str
+    model_name: str | None
+    model_class: str
     backend_args: BenchmarkBackendArgs
     device_info: Annotated[DeviceInfo, Field(discriminator="device_type")]
     dataset_format: str
@@ -110,7 +111,8 @@ class BenchmarkResult(PydanticConfig):
         # Run Config.
         lines.append("## Run Config")
         lines.append("")
-        lines.append(f"- **Model**: {self.model_name}")
+        lines.append(f"- **Model**: {self.model_name or 'N/A'}")
+        lines.append(f"- **Model class**: {self.model_class}")
         ba = self.backend_args
         backend_str: str = ba.format
         provider = getattr(ba, "provider", None)

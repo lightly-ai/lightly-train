@@ -8,17 +8,23 @@
 from __future__ import annotations
 
 import statistics
-import time
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, Sequence, TypedDict
 
 import torch
+from albumentations import BboxParams
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 from torch import Tensor
 from torch.utils.data import DataLoader
 
 from lightly_train._commands import common_helpers
+from lightly_train._commands.benchmark_backends import (
+    ObjectDetectionBackend,
+    ONNXBackend,
+    TensorRTBackend,
+    TorchBackend,
+)
 from lightly_train._commands.benchmark_types import (
     BenchmarkObjectDetectionConfig,
     BenchmarkObjectDetectionMetricArgs,
@@ -31,6 +37,7 @@ from lightly_train._commands.benchmark_types import (
     DeviceInfo,
     ONNXBackendArgs,
     TensorRTBackendArgs,
+    TorchBackendArgs,
 )
 from lightly_train._configs import validate
 from lightly_train._data.task_data_args import TaskDataArgs
@@ -49,12 +56,11 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransform,
     ObjectDetectionTransformArgs,
 )
-from lightly_train._transforms.transform import ResizeArgs
+from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
 from lightly_train.types import PathLike
 
-_PreprocessFn = Callable[[list[str]], Any]
-_InferFn = Callable[[Any], Any]
-_PostprocessFn = Callable[[Any, float, int | None], list[dict[str, Tensor]]]
+_ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
+_ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 def benchmark_object_detection(
@@ -133,6 +139,9 @@ def _benchmark_object_detection_from_config(
 
     backend_args = config.backend_args
 
+    # Build val transform args from the model.
+    transform_args = _build_val_transform_args(model=model)
+
     # Set up validation data.
     data_args = config.data
     num_workers = common_helpers.get_num_workers(
@@ -142,6 +151,7 @@ def _benchmark_object_detection_from_config(
         data_args=data_args,
         batch_size=config.batch_size,
         num_workers=num_workers,
+        transform_args=transform_args,
     )
     total_images = len(val_dataloader.dataset)  # type: ignore[arg-type]
 
@@ -161,48 +171,30 @@ def _benchmark_object_detection_from_config(
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Set up inference pipeline based on backend.
+    torch_device = torch.device(device)
+    backend: ObjectDetectionBackend
     if isinstance(backend_args, ONNXBackendArgs):
-        if backend_args.provider == "cpu":
-            if device != "cpu":
-                import warnings
-
-                warnings.warn(
-                    f"ONNX CPU provider requested but device='{device}'. "
-                    "Moving model to CPU for export."
-                )
-            model = model.to("cpu")
-        else:
-            model = model.to(device)
-        preprocess_fn, infer_fn, postprocess_fn = _create_onnx_pipeline(
+        backend = ONNXBackend(
             model=model,
-            out_dir=out_dir,
-            export_args=backend_args.export_args,
+            backend_args=backend_args,
             batch_size=config.batch_size,
-            provider=backend_args.provider,
-            precision=backend_args.precision,
+            out_dir=out_dir,
+            device=device,
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
-        model = model.to(device)
-        preprocess_fn, infer_fn, postprocess_fn = _create_tensorrt_pipeline(
+        backend = TensorRTBackend(
             model=model,
-            out_dir=out_dir,
-            export_args=backend_args.export_args,
+            backend_args=backend_args,
             batch_size=config.batch_size,
-            precision=backend_args.precision,
+            out_dir=out_dir,
+            device=device,
+        )
+    elif isinstance(backend_args, TorchBackendArgs):
+        backend = TorchBackend(
+            model=model, backend_args=backend_args, device=torch_device
         )
     else:
-        # Move model to requested device.
-        model = model.to(device)
-        # Deploy model for inference (sets eval mode and enables optimized postprocessing).
-        if hasattr(model, "deploy"):
-            model.deploy()  # type: ignore[operator]
-        else:
-            model.eval()
-        # Compile forward_backend if requested (this is the actual NN computation).
-        if backend_args.compile:
-            print("Compiling model.forward_backend with torch.compile...")
-            model.forward_backend = torch.compile(model.forward_backend)  # type: ignore[method-assign]
-        preprocess_fn, infer_fn, postprocess_fn = _create_torch_pipeline(model=model)
+        raise ValueError(f"Unsupported backend: {type(backend_args).__name__}")
 
     # Warmup.
     if config.warmup_steps > 0:
@@ -211,14 +203,16 @@ def _benchmark_object_detection_from_config(
             for step, batch in enumerate(val_dataloader):
                 if step >= config.warmup_steps:
                     break
-                preprocessed = preprocess_fn(batch["image_path"])
-                raw_outputs = infer_fn(preprocessed)
-                postprocess_fn(
-                    raw_outputs,
-                    metric_args.detection_threshold,
-                    metric_args.top_k,
-                )
+                backend.run_batch(batch)
         print("Warmup complete.")
+
+    # Free cached memory before the timed benchmark loop so warmup
+    # allocations don't skew memory or timing measurements.
+    import gc
+
+    gc.collect()
+    if device.startswith("cuda"):
+        torch.cuda.empty_cache()
 
     # Run inference in batches.
     total_batches = len(val_dataloader)
@@ -231,46 +225,24 @@ def _benchmark_object_detection_from_config(
     _debug = config.debug
     with torch.no_grad():
         for step, batch in enumerate(val_dataloader):
-            t_load = time.perf_counter()
             if step >= total_batches:
                 break
-            image_paths = batch["image_path"]
+
             targets = batch["targets"]
 
-            t_preprocess = time.perf_counter()
-            preprocessed = preprocess_fn(image_paths)
-            t_infer = time.perf_counter()
-            raw_outputs = infer_fn(preprocessed)
-            t_postprocess = time.perf_counter()
-            batch_times.append(t_postprocess - t_infer)
-            predictions = postprocess_fn(
-                raw_outputs,
-                metric_args.detection_threshold,
-                metric_args.top_k,
-            )
-
-            t_metrics = time.perf_counter()
+            predictions, t_infer = backend.run_batch(batch=batch)
+            batch_times.append(t_infer)
             predictions_cpu = _to_cpu(predictions)
+            # Need to relabel for torchmetrics
+            predictions_cpu = [
+                {
+                    "boxes": p["bboxes"],
+                    "scores": p["scores"],
+                    "labels": p["labels"],
+                }
+                for p in predictions_cpu
+            ]
             metric.update_with_predictions(predictions_cpu, targets)
-            t_end = time.perf_counter()
-
-            if _debug:
-                load_time = t_preprocess - t_load
-                preprocess_time = t_infer - t_preprocess
-                infer_time = t_postprocess - t_infer
-                postprocess_time = t_metrics - t_postprocess
-                metrics_time = t_end - t_metrics
-                total_time = t_end - t_load
-                print(
-                    f"[DEBUG] Batch {step} timing: "
-                    f"load={load_time:.3f}s ({100 * load_time / total_time:.1f}%) | "
-                    f"preprocess={preprocess_time:.3f}s ({100 * preprocess_time / total_time:.1f}%) | "
-                    f"infer={infer_time:.3f}s ({100 * infer_time / total_time:.1f}%) | "
-                    f"postprocess={postprocess_time:.3f}s ({100 * postprocess_time / total_time:.1f}%) | "
-                    f"metrics={metrics_time:.3f}s ({100 * metrics_time / total_time:.1f}%) | "
-                    f"total={total_time:.3f}s",
-                    flush=True,
-                )
 
             if step % print_every == 0 or step == total_batches - 1:
                 processed = min((step + 1) * config.batch_size, total_images)
@@ -301,17 +273,21 @@ def _benchmark_object_detection_from_config(
         ),
     )
 
-    model_name: str
+    model_name: str | None
+    model_class: str
     if isinstance(config.model, TaskModel):
-        model_name = type(config.model).__name__
+        model_name = getattr(config.model, "model_name", None)
+        model_class = type(config.model).__name__
     else:
         model_name = str(config.model)
+        model_class = "N/A"
 
     device_info = _get_device_info(device)
 
     result = BenchmarkResult(
         out=str(out_dir),
         model_name=model_name,
+        model_class=model_class,
         backend_args=backend_args,
         device_info=device_info,
         dataset_format=data_args.format,
@@ -337,10 +313,25 @@ def _benchmark_object_detection_from_config(
     return result
 
 
-class _BenchmarkTransformArgs(ObjectDetectionTransformArgs):
-    """Minimal transform args: only resize so images can be stacked by the collate
-    function. The image tensor itself is not used for inference (predict_batch
-    loads images from paths), but the DataLoader requires a uniform size."""
+def _make_val_bbox_params() -> BboxParams:
+    """Create standard YOLO bbox params matching training val transforms."""
+    return BboxParams(
+        format="yolo",
+        label_fields=["class_labels"],
+        min_width=0.0,
+        min_height=0.0,
+        **(dict(filter_invalid_bboxes=True) if _ALBUMENTATIONS_GE_2_0_1 else {}),
+        **(dict(clip=True) if _ALBUMENTATIONS_GE_1_4_5 else {}),
+    )
+
+
+class _BenchmarkValTransformArgs(ObjectDetectionTransformArgs):
+    """Val transform args that mirror the training validation pipeline.
+
+    All augmentations are disabled. Only resize and normalize (plus bbox params)
+    are applied so that the collate function produces images at the model's
+    expected size with the correct normalisation.
+    """
 
     channel_drop: None = None
     num_channels: int = 3
@@ -350,24 +341,65 @@ class _BenchmarkTransformArgs(ObjectDetectionTransformArgs):
     random_flip: None = None
     random_rotate_90: None = None
     random_rotate: None = None
-    image_size: tuple[int, int] = (64, 64)
-    resize: ResizeArgs = Field(default_factory=lambda: ResizeArgs(height=64, width=64))
-    normalize: None = None
-    bbox_params: None = None
+    image_size: tuple[int, int] = (640, 640)
+    resize: ResizeArgs = Field(
+        default_factory=lambda: ResizeArgs(height=640, width=640)
+    )
+    normalize: NormalizeArgs | None = None
+    bbox_params: BboxParams = Field(default_factory=_make_val_bbox_params)
+
+
+def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
+    """Build val transform args from the model's ``init_args``.
+
+    Uses ``image_size`` and ``image_normalize`` stored in the model to
+    construct a transform that matches the training validation pipeline.
+
+    Args:
+        model: A loaded task model instance.
+
+    Returns:
+        Transform args configured for the model.
+    """
+    init_args = model.init_args
+    image_size: tuple[int, int] = tuple(init_args.get("image_size", (64, 64)))  # type: ignore[assignment]
+    height, width = image_size
+
+    # Resolve normalize the same way training val transforms do.
+    normalize: NormalizeArgs | None
+    raw_normalize = init_args.get("image_normalize", "none")
+    if raw_normalize is None:
+        normalize = None
+    elif raw_normalize == "none":
+        normalize = NormalizeArgs()
+    else:
+        assert isinstance(raw_normalize, dict)
+        normalize = NormalizeArgs.from_dict(raw_normalize)
+
+    num_channels = 3 if normalize is None else len(normalize.mean)
+
+    return _BenchmarkValTransformArgs(
+        image_size=image_size,
+        resize=ResizeArgs(height=height, width=width),
+        normalize=normalize,
+        num_channels=num_channels,
+    )
 
 
 class _BenchmarkValBatch(TypedDict):
+    image: Tensor
     image_path: list[str]
+    original_size: list[tuple[int, int]]
     targets: list[dict[str, Tensor]]
 
 
 class _BenchmarkCollateFunction:
     """Picklable collate function for benchmark dataloader."""
 
-    def __init__(self) -> None:
+    def __init__(self, transform_args: _BenchmarkValTransformArgs) -> None:
         self._inner_collate = ObjectDetectionCollateFunction(
             split="val",
-            transform_args=_BenchmarkTransformArgs(),
+            transform_args=transform_args,
         )
 
     def __call__(self, batch: list[Any]) -> _BenchmarkValBatch:
@@ -379,7 +411,9 @@ class _BenchmarkCollateFunction:
             for boxes, classes in zip(boxes_denorm, od_batch["classes"])
         ]
         return _BenchmarkValBatch(
+            image=od_batch["image"],
             image_path=od_batch["image_path"],
+            original_size=od_batch["original_size"],
             targets=targets,
         )
 
@@ -388,11 +422,12 @@ def _create_val_dataloader(
     data_args: TaskDataArgs,
     batch_size: int,
     num_workers: int,
+    transform_args: _BenchmarkValTransformArgs,
 ) -> DataLoader[_BenchmarkValBatch]:
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
     image_info = list(val_dataset_args.list_image_info())
-    transform = ObjectDetectionTransform(transform_args=_BenchmarkTransformArgs())
+    transform = ObjectDetectionTransform(transform_args=transform_args)
     dataset = dataset_cls(
         dataset_args=val_dataset_args,
         image_info=image_info,
@@ -405,321 +440,11 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=_BenchmarkCollateFunction(),
+        collate_fn=_BenchmarkCollateFunction(transform_args=transform_args),
         multiprocessing_context="spawn" if num_workers > 0 else None,
         persistent_workers=num_workers > 0,
         prefetch_factor=2 if num_workers > 0 else None,
     )
-
-
-def _create_torch_pipeline(
-    model: TaskModel,
-) -> tuple[_PreprocessFn, _InferFn, _PostprocessFn]:
-    """Create a preprocess/infer/postprocess pipeline using the PyTorch model."""
-
-    def preprocess_fn(image_paths: list[str]) -> dict[str, Any]:
-        tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
-        for path in image_paths:
-            x, meta = model.preprocess_image(path)
-            tensors.append(x)
-            metadata.append(meta)
-        batch = torch.stack(tensors, dim=0)
-        batch = model.preprocess_batch(batch)
-        return {"batch": batch, "metadata": metadata}
-
-    def infer_fn(preprocessed: dict[str, Any]) -> dict[str, Any]:
-        raw = model.forward_backend(preprocessed["batch"])
-        preprocessed["raw"] = raw
-        return preprocessed
-
-    def postprocess_fn(
-        result: dict[str, Any],
-        detection_threshold: float,
-        top_k: int | None,
-    ) -> list[dict[str, Tensor]]:
-        preds = model.postprocess(
-            result["raw"],
-            result["metadata"],
-            threshold=detection_threshold,
-        )
-        if top_k is not None:
-            preds = [_filter_top_k(p, top_k) for p in preds]
-        return [
-            {
-                "boxes": p["bboxes"],
-                "scores": p["scores"],
-                "labels": p["labels"],
-            }
-            for p in preds
-        ]
-
-    return preprocess_fn, infer_fn, postprocess_fn
-
-
-_ONNX_PROVIDERS: dict[str, list[str]] = {
-    "cpu": ["CPUExecutionProvider"],
-    "cuda": ["CUDAExecutionProvider", "CPUExecutionProvider"],
-    "tensorrt": [
-        "TensorrtExecutionProvider",
-        "CUDAExecutionProvider",
-        "CPUExecutionProvider",
-    ],
-}
-
-
-def _create_onnx_pipeline(
-    model: TaskModel,
-    out_dir: Path,
-    export_args: dict[str, Any] | None,
-    batch_size: int,
-    provider: str = "cpu",
-    precision: Literal["fp32", "fp16"] = "fp32",
-) -> tuple[_PreprocessFn, _InferFn, _PostprocessFn]:
-    """Export the model to ONNX and create a preprocess/infer/postprocess pipeline."""
-    import onnxruntime as ort
-
-    onnx_path = out_dir / "model.onnx"
-    export_kwargs = dict(export_args) if export_args else {}
-    export_kwargs.setdefault("dynamic_batch_size", True)
-    export_kwargs.setdefault("simplify", True)
-    export_kwargs.setdefault("verify", False)
-    export_kwargs["precision"] = precision
-    # If dynamic_batch_size is disabled, enforce the batch_size matches the benchmark batch_size.
-    if not export_kwargs.get("dynamic_batch_size", True):
-        export_kwargs["batch_size"] = batch_size
-    model.export_onnx(out=onnx_path, **export_kwargs)  # type: ignore[operator]
-
-    providers = _ONNX_PROVIDERS.get(provider, _ONNX_PROVIDERS["cpu"])
-    available = set(ort.get_available_providers())
-    missing = [p for p in providers if p not in available]
-    if missing:
-        raise RuntimeError(
-            f"ONNX provider '{provider}' requires {missing} but only "
-            f"{sorted(available)} are available."
-        )
-    provider_options = [
-        {"trt_detailed_build_log": True} if p == "TensorrtExecutionProvider" else {}
-        for p in providers
-    ]
-    sess_options = ort.SessionOptions()
-    sess_options.log_severity_level = 2  # 0=Verbose, 1=Info, 2=Warning, 3=Error
-    session = ort.InferenceSession(
-        str(onnx_path),
-        sess_options=sess_options,
-        providers=providers,
-        provider_options=provider_options,
-    )
-
-    # Verify the requested provider is actually being used (not silently fallen back).
-    active_providers = session.get_providers()
-    expected_provider = providers[0]
-    if expected_provider not in active_providers:
-        raise RuntimeError(
-            f"ONNX provider '{provider}' failed to initialize. "
-            f"Requested {expected_provider} but session is using {active_providers}. "
-            f"Please verify that the required libraries are installed and configured."
-        )
-
-    def preprocess_fn(
-        image_paths: list[str],
-    ) -> dict[str, Any]:
-        tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
-        for path in image_paths:
-            x, meta = model.preprocess_image(path)
-            tensors.append(x)
-            metadata.append(meta)
-        batch = torch.stack(tensors, dim=0)
-        batch = model.preprocess_batch(batch)
-        if precision == "fp16":
-            batch = batch.half()
-        return {
-            "input_feed": {"images": batch.cpu().numpy()},
-            "metadata": metadata,
-            "model_h": batch.shape[-2],
-            "model_w": batch.shape[-1],
-        }
-
-    def infer_fn(preprocessed: dict[str, Any]) -> dict[str, Any]:
-        outputs = session.run(None, preprocessed["input_feed"])
-        preprocessed["outputs"] = outputs
-        return preprocessed
-
-    def postprocess_fn(
-        raw: dict[str, Any],
-        detection_threshold: float,
-        top_k: int | None,
-    ) -> list[dict[str, Tensor]]:
-        outputs = raw["outputs"]
-        metadata = raw["metadata"]
-        model_h = raw["model_h"]
-        model_w = raw["model_w"]
-
-        labels_batch = torch.from_numpy(outputs[0])
-        boxes_batch = torch.from_numpy(outputs[1])
-        scores_batch = torch.from_numpy(outputs[2])
-
-        # The ONNX forward() rescales boxes to the model input size when
-        # orig_target_size is not provided. Rescale to original image
-        # coordinates.
-        results: list[dict[str, Tensor]] = []
-        for i in range(len(metadata)):
-            orig_w = metadata[i]["orig_w"]
-            orig_h = metadata[i]["orig_h"]
-            boxes = boxes_batch[i].clone()
-            boxes[:, 0] *= orig_w / model_w
-            boxes[:, 1] *= orig_h / model_h
-            boxes[:, 2] *= orig_w / model_w
-            boxes[:, 3] *= orig_h / model_h
-
-            scores = scores_batch[i]
-            keep = scores > detection_threshold
-            pred: dict[str, Tensor] = {
-                "boxes": boxes[keep],
-                "scores": scores[keep],
-                "labels": labels_batch[i][keep],
-            }
-            if top_k is not None:
-                pred = _filter_top_k(pred, top_k)
-            results.append(pred)
-        return results
-
-    return preprocess_fn, infer_fn, postprocess_fn
-
-
-def _create_tensorrt_pipeline(
-    model: TaskModel,
-    out_dir: Path,
-    export_args: dict[str, Any] | None,
-    batch_size: int,
-    precision: Literal["fp32", "fp16"] = "fp32",
-) -> tuple[_PreprocessFn, _InferFn, _PostprocessFn]:
-    """Export the model to TensorRT and create a preprocess/infer/postprocess pipeline."""
-    import tensorrt as trt  # type: ignore[import-untyped]
-
-    engine_path = out_dir / "model.engine"
-    export_kwargs = dict(export_args) if export_args else {}
-    export_kwargs.setdefault("max_batchsize", batch_size)
-    export_kwargs.setdefault("opt_batchsize", batch_size)
-    export_kwargs.setdefault("min_batchsize", 1)
-    export_kwargs.setdefault("verbose", False)
-    export_kwargs["precision"] = precision
-    # Disable ONNX verification by default to avoid numerical precision mismatches.
-    onnx_args = export_kwargs.pop("onnx_args", {})
-    onnx_args.setdefault("verify", False)
-    # If dynamic_batch_size is disabled in onnx_args, enforce the batch_size matches
-    # and set all TensorRT profile batch sizes to match (static shape).
-    if not onnx_args.get("dynamic_batch_size", True):
-        onnx_args["batch_size"] = batch_size
-        export_kwargs["min_batchsize"] = batch_size
-        export_kwargs["opt_batchsize"] = batch_size
-        export_kwargs["max_batchsize"] = batch_size
-    export_kwargs["onnx_args"] = onnx_args
-    model.export_tensorrt(out=engine_path, **export_kwargs)  # type: ignore[operator]
-
-    # Load TensorRT engine.
-    trt_logger = trt.Logger(trt.Logger.INFO)
-    with open(engine_path, "rb") as f:
-        runtime = trt.Runtime(trt_logger)
-        engine = runtime.deserialize_cuda_engine(f.read())
-
-    context = engine.create_execution_context()
-
-    # Get input/output tensor info (TensorRT 10.x API).
-    input_name = "images"
-    output_names = ["labels", "boxes", "scores"]
-
-    # Get input shape (may have dynamic batch dimension = -1).
-    input_shape = list(engine.get_tensor_shape(input_name))
-
-    # Create CUDA stream for async execution.
-    stream = torch.cuda.Stream()  # type: ignore[no-untyped-call]
-
-    def preprocess_fn(image_paths: list[str]) -> dict[str, Any]:
-        tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
-        for path in image_paths:
-            x, meta = model.preprocess_image(path)
-            tensors.append(x)
-            metadata.append(meta)
-        batch = torch.stack(tensors, dim=0)
-        batch = model.preprocess_batch(batch)
-        if precision == "fp16":
-            batch = batch.half()
-        return {
-            "batch": batch.cuda().contiguous(),
-            "metadata": metadata,
-            "model_h": batch.shape[-2],
-            "model_w": batch.shape[-1],
-        }
-
-    def infer_fn(preprocessed: dict[str, Any]) -> dict[str, Any]:
-        import numpy as np
-
-        batch = preprocessed["batch"]
-        current_batch_size = batch.shape[0]
-
-        # Set input shape for dynamic batch dimension.
-        actual_input_shape = [current_batch_size] + input_shape[1:]
-        context.set_input_shape(input_name, actual_input_shape)
-
-        # Set input tensor address.
-        context.set_tensor_address(input_name, batch.data_ptr())
-
-        # Allocate output buffers and set their addresses.
-        outputs: dict[str, Tensor] = {}
-        for name in output_names:
-            shape = list(context.get_tensor_shape(name))
-            dtype = trt.nptype(engine.get_tensor_dtype(name))
-            torch_dtype = torch.from_numpy(np.zeros(1, dtype=dtype)).dtype
-            outputs[name] = torch.empty(shape, dtype=torch_dtype, device="cuda")
-            context.set_tensor_address(name, outputs[name].data_ptr())
-
-        # Run inference.
-        context.execute_async_v3(stream.cuda_stream)
-        stream.synchronize()
-
-        preprocessed["outputs"] = outputs
-        return preprocessed
-
-    def postprocess_fn(
-        raw: dict[str, Any],
-        detection_threshold: float,
-        top_k: int | None,
-    ) -> list[dict[str, Tensor]]:
-        outputs = raw["outputs"]
-        metadata = raw["metadata"]
-        model_h = raw["model_h"]
-        model_w = raw["model_w"]
-
-        labels_batch = outputs["labels"].cpu()
-        boxes_batch = outputs["boxes"].cpu()
-        scores_batch = outputs["scores"].cpu()
-
-        results: list[dict[str, Tensor]] = []
-        for i in range(len(metadata)):
-            orig_w = metadata[i]["orig_w"]
-            orig_h = metadata[i]["orig_h"]
-            boxes = boxes_batch[i].clone()
-            boxes[:, 0] *= orig_w / model_w
-            boxes[:, 1] *= orig_h / model_h
-            boxes[:, 2] *= orig_w / model_w
-            boxes[:, 3] *= orig_h / model_h
-
-            scores = scores_batch[i]
-            keep = scores > detection_threshold
-            pred: dict[str, Tensor] = {
-                "boxes": boxes[keep],
-                "scores": scores[keep],
-                "labels": labels_batch[i][keep],
-            }
-            if top_k is not None:
-                pred = _filter_top_k(pred, top_k)
-            results.append(pred)
-        return results
-
-    return preprocess_fn, infer_fn, postprocess_fn
 
 
 def _filter_by_threshold(

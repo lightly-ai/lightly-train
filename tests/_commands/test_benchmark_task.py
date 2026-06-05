@@ -18,6 +18,7 @@ from torch import Tensor
 
 import lightly_train
 from lightly_train._commands.benchmark_task import (
+    _BenchmarkValTransformArgs,
     _create_val_dataloader,
     _filter_by_threshold,
     _filter_top_k,
@@ -80,7 +81,13 @@ class _FakeObjectDetectionModel(TaskModel):
     }
 
     def __init__(self) -> None:
-        super().__init__(init_args={"self": self, "__class__": type(self)})
+        super().__init__(
+            init_args={
+                "self": self,
+                "__class__": type(self),
+                "image_size": (64, 64),
+            },
+        )
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
@@ -113,7 +120,13 @@ class _FakeMultiDetectionModel(TaskModel):
     }
 
     def __init__(self) -> None:
-        super().__init__(init_args={"self": self, "__class__": type(self)})
+        super().__init__(
+            init_args={
+                "self": self,
+                "__class__": type(self),
+                "image_size": (64, 64),
+            },
+        )
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
@@ -140,7 +153,10 @@ class TestValDataloader:
         data_dict = _create_coco_data_dict(tmp_path)
         data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
         dataloader = _create_val_dataloader(
-            data_args=data_args, batch_size=2, num_workers=0
+            data_args=data_args,
+            batch_size=2,
+            num_workers=0,
+            transform_args=_BenchmarkValTransformArgs(),
         )
 
         batches = list(dataloader)
@@ -172,7 +188,10 @@ class TestValDataloader:
         data_dict["ignore_classes"] = [1]
         data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
         dataloader = _create_val_dataloader(
-            data_args=data_args, batch_size=2, num_workers=0
+            data_args=data_args,
+            batch_size=2,
+            num_workers=0,
+            transform_args=_BenchmarkValTransformArgs(),
         )
 
         batch = next(iter(dataloader))
@@ -203,7 +222,10 @@ class TestValDataloader:
         }
         data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
         dataloader = _create_val_dataloader(
-            data_args=data_args, batch_size=2, num_workers=0
+            data_args=data_args,
+            batch_size=2,
+            num_workers=0,
+            transform_args=_BenchmarkValTransformArgs(),
         )
 
         batch = next(iter(dataloader))
@@ -311,7 +333,8 @@ class TestBenchmarkObjectDetectionE2E:
         )
 
         assert isinstance(result, BenchmarkResult)
-        assert result.model_name == "_FakeObjectDetectionModel"
+        assert result.model_name is None
+        assert result.model_class == "_FakeObjectDetectionModel"
         assert result.backend_args.format == "torch"
         assert result.dataset_format == "coco"
         assert result.num_images == 2
