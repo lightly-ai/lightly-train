@@ -306,13 +306,14 @@ one your pretrained checkpoints, or set it to `None` for fine-tuning from scratc
 # finetune.py
 import torch
 import torchvision.transforms as T
-from datasets import DIODEDepthDataset
 from fastai.vision.models.unet import DynamicUnet
 from model import DepthUnet
 from pytorch_lightning import Trainer
 from torch.nn import Module, Sequential
 from torch.utils.data import DataLoader
 from torchvision import models
+
+from datasets import DIODEDepthDataset
 
 # Change this to point to your LightlyTrain pretrained model.
 CKPT_PATH = "<path-to-pretrained-model>"
