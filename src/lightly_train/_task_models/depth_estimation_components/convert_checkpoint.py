@@ -6,18 +6,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 """Convert official Depth Anything V3 weights into a LightlyTrain checkpoint.
-
-This is a one-off conversion utility and the single place that understands the
-official Depth Anything V3 weight format. It downloads the official Hugging Face
-weights, remaps their keys onto the flat ``TaskModel`` layout, loads them into
-``DepthAnythingV3MonocularDepthEstimation``, and re-exports them in the LightlyTrain
-``.pt`` format (``model_class_path`` + ``model_init_args`` + ``train_model`` state dict)
-so the model can afterwards be loaded with ``lightly_train.load_model(<out>)`` without
-ever touching Hugging Face again.
-
 Example:
-    python -m lightly_train._task_models.dinov2_dav3_depth_estimation.convert_checkpoint \\
-        --out da3mono_large.pt
+python -m lightly_train._task_models.depth_estimation_components.convert_checkpoint --out ckpt/dav3_relative_large.pt
 """
 
 from __future__ import annotations
@@ -32,15 +22,15 @@ import torch
 from torch import Tensor
 
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.dinov2_dav3_depth_estimation.task_model import (
-    DepthAnythingV3MonocularDepthEstimation,
+from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model import (
+    DepthAnythingV3RelativeDepthEstimation,
 )
 
 logger = logging.getLogger(__name__)
 
 # Official Hugging Face weights per (parsed) model name.
 _HF_WEIGHTS: dict[str, dict[str, str]] = {
-    "dinov2/dav3mono-large": {
+    "dinov2/dav3-relative-large": {
         "repo_id": "depth-anything/DA3MONO-LARGE",
         "filename": "model.safetensors",
     },
@@ -54,7 +44,7 @@ _ALLOWED_MISSING_OFFICIAL_KEYS = {"backbone.mask_token"}
 
 def convert_checkpoint(
     out: Path,
-    model_name: str = "dinov2/dav3mono-large",
+    model_name: str = "dinov2/dav3-relative-large",
     weights: Path | None = None,
 ) -> Path:
     """Convert official Depth Anything V3 weights into a LightlyTrain checkpoint.
@@ -71,13 +61,13 @@ def convert_checkpoint(
     Returns:
         The path to the exported checkpoint.
     """
-    model = DepthAnythingV3MonocularDepthEstimation(
+    model = DepthAnythingV3RelativeDepthEstimation(
         model_name=model_name,
         load_weights=False,
     )
 
     if weights is None:
-        parsed_name = DepthAnythingV3MonocularDepthEstimation.parse_model_name(
+        parsed_name = DepthAnythingV3RelativeDepthEstimation.parse_model_name(
             model_name
         )
         hf_weights = _HF_WEIGHTS[parsed_name]
@@ -125,7 +115,7 @@ def main() -> None:
     parser.add_argument(
         "--model-name",
         type=str,
-        default="dinov2/dav3mono-large",
+        default="dinov2/dav3-relative-large",
         help="The Depth Anything V3 model name to convert.",
     )
     parser.add_argument(
@@ -159,7 +149,7 @@ def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
 
 
 def _load_official_weights(
-    model: DepthAnythingV3MonocularDepthEstimation, path: Path
+    model: DepthAnythingV3RelativeDepthEstimation, path: Path
 ) -> None:
     state_dict = _load_state_dict_file(path)
     remapped = _remap_official_da3_keys(state_dict)

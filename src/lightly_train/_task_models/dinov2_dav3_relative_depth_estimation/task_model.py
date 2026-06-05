@@ -21,15 +21,15 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._task_models.depth_estimation_components.input_processor import (
     InputProcessor,
 )
-from lightly_train._task_models.dinov2_dav3_depth_estimation.dpt import (
+from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.dpt import (
     DPT,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
-    "dinov2/dav3mono-large": {
-        "canonical_name": "dinov2/dav3mono-large",
+    "dinov2/dav3-relative-large": {
+        "canonical_name": "dinov2/dav3-relative-large",
         "backbone_name": "vitl14-noreg",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -44,15 +44,15 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
 }
 
 
-class DepthAnythingV3MonocularDepthEstimation(TaskModel):
-    """Depth Anything V3 monocular relative-depth inference model."""
+class DepthAnythingV3RelativeDepthEstimation(TaskModel):
+    """Depth Anything V3 relative-depth inference model."""
 
-    model_suffix = "dav3"
+    model_suffix = "dav3_relative_large"
 
     def __init__(
         self,
         *,
-        model_name: str = "dinov2/dav3mono-large",
+        model_name: str = "dinov2/dav3-relative-large",
         process_resolution: int = 504,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
@@ -62,7 +62,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         Args:
             model_name:
                 The Depth Anything V3 model name. The only supported name is
-                ``"dinov2/dav3mono-large"``.
+                ``"dinov2/dav3-relative-large"``.
             process_resolution:
                 Upper bound for the longest image side during inference. The resized
                 height and width are rounded to the nearest multiple of the DA3 patch
@@ -93,7 +93,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         self.process_resolution = process_resolution
 
         # Reuse the official Depth Anything V3 input pipeline so that resizing and
-        # normalization match the reference implementation exactly. The mono model
+        # normalization match the reference implementation exactly. The model
         # bounds the longest side and rounds both sides to a patch multiple, then
         # applies the official ImageNet normalization.
         self.process_res_method = "upper_bound_resize"
@@ -167,7 +167,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
-        """Returns a monocular relative-depth map for the given image.
+        """Returns a relative-depth map for the given image.
 
         Args:
             image:
@@ -196,7 +196,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
             )
         feats = self._extract_features(x)
         out = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
-        _set_mono_sky_regions_to_max_depth(out)
+        _set_sky_regions_to_max_depth(out)
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
@@ -232,7 +232,7 @@ class DepthAnythingV3MonocularDepthEstimation(TaskModel):
         return batch[0].to(device=first_param.device, dtype=first_param.dtype)
 
 
-def _set_mono_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
+def _set_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
     if "depth" not in out or "sky" not in out:
         return
 

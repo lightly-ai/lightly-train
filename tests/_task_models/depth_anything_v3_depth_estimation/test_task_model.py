@@ -14,8 +14,8 @@ import torch
 from PIL import Image
 from torch import Tensor
 
-from lightly_train._task_models.dinov2_dav3_depth_estimation.task_model import (
-    DepthAnythingV3MonocularDepthEstimation,
+from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model import (
+    DepthAnythingV3RelativeDepthEstimation,
 )
 
 
@@ -37,11 +37,11 @@ def tiny_model_args() -> dict[str, Any]:
     }
 
 
-def test_task_model__predict_returns_original_resolution(
+def test_task_model__predict_returns_processed_resolution(
     tiny_model_args: dict[str, Any],
 ) -> None:
-    model = DepthAnythingV3MonocularDepthEstimation(
-        model_name="depth-anything/DA3MONO-LARGE",
+    model = DepthAnythingV3RelativeDepthEstimation(
+        model_name="dinov2/dav3-relative-large",
         image_size=56,
         model_args=tiny_model_args,
         load_weights=False,
@@ -50,7 +50,10 @@ def test_task_model__predict_returns_original_resolution(
 
     depth = model.predict(image)
 
-    assert depth.shape == (64, 80)
+    # Matches the official DA3 `Prediction` resolution: the longest side (80) is
+    # bounded to `image_size` (56), giving (W=56, H=45), then both sides are rounded
+    # to the nearest multiple of the patch size (14), giving (W=56, H=42).
+    assert depth.shape == (42, 56)
     assert depth.dtype == next(model.parameters()).dtype
     assert torch.isfinite(depth).all()
 
@@ -58,8 +61,8 @@ def test_task_model__predict_returns_original_resolution(
 def test_task_model__forward_returns_depth_and_sky(
     tiny_model_args: dict[str, Any],
 ) -> None:
-    model = DepthAnythingV3MonocularDepthEstimation(
-        model_name="da3mono-large",
+    model = DepthAnythingV3RelativeDepthEstimation(
+        model_name="dinov2/dav3-relative-large",
         image_size=56,
         model_args=tiny_model_args,
         load_weights=False,
@@ -82,8 +85,8 @@ def test_task_model__loads_state_dict_with_upstream_hf_layout(
     randomized so that a regression in the load path that silently skipped
     parameters would be caught.
     """
-    model = DepthAnythingV3MonocularDepthEstimation(
-        model_name="depth-anything-v3/da3mono-large",
+    model = DepthAnythingV3RelativeDepthEstimation(
+        model_name="dinov2/dav3-relative-large",
         image_size=56,
         model_args=tiny_model_args,
         load_weights=False,
@@ -113,7 +116,7 @@ def test_task_model__loads_state_dict_with_upstream_hf_layout(
 
 def test_task_model__unsupported_model_name_fails() -> None:
     with pytest.raises(ValueError, match="not supported"):
-        DepthAnythingV3MonocularDepthEstimation(
+        DepthAnythingV3RelativeDepthEstimation(
             model_name="depth-anything-v3/da3-large",
             load_weights=False,
         )
