@@ -361,10 +361,19 @@ class DINOv2(Method):
 
         # Compute the iBOT++ loss on all patch tokens. Centering and the EMA
         # center update are handled inside IBOTPlusPlusPatchLoss.
+        # ibot_loss = self.ibot_loss.forward(
+        #     teacher_out=teacher_patch_tokens,
+        #     student_out=student_patch_tokens,
+        #     teacher_temp=teacher_temp,
+        # )
+
+        # The following loss needs the branch `fix-ibotpluplus-loss-normalisation-is`
         ibot_loss = self.ibot_loss.forward(
             teacher_out=teacher_patch_tokens,
             student_out=student_patch_tokens,
+            mask=collated_masks,
             teacher_temp=teacher_temp,
+            # visible_loss_weight=self.method_args.ibot_pp_visible_weight, # can be left away
         )
 
         koleo_loss = sum(
