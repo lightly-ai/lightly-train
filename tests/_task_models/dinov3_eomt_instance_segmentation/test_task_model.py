@@ -70,6 +70,7 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
+@pytest.mark.parametrize("batch_size", [1, 3])
 @pytest.mark.skipif(
     not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
 )
@@ -78,7 +79,7 @@ def test_predict_batch__composes_stages_in_order(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
 def test_export_onnx__dynamic_batch_size(
-    model: DINOv3EoMTInstanceSegmentation, tmp_path: Path
+    model: DINOv3EoMTInstanceSegmentation, tmp_path: Path, batch_size: int
 ) -> None:
     import numpy as np
     import onnx
@@ -93,20 +94,19 @@ def test_export_onnx__dynamic_batch_size(
 
     session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
 
-    for batch_size in [1, 3]:
-        inputs = np.random.randn(batch_size, 3, 16, 16).astype(np.float32)
-        onnx_outputs = session.run(None, {"images": inputs})
+    inputs = np.random.randn(batch_size, 3, 16, 16).astype(np.float32)
+    onnx_outputs = session.run(None, {"images": inputs})
 
-        with torch.no_grad():
-            torch_outputs = model(torch.from_numpy(inputs))
+    with torch.no_grad():
+        torch_outputs = model(torch.from_numpy(inputs))
 
-        for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
-            onnx_tensor = torch.from_numpy(onnx_out)
-            if torch_out.is_floating_point():
-                close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
-                assert close.float().mean() > 0.95
-            else:
-                assert (onnx_tensor == torch_out).float().mean() > 0.95
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+        onnx_tensor = torch.from_numpy(onnx_out)
+        if torch_out.is_floating_point():
+            close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
+            assert close.float().mean() > 0.95
+        else:
+            assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
 @pytest.mark.skipif(
