@@ -498,3 +498,34 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model.export_onnx(
         out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
     )
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
+def test_export_onnx__fp16(
+    tmp_path: Path, decoder_name: Literal["rtdetrv2", "dfine"]
+) -> None:
+    import onnx
+
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        decoder_name=decoder_name,
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, precision="fp16", simplify=True, verify=True)
+
+    model_onnx = onnx.load(str(out))
+    # Verify the model has fp16 tensors.
+    has_fp16 = any(
+        init.data_type == onnx.TensorProto.FLOAT16
+        for init in model_onnx.graph.initializer
+    )
+    assert has_fp16
