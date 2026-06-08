@@ -17,6 +17,7 @@ from torch import Tensor
 from typing_extensions import override
 
 from lightly_train._commands.benchmark_types import (
+    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
@@ -28,12 +29,12 @@ from lightly_train.types import ObjectDetectionBatch
 class ObjectDetectionBackend(ABC):
     """Object detection backend."""
 
-    # TODO(Simon, 06/2026): Use a TypedDict for the prediction dicts returned in
-    # the list (keys: "bboxes", "scores", "labels").
     # TODO(Simon, 06/2026): Decide whether threshold filtering should happen
     # inside run_batch or in the caller. Currently no backend filters.
     @abstractmethod
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
         pass
 
 
@@ -59,14 +60,23 @@ class TorchBackend(ObjectDetectionBackend):
             self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
 
     @override
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
         # preprocess
         images = batch["image"].to(self.device)
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
 
         # predict
+        precision = self.backend_args.precision
+        autocast_dtype = {"fp16": torch.float16, "bf16": torch.bfloat16}.get(precision)
         start_predict = time.perf_counter()
-        raw_outputs = self.model.forward_backend(images)
+        with torch.autocast(
+            device_type=self.device.type,
+            dtype=autocast_dtype or torch.float16,
+            enabled=autocast_dtype is not None,
+        ):
+            raw_outputs = self.model.forward_backend(images)
         time_predict = time.perf_counter() - start_predict
 
         # postprocess
@@ -157,7 +167,9 @@ class ONNXBackend(ObjectDetectionBackend):
         self.precision = backend_args.precision
 
     @override
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
 
         # preprocess
         # ONNX Runtime session.run() takes numpy arrays. The provider
@@ -186,7 +198,7 @@ class ONNXBackend(ObjectDetectionBackend):
         # The ONNX forward() rescales boxes to the model input size when
         # orig_target_size is not provided. Rescale to original image
         # coordinates.
-        results: list[dict[str, Tensor]] = []
+        results: list[ObjectDetectionPrediction] = []
         for i in range(len(metadata)):
             orig_w = metadata[i]["orig_w"]
             orig_h = metadata[i]["orig_h"]
@@ -268,7 +280,9 @@ class TensorRTBackend(ObjectDetectionBackend):
         self.trt = trt
 
     @override
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
         import numpy as np
 
         # Preprocess.
@@ -308,7 +322,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         boxes_batch = outputs["boxes"].cpu()
         scores_batch = outputs["scores"].cpu()
 
-        results: list[dict[str, Tensor]] = []
+        results: list[ObjectDetectionPrediction] = []
         for i in range(len(metadata)):
             orig_w = metadata[i]["orig_w"]
             orig_h = metadata[i]["orig_h"]

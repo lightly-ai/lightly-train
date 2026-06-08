@@ -29,6 +29,7 @@ from lightly_train._commands.benchmark_types import (
     BenchmarkObjectDetectionConfig,
     BenchmarkObjectDetectionMetricArgs,
     BenchmarkResult,
+    ObjectDetectionPrediction,
 )
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
@@ -237,7 +238,7 @@ class TestValDataloader:
 
 class TestFilterByThreshold:
     def test_filters_correctly(self) -> None:
-        pred = {
+        pred: ObjectDetectionPrediction = {
             "bboxes": torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]]),
             "scores": torch.tensor([0.9, 0.3]),
             "labels": torch.tensor([0, 1]),
@@ -249,8 +250,8 @@ class TestFilterByThreshold:
 
 class TestFilterTopK:
     def test_filters_top_k(self) -> None:
-        pred = {
-            "boxes": torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]),
+        pred: ObjectDetectionPrediction = {
+            "bboxes": torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]),
             "scores": torch.tensor([0.3, 0.9, 0.6]),
             "labels": torch.tensor([0, 1, 2]),
         }
@@ -259,8 +260,8 @@ class TestFilterTopK:
         assert set(filtered["labels"].tolist()) == {1, 2}
 
     def test_no_filter_when_fewer_than_k(self) -> None:
-        pred = {
-            "boxes": torch.tensor([[1, 2, 3, 4]]),
+        pred: ObjectDetectionPrediction = {
+            "bboxes": torch.tensor([[1, 2, 3, 4]]),
             "scores": torch.tensor([0.9]),
             "labels": torch.tensor([0]),
         }
@@ -270,15 +271,18 @@ class TestFilterTopK:
 
 class TestToCpu:
     def test_moves_to_cpu(self) -> None:
-        preds = [
+        preds: list[ObjectDetectionPrediction] = [
             {
-                "boxes": torch.tensor([[1, 2, 3, 4]]),
+                "bboxes": torch.tensor([[1, 2, 3, 4]]),
                 "scores": torch.tensor([0.9]),
                 "labels": torch.tensor([0]),
             }
         ]
         result = _to_cpu(preds)
-        assert all(v.device.type == "cpu" for v in result[0].values())
+        r = result[0]
+        assert r["bboxes"].device.type == "cpu"
+        assert r["scores"].device.type == "cpu"
+        assert r["labels"].device.type == "cpu"
 
 
 class TestBenchmarkObjectDetectionMetricArgs:

@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal, TypedDict, Union
 
 from pydantic import ConfigDict, Field
+from torch import Tensor
 from typing_extensions import Annotated
 
 from lightly_train._configs.config import PydanticConfig
@@ -24,6 +25,14 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._metrics.mean_average_precision import MeanAveragePrecisionArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
+
+
+class ObjectDetectionPrediction(TypedDict):
+    """Per-image object detection prediction."""
+
+    bboxes: Tensor
+    scores: Tensor
+    labels: Tensor
 
 
 class CpuDeviceInfo(PydanticConfig):
@@ -251,6 +260,7 @@ class TorchBackendArgs(PydanticConfig):
 
     format: Literal["torch"] = "torch"
     compile: bool = False
+    precision: Literal["fp32", "fp16", "bf16"] = "fp32"
 
 
 class ONNXBackendArgs(PydanticConfig):
