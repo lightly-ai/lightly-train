@@ -15,11 +15,25 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import torch
+from lightning_utilities.core.imports import RequirementCache
 
 if TYPE_CHECKING:
     import onnx
 
 logger = logging.getLogger(__name__)
+
+_TORCH_DYNAMO_MIN_VERSION = "2.5.0"
+_TORCH_DYNAMO_AVAILABLE = RequirementCache(f"torch>={_TORCH_DYNAMO_MIN_VERSION}")
+
+
+def check_onnx_dynamo_requirements() -> None:
+    """Raise if the installed torch version does not support dynamo ONNX export."""
+    if not _TORCH_DYNAMO_AVAILABLE:
+        raise RuntimeError(
+            f"ONNX export for this model requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
+            f"(dynamo export), but found torch {torch.__version__}."
+        )
+
 
 _PRECALCULATE_FOR_ONNX_EXPORT = contextvars.ContextVar(
     "PRECALCULATE_FOR_ONNX_EXPORT", default=False
