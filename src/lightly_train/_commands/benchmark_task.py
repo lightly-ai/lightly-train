@@ -26,6 +26,7 @@ from lightly_train._commands.benchmark_backends import (
     TorchBackend,
 )
 from lightly_train._commands.benchmark_types import (
+    BenchmarkBackendArgs,
     BenchmarkObjectDetectionConfig,
     BenchmarkObjectDetectionMetricArgs,
     BenchmarkResult,
@@ -35,6 +36,7 @@ from lightly_train._commands.benchmark_types import (
     CudaDeviceInfo,
     DescriptiveStatistics,
     DeviceInfo,
+    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
@@ -159,19 +161,7 @@ def _benchmark_object_detection_from_config(
     class_names = list(data_args.included_classes.values())
     metric = _create_metric(metric_args=metric_args, class_names=class_names)
 
-    # Determine device from backend if not specified.
-    device = config.device
-    if device is None:
-        if isinstance(backend_args, ONNXBackendArgs):
-            device = "cpu" if backend_args.provider == "cpu" else "cuda"
-        elif isinstance(backend_args, TensorRTBackendArgs):
-            device = "cuda"
-        else:
-            # Torch backend: default to cuda if available.
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # Set up inference pipeline based on backend.
-    torch_device = torch.device(device)
+    device = _resolve_device(device=config.device, backend_args=backend_args)
     backend: ObjectDetectionBackend
     if isinstance(backend_args, ONNXBackendArgs):
         backend = ONNXBackend(
@@ -179,7 +169,7 @@ def _benchmark_object_detection_from_config(
             backend_args=backend_args,
             batch_size=config.batch_size,
             out_dir=out_dir,
-            device=device,
+            device=str(device),
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
         backend = TensorRTBackend(
@@ -187,12 +177,10 @@ def _benchmark_object_detection_from_config(
             backend_args=backend_args,
             batch_size=config.batch_size,
             out_dir=out_dir,
-            device=device,
+            device=str(device),
         )
     elif isinstance(backend_args, TorchBackendArgs):
-        backend = TorchBackend(
-            model=model, backend_args=backend_args, device=torch_device
-        )
+        backend = TorchBackend(model=model, backend_args=backend_args, device=device)
     else:
         raise ValueError(f"Unsupported backend: {type(backend_args).__name__}")
 
@@ -211,7 +199,7 @@ def _benchmark_object_detection_from_config(
     import gc
 
     gc.collect()
-    if device.startswith("cuda"):
+    if device.type == "cuda":
         torch.cuda.empty_cache()
 
     # Run inference in batches.
@@ -233,8 +221,8 @@ def _benchmark_object_detection_from_config(
             predictions, t_infer = backend.run_batch(batch=batch)
             batch_times.append(t_infer)
             predictions_cpu = _to_cpu(predictions)
-            # Need to relabel for torchmetrics
-            predictions_cpu = [
+            # Relabel "bboxes" -> "boxes" for torchmetrics.
+            metric_preds: list[dict[str, Tensor]] = [
                 {
                     "boxes": p["bboxes"],
                     "scores": p["scores"],
@@ -242,11 +230,11 @@ def _benchmark_object_detection_from_config(
                 }
                 for p in predictions_cpu
             ]
-            metric.update_with_predictions(predictions_cpu, targets)
+            metric.update_with_predictions(metric_preds, targets)
 
             if step % print_every == 0 or step == total_batches - 1:
                 processed = min((step + 1) * config.batch_size, total_images)
-                num_preds = sum(len(p["labels"]) for p in predictions_cpu)
+                num_preds = sum(len(p["labels"]) for p in metric_preds)
                 num_targets = sum(len(t["labels"]) for t in targets)
                 print(
                     f"Step {step + 1}/{total_batches} "
@@ -282,7 +270,7 @@ def _benchmark_object_detection_from_config(
         model_name = str(config.model)
         model_class = "N/A"
 
-    device_info = _get_device_info(device)
+    device_info = _get_device_info(str(device))
 
     result = BenchmarkResult(
         out=str(out_dir),
@@ -448,24 +436,26 @@ def _create_val_dataloader(
 
 
 def _filter_by_threshold(
-    pred: dict[str, Tensor], threshold: float
-) -> dict[str, Tensor]:
+    pred: ObjectDetectionPrediction, threshold: float
+) -> ObjectDetectionPrediction:
     keep = pred["scores"] >= threshold
-    return {k: v[keep] for k, v in pred.items()}
+    return {k: v[keep] for k, v in pred.items()}  # type: ignore[index,return-value]
 
 
-def _filter_top_k(pred: dict[str, Tensor], top_k: int) -> dict[str, Tensor]:
-    scores = pred.get("scores", pred.get("bboxes"))
-    if scores is None or len(scores) <= top_k:
+def _filter_top_k(
+    pred: ObjectDetectionPrediction, top_k: int
+) -> ObjectDetectionPrediction:
+    scores = pred["scores"]
+    if len(scores) <= top_k:
         return pred
-    _, topk_indices = pred["scores"].topk(min(top_k, len(pred["scores"])))
-    return {k: v[topk_indices] for k, v in pred.items()}
+    _, topk_indices = scores.topk(min(top_k, len(scores)))
+    return {k: v[topk_indices] for k, v in pred.items()}  # type: ignore[index,return-value]
 
 
 def _to_cpu(
-    predictions: list[dict[str, Tensor]],
-) -> list[dict[str, Tensor]]:
-    return [{k: v.detach().cpu() for k, v in p.items()} for p in predictions]
+    predictions: list[ObjectDetectionPrediction],
+) -> list[ObjectDetectionPrediction]:
+    return [{k: v.detach().cpu() for k, v in p.items()} for p in predictions]  # type: ignore[attr-defined,misc]
 
 
 def _create_metric(
@@ -510,6 +500,63 @@ def _get_out_dir(out: PathLike, overwrite: bool) -> Path:
             )
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
+
+
+def _resolve_device(
+    *, device: str | torch.device | None, backend_args: BenchmarkBackendArgs
+) -> torch.device:
+    """Determine and validate the device for the given backend configuration.
+
+    Args:
+        device:
+            Explicit device from the user, or None for auto-detection.
+        backend_args:
+            Backend configuration to validate against.
+
+    Returns:
+        Resolved torch device.
+
+    Raises:
+        ValueError: If the device is incompatible with the backend configuration.
+    """
+    requires_cuda = False
+    reason = ""
+
+    if isinstance(backend_args, TensorRTBackendArgs):
+        requires_cuda = True
+        reason = "TensorRT backend requires a CUDA device."
+    elif isinstance(backend_args, ONNXBackendArgs):
+        if backend_args.provider in ("cuda", "tensorrt"):
+            requires_cuda = True
+            reason = (
+                f"ONNX backend with provider '{backend_args.provider}' requires a "
+                "CUDA device."
+            )
+    elif isinstance(backend_args, TorchBackendArgs):
+        if backend_args.precision in ("fp16", "bf16"):
+            requires_cuda = True
+            reason = (
+                f"Torch backend with precision '{backend_args.precision}' requires a "
+                "CUDA device."
+            )
+
+    if device is not None:
+        resolved = torch.device(device)
+        if requires_cuda and resolved.type != "cuda":
+            raise ValueError(
+                f"Device '{resolved}' is incompatible with the backend "
+                f"configuration. {reason}"
+            )
+        return resolved
+
+    # Auto-detect device.
+    if requires_cuda:
+        if not torch.cuda.is_available():
+            raise ValueError(f"CUDA is not available but is required. {reason}")
+        return torch.device("cuda")
+
+    # Default: prefer CUDA if available.
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def _get_device_info(device: str) -> DeviceInfo:
