@@ -26,7 +26,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import ModelNameParser, MultiScaleFeaturePackage
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._task_models.linear_semantic_segmentation.config import (
     LINEAR_SEG_MODEL_REGISTRY,
     LinearSegConfigRegistry,
@@ -78,9 +78,24 @@ class LinearSemanticSegmentation(TaskModel):
                 If False, then no pretrained weights are loaded.
         """
         super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
 
-        self.model_name = parsed_name["model_name"]
+        config_cls = LINEAR_SEG_MODEL_REGISTRY.get(
+            model_name, default=LinearSegConfigRegistry.Fallback
+        )
+        config = config_cls()
+
+        if config.backbone_name:
+            backbone_model = config.backbone_name
+        else:
+            # Fallback: derive backbone model from the model_name string.
+            if not model_name.endswith(f"-{self.model_suffix}"):
+                raise ValueError(
+                    f"Model name '{model_name}' is not supported. Available "
+                    f"models are: {self.list_model_names()}."
+                )
+            backbone_model = model_name[: -len(f"-{self.model_suffix}")]
+
+        self.model_name = model_name
         self.classes = classes
         self.class_ignore_index = class_ignore_index
         self.backbone_freeze = backbone_freeze
@@ -113,18 +128,14 @@ class LinearSemanticSegmentation(TaskModel):
         if self.class_ignore_index is not None:
             self.included_classes[self.class_ignore_index] = "ignored"
 
-        config_cls = LINEAR_SEG_MODEL_REGISTRY.get(
-            parsed_name["model_name"],
-            default=LinearSegConfigRegistry.Fallback,
-        )
-        args: dict[str, Any] = dict(config_cls().backbone_args)
+        args: dict[str, Any] = dict(config.backbone_args)
         if backbone_args is not None:
             args.update(backbone_args)
 
         # Build the backbone via the package registry.
         num_channels = len(self.image_normalize["mean"])
         self.backbone: ModelWrapper = package_helpers.get_wrapped_model(
-            model=f"{parsed_name['package_name']}/{parsed_name['backbone_name']}",
+            model=backbone_model,
             num_input_channels=num_channels,
             model_args=args,
             load_weights=load_weights,
@@ -160,52 +171,20 @@ class LinearSemanticSegmentation(TaskModel):
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
         try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
+            LINEAR_SEG_MODEL_REGISTRY.get(model)
             return True
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}."
-            )
-
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
+        except KeyError:
+            pass
+        # Fallback: accept structurally valid names with a supported MultiScaleFeaturePackage.
+        if not model.endswith(f"-{cls.model_suffix}"):
+            return False
+        backbone_part = model[: -len(f"-{cls.model_suffix}")]
         try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        try:
+            package_name, _ = package_helpers.parse_model_name(backbone_part)
             package = package_helpers.get_package(package_name)
         except ValueError:
-            raise_invalid_name()
-
-        if not isinstance(package, MultiScaleFeaturePackage):
-            raise_invalid_name()
-
-        # Canonicalize the backbone name if the package supports it.
-        if isinstance(package, ModelNameParser):
-            try:
-                backbone_name = package.parse_model_name(model_name=backbone_name)
-            except ValueError:
-                raise_invalid_name()
-
-        return {
-            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-            "package_name": package_name,
-        }
+            return False
+        return isinstance(package, MultiScaleFeaturePackage)
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
