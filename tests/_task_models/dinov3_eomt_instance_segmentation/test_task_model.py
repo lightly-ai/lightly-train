@@ -14,6 +14,10 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DYNAMO_AVAILABLE,
+    _TORCH_DYNAMO_MIN_VERSION,
+)
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model import (
     DINOv3EoMTInstanceSegmentation,
 )
@@ -66,12 +70,16 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
+@pytest.mark.parametrize("batch_size", [1, 3])
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
 def test_export_onnx__dynamic_batch_size(
-    model: DINOv3EoMTInstanceSegmentation, tmp_path: Path
+    model: DINOv3EoMTInstanceSegmentation, tmp_path: Path, batch_size: int
 ) -> None:
     import numpy as np
     import onnx
@@ -82,13 +90,11 @@ def test_export_onnx__dynamic_batch_size(
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
-
-    import torch
-
-    inputs = np.random.randn(3, 3, 16, 16).astype(np.float32)
+    assert input_batch_dim.dim_param == "batch_size"
 
     session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+
+    inputs = np.random.randn(batch_size, 3, 16, 16).astype(np.float32)
     onnx_outputs = session.run(None, {"images": inputs})
 
     with torch.no_grad():
@@ -103,8 +109,8 @@ def test_export_onnx__dynamic_batch_size(
             assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
-@pytest.mark.xfail(
-    strict=True, reason="dinov3 ONNX export shape mismatch with static batch size"
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
 )
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
@@ -119,6 +125,9 @@ def test_export_onnx__static_batch_size(
     )
 
 
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

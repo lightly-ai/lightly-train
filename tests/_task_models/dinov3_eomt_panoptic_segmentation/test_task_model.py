@@ -14,6 +14,10 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DYNAMO_AVAILABLE,
+    _TORCH_DYNAMO_MIN_VERSION,
+)
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.task_model import (
     DINOv3EoMTPanopticSegmentation,
 )
@@ -67,7 +71,9 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
-@pytest.mark.xfail(strict=True, reason="dinov3 ONNX export shape mismatch")
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -77,7 +83,74 @@ def test_export_onnx(model: DINOv3EoMTPanopticSegmentation, tmp_path: Path) -> N
     model.export_onnx(out=out, simplify=False, verify=True)
 
 
-@pytest.mark.xfail(strict=True, reason="dinov3 ONNX export shape mismatch")
+@pytest.mark.long_running_test
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_output_shapes(
+    tmp_path: Path,
+) -> None:
+    import numpy as np
+    import onnx
+    import onnxruntime as ort
+    from PIL import Image
+    from torchvision.transforms.v2 import functional as F
+
+    import lightly_train
+
+    model = lightly_train.load_model("dinov3/vitt16-eomt-panoptic-coco", device="cpu")
+    assert isinstance(model, DINOv3EoMTPanopticSegmentation)
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    # Verify that segment_ids and scores have a dynamic num_segments dimension
+    # in the ONNX graph.
+    onnx_model = onnx.load(out)
+    outputs_by_name = {o.name: o for o in onnx_model.graph.output}
+    for name in ("segment_ids", "scores"):
+        dim = outputs_by_name[name].type.tensor_type.shape.dim[1]
+        assert dim.dim_param != "", f"Expected dynamic dim 1 for output '{name}'"
+
+    # Verify that different inputs produce different num_segments at runtime,
+    # confirming the dimension is truly dynamic.
+    session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+    h, w = model.image_size
+    mean = model.image_normalize["mean"]
+    std = model.image_normalize["std"]
+
+    def preprocess(img: Image.Image) -> np.ndarray:
+        t = F.to_dtype(F.to_image(img), torch.float32, scale=True)
+        t = F.resize(t, [h, w])
+        t = F.normalize(t, mean=list(mean), std=list(std))
+        return np.asarray(t.unsqueeze(0))
+
+    # Real image with objects — should produce many segments.
+    real_image_path = (
+        Path(__file__).resolve().parents[2] / "test_images" / "Peppers.png"
+    )
+    scene_input = preprocess(Image.open(real_image_path).convert("RGB"))
+    # Uniform gray image — should produce few segments.
+    uniform_input = preprocess(Image.new("RGB", (h, w), (128, 128, 128)))
+
+    scene_outputs = session.run(None, {"images": scene_input})
+    uniform_outputs = session.run(None, {"images": uniform_input})
+
+    scene_num_segments = scene_outputs[1].shape[1]
+    uniform_num_segments = uniform_outputs[1].shape[1]
+    assert scene_num_segments != uniform_num_segments, (
+        f"Expected different num_segments for different inputs, "
+        f"but both produced {scene_num_segments}"
+    )
+
+
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
