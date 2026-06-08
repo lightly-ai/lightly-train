@@ -14,7 +14,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
-from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import GELU, Embedding, Linear, Sequential
@@ -24,6 +23,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -762,12 +762,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
-        torch_version = version.parse(torch.__version__.split("+", 1)[0])
-        if torch_version < version.parse("2.5.0"):
-            raise RuntimeError(
-                f"ONNX export for this model requires torch >= 2.5.0 "
-                f"(dynamo export), but found torch {torch.__version__}."
-            )
+        check_onnx_dynamo_requirements()
 
         if dynamic_batch_size:
             batch_size = 2

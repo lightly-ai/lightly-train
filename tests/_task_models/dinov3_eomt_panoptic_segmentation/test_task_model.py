@@ -14,6 +14,10 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DYNAMO_AVAILABLE,
+    _TORCH_DYNAMO_MIN_VERSION,
+)
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.task_model import (
     DINOv3EoMTPanopticSegmentation,
 )
@@ -67,6 +71,9 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -77,6 +84,9 @@ def test_export_onnx(model: DINOv3EoMTPanopticSegmentation, tmp_path: Path) -> N
 
 
 @pytest.mark.long_running_test
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -138,6 +148,9 @@ def test_export_onnx__dynamic_output_shapes(
     )
 
 
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
