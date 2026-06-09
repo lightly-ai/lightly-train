@@ -22,7 +22,6 @@ from lightly_train._data.coco_object_detection_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
-from lightly_train._metrics.mean_average_precision import MeanAveragePrecisionArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -97,7 +96,8 @@ class BenchmarkResult(PydanticConfig):
     model_class: str
     backend_args: BenchmarkBackendArgs
     device_info: Annotated[DeviceInfo, Field(discriminator="device_type")]
-    dataset_format: str
+    dataset_name: str
+    dataset_size: int
     num_images: int
     batch_size: int
     warmup_steps: int
@@ -125,12 +125,15 @@ class BenchmarkResult(PydanticConfig):
             backend_str = f"{ba.format} ({provider})"
         if getattr(ba, "compile", False):
             backend_str += ", compiled"
-        # Show precision for ONNX and TensorRT backends.
+        # Show precision for all backends.
         precision = getattr(ba, "precision", None)
         if precision:
             backend_str += f", {precision}"
         lines.append(f"- **Backend**: {backend_str}")
-        lines.append(f"- **Dataset**: {self.dataset_format} ({self.num_images} images)")
+        lines.append(
+            f"- **Dataset**: {self.dataset_name} "
+            f"({self.num_images}/{self.dataset_size} images)"
+        )
         lines.append(f"- **Batch Size**: {self.batch_size}")
         lines.append(f"- **Warmup Steps**: {self.warmup_steps}")
         steps_str = str(self.steps) if self.steps is not None else "all"
@@ -232,18 +235,6 @@ class BenchmarkResult(PydanticConfig):
         console.print(Markdown(self.to_markdown()))
 
 
-class BenchmarkObjectDetectionMetricArgs(PydanticConfig):
-    """Metric arguments for object detection benchmarking."""
-
-    detection_threshold: float = 0.6
-    top_k: int | None = None
-    map: MeanAveragePrecisionArgs | None = Field(
-        default_factory=MeanAveragePrecisionArgs
-    )
-    # TODO check what this does
-    classwise: bool = False
-
-
 class TorchBackendArgs(PydanticConfig):
     """Backend arguments for PyTorch inference."""
 
@@ -274,20 +265,19 @@ BenchmarkBackendArgs = Union[TorchBackendArgs, ONNXBackendArgs, TensorRTBackendA
 
 class BenchmarkObjectDetectionConfig(PydanticConfig):
     out: PathLike
+    dataset_name: str
     data: Annotated[
         Union[YOLOObjectDetectionDataArgs, COCOObjectDetectionDataArgs],
         Field(discriminator="format"),
     ]
     model: TaskModel | PathLike
-    batch_size: int = 16
+    batch_size: int = Field(default=1, ge=1)
+    threshold: float = 0.0
     warmup_steps: int = 0
-    steps: int | None = None
+    steps: int | None = Field(default=None, ge=1)
     num_workers: int | Literal["auto"] = "auto"
     overwrite: bool = False
     device: str | None = None
-    metric_args: BenchmarkObjectDetectionMetricArgs = Field(
-        default_factory=BenchmarkObjectDetectionMetricArgs
-    )
     backend_args: Annotated[
         BenchmarkBackendArgs,
         Field(discriminator="format"),

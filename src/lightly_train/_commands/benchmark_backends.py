@@ -29,8 +29,6 @@ from lightly_train.types import ObjectDetectionBatch
 class ObjectDetectionBackend(ABC):
     """Object detection backend."""
 
-    # TODO(Simon, 06/2026): Decide whether threshold filtering should happen
-    # inside run_batch or in the caller. Currently no backend filters.
     @abstractmethod
     def run_batch(
         self, batch: ObjectDetectionBatch
@@ -45,7 +43,7 @@ class TorchBackend(ObjectDetectionBackend):
         backend_args: TorchBackendArgs,
         device: torch.device,
         threshold: float = 0.0,
-    ):
+    ) -> None:
         self.model = model.to(device)
         self.device = device
         self.backend_args = backend_args
@@ -105,9 +103,11 @@ class ONNXBackend(ObjectDetectionBackend):
         out_dir: Path,
         device: str,
         threshold: float = 0.0,
-    ):
+    ) -> None:
 
         import onnxruntime as ort
+
+        self.threshold = threshold
 
         self.device = torch.device(device)
 
@@ -212,11 +212,12 @@ class ONNXBackend(ObjectDetectionBackend):
             boxes[:, 2] *= orig_w / model_w
             boxes[:, 3] *= orig_h / model_h
 
+            keep = scores[i] > self.threshold
             results.append(
                 {
-                    "bboxes": boxes,
-                    "scores": scores[i],
-                    "labels": labels[i],
+                    "bboxes": boxes[keep],
+                    "scores": scores[i][keep],
+                    "labels": labels[i][keep],
                 }
             )
 
@@ -231,11 +232,13 @@ class TensorRTBackend(ObjectDetectionBackend):
         batch_size: int,
         out_dir: Path,
         device: str,
+        threshold: float = 0.0,
     ) -> None:
         import tensorrt as trt  # type: ignore[import-untyped]
 
         self.device = torch.device(device)
         self.precision = backend_args.precision
+        self.threshold = threshold
 
         # Export model to TensorRT engine.
         engine_path = out_dir / "model.engine"
@@ -342,11 +345,12 @@ class TensorRTBackend(ObjectDetectionBackend):
             boxes[:, 2] *= orig_w / model_w
             boxes[:, 3] *= orig_h / model_h
 
+            keep = scores_batch[i] > self.threshold
             results.append(
                 {
-                    "bboxes": boxes,
-                    "scores": scores_batch[i],
-                    "labels": labels_batch[i],
+                    "bboxes": boxes[keep],
+                    "scores": scores_batch[i][keep],
+                    "labels": labels_batch[i][keep],
                 }
             )
 
