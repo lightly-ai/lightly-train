@@ -20,8 +20,6 @@ import lightly_train
 from lightly_train._commands.benchmark_task import (
     _BenchmarkValTransformArgs,
     _create_val_dataloader,
-    _filter_by_threshold,
-    _filter_top_k,
     _to_cpu,
     benchmark_object_detection,
 )
@@ -79,45 +77,6 @@ class _FakeObjectDetectionModel(TaskModel):
         "labels": torch.tensor([0]),
         "bboxes": torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
         "scores": torch.tensor([0.9]),
-    }
-
-    def __init__(self) -> None:
-        super().__init__(
-            init_args={
-                "self": self,
-                "__class__": type(self),
-                "image_size": (64, 64),
-            },
-        )
-
-    def preprocess_image(
-        self, image: PathLike | PILImage | Tensor
-    ) -> tuple[Tensor, dict[str, Any]]:
-        return torch.zeros(3, 64, 64), {"orig_h": 128, "orig_w": 128}
-
-    def preprocess_batch(self, batch: Tensor) -> Tensor:
-        return batch
-
-    def forward_backend(self, x: Tensor) -> Any:
-        return x
-
-    def postprocess(
-        self,
-        raw_outputs: Any,
-        metadata: Sequence[dict[str, Any]],
-        **kwargs: Any,
-    ) -> list[dict[str, Tensor]]:
-        return [dict(self._PRED) for _ in metadata]
-
-
-class _FakeMultiDetectionModel(TaskModel):
-    """Fake model returning multiple detections per image."""
-
-    model_suffix = ".pt"
-    _PRED = {
-        "labels": torch.tensor([0, 1]),
-        "bboxes": torch.tensor([[10.0, 10.0, 40.0, 50.0], [50.0, 50.0, 70.0, 80.0]]),
-        "scores": torch.tensor([0.9, 0.7]),
     }
 
     def __init__(self) -> None:
@@ -230,43 +189,9 @@ class TestValDataloader:
         )
 
         batch = next(iter(dataloader))
-        targets = batch["targets"]
-        assert len(targets) == 2
-        assert targets[0]["boxes"].shape == (0, 4)
-        assert targets[0]["labels"].shape == (0,)
-
-
-class TestFilterByThreshold:
-    def test_filters_correctly(self) -> None:
-        pred: ObjectDetectionPrediction = {
-            "bboxes": torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]]),
-            "scores": torch.tensor([0.9, 0.3]),
-            "labels": torch.tensor([0, 1]),
-        }
-        filtered = _filter_by_threshold(pred, threshold=0.5)
-        assert len(filtered["scores"]) == 1
-        assert filtered["labels"].tolist() == [0]
-
-
-class TestFilterTopK:
-    def test_filters_top_k(self) -> None:
-        pred: ObjectDetectionPrediction = {
-            "bboxes": torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]),
-            "scores": torch.tensor([0.3, 0.9, 0.6]),
-            "labels": torch.tensor([0, 1, 2]),
-        }
-        filtered = _filter_top_k(pred, top_k=2)
-        assert len(filtered["scores"]) == 2
-        assert set(filtered["labels"].tolist()) == {1, 2}
-
-    def test_no_filter_when_fewer_than_k(self) -> None:
-        pred: ObjectDetectionPrediction = {
-            "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            "scores": torch.tensor([0.9]),
-            "labels": torch.tensor([0]),
-        }
-        filtered = _filter_top_k(pred, top_k=5)
-        assert len(filtered["scores"]) == 1
+        assert batch["image"].shape[0] == 2
+        assert len(batch["bboxes"]) == 2
+        assert len(batch["classes"]) == 2
 
 
 class TestToCpu:
@@ -407,23 +332,6 @@ class TestBenchmarkObjectDetectionE2E:
             data=data_dict,
             model=_FakeObjectDetectionModel(),
             batch_size=2,
-            overwrite=True,
-        )
-        assert "val_metric/map" in result.metric_values
-
-    def test_benchmark_with_metric_args(self, tmp_path: Path) -> None:
-        data_dict = _create_coco_data_dict(tmp_path)
-        model = _FakeMultiDetectionModel()
-
-        result = benchmark_object_detection(
-            out=str(tmp_path / "out"),
-            data=data_dict,
-            model=model,
-            batch_size=2,
-            metric_args={
-                "detection_threshold": 0.5,
-                "top_k": 1,
-            },
             overwrite=True,
         )
         assert "val_metric/map" in result.metric_values

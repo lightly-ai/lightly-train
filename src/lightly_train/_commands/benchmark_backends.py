@@ -161,10 +161,15 @@ class ONNXBackend(ObjectDetectionBackend):
             raise RuntimeError(
                 f"ONNX provider '{backend_args.provider}' failed to initialize. "
                 f"Requested {expected_provider} but session is using {active_providers}. "
-                f"Please verify that the required libraries are installed and configured."
+                f"Make sure the required libraries are installed and on LD_LIBRARY_PATH. "
+                f"For pip-installed TensorRT, try: "
+                f'LD_LIBRARY_PATH=$(python -c "import tensorrt_libs; print(tensorrt_libs.__path__[0])") '
+                f"<your command>"
             )
 
         self.precision = backend_args.precision
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_names = [o.name for o in self.session.get_outputs()]
 
     @override
     def run_batch(
@@ -174,26 +179,25 @@ class ONNXBackend(ObjectDetectionBackend):
         # preprocess
         # ONNX Runtime session.run() takes numpy arrays. The provider
         # (CPU/CUDA) handles device placement internally.
-        # TODO(Simon, 06/2026): Derive input name from self.session.get_inputs()
-        # instead of hardcoding "images".
         images = batch["image"]
         if self.precision == "fp16":
             images = images.half()
         _, _, model_h, model_w = images.shape
-        input_feed = {"images": images.cpu().numpy()}
+        input_feed = {self.input_name: images.cpu().numpy()}
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
 
         # predict
         start_predict = time.perf_counter()
-        # TODO(Simon, 06/2026): Use self.session.get_outputs() to derive output
-        # names instead of relying on positional ordering.
-        raw_outputs = self.session.run(output_names=None, input_feed=input_feed)
+        raw_outputs = self.session.run(
+            output_names=self.output_names, input_feed=input_feed
+        )
         time_predict = time.perf_counter() - start_predict
 
         # postprocess
-        labels = torch.from_numpy(raw_outputs[0])
-        boxes_unscaled = torch.from_numpy(raw_outputs[1])
-        scores = torch.from_numpy(raw_outputs[2])
+        outputs = dict(zip(self.output_names, raw_outputs))
+        labels = torch.from_numpy(outputs["labels"])
+        boxes_unscaled = torch.from_numpy(outputs["boxes"])
+        scores = torch.from_numpy(outputs["scores"])
 
         # The ONNX forward() rescales boxes to the model input size when
         # orig_target_size is not provided. Rescale to original image
@@ -267,9 +271,15 @@ class TensorRTBackend(ObjectDetectionBackend):
 
         self.context = self.engine.create_execution_context()
 
-        # Get input/output tensor info (TensorRT 10.x API).
-        self.input_name = "images"
-        self.output_names = ["labels", "boxes", "scores"]
+        # Derive input/output tensor names from the engine (TensorRT 10.x API).
+        self.output_names: list[str] = []
+        self.input_name = ""
+        for i in range(self.engine.num_io_tensors):
+            name = self.engine.get_tensor_name(i)
+            if self.engine.get_tensor_mode(name) == trt.TensorIOMode.INPUT:
+                self.input_name = name
+            else:
+                self.output_names.append(name)
 
         # Get input shape (may have dynamic batch dimension = -1).
         self.input_shape = list(self.engine.get_tensor_shape(self.input_name))
