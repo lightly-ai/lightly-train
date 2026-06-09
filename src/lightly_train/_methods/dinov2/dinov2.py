@@ -17,6 +17,7 @@ import torch
 from lightly.loss import (
     KoLeoLoss,
 )  # we use LightlySSL's KoLeoLoss for better numerical stability
+from lightly.loss.regularizer.dse import DSERegularizer
 from lightly.utils.optim import update_param_groups
 from lightly.utils.scheduler import CosineWarmupScheduler, cosine_schedule
 from pydantic import Field
@@ -96,6 +97,17 @@ class DINOv2Args(MethodArgs):
     dino_loss_weight: float = 1.0
     ibot_loss_weight: float = 1.0
     koleo_loss_weight: float = 0.1
+
+    # DSE regularizer on student patch tokens.
+    # See "Exploring Structural Degradation in Dense Representations for
+    # Self-supervised Learning", https://arxiv.org/abs/2510.17299.
+    # The regularizer is disabled when dse_loss_weight == 0.
+    dse_loss_weight: float = 0.0
+    dse_normalize: bool = True
+    dse_local_clusters: int = 3
+    dse_global_clusters: int = 24
+    dse_max_kmeans_iters: int = 20
+    dse_tol: float = 1e-4
 
     # softmax/sinkhorn_knopp for fast/long setup in original DINOv2
     center_method: Literal["softmax", "sinkhorn_knopp"] = "softmax"
@@ -255,6 +267,16 @@ class DINOv2(Method):
             center_momentum=method_args.center_momentum,
         )
         self.koleo_loss = KoLeoLoss()
+        # weight=1.0 so the regularizer returns the unweighted -dse; the
+        # method-level dse_loss_weight is applied in training_step_impl.
+        self.dse_regularizer = DSERegularizer(
+            weight=1.0,
+            normalize=method_args.dse_normalize,
+            local_clusters=method_args.dse_local_clusters,
+            global_clusters=method_args.dse_global_clusters,
+            max_kmeans_iters=method_args.dse_max_kmeans_iters,
+            tol=method_args.dse_tol,
+        )
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         # Teacher temperature scheduling
@@ -324,11 +346,12 @@ class DINOv2(Method):
             student_cls_tokens_global,
             student_cls_tokens_global_before_head,
             student_masked_patch_tokens_global,
+            student_patch_tokens_global,
         ) = self._forward_student_global(
             x=global_views,
             masks=collated_masks,
             mask_indices_list=mask_indices_list,
-        )  # [G*B, D], [M, D]
+        )  # [G*B, D], [G*B, D], [M, D], [G*B, N, C]
 
         # TODO(Jonas 06/25): clarify if we actually need this list variant --> simplify interface
         # Compute the DINO loss
@@ -379,11 +402,18 @@ class DINOv2(Method):
             for token in student_cls_tokens_global_before_head.chunk(2)
         )  # [G, B, D], only use global views
 
+        # DSE is expensive (per-image k-means + SVD); skip when disabled.
+        if self.method_args.dse_loss_weight > 0:
+            dse_loss = self.dse_regularizer.forward(student_patch_tokens_global)
+        else:
+            dse_loss = torch.zeros_like(dino_global_loss)
+
         loss = (
             self.method_args.dino_loss_weight * dino_global_loss
             + self.method_args.dino_loss_weight * dino_local_loss
             + self.method_args.ibot_loss_weight * ibot_loss
             + self.method_args.koleo_loss_weight * koleo_loss
+            + self.method_args.dse_loss_weight * dse_loss
         )
 
         return TrainingStepResult(
@@ -393,6 +423,7 @@ class DINOv2(Method):
                 "train_loss/dino_local_loss": dino_local_loss,
                 "train_loss/ibot_loss": ibot_loss,
                 "train_loss/koleo_loss": koleo_loss,
+                "train_loss/dse_loss": dse_loss,
             },
         )
 
@@ -476,7 +507,7 @@ class DINOv2(Method):
         x: Tensor,
         masks: Tensor,
         mask_indices_list: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         wrapped_model: DINOv2ViTModelWrapper = (
             self.student_embedding_model.wrapped_model  # type: ignore[assignment]
         )
@@ -502,7 +533,12 @@ class DINOv2(Method):
             masked_patch_tokens
         )  # [M, D]
 
-        return cls_tokens_after_dino, cls_tokens, masked_patch_tokens_after_ibot
+        return (
+            cls_tokens_after_dino,
+            cls_tokens,
+            masked_patch_tokens_after_ibot,
+            patch_tokens,
+        )
 
     def _forward_student_local(self, x: Tensor) -> Tensor:
         tokens = self.student_embedding_model.wrapped_model.forward_features(
