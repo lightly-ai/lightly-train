@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import statistics
 from pathlib import Path
-from typing import Any, Literal, Sequence, TypedDict
+from typing import Any, Literal, Sequence
 
 import torch
 from albumentations import BboxParams
@@ -28,7 +28,6 @@ from lightly_train._commands.benchmark_backends import (
 from lightly_train._commands.benchmark_types import (
     BenchmarkBackendArgs,
     BenchmarkObjectDetectionConfig,
-    BenchmarkObjectDetectionMetricArgs,
     BenchmarkResult,
     BenchmarkStatistics,
     BenchmarkTimingResult,
@@ -42,7 +41,12 @@ from lightly_train._commands.benchmark_types import (
     TorchBackendArgs,
 )
 from lightly_train._configs import validate
-from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.coco_object_detection_dataset import (
+    COCOObjectDetectionDataArgs,
+)
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
+)
 from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
@@ -59,7 +63,11 @@ from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
-from lightly_train.types import PathLike
+from lightly_train.types import (
+    ObjectDetectionBatch,
+    ObjectDetectionDatasetItem,
+    PathLike,
+)
 
 _ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
 _ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
@@ -75,9 +83,7 @@ def benchmark_object_detection(
     steps: int | None = None,
     num_workers: int | Literal["auto"] = "auto",
     overwrite: bool = False,
-    debug: bool = False,
     device: str | None = None,
-    metric_args: dict[str, Any] | None = None,
     backend_args: dict[str, Any] | None = None,
 ) -> BenchmarkResult:
     """Benchmark an object detection model on a validation dataset.
@@ -105,11 +111,6 @@ def benchmark_object_detection(
             Number of workers for data loading.
         overwrite:
             Overwrite the output directory if it already exists.
-        metric_args:
-            Metric configuration. Supports ``detection_threshold`` (float, default
-            0.6) to filter low-confidence predictions, ``top_k`` (int or None) to
-            limit detections per image, ``classwise`` (bool) for per-class metrics,
-            and ``map`` (dict or None) for MeanAveragePrecision configuration.
         backend_args:
             Backend configuration. Use ``format`` to select the backend:
             ``"torch"`` (default), ``"onnx"``, or ``"tensorrt"``. ONNX and
@@ -137,8 +138,6 @@ def _benchmark_object_detection_from_config(
     else:
         model = task_model_helpers.load_model(model=config.model)
 
-    metric_args = config.metric_args
-
     backend_args = config.backend_args
 
     # Build val transform args from the model.
@@ -159,7 +158,7 @@ def _benchmark_object_detection_from_config(
 
     # Set up metric.
     class_names = list(data_args.included_classes.values())
-    metric = _create_metric(metric_args=metric_args, class_names=class_names)
+    metric = _create_metric(class_names=class_names)
 
     device = _resolve_device(device=config.device, backend_args=backend_args)
     backend: ObjectDetectionBackend
@@ -184,14 +183,18 @@ def _benchmark_object_detection_from_config(
     else:
         raise ValueError(f"Unsupported backend: {type(backend_args).__name__}")
 
-    # Warmup.
+    # Warmup. Cycle through the dataloader if warmup_steps exceeds the
+    # number of batches.
     if config.warmup_steps > 0:
         print(f"Running {config.warmup_steps} warmup steps...")
+        step = 0
         with torch.no_grad():
-            for step, batch in enumerate(val_dataloader):
-                if step >= config.warmup_steps:
-                    break
-                backend.run_batch(batch)
+            while step < config.warmup_steps:
+                for batch in val_dataloader:
+                    if step >= config.warmup_steps:
+                        break
+                    backend.run_batch(batch)
+                    step += 1
         print("Warmup complete.")
 
     # Free cached memory before the timed benchmark loop so warmup
@@ -210,18 +213,16 @@ def _benchmark_object_detection_from_config(
     print_every = max(1, min(10, total_batches // 10))
 
     batch_times: list[float] = []
-    _debug = config.debug
     with torch.no_grad():
         for step, batch in enumerate(val_dataloader):
             if step >= total_batches:
                 break
 
-            targets = batch["targets"]
-
             predictions, t_infer = backend.run_batch(batch=batch)
             batch_times.append(t_infer)
             predictions_cpu = _to_cpu(predictions)
-            # Relabel "bboxes" -> "boxes" for torchmetrics.
+
+            # Convert predictions from "bboxes" to "boxes" for torchmetrics.
             metric_preds: list[dict[str, Tensor]] = [
                 {
                     "boxes": p["bboxes"],
@@ -229,6 +230,13 @@ def _benchmark_object_detection_from_config(
                     "labels": p["labels"],
                 }
                 for p in predictions_cpu
+            ]
+            # Convert ground truth boxes from YOLO format to denormalized xyxy.
+            boxes_xyxy = _yolo_to_xyxy(batch["bboxes"])
+            boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, batch["original_size"])
+            targets = [
+                {"boxes": boxes, "labels": classes}
+                for boxes, classes in zip(boxes_denorm, batch["classes"])
             ]
             metric.update_with_predictions(metric_preds, targets)
 
@@ -270,7 +278,7 @@ def _benchmark_object_detection_from_config(
         model_name = str(config.model)
         model_class = "N/A"
 
-    device_info = _get_device_info(str(device))
+    device_info = _get_device_info(device=device)
 
     result = BenchmarkResult(
         out=str(out_dir),
@@ -318,7 +326,7 @@ class _BenchmarkValTransformArgs(ObjectDetectionTransformArgs):
 
     All augmentations are disabled. Only resize and normalize (plus bbox params)
     are applied so that the collate function produces images at the model's
-    expected size with the correct normalisation.
+    expected size with the correct normalization.
     """
 
     channel_drop: None = None
@@ -374,13 +382,6 @@ def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
     )
 
 
-class _BenchmarkValBatch(TypedDict):
-    image: Tensor
-    image_path: list[str]
-    original_size: list[tuple[int, int]]
-    targets: list[dict[str, Tensor]]
-
-
 class _BenchmarkCollateFunction:
     """Picklable collate function for benchmark dataloader."""
 
@@ -390,28 +391,16 @@ class _BenchmarkCollateFunction:
             transform_args=transform_args,
         )
 
-    def __call__(self, batch: list[Any]) -> _BenchmarkValBatch:
-        od_batch = self._inner_collate(batch)
-        boxes_xyxy = _yolo_to_xyxy(od_batch["bboxes"])
-        boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, od_batch["original_size"])
-        targets = [
-            {"boxes": boxes, "labels": classes}
-            for boxes, classes in zip(boxes_denorm, od_batch["classes"])
-        ]
-        return _BenchmarkValBatch(
-            image=od_batch["image"],
-            image_path=od_batch["image_path"],
-            original_size=od_batch["original_size"],
-            targets=targets,
-        )
+    def __call__(self, batch: list[Any]) -> ObjectDetectionBatch:
+        return self._inner_collate(batch)
 
 
 def _create_val_dataloader(
-    data_args: TaskDataArgs,
+    data_args: COCOObjectDetectionDataArgs | YOLOObjectDetectionDataArgs,
     batch_size: int,
     num_workers: int,
     transform_args: _BenchmarkValTransformArgs,
-) -> DataLoader[_BenchmarkValBatch]:
+) -> DataLoader[ObjectDetectionDatasetItem]:
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
     image_info = list(val_dataset_args.list_image_info())
@@ -423,33 +412,16 @@ def _create_val_dataloader(
     )
 
     return DataLoader(
+        # ObjectDetectionDataset inherits Dataset[TaskDatasetItem] from
+        # TaskDataset, so the type checker sees a type mismatch even though the
+        # dataset actually yields ObjectDetectionDatasetItem at runtime.
         dataset=dataset,  # type: ignore[arg-type]
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
         collate_fn=_BenchmarkCollateFunction(transform_args=transform_args),
-        multiprocessing_context="spawn" if num_workers > 0 else None,
-        persistent_workers=num_workers > 0,
-        prefetch_factor=2 if num_workers > 0 else None,
     )
-
-
-def _filter_by_threshold(
-    pred: ObjectDetectionPrediction, threshold: float
-) -> ObjectDetectionPrediction:
-    keep = pred["scores"] >= threshold
-    return {k: v[keep] for k, v in pred.items()}  # type: ignore[index,return-value]
-
-
-def _filter_top_k(
-    pred: ObjectDetectionPrediction, top_k: int
-) -> ObjectDetectionPrediction:
-    scores = pred["scores"]
-    if len(scores) <= top_k:
-        return pred
-    _, topk_indices = scores.topk(min(top_k, len(scores)))
-    return {k: v[topk_indices] for k, v in pred.items()}  # type: ignore[index,return-value]
 
 
 def _to_cpu(
@@ -460,15 +432,10 @@ def _to_cpu(
 
 def _create_metric(
     *,
-    metric_args: BenchmarkObjectDetectionMetricArgs,
     class_names: Sequence[str],
 ) -> ObjectDetectionTaskMetric:
-    task_metric_args = ObjectDetectionTaskMetricArgs(
-        classwise=metric_args.classwise,
-        map=metric_args.map,
-    )
     return ObjectDetectionTaskMetric(
-        task_metric_args=task_metric_args,
+        task_metric_args=ObjectDetectionTaskMetricArgs(),
         split="val",
         class_names=class_names,
         box_format="xyxy",
@@ -559,58 +526,23 @@ def _resolve_device(
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def _get_device_info(device: str) -> DeviceInfo:
+def _get_device_info(device: torch.device) -> DeviceInfo:
     """Collect information about the device used for benchmarking."""
     import os
+    import platform
 
-    cpu_model = None
-    cpu_cores = None
+    cpu_model = platform.processor() or None
     cpu_threads = os.cpu_count()
-    smt_enabled = None
-    ram_gb = None
 
-    # Try to get CPU model name and physical core count from /proc/cpuinfo (Linux)
+    ram_gb: float | None = None
     try:
-        physical_ids = set()
-        core_ids = set()
-        with open("/proc/cpuinfo") as f:
-            current_physical_id = None
-            for line in f:
-                if line.startswith("model name") and cpu_model is None:
-                    cpu_model = line.split(":")[1].strip()
-                elif line.startswith("physical id"):
-                    current_physical_id = line.split(":")[1].strip()
-                elif line.startswith("core id"):
-                    core_id = line.split(":")[1].strip()
-                    if current_physical_id is not None:
-                        physical_ids.add(current_physical_id)
-                        core_ids.add((current_physical_id, core_id))
-        if core_ids:
-            cpu_cores = len(core_ids)
-            smt_enabled = cpu_threads is not None and cpu_threads > cpu_cores
-    except Exception:
+        import psutil  # type: ignore[import-untyped]
+
+        ram_gb = psutil.virtual_memory().total / (1024**3)
+    except ImportError:
         pass
 
-    # Try to check SMT status directly (Linux)
-    if smt_enabled is None:
-        try:
-            with open("/sys/devices/system/cpu/smt/active") as f:
-                smt_enabled = f.read().strip() == "1"
-        except Exception:
-            pass
-
-    # Try to get total RAM from /proc/meminfo (Linux)
-    try:
-        with open("/proc/meminfo") as f:
-            for line in f:
-                if line.startswith("MemTotal"):
-                    mem_kb = int(line.split()[1])
-                    ram_gb = mem_kb / (1024**2)
-                    break
-    except Exception:
-        pass
-
-    if device.startswith("cuda"):
+    if device.type == "cuda":
         gpu_name = torch.cuda.get_device_name(0)
         gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         cuda_version = torch.version.cuda
@@ -625,16 +557,12 @@ def _get_device_info(device: str) -> DeviceInfo:
             cuda_version=cuda_version,
             cudnn_version=cudnn_version,
             cpu_model=cpu_model,
-            cpu_cores=cpu_cores,
             cpu_threads=cpu_threads,
-            smt_enabled=smt_enabled,
             ram_gb=ram_gb,
         )
     else:
         return CpuDeviceInfo(
             cpu_model=cpu_model,
-            cpu_cores=cpu_cores,
             cpu_threads=cpu_threads,
-            smt_enabled=smt_enabled,
             ram_gb=ram_gb,
         )

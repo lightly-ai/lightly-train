@@ -40,9 +40,7 @@ class CpuDeviceInfo(PydanticConfig):
 
     device_type: Literal["cpu"] = "cpu"
     cpu_model: str | None = None
-    cpu_cores: int | None = None
     cpu_threads: int | None = None
-    smt_enabled: bool | None = None
     ram_gb: float | None = None
 
 
@@ -57,9 +55,7 @@ class CudaDeviceInfo(PydanticConfig):
     cudnn_version: str | None = None
     # System fields
     cpu_model: str | None = None
-    cpu_cores: int | None = None
     cpu_threads: int | None = None
-    smt_enabled: bool | None = None
     ram_gb: float | None = None
 
 
@@ -155,14 +151,7 @@ class BenchmarkResult(PydanticConfig):
                 lines.append(f"- **cuDNN**: {di.cudnn_version}")
         if di.cpu_model:
             lines.append(f"- **CPU**: {di.cpu_model}")
-        if di.cpu_cores and di.cpu_threads:
-            smt_str = ""
-            if di.smt_enabled is not None:
-                smt_str = " (SMT enabled)" if di.smt_enabled else " (SMT disabled)"
-            lines.append(
-                f"- **CPU Cores/Threads**: {di.cpu_cores}/{di.cpu_threads}{smt_str}"
-            )
-        elif di.cpu_threads:
+        if di.cpu_threads:
             lines.append(f"- **CPU Threads**: {di.cpu_threads}")
         if di.ram_gb is not None:
             lines.append(f"- **RAM**: {di.ram_gb:.1f} GB")
@@ -295,7 +284,6 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
     steps: int | None = None
     num_workers: int | Literal["auto"] = "auto"
     overwrite: bool = False
-    debug: bool = False
     device: str | None = None
     metric_args: BenchmarkObjectDetectionMetricArgs = Field(
         default_factory=BenchmarkObjectDetectionMetricArgs
