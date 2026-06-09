@@ -7,9 +7,11 @@
 #
 from __future__ import annotations
 
+import gc
 import statistics
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal, Sequence
+from typing import Any, Literal
 
 import torch
 from albumentations import BboxParams
@@ -64,7 +66,6 @@ from lightly_train._transforms.object_detection_transform import (
 )
 from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
 from lightly_train.types import (
-    ObjectDetectionBatch,
     ObjectDetectionDatasetItem,
     PathLike,
 )
@@ -76,9 +77,11 @@ _ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 def benchmark_object_detection(
     *,
     out: PathLike,
+    dataset_name: str,
     data: dict[str, Any] | str,
     model: TaskModel | PathLike,
-    batch_size: int = 16,
+    batch_size: int = 1,
+    threshold: float = 0.0,
     warmup_steps: int = 0,
     steps: int | None = None,
     num_workers: int | Literal["auto"] = "auto",
@@ -94,12 +97,18 @@ def benchmark_object_detection(
     Args:
         out:
             Output directory where benchmark results are saved.
+        dataset_name:
+            Human-readable name for the dataset (e.g. ``"COCO 2017"``).
+            Included in the benchmark report.
         data:
             Dataset configuration dictionary (same format as train_object_detection).
         model:
             A loaded TaskModel instance or a path to an exported model file.
         batch_size:
             Number of images to process at once.
+        threshold:
+            Score threshold for filtering detections. Predictions with scores
+            at or below this value are discarded.
         warmup_steps:
             Number of warmup batches to run before the benchmark. Warmup
             results are discarded. The dataloader restarts from the beginning
@@ -111,6 +120,10 @@ def benchmark_object_detection(
             Number of workers for data loading.
         overwrite:
             Overwrite the output directory if it already exists.
+        device:
+            Device to run inference on (e.g. ``"cpu"``, ``"cuda"``). If
+            ``None``, the device is auto-detected based on the backend
+            configuration.
         backend_args:
             Backend configuration. Use ``format`` to select the backend:
             ``"torch"`` (default), ``"onnx"``, or ``"tensorrt"``. ONNX and
@@ -154,7 +167,14 @@ def _benchmark_object_detection_from_config(
         num_workers=num_workers,
         transform_args=transform_args,
     )
-    total_images = len(val_dataloader.dataset)  # type: ignore[arg-type]
+    num_batches = len(val_dataloader)
+    if num_batches == 0:
+        raise ValueError(
+            f"Not enough images in the dataset for batch_size={config.batch_size}. "
+            f"The dataset has {len(val_dataloader.dataset)} images."  # type: ignore[arg-type]
+        )
+    dataset_size = len(val_dataloader.dataset)  # type: ignore[arg-type]
+    total_images = min(num_batches, config.steps or num_batches) * config.batch_size
 
     # Set up metric.
     class_names = list(data_args.included_classes.values())
@@ -169,6 +189,7 @@ def _benchmark_object_detection_from_config(
             batch_size=config.batch_size,
             out_dir=out_dir,
             device=str(device),
+            threshold=config.threshold,
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
         backend = TensorRTBackend(
@@ -177,9 +198,15 @@ def _benchmark_object_detection_from_config(
             batch_size=config.batch_size,
             out_dir=out_dir,
             device=str(device),
+            threshold=config.threshold,
         )
     elif isinstance(backend_args, TorchBackendArgs):
-        backend = TorchBackend(model=model, backend_args=backend_args, device=device)
+        backend = TorchBackend(
+            model=model,
+            backend_args=backend_args,
+            device=device,
+            threshold=config.threshold,
+        )
     else:
         raise ValueError(f"Unsupported backend: {type(backend_args).__name__}")
 
@@ -199,14 +226,12 @@ def _benchmark_object_detection_from_config(
 
     # Free cached memory before the timed benchmark loop so warmup
     # allocations don't skew memory or timing measurements.
-    import gc
-
     gc.collect()
     if device.type == "cuda":
         torch.cuda.empty_cache()
 
     # Run inference in batches.
-    total_batches = len(val_dataloader)
+    total_batches = num_batches
     if config.steps is not None:
         total_batches = min(total_batches, config.steps)
 
@@ -286,7 +311,8 @@ def _benchmark_object_detection_from_config(
         model_class=model_class,
         backend_args=backend_args,
         device_info=device_info,
-        dataset_format=data_args.format,
+        dataset_name=config.dataset_name,
+        dataset_size=dataset_size,
         num_images=total_images,
         batch_size=config.batch_size,
         warmup_steps=config.warmup_steps,
@@ -358,7 +384,12 @@ def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
         Transform args configured for the model.
     """
     init_args = model.init_args
-    image_size: tuple[int, int] = tuple(init_args.get("image_size", (64, 64)))  # type: ignore[assignment]
+    if "image_size" not in init_args:
+        raise ValueError(
+            "Model does not specify 'image_size' in init_args. Cannot build "
+            "validation transforms without a known image size."
+        )
+    image_size: tuple[int, int] = tuple(init_args["image_size"])  # type: ignore[assignment]
     height, width = image_size
 
     # Resolve normalize the same way training val transforms do.
@@ -369,7 +400,10 @@ def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
     elif raw_normalize == "none":
         normalize = NormalizeArgs()
     else:
-        assert isinstance(raw_normalize, dict)
+        if not isinstance(raw_normalize, dict):
+            raise ValueError(
+                f"Expected 'image_normalize' to be a dict, got {type(raw_normalize).__name__}."
+            )
         normalize = NormalizeArgs.from_dict(raw_normalize)
 
     num_channels = 3 if normalize is None else len(normalize.mean)
@@ -380,19 +414,6 @@ def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
         normalize=normalize,
         num_channels=num_channels,
     )
-
-
-class _BenchmarkCollateFunction:
-    """Picklable collate function for benchmark dataloader."""
-
-    def __init__(self, transform_args: _BenchmarkValTransformArgs) -> None:
-        self._inner_collate = ObjectDetectionCollateFunction(
-            split="val",
-            transform_args=transform_args,
-        )
-
-    def __call__(self, batch: list[Any]) -> ObjectDetectionBatch:
-        return self._inner_collate(batch)
 
 
 def _create_val_dataloader(
@@ -420,7 +441,10 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=_BenchmarkCollateFunction(transform_args=transform_args),
+        collate_fn=ObjectDetectionCollateFunction(
+            split="val",
+            transform_args=transform_args,
+        ),
     )
 
 
@@ -543,8 +567,11 @@ def _get_device_info(device: torch.device) -> DeviceInfo:
         pass
 
     if device.type == "cuda":
-        gpu_name = torch.cuda.get_device_name(0)
-        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        device_index = device.index or 0
+        gpu_name = torch.cuda.get_device_name(device_index)
+        gpu_memory_gb = torch.cuda.get_device_properties(device_index).total_memory / (
+            1024**3
+        )
         cuda_version = torch.version.cuda
         cudnn_version = (
             str(torch.backends.cudnn.version())  # type: ignore[no-untyped-call]

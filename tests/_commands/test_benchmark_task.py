@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import pytest
 import torch
@@ -25,7 +26,6 @@ from lightly_train._commands.benchmark_task import (
 )
 from lightly_train._commands.benchmark_types import (
     BenchmarkObjectDetectionConfig,
-    BenchmarkObjectDetectionMetricArgs,
     BenchmarkResult,
     ObjectDetectionPrediction,
 )
@@ -125,23 +125,13 @@ class TestValDataloader:
         assert len(batch["image_path"]) == 2
         assert all(Path(p).exists() for p in batch["image_path"])
 
-        targets = batch["targets"]
-        assert len(targets) == 2
-
         # First image has 2 annotations.
-        target0 = targets[0]
-        assert target0["boxes"].shape == (2, 4)
-        assert target0["labels"].shape == (2,)
-        # Check xyxy conversion: COCO [10, 10, 30, 40] -> xyxy [10, 10, 40, 50]
-        torch.testing.assert_close(
-            target0["boxes"][0],
-            torch.tensor([10.0, 10.0, 40.0, 50.0]),
-        )
+        assert batch["bboxes"][0].shape == (2, 4)
+        assert batch["classes"][0].shape == (2,)
 
         # Second image has 1 annotation.
-        target1 = targets[1]
-        assert target1["boxes"].shape == (1, 4)
-        assert target1["labels"].shape == (1,)
+        assert batch["bboxes"][1].shape == (1, 4)
+        assert batch["classes"][1].shape == (1,)
 
     def test_respects_ignore_classes(self, tmp_path: Path) -> None:
         data_dict = _create_coco_data_dict(tmp_path)
@@ -157,9 +147,8 @@ class TestValDataloader:
         batch = next(iter(dataloader))
 
         # First image: category_id=1 should be filtered, only category_id=0 remains.
-        target0 = batch["targets"][0]
-        assert target0["boxes"].shape == (1, 4)
-        assert target0["labels"].tolist() == [0]
+        assert batch["bboxes"][0].shape == (1, 4)
+        assert batch["classes"][0].tolist() == [0]
 
     def test_empty_annotations(self, tmp_path: Path) -> None:
         helpers.create_coco_object_detection_dataset(
@@ -210,28 +199,12 @@ class TestToCpu:
         assert r["labels"].device.type == "cpu"
 
 
-class TestBenchmarkObjectDetectionMetricArgs:
-    def test_defaults(self) -> None:
-        args = BenchmarkObjectDetectionMetricArgs()
-        assert args.detection_threshold == 0.6
-        assert args.top_k is None
-        assert args.classwise is False
-        assert args.map is not None
-
-    def test_custom_values(self) -> None:
-        args = BenchmarkObjectDetectionMetricArgs(
-            detection_threshold=0.5, top_k=10, classwise=True
-        )
-        assert args.detection_threshold == 0.5
-        assert args.top_k == 10
-        assert args.classwise is True
-
-
 class TestBenchmarkObjectDetectionConfig:
     def test_validates_coco_data(self, tmp_path: Path) -> None:
         data_dict = _create_coco_data_dict(tmp_path)
         config = BenchmarkObjectDetectionConfig(
             out=str(tmp_path / "out"),
+            dataset_name="test-coco",
             data=data_dict,  # type: ignore[arg-type]
             model=_FakeObjectDetectionModel(),
         )
@@ -242,6 +215,7 @@ class TestBenchmarkObjectDetectionConfig:
         with pytest.raises(Exception):
             BenchmarkObjectDetectionConfig(
                 out=str(tmp_path / "out"),
+                dataset_name="test-coco",
                 data=data_dict,  # type: ignore[arg-type]
                 model=_FakeObjectDetectionModel(),
                 unknown_field="value",  # type: ignore[call-arg]
@@ -255,6 +229,7 @@ class TestBenchmarkObjectDetectionE2E:
 
         result = benchmark_object_detection(
             out=str(tmp_path / "out"),
+            dataset_name="test-coco",
             data=data_dict,
             model=model,
             batch_size=2,
@@ -265,7 +240,7 @@ class TestBenchmarkObjectDetectionE2E:
         assert result.model_name is None
         assert result.model_class == "_FakeObjectDetectionModel"
         assert result.backend_args.format == "torch"
-        assert result.dataset_format == "coco"
+        assert result.dataset_name == "test-coco"
         assert result.num_images == 2
         assert result.batch_size == 2
         assert result.warmup_steps == 0
@@ -317,6 +292,7 @@ class TestBenchmarkObjectDetectionE2E:
         with pytest.raises(ValueError, match="not empty"):
             benchmark_object_detection(
                 out=str(out_dir),
+                dataset_name="test-coco",
                 data=data_dict,
                 model=_FakeObjectDetectionModel(),
             )
@@ -329,6 +305,7 @@ class TestBenchmarkObjectDetectionE2E:
 
         result = benchmark_object_detection(
             out=str(out_dir),
+            dataset_name="test-coco",
             data=data_dict,
             model=_FakeObjectDetectionModel(),
             batch_size=2,
@@ -342,6 +319,7 @@ class TestBenchmarkObjectDetectionE2E:
 
         result = benchmark_object_detection(
             out=str(tmp_path / "out"),
+            dataset_name="test-coco",
             data=data_dict,
             model=model,
             batch_size=2,
