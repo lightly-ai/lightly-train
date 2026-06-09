@@ -15,14 +15,18 @@ image sequentially. The square center-crop step is omitted for "*crop" methods.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
-import cv2
 import numpy as np
 import torch
-import torchvision.transforms as T
+import torchvision.transforms.v2.functional as tv_functional
 from PIL import Image
+from torch import Tensor
 
 logger = logging.getLogger(__name__)
+
+# (image_tensor, (H, W), intrinsic, extrinsic) produced for a single input image.
+_ProcessedItem = tuple[Tensor, tuple[int, int], np.ndarray | None, np.ndarray | None]
 
 
 class InputProcessor:
@@ -43,10 +47,11 @@ class InputProcessor:
       5) Stack into (1, N, 3, H, W)
     """
 
-    NORMALIZE = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    NORMALIZE_MEAN = (0.485, 0.456, 0.406)
+    NORMALIZE_STD = (0.229, 0.224, 0.225)
     PATCH_SIZE = 14
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     # -----------------------------
@@ -83,17 +88,17 @@ class InputProcessor:
         )
 
         batch_tensor = self._stack_batch(proc_imgs)
-        out_exts = (
+        out_exts_tensor = (
             torch.from_numpy(np.asarray(out_exts)).float()
             if out_exts is not None and out_exts[0] is not None
             else None
         )
-        out_ixts = (
+        out_ixts_tensor = (
             torch.from_numpy(np.asarray(out_ixts)).float()
             if out_ixts is not None and out_ixts[0] is not None
             else None
         )
-        return (batch_tensor, out_exts, out_ixts)
+        return (batch_tensor, out_exts_tensor, out_ixts_tensor)
 
     # -----------------------------
     # __call__ helpers
@@ -120,7 +125,7 @@ class InputProcessor:
         ixts_list: list[np.ndarray | None] | None,
         process_res: int,
         process_res_method: str,
-    ):
+    ) -> list[_ProcessedItem]:
         results = [
             self._process_one(
                 img=img,
@@ -137,9 +142,16 @@ class InputProcessor:
             )
         return results
 
-    def _unpack_results(self, results):
+    def _unpack_results(
+        self, results: Sequence[_ProcessedItem]
+    ) -> tuple[
+        list[Tensor],
+        list[tuple[int, int]],
+        list[np.ndarray | None],
+        list[np.ndarray | None],
+    ]:
         """
-        results: List[Tuple[torch.Tensor, Tuple[H, W], Optional[np.ndarray], Optional[np.ndarray]]]
+        results: per-image (image_tensor, (H, W), intrinsic, extrinsic) tuples
         -> processed_images, out_sizes, out_intrinsics, out_extrinsics
         """
         try:
@@ -174,12 +186,15 @@ class InputProcessor:
             f"center-cropping all to smallest ({min_h},{min_w})"
         )
 
-        center_crop = T.CenterCrop((min_h, min_w))
-        new_imgs, new_sizes, new_ixts = [], [], []
+        new_imgs: list[Tensor] = []
+        new_sizes: list[tuple[int, int]] = []
+        new_ixts: list[np.ndarray | None] = []
         for img_t, (H, W), K in zip(processed_images, out_sizes, out_intrinsics):
             crop_top = max(0, (H - min_h) // 2)
             crop_left = max(0, (W - min_w) // 2)
-            new_imgs.append(center_crop(img_t))
+            new_imgs.append(
+                tv_functional.center_crop(img_t, output_size=[min_h, min_w])
+            )
             new_sizes.append((min_h, min_w))
             if K is None:
                 new_ixts.append(None)
@@ -206,30 +221,30 @@ class InputProcessor:
         process_res_method: str,
     ) -> tuple[torch.Tensor, tuple[int, int], np.ndarray | None, np.ndarray | None]:
         # Load & remember original size
-        pil_img = self._load_image(img)
-        orig_w, orig_h = pil_img.size
+        image = self._load_image(img)
+        orig_h, orig_w = image.shape[-2:]
 
         # Boundary resize
-        pil_img = self._resize_image(pil_img, process_res, process_res_method)
-        w, h = pil_img.size
+        image = self._resize_image(image, process_res, process_res_method)
+        h, w = image.shape[-2:]
         intrinsic = self._resize_ixt(intrinsic, orig_w, orig_h, w, h)
 
         # Enforce divisibility by PATCH_SIZE
         if process_res_method.endswith("resize"):
-            pil_img = self._make_divisible_by_resize(pil_img, self.PATCH_SIZE)
-            new_w, new_h = pil_img.size
+            image = self._make_divisible_by_resize(image, self.PATCH_SIZE)
+            new_h, new_w = image.shape[-2:]
             intrinsic = self._resize_ixt(intrinsic, w, h, new_w, new_h)
             w, h = new_w, new_h
         elif process_res_method.endswith("crop"):
-            pil_img = self._make_divisible_by_crop(pil_img, self.PATCH_SIZE)
-            new_w, new_h = pil_img.size
+            image = self._make_divisible_by_crop(image, self.PATCH_SIZE)
+            new_h, new_w = image.shape[-2:]
             intrinsic = self._crop_ixt(intrinsic, w, h, new_w, new_h)
             w, h = new_w, new_h
         else:
             raise ValueError(f"Unsupported process_res_method: {process_res_method}")
 
-        # Convert to tensor & normalize
-        img_tensor = self._normalize_image(pil_img)
+        # Convert to float tensor & normalize
+        img_tensor = self._normalize_image(image)
         _, H, W = img_tensor.shape
         assert (W, H) == (w, h), (
             "Tensor size mismatch with PIL image size after processing."
@@ -277,27 +292,31 @@ class InputProcessor:
     # -----------------------------
     # I/O & normalization
     # -----------------------------
-    def _load_image(self, img: np.ndarray | Image.Image | str) -> Image.Image:
+    def _load_image(self, img: np.ndarray | Image.Image | str) -> Tensor:
         if isinstance(img, str):
-            return Image.open(img).convert("RGB")
+            pil_img = Image.open(img).convert("RGB")
         elif isinstance(img, np.ndarray):
-            # Assume HxWxC uint8/RGB
-            return Image.fromarray(img).convert("RGB")
+            # Assume HxWxC uint8/RGB.
+            pil_img = Image.fromarray(img).convert("RGB")
         elif isinstance(img, Image.Image):
-            return img.convert("RGB")
+            pil_img = img.convert("RGB")
         else:
             raise ValueError(f"Unsupported image type: {type(img)}")
+        # Decode to a uint8 (3, H, W) tensor; all transforms below stay in tensor space.
+        image: Tensor = tv_functional.pil_to_tensor(pil_img)
+        return image
 
-    def _normalize_image(self, img: Image.Image) -> torch.Tensor:
-        img_tensor = T.ToTensor()(img)
-        return self.NORMALIZE(img_tensor)
+    def _normalize_image(self, img: Tensor) -> Tensor:
+        img = tv_functional.to_dtype(img, dtype=torch.float32, scale=True)
+        img = tv_functional.normalize(
+            img, mean=list(self.NORMALIZE_MEAN), std=list(self.NORMALIZE_STD)
+        )
+        return img
 
     # -----------------------------
     # Boundary resizing
     # -----------------------------
-    def _resize_image(
-        self, img: Image.Image, target_size: int, method: str
-    ) -> Image.Image:
+    def _resize_image(self, img: Tensor, target_size: int, method: str) -> Tensor:
         if method in ("upper_bound_resize", "upper_bound_crop"):
             return self._resize_longest_side(img, target_size)
         elif method in ("lower_bound_resize", "lower_bound_crop"):
@@ -305,52 +324,118 @@ class InputProcessor:
         else:
             raise ValueError(f"Unsupported resize method: {method}")
 
-    def _resize_longest_side(self, img: Image.Image, target_size: int) -> Image.Image:
-        w, h = img.size
+    def _resize_longest_side(self, img: Tensor, target_size: int) -> Tensor:
+        h, w = img.shape[-2:]
         longest = max(w, h)
         if longest == target_size:
             return img
         scale = target_size / float(longest)
         new_w = max(1, int(round(w * scale)))
         new_h = max(1, int(round(h * scale)))
-        interpolation = cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA
-        arr = cv2.resize(np.asarray(img), (new_w, new_h), interpolation=interpolation)
-        return Image.fromarray(arr)
+        return self._resize_to(img, new_h, new_w)
 
-    def _resize_shortest_side(self, img: Image.Image, target_size: int) -> Image.Image:
-        w, h = img.size
+    def _resize_shortest_side(self, img: Tensor, target_size: int) -> Tensor:
+        h, w = img.shape[-2:]
         shortest = min(w, h)
         if shortest == target_size:
             return img
         scale = target_size / float(shortest)
         new_w = max(1, int(round(w * scale)))
         new_h = max(1, int(round(h * scale)))
-        interpolation = cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA
-        arr = cv2.resize(np.asarray(img), (new_w, new_h), interpolation=interpolation)
-        return Image.fromarray(arr)
+        return self._resize_to(img, new_h, new_w)
+
+    def _resize_to(self, img: Tensor, new_h: int, new_w: int) -> Tensor:
+        """Resizes a ``(C, H, W)`` uint8 image to ``(new_h, new_w)``.
+
+        Reproduces the cv2 resampling the official DA3 reference depends on without an
+        OpenCV dependency: ``INTER_AREA`` when shrinking and ``INTER_CUBIC`` when
+        enlarging. Both are separable, so per-axis ``(dst, src)`` weight matrices are
+        built and applied along the height then the width, accumulating in float and
+        rounding back to uint8 once. As in cv2, the kernel choice is joint over both axes:
+        a resize that enlarges either axis uses cubic. Matches cv2 to within one uint8
+        level.
+        """
+        h, w = img.shape[-2:]
+        enlarging = new_h > h or new_w > w
+        weights = self._cubic_weights if enlarging else self._area_weights
+        row_weights = weights(src=h, dst=new_h, device=img.device)
+        col_weights = weights(src=w, dst=new_w, device=img.device)
+        x = img.to(torch.float32)
+        x = torch.einsum("ph,chw->cpw", row_weights, x)
+        x = torch.einsum("qw,cpw->cpq", col_weights, x)
+        return x.round().clamp(min=0, max=255).to(torch.uint8)
+
+    @staticmethod
+    def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
+        """Builds the ``(dst, src)`` cv2 ``INTER_AREA`` overlap-weight matrix for one axis.
+
+        Output cell ``i`` spans ``[i * scale, (i + 1) * scale)`` in source coordinates,
+        where ``scale = src / dst``; the weight for source pixel ``j`` is the length of
+        the overlap with ``[j, j + 1)`` divided by ``scale``. A ``scale`` of 1 yields the
+        identity, so an unchanged axis is passed through exactly.
+        """
+        scale = src / dst
+        out_idx = torch.arange(dst, dtype=torch.float32, device=device)[:, None]
+        src_idx = torch.arange(src, dtype=torch.float32, device=device)[None, :]
+        lo = torch.maximum(out_idx * scale, src_idx)
+        hi = torch.minimum((out_idx + 1) * scale, src_idx + 1)
+        return (hi - lo).clamp(min=0) / scale
+
+    @staticmethod
+    def _cubic_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
+        """Builds the ``(dst, src)`` cv2 ``INTER_CUBIC`` weight matrix for one axis.
+
+        Uses the Keys cubic convolution kernel with ``a = -0.75`` (cv2's constant) and
+        half-pixel sample centers. Output ``i`` samples source coordinate
+        ``(i + 0.5) * scale - 0.5`` from its four nearest taps; taps falling outside the
+        image clamp to the border (cv2's replicate behavior), accumulating their weight.
+        The four kernel weights sum to one, so no renormalization is needed.
+        """
+        a = -0.75
+        scale = src / dst
+        out_idx = torch.arange(dst, dtype=torch.float32, device=device)
+        center = (out_idx + 0.5) * scale - 0.5
+        base = torch.floor(center)
+        frac = center - base
+
+        def kernel(t: Tensor) -> Tensor:
+            t = t.abs()
+            inner = (a + 2) * t**3 - (a + 3) * t**2 + 1
+            outer = a * t**3 - 5 * a * t**2 + 8 * a * t - 4 * a
+            return torch.where(
+                t <= 1, inner, torch.where(t < 2, outer, torch.zeros_like(t))
+            )
+
+        weights = torch.zeros(dst, src, dtype=torch.float32, device=device)
+        rows = torch.arange(dst, device=device)
+        for offset in (-1, 0, 1, 2):
+            taps = (base + offset).long().clamp(min=0, max=src - 1)
+            weights[rows, taps] += kernel(frac - offset)
+        return weights
 
     # -----------------------------
     # Make divisible by PATCH_SIZE
     # -----------------------------
-    def _make_divisible_by_crop(self, img: Image.Image, patch: int) -> Image.Image:
+    def _make_divisible_by_crop(self, img: Tensor, patch: int) -> Tensor:
         """
         Floor each dimension to the nearest multiple of PATCH_SIZE via center crop.
         Example: 504x377 -> 504x364
         """
-        w, h = img.size
+        h, w = img.shape[-2:]
         new_w = (w // patch) * patch
         new_h = (h // patch) * patch
         if new_w == w and new_h == h:
             return img
         left = (w - new_w) // 2
         top = (h - new_h) // 2
-        return img.crop((left, top, left + new_w, top + new_h))
+        img = tv_functional.crop(img, top=top, left=left, height=new_h, width=new_w)
+        return img
 
-    def _make_divisible_by_resize(self, img: Image.Image, patch: int) -> Image.Image:
+    def _make_divisible_by_resize(self, img: Tensor, patch: int) -> Tensor:
         """
         Round each dimension to nearest multiple of PATCH_SIZE via small resize.
         """
-        w, h = img.size
+        h, w = img.shape[-2:]
 
         def nearest_multiple(x: int, p: int) -> int:
             down = (x // p) * p
@@ -361,7 +446,4 @@ class InputProcessor:
         new_h = max(1, nearest_multiple(h, patch))
         if new_w == w and new_h == h:
             return img
-        upscale = (new_w > w) or (new_h > h)
-        interpolation = cv2.INTER_CUBIC if upscale else cv2.INTER_AREA
-        arr = cv2.resize(np.asarray(img), (new_w, new_h), interpolation=interpolation)
-        return Image.fromarray(arr)
+        return self._resize_to(img, new_h, new_w)
