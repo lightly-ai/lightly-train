@@ -234,7 +234,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         device: str,
         threshold: float = 0.0,
     ) -> None:
-        import tensorrt as trt  # type: ignore[import-untyped]
+        import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
         self.device = torch.device(device)
         self.precision = backend_args.precision
