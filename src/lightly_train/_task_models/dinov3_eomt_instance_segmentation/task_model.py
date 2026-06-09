@@ -23,6 +23,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -761,11 +762,14 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
-        # if the batch size is dynamic the dummy input must have multiple batches
-        # as torch might still think the batch size is one
+        check_onnx_dynamo_requirements()
+
         if dynamic_batch_size:
             batch_size = 2
-        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+            batch_dim = torch.export.Dim("batch_size", min=1, max=2**31 - 1)
+            dynamic_shapes = ({0: batch_dim},)
+        else:
+            dynamic_shapes = None
 
         dummy_input = torch.randn(
             batch_size,
@@ -787,8 +791,8 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
+            dynamo=True,
+            dynamic_shapes=dynamic_shapes,
             **(format_args or {}),
         )
 
