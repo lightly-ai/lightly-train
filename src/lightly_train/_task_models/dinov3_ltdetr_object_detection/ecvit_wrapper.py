@@ -1,15 +1,34 @@
 #
-# EdgeCrafter: Compact ViTs for Edge Dense Prediction via Task-Specialized Distillation
-# Copyright (c) 2026 The EdgeCrafter Authors. All Rights Reserved.
-# ---------------------------------------------------------------------------------
-# Modified from DINOv3 (https://github.com/facebookresearch/dinov3)
-# Modified from https://huggingface.co/spaces/Hila/RobustViT/blob/main/ViT/ViT_new.py
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.#
+"""
+EdgeCrafter: Compact ViTs for Edge Dense Prediction via Task-Specialized Distillation
+Copyright (c) 2026 The EdgeCrafter Authors. All Rights Reserved.
+---------------------------------------------------------------------------------
+Modified from DINOv3 (https://github.com/facebookresearch/dinov3)
+
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+This software may be used and distributed in accordance with
+the terms of the DINOv3 License Agreement.
+
+Modified from https://huggingface.co/spaces/Hila/RobustViT/blob/main/ViT/ViT_new.py
+
 # Modifications Copyright 2026 Lightly AG:
-# - Ported the ECViT backbone and ViTAdapter to Lightly.
-# - Removed EdgeCrafter registry/distributed dependencies.
-# - Added typed LTDETR-compatible tuple output.
-#
+- Ported the ECViT backbone and ViTAdapter to Lightly.
+- Removed EdgeCrafter registry/distributed dependencies.
+- Added typed LTDETR-compatible tuple output.
+"""
+
 from __future__ import annotations
 
 import math
@@ -113,42 +132,42 @@ class RopePositionEmbedding(nn.Module):
         self._init_weights()
 
     def forward(self, *, H: int, W: int) -> tuple[Tensor, Tensor]:
-        device = self.periods.device
+        periods = cast(Tensor, self.periods)
+        device = periods.device
         dtype = self.dtype if self.dtype is not None else torch.get_default_dtype()
-        dd = {"device": device, "dtype": dtype}
 
         if self.normalize_coords == "max":
             max_HW = max(H, W)
-            coords_h = torch.arange(0.5, H, **dd) / max_HW
-            coords_w = torch.arange(0.5, W, **dd) / max_HW
+            coords_h = torch.arange(0.5, H, device=device, dtype=dtype) / max_HW
+            coords_w = torch.arange(0.5, W, device=device, dtype=dtype) / max_HW
         elif self.normalize_coords == "separate":
-            coords_h = torch.arange(0.5, H, **dd) / H
-            coords_w = torch.arange(0.5, W, **dd) / W
+            coords_h = torch.arange(0.5, H, device=device, dtype=dtype) / H
+            coords_w = torch.arange(0.5, W, device=device, dtype=dtype) / W
         else:  # min
             min_HW = min(H, W)
-            coords_h = torch.arange(0.5, H, **dd) / min_HW
-            coords_w = torch.arange(0.5, W, **dd) / min_HW
+            coords_h = torch.arange(0.5, H, device=device, dtype=dtype) / min_HW
+            coords_w = torch.arange(0.5, W, device=device, dtype=dtype) / min_HW
 
         coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"), dim=-1)
         coords = coords.flatten(0, 1)
         coords = 2.0 * coords - 1.0
 
         if self.training and self.shift_coords is not None:
-            coords += torch.empty(2, **dd).uniform_(
+            coords += torch.empty((2,), device=device, dtype=dtype).uniform_(
                 -self.shift_coords, self.shift_coords
             )[None, :]
         if self.training and self.jitter_coords is not None:
-            jitter = torch.empty(2, **dd).uniform_(
+            jitter = torch.empty((2,), device=device, dtype=dtype).uniform_(
                 -np.log(self.jitter_coords), np.log(self.jitter_coords)
             )
             coords *= jitter.exp()[None, :]
         if self.training and self.rescale_coords is not None:
-            rescale = torch.empty(1, **dd).uniform_(
+            rescale = torch.empty((1,), device=device, dtype=dtype).uniform_(
                 -np.log(self.rescale_coords), np.log(self.rescale_coords)
             )
             coords *= rescale.exp()
 
-        angles = 2 * math.pi * coords[:, :, None] / self.periods[None, None, :]
+        angles = 2 * math.pi * coords[:, :, None] / periods[None, None, :]
         angles = angles.flatten(1, 2).repeat(1, 2)
 
         sin = torch.sin(angles)
@@ -156,7 +175,8 @@ class RopePositionEmbedding(nn.Module):
         return sin.unsqueeze(0).unsqueeze(0), cos.unsqueeze(0).unsqueeze(0)
 
     def _init_weights(self) -> None:
-        device = self.periods.device
+        periods_buffer = cast(Tensor, self.periods)
+        device = periods_buffer.device
         dtype = self.dtype if self.dtype is not None else torch.get_default_dtype()
         if self.base is not None:
             periods = self.base ** (
@@ -168,9 +188,12 @@ class RopePositionEmbedding(nn.Module):
             assert self.max_period is not None
             assert self.min_period is not None
             base = self.max_period / self.min_period
-            exponents = torch.linspace(0, 1, self.D_head // 4, device=device, dtype=dtype)
+            exponents = torch.linspace(
+                0, 1, self.D_head // 4, device=device, dtype=dtype
+            )
             periods = self.max_period * (base ** (exponents - 1))
-        self.periods.data.copy_(periods)
+        with torch.no_grad():
+            periods_buffer.copy_(periods)
 
 
 def rotate_half(x: Tensor) -> Tensor:
@@ -220,12 +243,16 @@ class ConvPyramidPatchEmbed(nn.Module):
 
         self.convs = nn.ModuleList(
             [
-                ConvNormLayer(in_ch, out_ch, 3, 2, act=act)
+                ConvNormLayer(  # type: ignore[no-untyped-call]
+                    in_ch, out_ch, 3, 2, act=act
+                )
                 for in_ch, out_ch in zip([3] + channels[:-1], channels)
             ]
         )
 
-        self.proj = nn.Conv2d(channels[-1], embed_dim, kernel_size=3, stride=2, padding=1)
+        self.proj = nn.Conv2d(
+            channels[-1], embed_dim, kernel_size=3, stride=2, padding=1
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         for conv in self.convs:
@@ -254,7 +281,7 @@ class PatchEmbed(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.proj(x)
+        return cast(Tensor, self.proj(x))
 
 
 def drop_path(x: Tensor, drop_prob: float = 0.0, training: bool = False) -> Tensor:
@@ -430,15 +457,17 @@ class VisionTransformer(nn.Module):
         # Preserve EdgeCrafter behavior: GELU is used for transformer MLPs.
         act_layer = nn.GELU
 
+        patch_embed: nn.Module
         if embed_layer == PatchEmbed:
-            self.patch_embed = embed_layer(
+            patch_embed = embed_layer(
                 img_size=img_size,
                 patch_size=patch_size,
                 in_chans=in_chans,
                 embed_dim=embed_dim,
             )
         else:
-            self.patch_embed = embed_layer(embed_dim=embed_dim, patch_size=patch_size)
+            patch_embed = embed_layer(embed_dim=embed_dim, patch_size=patch_size)
+        self.patch_embed: nn.Module = patch_embed
         self.patch_size = patch_size
 
         self.register_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -491,7 +520,7 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x: Tensor) -> list[Tensor]:
         outs = []
-        x_embed = self.patch_embed(x)
+        x_embed = cast(Tensor, self.patch_embed(x))
         _, _, H, W = x_embed.shape
 
         x_embed = x_embed.flatten(2).transpose(1, 2)
@@ -591,7 +620,9 @@ class ECViTWrapper(nn.Module):
 
         self.projector = nn.ModuleList(
             [
-                ConvNormLayer(resolved_embed_dim, dim, kernel_size=1, stride=1)
+                ConvNormLayer(  # type: ignore[no-untyped-call]
+                    resolved_embed_dim, dim, kernel_size=1, stride=1
+                )
                 for dim in self.proj_dim
             ]
         )
@@ -634,7 +665,9 @@ class ECViTWrapper(nn.Module):
         if len(self.projector) == 1:
             proj_feats[-1] = self.projector[-1](proj_feats[-1])
         else:
-            proj_feats = [layer(feat) for layer, feat in zip(self.projector, proj_feats)]
+            proj_feats = [
+                layer(feat) for layer, feat in zip(self.projector, proj_feats)
+            ]
 
         assert len(proj_feats) == 3
         return proj_feats[0], proj_feats[1], proj_feats[2]
