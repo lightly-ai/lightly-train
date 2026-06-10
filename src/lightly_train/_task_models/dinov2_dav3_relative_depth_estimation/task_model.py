@@ -102,7 +102,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         self.process_resolution = process_resolution
 
         self.process_res_method = "upper_bound_resize"
-        self._input_processor = InputProcessor()  # type: ignore[no-untyped-call]
+        self._input_processor = InputProcessor()
 
         net_args = dict(config["model_args"])
         if model_args is not None:
@@ -226,7 +226,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
 
     def _preprocess_image(self, image: PathLike | PILImage | Tensor) -> Tensor:
         image_tensor = file_helpers.as_image_tensor(image)
-        batch, _exts, _intrinsics = self._input_processor(
+        batch = self._input_processor(
             [image_tensor],
             process_res=self.process_resolution,
             process_res_method=self.process_res_method,

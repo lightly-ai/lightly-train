@@ -8,309 +8,121 @@
 
 """Input processor for Depth Anything 3.
 
-Converts a list of images into a single model-ready batch tensor, processing each
-image sequentially. The square center-crop step is omitted for "*crop" methods.
+Converts a list of image tensors into a single model-ready batch tensor, processing
+each image sequentially. The square center-crop step is omitted for "*crop" methods.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Optional, Tuple
 
-import numpy as np
 import torch
 import torchvision.transforms.v2.functional as tv_functional
-from numpy.typing import NDArray
 from torch import Tensor
 
 logger = logging.getLogger(__name__)
-
-# (image_tensor, (H, W), intrinsic, extrinsic) produced for a single input image.
-_ProcessedItem = Tuple[
-    Tensor,
-    Tuple[int, int],
-    Optional[NDArray[np.float32]],
-    Optional[NDArray[np.float32]],
-]
 
 
 class InputProcessor:
     """Prepares a batch of images for model inference.
 
-    This processor converts a list of ``(C, H, W)`` image tensors into a single,
-    model-ready tensor. Each image is processed sequentially and the order of outputs
-    matches the input order.
+    Converts a list of ``(C, H, W)`` image tensors into a single model-ready
+    ``(N, 3, H, W)`` tensor. The order of outputs matches the input order.
 
     Pipeline:
-      1) Convert to a float32 RGB tensor in [0, 1]
+      1) Convert to a float32 RGB tensor in [0, 255]
       2) Boundary resize (upper/lower bound, preserving aspect ratio)
       3) Enforce divisibility by PATCH_SIZE:
          - "*resize" methods: each dimension is rounded to nearest multiple
            (may up/downscale a few px)
          - "*crop"   methods: each dimension is floored to nearest multiple via center crop
       4) Apply ImageNet normalization
-      5) Stack into (1, N, 3, H, W)
+      5) Stack into (N, 3, H, W)
     """
 
     NORMALIZE_MEAN = (0.485, 0.456, 0.406)
     NORMALIZE_STD = (0.229, 0.224, 0.225)
     PATCH_SIZE = 14
+    RESIZE_METHODS = (
+        "upper_bound_resize",
+        "upper_bound_crop",
+        "lower_bound_resize",
+        "lower_bound_crop",
+    )
 
-    def __init__(self) -> None:
-        pass
-
-    # -----------------------------
-    # Public API
-    # -----------------------------
     def __call__(
         self,
-        image: Sequence[Tensor],
-        extrinsics: NDArray[np.float32] | None = None,
-        intrinsics: NDArray[np.float32] | None = None,
+        images: Sequence[Tensor],
         process_res: int = 504,
         process_res_method: str = "upper_bound_resize",
-    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
-        """
+    ) -> Tensor:
+        """Processes images into a model-ready batch.
+
+        Args:
+            images: Images with shape ``(C, H, W)``. Integer tensors are interpreted
+                in their dtype's value range (e.g. uint8 in [0, 255]) and float
+                tensors in [0, 1].
+            process_res: Target size for the boundary resize.
+            process_res_method: One of ``RESIZE_METHODS``.
+
         Returns:
-            (tensor, extrinsics_list, intrinsics_list)
-            tensor shape: (1, N, 3, H, W)
+            A normalized batch tensor of shape ``(N, 3, H, W)``.
         """
-        exts_list, ixts_list = self._validate_and_pack_meta(
-            image, extrinsics, intrinsics
-        )
-
-        results = self._process_all(
-            image=image,
-            exts_list=exts_list,
-            ixts_list=ixts_list,
-            process_res=process_res,
-            process_res_method=process_res_method,
-        )
-
-        proc_imgs, out_sizes, out_ixts, out_exts = self._unpack_results(results)
-        proc_imgs, out_sizes, out_ixts = self._unify_batch_shapes(
-            proc_imgs, out_sizes, out_ixts
-        )
-
-        batch_tensor = self._stack_batch(proc_imgs)
-        out_exts_tensor = (
-            torch.from_numpy(np.asarray(out_exts)).float()
-            if out_exts is not None and out_exts[0] is not None
-            else None
-        )
-        out_ixts_tensor = (
-            torch.from_numpy(np.asarray(out_ixts)).float()
-            if out_ixts is not None and out_ixts[0] is not None
-            else None
-        )
-        return (batch_tensor, out_exts_tensor, out_ixts_tensor)
-
-    # -----------------------------
-    # __call__ helpers
-    # -----------------------------
-    def _validate_and_pack_meta(
-        self,
-        images: Sequence[Tensor],
-        extrinsics: NDArray[np.float32] | None,
-        intrinsics: NDArray[np.float32] | None,
-    ) -> tuple[
-        list[NDArray[np.float32] | None] | None, list[NDArray[np.float32] | None] | None
-    ]:
-        if extrinsics is not None and len(extrinsics) != len(images):
-            raise ValueError("Length of extrinsics must match images when provided.")
-        if intrinsics is not None and len(intrinsics) != len(images):
-            raise ValueError("Length of intrinsics must match images when provided.")
-        exts_list = [e for e in extrinsics] if extrinsics is not None else None
-        ixts_list = [k for k in intrinsics] if intrinsics is not None else None
-        return exts_list, ixts_list
-
-    def _process_all(
-        self,
-        *,
-        image: Sequence[Tensor],
-        exts_list: list[NDArray[np.float32] | None] | None,
-        ixts_list: list[NDArray[np.float32] | None] | None,
-        process_res: int,
-        process_res_method: str,
-    ) -> list[_ProcessedItem]:
-        results = [
+        if not images:
+            raise ValueError("The input image list is empty.")
+        if process_res_method not in self.RESIZE_METHODS:
+            raise ValueError(
+                f"Unsupported process_res_method '{process_res_method}'. Supported "
+                f"methods are: {self.RESIZE_METHODS}."
+            )
+        processed = [
             self._process_one(
                 img=img,
-                extrinsic=exts_list[i] if exts_list is not None else None,
-                intrinsic=ixts_list[i] if ixts_list is not None else None,
                 process_res=process_res,
                 process_res_method=process_res_method,
             )
-            for i, img in enumerate(image)
+            for img in images
         ]
-        if not results:
-            raise RuntimeError(
-                "No preprocessing results returned; the input image list is empty."
-            )
-        return results
+        processed = self._unify_sizes(processed)
+        return torch.stack(processed)
 
-    def _unpack_results(
-        self, results: Sequence[_ProcessedItem]
-    ) -> tuple[
-        list[Tensor],
-        list[tuple[int, int]],
-        list[NDArray[np.float32] | None],
-        list[NDArray[np.float32] | None],
-    ]:
-        """
-        results: per-image (image_tensor, (H, W), intrinsic, extrinsic) tuples
-        -> processed_images, out_sizes, out_intrinsics, out_extrinsics
-        """
-        try:
-            processed_images, out_sizes, out_intrinsics, out_extrinsics = zip(*results)
-        except Exception as e:
-            raise RuntimeError(
-                "Unexpected results structure from preprocessing: "
-                f"{type(results)} / sample: {results[0]}"
-            ) from e
-
-        return (
-            list(processed_images),
-            list(out_sizes),
-            list(out_intrinsics),
-            list(out_extrinsics),
+    def _process_one(
+        self, *, img: Tensor, process_res: int, process_res_method: str
+    ) -> Tensor:
+        image = self._to_rgb_tensor(img)
+        image = self._resize_bound(
+            image, target_size=process_res, method=process_res_method
         )
+        if process_res_method.endswith("resize"):
+            image = self._make_divisible_by_resize(image, patch=self.PATCH_SIZE)
+        else:
+            image = self._make_divisible_by_crop(image, patch=self.PATCH_SIZE)
+        return self._normalize_image(image)
 
-    def _unify_batch_shapes(
-        self,
-        processed_images: list[torch.Tensor],
-        out_sizes: list[tuple[int, int]],
-        out_intrinsics: list[NDArray[np.float32] | None],
-    ) -> tuple[
-        list[torch.Tensor], list[tuple[int, int]], list[NDArray[np.float32] | None]
-    ]:
-        """Center-crop all tensors to the smallest H, W; adjust intrinsics' cx, cy accordingly."""
-        if len(set(out_sizes)) <= 1:
-            return processed_images, out_sizes, out_intrinsics
-
-        min_h = min(h for h, _ in out_sizes)
-        min_w = min(w for _, w in out_sizes)
+    def _unify_sizes(self, images: list[Tensor]) -> list[Tensor]:
+        """Center-crops all images to the smallest height and width in the batch."""
+        sizes = {tuple(img.shape[-2:]) for img in images}
+        if len(sizes) <= 1:
+            return images
+        min_h = min(h for h, _ in sizes)
+        min_w = min(w for _, w in sizes)
         logger.warning(
-            f"Images in batch have different sizes {out_sizes}; "
+            f"Images in batch have different sizes {sorted(sizes)}; "
             f"center-cropping all to smallest ({min_h},{min_w})"
         )
+        return [
+            tv_functional.center_crop(img, output_size=[min_h, min_w]) for img in images
+        ]
 
-        new_imgs: list[Tensor] = []
-        new_sizes: list[tuple[int, int]] = []
-        new_ixts: list[NDArray[np.float32] | None] = []
-        for img_t, (H, W), K in zip(processed_images, out_sizes, out_intrinsics):
-            crop_top = max(0, (H - min_h) // 2)
-            crop_left = max(0, (W - min_w) // 2)
-            new_imgs.append(
-                tv_functional.center_crop(img_t, output_size=[min_h, min_w])
-            )
-            new_sizes.append((min_h, min_w))
-            if K is None:
-                new_ixts.append(None)
-            else:
-                K_adj = K.copy()
-                K_adj[0, 2] -= crop_left
-                K_adj[1, 2] -= crop_top
-                new_ixts.append(K_adj)
-        return new_imgs, new_sizes, new_ixts
-
-    def _stack_batch(self, processed_images: list[torch.Tensor]) -> torch.Tensor:
-        return torch.stack(processed_images)
-
-    # -----------------------------
-    # Per-item worker
-    # -----------------------------
-    def _process_one(
-        self,
-        img: Tensor,
-        extrinsic: NDArray[np.float32] | None = None,
-        intrinsic: NDArray[np.float32] | None = None,
-        *,
-        process_res: int,
-        process_res_method: str,
-    ) -> tuple[
-        torch.Tensor,
-        tuple[int, int],
-        NDArray[np.float32] | None,
-        NDArray[np.float32] | None,
-    ]:
-        # Convert to float RGB & remember original size
-        image = self._to_rgb_tensor(img)
-        orig_h, orig_w = image.shape[-2:]
-
-        # Boundary resize
-        image = self._resize_image(image, process_res, process_res_method)
-        h, w = image.shape[-2:]
-        intrinsic = self._resize_ixt(intrinsic, orig_w, orig_h, w, h)
-
-        # Enforce divisibility by PATCH_SIZE
-        if process_res_method.endswith("resize"):
-            image = self._make_divisible_by_resize(image, self.PATCH_SIZE)
-            new_h, new_w = image.shape[-2:]
-            intrinsic = self._resize_ixt(intrinsic, w, h, new_w, new_h)
-            w, h = new_w, new_h
-        elif process_res_method.endswith("crop"):
-            image = self._make_divisible_by_crop(image, self.PATCH_SIZE)
-            new_h, new_w = image.shape[-2:]
-            intrinsic = self._crop_ixt(intrinsic, w, h, new_w, new_h)
-            w, h = new_w, new_h
-        else:
-            raise ValueError(f"Unsupported process_res_method: {process_res_method}")
-
-        # Normalize
-        img_tensor = self._normalize_image(image)
-        _, H, W = img_tensor.shape
-        assert (W, H) == (w, h), "Tensor size mismatch after processing."
-
-        # Return: (img_tensor, (H, W), intrinsic, extrinsic)
-        return img_tensor, (H, W), intrinsic, extrinsic
-
-    # -----------------------------
-    # Intrinsics transforms
-    # -----------------------------
-    def _resize_ixt(
-        self,
-        intrinsic: NDArray[np.float32] | None,
-        orig_w: int,
-        orig_h: int,
-        w: int,
-        h: int,
-    ) -> NDArray[np.float32] | None:
-        if intrinsic is None:
-            return None
-        K = intrinsic.copy()
-        # scale fx, cx by w ratio; fy, cy by h ratio
-        K[:1] *= w / float(orig_w)
-        K[1:2] *= h / float(orig_h)
-        return K
-
-    def _crop_ixt(
-        self,
-        intrinsic: NDArray[np.float32] | None,
-        orig_w: int,
-        orig_h: int,
-        w: int,
-        h: int,
-    ) -> NDArray[np.float32] | None:
-        if intrinsic is None:
-            return None
-        K = intrinsic.copy()
-        crop_h = (orig_h - h) // 2
-        crop_w = (orig_w - w) // 2
-        K[0, 2] -= crop_w
-        K[1, 2] -= crop_h
-        return K
-
-    # -----------------------------
-    # Conversion & normalization
-    # -----------------------------
     def _to_rgb_tensor(self, img: Tensor) -> Tensor:
-        """Converts a ``(C, H, W)`` image tensor to a float32 RGB tensor in [0, 1].
+        """Converts a ``(C, H, W)`` image tensor to a float32 RGB tensor in [0, 255].
 
-        Integer tensors are scaled by the maximum of their dtype (e.g. uint8 by
-        1/255); float tensors are assumed to already be in [0, 1]. Single-channel
-        images are repeated to three channels and an alpha channel is dropped.
+        The pipeline operates in 0-255 float space so the resize arithmetic is
+        bit-identical to the official uint8-based cv2 pipeline; uint8 values are kept
+        exactly, other integer dtypes are rescaled from their value range, and float
+        tensors are assumed to be in [0, 1]. Single-channel images are repeated to
+        three channels and an alpha channel is dropped.
         """
         if img.ndim != 3:
             raise ValueError(f"Expected image shape (C, H, W), got {tuple(img.shape)}.")
@@ -323,57 +135,45 @@ class InputProcessor:
             raise ValueError(
                 f"Expected an image with 1, 3, or 4 channels, got {channels}."
             )
+        if img.dtype == torch.uint8:
+            return img.to(torch.float32)
         out: Tensor = tv_functional.to_dtype(img, dtype=torch.float32, scale=True)
-        return out
+        return out.mul_(255.0)
 
     def _normalize_image(self, img: Tensor) -> Tensor:
+        # Multiply by 1/255 instead of dividing by 255 to match
+        # `to_dtype(..., scale=True)` bit-exactly.
         img = tv_functional.normalize(
-            img, mean=list(self.NORMALIZE_MEAN), std=list(self.NORMALIZE_STD)
+            img.mul(1.0 / 255.0),
+            mean=list(self.NORMALIZE_MEAN),
+            std=list(self.NORMALIZE_STD),
         )
         return img
 
-    # -----------------------------
-    # Boundary resizing
-    # -----------------------------
-    def _resize_image(self, img: Tensor, target_size: int, method: str) -> Tensor:
-        if method in ("upper_bound_resize", "upper_bound_crop"):
-            return self._resize_longest_side(img, target_size)
-        elif method in ("lower_bound_resize", "lower_bound_crop"):
-            return self._resize_shortest_side(img, target_size)
-        else:
-            raise ValueError(f"Unsupported resize method: {method}")
-
-    def _resize_longest_side(self, img: Tensor, target_size: int) -> Tensor:
+    def _resize_bound(self, img: Tensor, *, target_size: int, method: str) -> Tensor:
+        """Resizes so the longest ("upper_bound_*") or shortest ("lower_bound_*")
+        side matches ``target_size``, preserving the aspect ratio."""
         h, w = img.shape[-2:]
-        longest = max(w, h)
-        if longest == target_size:
+        bound = max(h, w) if method.startswith("upper_bound") else min(h, w)
+        if bound == target_size:
             return img
-        scale = target_size / float(longest)
-        new_w = max(1, int(round(w * scale)))
+        scale = target_size / float(bound)
         new_h = max(1, int(round(h * scale)))
-        return self._resize_to(img, new_h, new_w)
-
-    def _resize_shortest_side(self, img: Tensor, target_size: int) -> Tensor:
-        h, w = img.shape[-2:]
-        shortest = min(w, h)
-        if shortest == target_size:
-            return img
-        scale = target_size / float(shortest)
         new_w = max(1, int(round(w * scale)))
-        new_h = max(1, int(round(h * scale)))
-        return self._resize_to(img, new_h, new_w)
+        return self._resize_to(img, new_h=new_h, new_w=new_w)
 
-    def _resize_to(self, img: Tensor, new_h: int, new_w: int) -> Tensor:
+    def _resize_to(self, img: Tensor, *, new_h: int, new_w: int) -> Tensor:
         """Resizes a ``(C, H, W)`` float image to ``(new_h, new_w)``.
 
         Reproduces the cv2 resampling the official DA3 reference depends on without an
         OpenCV dependency: ``INTER_AREA`` when shrinking and ``INTER_CUBIC`` when
         enlarging. Both are separable, so per-axis ``(dst, src)`` weight matrices are
         built and applied along the height then the width. As in cv2, the kernel choice
-        is joint over both axes: a resize that enlarges either axis uses cubic, and
-        cubic overshoot is clamped to the valid value range. Unlike cv2, the result
-        stays in float instead of rounding back to uint8, so values match the official
-        cv2 pipeline to within one uint8 level.
+        is joint over both axes: a resize that enlarges either axis uses cubic. The
+        result is rounded back to the integer grid (in float, without a dtype change),
+        reproducing cv2's round-back-to-uint8 so values match the official pipeline
+        bit-exactly; skipping this quantization shifts the model input enough to
+        visibly change the predicted depth.
         """
         h, w = img.shape[-2:]
         enlarging = new_h > h or new_w > w
@@ -382,7 +182,7 @@ class InputProcessor:
         col_weights = weights(src=w, dst=new_w, device=img.device)
         x = torch.einsum("ph,chw->cpw", row_weights, img)
         x = torch.einsum("qw,cpw->cpq", col_weights, x)
-        return x.clamp(min=0.0, max=1.0)
+        return x.round().clamp(min=0.0, max=255.0)
 
     @staticmethod
     def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
@@ -432,37 +232,36 @@ class InputProcessor:
             weights[rows, taps] += kernel(frac - offset)
         return weights
 
-    # -----------------------------
-    # Make divisible by PATCH_SIZE
-    # -----------------------------
-    def _make_divisible_by_crop(self, img: Tensor, patch: int) -> Tensor:
-        """
-        Floor each dimension to the nearest multiple of PATCH_SIZE via center crop.
-        Example: 504x377 -> 504x364
+    def _make_divisible_by_crop(self, img: Tensor, *, patch: int) -> Tensor:
+        """Floors each dimension to the nearest multiple of ``patch`` via center crop.
+
+        Example: 504x377 -> 504x364.
         """
         h, w = img.shape[-2:]
-        new_w = (w // patch) * patch
         new_h = (h // patch) * patch
+        new_w = (w // patch) * patch
         if new_w == w and new_h == h:
             return img
-        left = (w - new_w) // 2
         top = (h - new_h) // 2
-        img = tv_functional.crop(img, top=top, left=left, height=new_h, width=new_w)
-        return img
+        left = (w - new_w) // 2
+        # The annotation asserts the type at the torchvision boundary: torchvision
+        # ships no py.typed marker, so mypy sees its functions as returning Any.
+        cropped: Tensor = tv_functional.crop(
+            img, top=top, left=left, height=new_h, width=new_w
+        )
+        return cropped
 
-    def _make_divisible_by_resize(self, img: Tensor, patch: int) -> Tensor:
-        """
-        Round each dimension to nearest multiple of PATCH_SIZE via small resize.
-        """
-        h, w = img.shape[-2:]
+    def _make_divisible_by_resize(self, img: Tensor, *, patch: int) -> Tensor:
+        """Rounds each dimension to the nearest multiple of ``patch`` via small resize."""
 
-        def nearest_multiple(x: int, p: int) -> int:
-            down = (x // p) * p
-            up = down + p
+        def nearest_multiple(x: int) -> int:
+            down = (x // patch) * patch
+            up = down + patch
             return up if abs(up - x) <= abs(x - down) else down
 
-        new_w = max(1, nearest_multiple(w, patch))
-        new_h = max(1, nearest_multiple(h, patch))
+        h, w = img.shape[-2:]
+        new_h = max(1, nearest_multiple(h))
+        new_w = max(1, nearest_multiple(w))
         if new_w == w and new_h == h:
             return img
-        return self._resize_to(img, new_h, new_w)
+        return self._resize_to(img, new_h=new_h, new_w=new_w)
