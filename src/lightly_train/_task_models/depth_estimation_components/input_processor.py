@@ -20,13 +20,16 @@ from collections.abc import Sequence
 import numpy as np
 import torch
 import torchvision.transforms.v2.functional as tv_functional
+from numpy.typing import NDArray
 from PIL import Image
 from torch import Tensor
 
 logger = logging.getLogger(__name__)
 
 # (image_tensor, (H, W), intrinsic, extrinsic) produced for a single input image.
-_ProcessedItem = tuple[Tensor, tuple[int, int], np.ndarray | None, np.ndarray | None]
+_ProcessedItem = tuple[
+    Tensor, tuple[int, int], NDArray[np.float32] | None, NDArray[np.float32] | None
+]
 
 
 class InputProcessor:
@@ -59,9 +62,9 @@ class InputProcessor:
     # -----------------------------
     def __call__(
         self,
-        image: list[np.ndarray | Image.Image | str],
-        extrinsics: np.ndarray | None = None,
-        intrinsics: np.ndarray | None = None,
+        image: list[NDArray[np.uint8] | Image.Image | str],
+        extrinsics: NDArray[np.float32] | None = None,
+        intrinsics: NDArray[np.float32] | None = None,
         process_res: int = 504,
         process_res_method: str = "upper_bound_resize",
     ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
@@ -105,10 +108,12 @@ class InputProcessor:
     # -----------------------------
     def _validate_and_pack_meta(
         self,
-        images: list[np.ndarray | Image.Image | str],
-        extrinsics: np.ndarray | None,
-        intrinsics: np.ndarray | None,
-    ) -> tuple[list[np.ndarray | None] | None, list[np.ndarray | None] | None]:
+        images: list[NDArray[np.uint8] | Image.Image | str],
+        extrinsics: NDArray[np.float32] | None,
+        intrinsics: NDArray[np.float32] | None,
+    ) -> tuple[
+        list[NDArray[np.float32] | None] | None, list[NDArray[np.float32] | None] | None
+    ]:
         if extrinsics is not None and len(extrinsics) != len(images):
             raise ValueError("Length of extrinsics must match images when provided.")
         if intrinsics is not None and len(intrinsics) != len(images):
@@ -120,9 +125,9 @@ class InputProcessor:
     def _process_all(
         self,
         *,
-        image: list[np.ndarray | Image.Image | str],
-        exts_list: list[np.ndarray | None] | None,
-        ixts_list: list[np.ndarray | None] | None,
+        image: list[NDArray[np.uint8] | Image.Image | str],
+        exts_list: list[NDArray[np.float32] | None] | None,
+        ixts_list: list[NDArray[np.float32] | None] | None,
         process_res: int,
         process_res_method: str,
     ) -> list[_ProcessedItem]:
@@ -147,8 +152,8 @@ class InputProcessor:
     ) -> tuple[
         list[Tensor],
         list[tuple[int, int]],
-        list[np.ndarray | None],
-        list[np.ndarray | None],
+        list[NDArray[np.float32] | None],
+        list[NDArray[np.float32] | None],
     ]:
         """
         results: per-image (image_tensor, (H, W), intrinsic, extrinsic) tuples
@@ -173,8 +178,10 @@ class InputProcessor:
         self,
         processed_images: list[torch.Tensor],
         out_sizes: list[tuple[int, int]],
-        out_intrinsics: list[np.ndarray | None],
-    ) -> tuple[list[torch.Tensor], list[tuple[int, int]], list[np.ndarray | None]]:
+        out_intrinsics: list[NDArray[np.float32] | None],
+    ) -> tuple[
+        list[torch.Tensor], list[tuple[int, int]], list[NDArray[np.float32] | None]
+    ]:
         """Center-crop all tensors to the smallest H, W; adjust intrinsics' cx, cy accordingly."""
         if len(set(out_sizes)) <= 1:
             return processed_images, out_sizes, out_intrinsics
@@ -188,7 +195,7 @@ class InputProcessor:
 
         new_imgs: list[Tensor] = []
         new_sizes: list[tuple[int, int]] = []
-        new_ixts: list[np.ndarray | None] = []
+        new_ixts: list[NDArray[np.float32] | None] = []
         for img_t, (H, W), K in zip(processed_images, out_sizes, out_intrinsics):
             crop_top = max(0, (H - min_h) // 2)
             crop_left = max(0, (W - min_w) // 2)
@@ -213,13 +220,18 @@ class InputProcessor:
     # -----------------------------
     def _process_one(
         self,
-        img: np.ndarray | Image.Image | str,
-        extrinsic: np.ndarray | None = None,
-        intrinsic: np.ndarray | None = None,
+        img: NDArray[np.uint8] | Image.Image | str,
+        extrinsic: NDArray[np.float32] | None = None,
+        intrinsic: NDArray[np.float32] | None = None,
         *,
         process_res: int,
         process_res_method: str,
-    ) -> tuple[torch.Tensor, tuple[int, int], np.ndarray | None, np.ndarray | None]:
+    ) -> tuple[
+        torch.Tensor,
+        tuple[int, int],
+        NDArray[np.float32] | None,
+        NDArray[np.float32] | None,
+    ]:
         # Load & remember original size
         image = self._load_image(img)
         orig_h, orig_w = image.shape[-2:]
@@ -258,12 +270,12 @@ class InputProcessor:
     # -----------------------------
     def _resize_ixt(
         self,
-        intrinsic: np.ndarray | None,
+        intrinsic: NDArray[np.float32] | None,
         orig_w: int,
         orig_h: int,
         w: int,
         h: int,
-    ) -> np.ndarray | None:
+    ) -> NDArray[np.float32] | None:
         if intrinsic is None:
             return None
         K = intrinsic.copy()
@@ -274,12 +286,12 @@ class InputProcessor:
 
     def _crop_ixt(
         self,
-        intrinsic: np.ndarray | None,
+        intrinsic: NDArray[np.float32] | None,
         orig_w: int,
         orig_h: int,
         w: int,
         h: int,
-    ) -> np.ndarray | None:
+    ) -> NDArray[np.float32] | None:
         if intrinsic is None:
             return None
         K = intrinsic.copy()
@@ -292,7 +304,7 @@ class InputProcessor:
     # -----------------------------
     # I/O & normalization
     # -----------------------------
-    def _load_image(self, img: np.ndarray | Image.Image | str) -> Tensor:
+    def _load_image(self, img: NDArray[np.uint8] | Image.Image | str) -> Tensor:
         if isinstance(img, str):
             pil_img = Image.open(img).convert("RGB")
         elif isinstance(img, np.ndarray):
