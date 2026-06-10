@@ -585,9 +585,14 @@ class ECViTWrapper(nn.Module):
         resolved_num_heads = cast(
             int, preset["num_heads"] if num_heads is _DEFAULT else num_heads
         )
-        resolved_proj_dim = cast(
-            int | None, preset["proj_dim"] if proj_dim is _DEFAULT else proj_dim
-        )
+        if proj_dim is _DEFAULT:
+            resolved_proj_dim = preset["proj_dim"]
+            if resolved_proj_dim is not None and not isinstance(resolved_proj_dim, int):
+                raise TypeError("Preset proj_dim must be an int or None.")
+        else:
+            if proj_dim is not None and not isinstance(proj_dim, int):
+                raise TypeError("proj_dim must be an int or None.")
+            resolved_proj_dim = proj_dim
         resolved_ffn_ratio = cast(
             float, preset["ffn_ratio"] if ffn_ratio is _DEFAULT else ffn_ratio
         )
@@ -683,16 +688,33 @@ def _load_torch_checkpoint(path: Path) -> object:
         return torch.load(path, map_location="cpu")
 
 
+def _to_tensor_state_dict(state: object) -> Mapping[str, Tensor] | None:
+    if not isinstance(state, Mapping):
+        return None
+
+    tensor_state_dict: dict[str, Tensor] = {}
+    for key, value in state.items():
+        if not isinstance(key, str) or not isinstance(value, Tensor):
+            return None
+        tensor_state_dict[key] = value
+    return tensor_state_dict
+
+
 def _unwrap_state_dict(state: object) -> Mapping[str, Tensor]:
     if not isinstance(state, Mapping):
         raise TypeError(f"Expected a state dict mapping, got {type(state)!r}.")
 
     for key in ("state_dict", "model", "backbone"):
         maybe_state_dict = state.get(key)
-        if isinstance(maybe_state_dict, Mapping):
-            return cast(Mapping[str, Tensor], maybe_state_dict)
+        state_dict = _to_tensor_state_dict(maybe_state_dict)
+        if state_dict is not None:
+            return state_dict
 
-    return cast(Mapping[str, Tensor], state)
+    state_dict = _to_tensor_state_dict(state)
+    if state_dict is not None:
+        return state_dict
+
+    raise TypeError("Expected checkpoint to contain a tensor state dict.")
 
 
 # EdgeCrafter calls this module ViTAdapter. Keep the alias for familiarity while the
