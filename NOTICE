@@ -10,6 +10,15 @@ This project incorporates the following third-party components:
     - Added errors for states that are considered invalid (i.e no cosine phase).
     - Refactored the code and logic to adheres to our standards.
 
+**EdgeCrafter**
+- Source: https://github.com/Intellindust-AI-Lab/EdgeCrafter
+- License: Apache License 2.0
+- License file: licences/EDGECRAFTER_LICENSE
+- Modifications:
+  - Ported the ECViT backbone and ViTAdapter to LightlyTrain. Affected file: `src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py`.
+  - Removed EdgeCrafter registry/distributed dependencies. Affected file: `src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py`.
+  - Added typed LTDETR-compatible tuple output. Affected file: `src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py`.
+
 **DINOv2**
 - Source: https://github.com/facebookresearch/dinov2
 - License: Apache License 2.0
