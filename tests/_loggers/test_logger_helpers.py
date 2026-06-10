@@ -212,7 +212,7 @@ def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
         experiment_name="test_exp",
         tracking_uri=f"sqlite:///{tmp_path / 'mlflow.db'}",
         save_dir=tmp_path,
-        artifact_location=str(tmp_path / "artifacts"),
+        artifact_location=(tmp_path / "artifacts").as_uri(),
     )
     image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
 
