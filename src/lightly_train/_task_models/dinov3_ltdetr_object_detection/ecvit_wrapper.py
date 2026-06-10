@@ -37,19 +37,20 @@ import warnings
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal, TypeAlias, cast
+from typing import Any, Union, cast
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+from typing_extensions import Literal, TypeAlias
 
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     ConvNormLayer,
 )
 
-PathLike: TypeAlias = str | os.PathLike[str]
+PathLike: TypeAlias = Union[str, "os.PathLike[str]"]
 
 _DEFAULT = object()
 
