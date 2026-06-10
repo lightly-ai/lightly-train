@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -27,8 +28,11 @@ from torch import Tensor
 logger = logging.getLogger(__name__)
 
 # (image_tensor, (H, W), intrinsic, extrinsic) produced for a single input image.
-_ProcessedItem = tuple[
-    Tensor, tuple[int, int], NDArray[np.float32] | None, NDArray[np.float32] | None
+_ProcessedItem = Tuple[
+    Tensor,
+    Tuple[int, int],
+    Optional[NDArray[np.float32]],
+    Optional[NDArray[np.float32]],
 ]
 
 
