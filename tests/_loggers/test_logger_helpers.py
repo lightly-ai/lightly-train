@@ -154,7 +154,7 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
             jsonl=None,
             mlflow=MLFlowLoggerArgs(
                 experiment_name="abc",
-                tracking_uri=f"sqlite:///{tmp_path / 'mlflow.db'}",
+                tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}",
             ),
             tensorboard=None,
             wandb=None,
@@ -210,7 +210,7 @@ def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
     # Verifies the image is written as a PNG artifact with correct pixel content.
     mlflow_logger = MLFlowLogger(
         experiment_name="test_exp",
-        tracking_uri=f"sqlite:///{tmp_path / 'mlflow.db'}",
+        tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}",
         save_dir=tmp_path,
         artifact_location=(tmp_path / "artifacts").as_uri(),
     )
