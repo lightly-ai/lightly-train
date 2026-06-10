@@ -22,7 +22,6 @@ import numpy as np
 import torch
 import torchvision.transforms.v2.functional as tv_functional
 from numpy.typing import NDArray
-from PIL import Image
 from torch import Tensor
 
 logger = logging.getLogger(__name__)
@@ -39,18 +38,18 @@ _ProcessedItem = Tuple[
 class InputProcessor:
     """Prepares a batch of images for model inference.
 
-    This processor converts a list of image file paths into a single, model-ready
-    tensor. Each image is processed sequentially and the order of outputs matches
-    the input order.
+    This processor converts a list of ``(C, H, W)`` image tensors into a single,
+    model-ready tensor. Each image is processed sequentially and the order of outputs
+    matches the input order.
 
     Pipeline:
-      1) Load image and convert to RGB
+      1) Convert to a float32 RGB tensor in [0, 1]
       2) Boundary resize (upper/lower bound, preserving aspect ratio)
       3) Enforce divisibility by PATCH_SIZE:
          - "*resize" methods: each dimension is rounded to nearest multiple
            (may up/downscale a few px)
          - "*crop"   methods: each dimension is floored to nearest multiple via center crop
-      4) Convert to tensor and apply ImageNet normalization
+      4) Apply ImageNet normalization
       5) Stack into (1, N, 3, H, W)
     """
 
@@ -66,7 +65,7 @@ class InputProcessor:
     # -----------------------------
     def __call__(
         self,
-        image: list[NDArray[np.uint8] | Image.Image | str],
+        image: Sequence[Tensor],
         extrinsics: NDArray[np.float32] | None = None,
         intrinsics: NDArray[np.float32] | None = None,
         process_res: int = 504,
@@ -112,7 +111,7 @@ class InputProcessor:
     # -----------------------------
     def _validate_and_pack_meta(
         self,
-        images: list[NDArray[np.uint8] | Image.Image | str],
+        images: Sequence[Tensor],
         extrinsics: NDArray[np.float32] | None,
         intrinsics: NDArray[np.float32] | None,
     ) -> tuple[
@@ -129,7 +128,7 @@ class InputProcessor:
     def _process_all(
         self,
         *,
-        image: list[NDArray[np.uint8] | Image.Image | str],
+        image: Sequence[Tensor],
         exts_list: list[NDArray[np.float32] | None] | None,
         ixts_list: list[NDArray[np.float32] | None] | None,
         process_res: int,
@@ -224,7 +223,7 @@ class InputProcessor:
     # -----------------------------
     def _process_one(
         self,
-        img: NDArray[np.uint8] | Image.Image | str,
+        img: Tensor,
         extrinsic: NDArray[np.float32] | None = None,
         intrinsic: NDArray[np.float32] | None = None,
         *,
@@ -236,8 +235,8 @@ class InputProcessor:
         NDArray[np.float32] | None,
         NDArray[np.float32] | None,
     ]:
-        # Load & remember original size
-        image = self._load_image(img)
+        # Convert to float RGB & remember original size
+        image = self._to_rgb_tensor(img)
         orig_h, orig_w = image.shape[-2:]
 
         # Boundary resize
@@ -259,12 +258,10 @@ class InputProcessor:
         else:
             raise ValueError(f"Unsupported process_res_method: {process_res_method}")
 
-        # Convert to float tensor & normalize
+        # Normalize
         img_tensor = self._normalize_image(image)
         _, H, W = img_tensor.shape
-        assert (W, H) == (w, h), (
-            "Tensor size mismatch with PIL image size after processing."
-        )
+        assert (W, H) == (w, h), "Tensor size mismatch after processing."
 
         # Return: (img_tensor, (H, W), intrinsic, extrinsic)
         return img_tensor, (H, W), intrinsic, extrinsic
@@ -306,24 +303,30 @@ class InputProcessor:
         return K
 
     # -----------------------------
-    # I/O & normalization
+    # Conversion & normalization
     # -----------------------------
-    def _load_image(self, img: NDArray[np.uint8] | Image.Image | str) -> Tensor:
-        if isinstance(img, str):
-            pil_img = Image.open(img).convert("RGB")
-        elif isinstance(img, np.ndarray):
-            # Assume HxWxC uint8/RGB.
-            pil_img = Image.fromarray(img).convert("RGB")
-        elif isinstance(img, Image.Image):
-            pil_img = img.convert("RGB")
-        else:
-            raise ValueError(f"Unsupported image type: {type(img)}")
-        # Decode to a uint8 (3, H, W) tensor; all transforms below stay in tensor space.
-        image: Tensor = tv_functional.pil_to_tensor(pil_img)
-        return image
+    def _to_rgb_tensor(self, img: Tensor) -> Tensor:
+        """Converts a ``(C, H, W)`` image tensor to a float32 RGB tensor in [0, 1].
+
+        Integer tensors are scaled by the maximum of their dtype (e.g. uint8 by
+        1/255); float tensors are assumed to already be in [0, 1]. Single-channel
+        images are repeated to three channels and an alpha channel is dropped.
+        """
+        if img.ndim != 3:
+            raise ValueError(f"Expected image shape (C, H, W), got {tuple(img.shape)}.")
+        channels = img.shape[0]
+        if channels == 1:
+            img = img.expand(3, -1, -1)
+        elif channels == 4:
+            img = img[:3]
+        elif channels != 3:
+            raise ValueError(
+                f"Expected an image with 1, 3, or 4 channels, got {channels}."
+            )
+        out: Tensor = tv_functional.to_dtype(img, dtype=torch.float32, scale=True)
+        return out
 
     def _normalize_image(self, img: Tensor) -> Tensor:
-        img = tv_functional.to_dtype(img, dtype=torch.float32, scale=True)
         img = tv_functional.normalize(
             img, mean=list(self.NORMALIZE_MEAN), std=list(self.NORMALIZE_STD)
         )
@@ -361,25 +364,25 @@ class InputProcessor:
         return self._resize_to(img, new_h, new_w)
 
     def _resize_to(self, img: Tensor, new_h: int, new_w: int) -> Tensor:
-        """Resizes a ``(C, H, W)`` uint8 image to ``(new_h, new_w)``.
+        """Resizes a ``(C, H, W)`` float image to ``(new_h, new_w)``.
 
         Reproduces the cv2 resampling the official DA3 reference depends on without an
         OpenCV dependency: ``INTER_AREA`` when shrinking and ``INTER_CUBIC`` when
         enlarging. Both are separable, so per-axis ``(dst, src)`` weight matrices are
-        built and applied along the height then the width, accumulating in float and
-        rounding back to uint8 once. As in cv2, the kernel choice is joint over both axes:
-        a resize that enlarges either axis uses cubic. Matches cv2 to within one uint8
-        level.
+        built and applied along the height then the width. As in cv2, the kernel choice
+        is joint over both axes: a resize that enlarges either axis uses cubic, and
+        cubic overshoot is clamped to the valid value range. Unlike cv2, the result
+        stays in float instead of rounding back to uint8, so values match the official
+        cv2 pipeline to within one uint8 level.
         """
         h, w = img.shape[-2:]
         enlarging = new_h > h or new_w > w
         weights = self._cubic_weights if enlarging else self._area_weights
         row_weights = weights(src=h, dst=new_h, device=img.device)
         col_weights = weights(src=w, dst=new_w, device=img.device)
-        x = img.to(torch.float32)
-        x = torch.einsum("ph,chw->cpw", row_weights, x)
+        x = torch.einsum("ph,chw->cpw", row_weights, img)
         x = torch.einsum("qw,cpw->cpq", col_weights, x)
-        return x.round().clamp(min=0, max=255).to(torch.uint8)
+        return x.clamp(min=0.0, max=1.0)
 
     @staticmethod
     def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:

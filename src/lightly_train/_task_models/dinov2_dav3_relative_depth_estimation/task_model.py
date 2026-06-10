@@ -13,9 +13,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
-from numpy.typing import NDArray
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
@@ -181,7 +179,8 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
-                shape ``(C, H, W)``.
+                shape ``(C, H, W)``; integer tensors are interpreted in their dtype's
+                value range (e.g. uint8 in [0, 255]) and float tensors in [0, 1].
 
         Returns:
             A depth tensor of shape ``(H, W)`` at the Depth Anything V3 processing
@@ -226,9 +225,9 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         return [patch_tokens for patch_tokens, _class_token in intermediate]
 
     def _preprocess_image(self, image: PathLike | PILImage | Tensor) -> Tensor:
-        proc_input = _as_input_processor_image(image)
+        image_tensor = file_helpers.as_image_tensor(image)
         batch, _exts, _intrinsics = self._input_processor(
-            [proc_input],
+            [image_tensor],
             process_res=self.process_resolution,
             process_res_method=self.process_res_method,
         )
@@ -307,22 +306,3 @@ def _load_pretrained_weights(
     else:
         state_dict = dict(checkpoint)
     model.load_train_state_dict(state_dict)
-
-
-def _as_input_processor_image(
-    image: PathLike | PILImage | Tensor,
-) -> NDArray[np.uint8]:
-    """Converts an input image to an ``(H, W, C)`` / ``(H, W)`` uint8 array.
-
-    Routes through LightlyTrain's loaders (paths, URLs, PIL images, tensors) and
-    returns a NumPy image that the official DA3 ``InputProcessor`` accepts.
-    """
-    tensor = file_helpers.as_image_tensor(image)
-    if tensor.ndim != 3:
-        raise ValueError(f"Expected image shape (C, H, W), got {tuple(tensor.shape)}.")
-
-    array = tensor.permute(1, 2, 0).cpu().numpy()
-    if array.shape[2] == 1:
-        # `Image.fromarray` expects a 2D array for single-channel images.
-        array = array[:, :, 0]
-    return np.ascontiguousarray(array)
