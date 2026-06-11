@@ -37,7 +37,7 @@ import warnings
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, Union, cast
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -50,8 +50,7 @@ from lightly_train._task_models.object_detection_components.hybrid_encoder impor
     ConvNormLayer,
 )
 
-PathLike: TypeAlias = Union[str, "os.PathLike[str]"]
-
+PathLike: TypeAlias = str | os.PathLike
 _DEFAULT = object()
 
 
@@ -109,7 +108,8 @@ class RopePositionEmbedding(nn.Module):
     ) -> None:
         super().__init__()
         head_dim = embed_dim // num_heads
-        assert head_dim % 4 == 0, "Head dimension must be divisible by 4 for 2D RoPE"
+        if head_dim % 4 != 0:
+            raise ValueError("Head dimension must be divisible by 4 for 2D RoPE.")
         both_periods = min_period is not None and max_period is not None
         if (base is None and not both_periods) or (base is not None and both_periods):
             raise ValueError(
@@ -236,8 +236,10 @@ class ConvPyramidPatchEmbed(nn.Module):
     def __init__(self, embed_dim: int = 192, patch_size: int = 16, act: str = "relu"):
         super().__init__()
 
-        assert patch_size == 16, "Only support patch_size=16 for ConvPyramidPatchEmbed"
-
+        if patch_size != 16:
+            raise NotImplementedError(
+                "Only support patch_size=16 for ConvPyramidPatchEmbed."
+            )
         num_stages = int(math.log2(patch_size)) - 1
         ratios = [2**i for i in range(num_stages, 0, -1)]
         channels = [embed_dim // r for r in ratios]
