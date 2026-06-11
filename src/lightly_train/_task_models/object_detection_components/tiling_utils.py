@@ -115,6 +115,11 @@ def _class_aware_mask_nms(
     order = scores.argsort(descending=True)
     keep: list[Tensor] = []
 
+    # Flatten and bool-cast the masks once up front so the NMS loop below does not
+    # repeat this work (and the associated allocations) on every iteration.
+    masks_flat = masks.flatten(1).bool()
+    areas = masks_flat.sum(dim=1)
+
     while order.numel() > 0:
         current = order[0]
         keep.append(current)
@@ -124,7 +129,12 @@ def _class_aware_mask_nms(
 
         rest = order[1:]
         same_label = labels[rest] == labels[current]
-        ious = _mask_iou(masks[current : current + 1], masks[rest]).squeeze(0)
+        ious = _mask_iou_flat(
+            masks_flat[current : current + 1],
+            areas[current : current + 1],
+            masks_flat[rest],
+            areas[rest],
+        ).squeeze(0)
         suppress = same_label & (ious > iou_threshold)
         order = rest[~suppress]
 
@@ -136,17 +146,29 @@ def _class_aware_mask_nms(
 def _mask_iou(masks1: Tensor, masks2: Tensor) -> Tensor:
     masks1_flat = masks1.flatten(1).bool()
     masks2_flat = masks2.flatten(1).bool()
+    return _mask_iou_flat(
+        masks1_flat,
+        masks1_flat.sum(dim=1),
+        masks2_flat,
+        masks2_flat.sum(dim=1),
+    )
 
-    area1 = masks1_flat.sum(dim=1)
-    area2 = masks2_flat.sum(dim=1)
 
+def _mask_iou_flat(
+    masks1_flat: Tensor,
+    areas1: Tensor,
+    masks2_flat: Tensor,
+    areas2: Tensor,
+) -> Tensor:
     # Compute IoUs one row of masks1 at a time. Materializing the full
     # (N1, N2, H*W) intersection tensor at once can exhaust memory for many
     # full-resolution masks, so we bound peak memory to a single (N2, H*W) slice.
-    ious = torch.zeros(masks1_flat.shape[0], masks2_flat.shape[0], device=masks1.device)
+    ious = torch.zeros(
+        masks1_flat.shape[0], masks2_flat.shape[0], device=masks1_flat.device
+    )
     for i in range(masks1_flat.shape[0]):
         intersection = (masks1_flat[i] & masks2_flat).sum(dim=1)
-        union = area1[i] + area2 - intersection
+        union = areas1[i] + areas2 - intersection
         ious[i] = torch.where(
             union > 0,
             intersection.float() / union.float(),
