@@ -37,20 +37,23 @@ import warnings
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Union, cast
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from typing_extensions import Literal, TypeAlias
+from typing_extensions import TypeAlias
 
+from lightly_train._models.dinov3.dinov3_src.layers.ffn_layers import Mlp
+from lightly_train._models.dinov3.dinov3_src.layers.rope_position_encoding import (
+    RopePositionEmbedding,
+)
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     ConvNormLayer,
 )
 
-PathLike: TypeAlias = str | os.PathLike
+PathLike: TypeAlias = Union[str, "os.PathLike[str]"]
 _DEFAULT = object()
 
 
@@ -90,113 +93,6 @@ ECVIT_PRESETS: dict[str, dict[str, int | None | float]] = {
 }
 
 
-class RopePositionEmbedding(nn.Module):
-    def __init__(
-        self,
-        embed_dim: int,
-        *,
-        num_heads: int,
-        base: float | None = 100.0,
-        min_period: float | None = None,
-        max_period: float | None = None,
-        normalize_coords: Literal["min", "max", "separate"] = "separate",
-        shift_coords: float | None = None,
-        jitter_coords: float | None = None,
-        rescale_coords: float | None = None,
-        dtype: torch.dtype | None = None,
-        device: torch.device | None = None,
-    ) -> None:
-        super().__init__()
-        head_dim = embed_dim // num_heads
-        if head_dim % 4 != 0:
-            raise ValueError("Head dimension must be divisible by 4 for 2D RoPE.")
-        both_periods = min_period is not None and max_period is not None
-        if (base is None and not both_periods) or (base is not None and both_periods):
-            raise ValueError(
-                "Either `base` or `min_period`+`max_period` must be provided."
-            )
-
-        self.base = base
-        self.min_period = min_period
-        self.max_period = max_period
-        self.D_head = head_dim
-        self.normalize_coords = normalize_coords
-        self.shift_coords = shift_coords
-        self.jitter_coords = jitter_coords
-        self.rescale_coords = rescale_coords
-        self.dtype = dtype
-        self.register_buffer(
-            "periods",
-            torch.empty(head_dim // 4, device=device, dtype=dtype),
-            persistent=True,
-        )
-        self._init_weights()
-
-    def forward(self, *, H: int, W: int) -> tuple[Tensor, Tensor]:
-        periods = cast(Tensor, self.periods)
-        device = periods.device
-        dtype = self.dtype if self.dtype is not None else torch.get_default_dtype()
-
-        if self.normalize_coords == "max":
-            max_HW = max(H, W)
-            coords_h = torch.arange(0.5, H, device=device, dtype=dtype) / max_HW
-            coords_w = torch.arange(0.5, W, device=device, dtype=dtype) / max_HW
-        elif self.normalize_coords == "separate":
-            coords_h = torch.arange(0.5, H, device=device, dtype=dtype) / H
-            coords_w = torch.arange(0.5, W, device=device, dtype=dtype) / W
-        else:  # min
-            min_HW = min(H, W)
-            coords_h = torch.arange(0.5, H, device=device, dtype=dtype) / min_HW
-            coords_w = torch.arange(0.5, W, device=device, dtype=dtype) / min_HW
-
-        coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"), dim=-1)
-        coords = coords.flatten(0, 1)
-        coords = 2.0 * coords - 1.0
-
-        if self.training and self.shift_coords is not None:
-            coords += torch.empty((2,), device=device, dtype=dtype).uniform_(
-                -self.shift_coords, self.shift_coords
-            )[None, :]
-        if self.training and self.jitter_coords is not None:
-            jitter = torch.empty((2,), device=device, dtype=dtype).uniform_(
-                -np.log(self.jitter_coords), np.log(self.jitter_coords)
-            )
-            coords *= jitter.exp()[None, :]
-        if self.training and self.rescale_coords is not None:
-            rescale = torch.empty((1,), device=device, dtype=dtype).uniform_(
-                -np.log(self.rescale_coords), np.log(self.rescale_coords)
-            )
-            coords *= rescale.exp()
-
-        angles = 2 * math.pi * coords[:, :, None] / periods[None, None, :]
-        angles = angles.flatten(1, 2).repeat(1, 2)
-
-        sin = torch.sin(angles)
-        cos = torch.cos(angles)
-        return sin.unsqueeze(0).unsqueeze(0), cos.unsqueeze(0).unsqueeze(0)
-
-    def _init_weights(self) -> None:
-        periods_buffer = cast(Tensor, self.periods)
-        device = periods_buffer.device
-        dtype = self.dtype if self.dtype is not None else torch.get_default_dtype()
-        if self.base is not None:
-            periods = self.base ** (
-                2
-                * torch.arange(self.D_head // 4, device=device, dtype=dtype)
-                / (self.D_head // 2)
-            )
-        else:
-            assert self.max_period is not None
-            assert self.min_period is not None
-            base = self.max_period / self.min_period
-            exponents = torch.linspace(
-                0, 1, self.D_head // 4, device=device, dtype=dtype
-            )
-            periods = self.max_period * (base ** (exponents - 1))
-        with torch.no_grad():
-            periods_buffer.copy_(periods)
-
-
 def rotate_half(x: Tensor) -> Tensor:
     x1 = x[..., : x.shape[-1] // 2]
     x2 = x[..., x.shape[-1] // 2 :]
@@ -205,31 +101,6 @@ def rotate_half(x: Tensor) -> Tensor:
 
 def apply_rope(x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
     return (x * cos) + (rotate_half(x) * sin)
-
-
-class Mlp(nn.Module):
-    def __init__(
-        self,
-        in_features: int,
-        hidden_features: int | None = None,
-        out_features: int | None = None,
-        act_layer: type[nn.Module] = nn.SiLU,
-        drop: float = 0.0,
-    ) -> None:
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
-        self.drop = nn.Dropout(drop)
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.act(self.fc1(x))
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = self.drop(x)
-        return x
 
 
 class ConvPyramidPatchEmbed(nn.Module):
@@ -509,7 +380,7 @@ class VisionTransformer(nn.Module):
 
     def init_weights(self) -> None:
         self.apply(self._init_vit_weights)
-        self.rope_embed._init_weights()
+        cast(Any, self.rope_embed)._init_weights()
         trunc_normal_(self.register_token, std=0.02)
 
     def _init_vit_weights(self, m: nn.Module) -> None:
@@ -529,7 +400,8 @@ class VisionTransformer(nn.Module):
         x_embed = x_embed.flatten(2).transpose(1, 2)
         register_token = self.register_token.expand(x_embed.shape[0], -1, -1)
         x = torch.cat((register_token, x_embed), dim=1)
-        rope_sincos = self.rope_embed(H=H, W=W)
+        sin, cos = self.rope_embed(H=H, W=W)
+        rope_sincos = sin.unsqueeze(0).unsqueeze(0), cos.unsqueeze(0).unsqueeze(0)
 
         for i, blk in enumerate(self.blocks):
             x = blk(x, rope_sincos=rope_sincos)
