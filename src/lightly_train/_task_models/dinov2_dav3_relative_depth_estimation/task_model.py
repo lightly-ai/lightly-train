@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
+import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
@@ -180,10 +181,8 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 value range (e.g. uint8 in [0, 255]) and float tensors in [0, 1].
 
         Returns:
-            A depth tensor of shape ``(H, W)`` at the Depth Anything V3 processing
-            resolution (the longest side resized to ``process_resolution``, both sides rounded
-            to a multiple of the patch size). This matches the official ``Prediction``
-            resolution. Larger values correspond to farther scene content.
+            A depth tensor of shape ``(H, W)`` matching the original input resolution.
+            Larger values correspond to farther scene content.
         """
         self._track_inference()
         if self.training:
@@ -207,9 +206,10 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 tensor of shape ``(C, H, W)``.
 
         Returns:
-            One depth tensor of shape ``(H, W)`` per image at the processing
-            resolution. Images whose processed sizes differ are center-cropped to the
-            smallest size in the batch.
+            One depth tensor of shape ``(H, W)`` per image, matching each image's
+            original resolution. Images whose processed sizes differ are
+            center-cropped to the smallest size in the batch before inference, so
+            their depth maps are slightly stretched when resized back.
         """
         self._track_inference()
         if self.training:
@@ -268,21 +268,25 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         raw_outputs: dict[str, Tensor],
         metadata: Sequence[dict[str, Any]],
     ) -> list[Tensor]:
-        """Maps raw forward outputs to one depth tensor of shape ``(H, W)`` per image."""
+        """Maps raw forward outputs to one depth tensor per image, bilinearly resized
+        to the original input size (``orig_h``, ``orig_w`` from the metadata)."""
         depth_batch = raw_outputs["depth"]
         sky_batch = raw_outputs.get("sky")
         out: list[Tensor] = []
-        for i in range(len(metadata)):
+        for i, meta in enumerate(metadata):
             depth = depth_batch[i, 0]
             sky = None if sky_batch is None else sky_batch[i, 0]
+            # Sky handling runs at the processing resolution to match the official
+            # threshold semantics.
             depth = _set_sky_regions_to_max_depth(depth=depth, sky=sky)
-            # TODO(Nauryzbay, 06/2026): Resize the depth map back to the original input
-            # size (``orig_h``, ``orig_w`` from the metadata) before returning. The
-            # official DA3 inference keeps the depth at the processing resolution and
-            # we mirror that here to stay close to their code, but the public predict
-            # API and users expect the original input resolution. Note that for
-            # batches with mixed processed sizes the center-crop in `preprocess_batch`
-            # must be taken into account; a naive resize back is geometrically wrong.
+            orig_h, orig_w = meta["orig_h"], meta["orig_w"]
+            if depth.shape != (orig_h, orig_w):
+                depth = F.interpolate(
+                    depth[None, None],
+                    size=(orig_h, orig_w),
+                    mode="bilinear",
+                    align_corners=False,
+                )[0, 0]
             out.append(depth)
         return out
 
