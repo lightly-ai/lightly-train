@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any, Literal, TypedDict, Union
 
 from pydantic import ConfigDict, Field
+from rich.console import Console
+from rich.markdown import Markdown
 from torch import Tensor
 from typing_extensions import Annotated
 
@@ -228,9 +230,6 @@ class BenchmarkResult(PydanticConfig):
         return "\n".join(lines)
 
     def print(self) -> None:
-        from rich.console import Console
-        from rich.markdown import Markdown
-
         console = Console()
         console.print(Markdown(self.to_markdown()))
 
