@@ -51,38 +51,54 @@ class TestECViTWrapper:
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
-            depth=1,
-            interaction_indexes=[0],
+            depth=2,
+            interaction_indexes=[0, 1],
             proj_dim=16,
         )
         model.eval()
+        image = torch.randn(2, 3, 32, 32)
+        captured_projector_inputs: list[torch.Tensor] = []
 
-        layer_1 = torch.full((2, 4, 16), 2.0)
-        layer_2 = torch.full((2, 4, 16), 4.0)
+        def capture_projector_input(
+            module: torch.nn.Module, inputs: tuple[torch.Tensor]
+        ) -> None:
+            del module
+            captured_projector_inputs.append(inputs[0].detach().clone())
 
-        def backbone_forward(x: torch.Tensor) -> list[torch.Tensor]:
-            return [layer_1.to(device=x.device), layer_2.to(device=x.device)]
+        hook_handles = [
+            projector.register_forward_pre_hook(capture_projector_input)
+            for projector in model.projector
+        ]
+        try:
+            with torch.no_grad():
+                return_layers = model.backbone(image)
+                outputs = model(image)
+        finally:
+            for hook_handle in hook_handles:
+                hook_handle.remove()
 
-        model.backbone.forward = backbone_forward  # type: ignore[method-assign]
-
-        captured_inputs: list[torch.Tensor] = []
-
-        class CaptureProjector(torch.nn.Module):
-            def forward(self, x: torch.Tensor) -> torch.Tensor:
-                captured_inputs.append(x.detach().clone())
-                return x
-
-        model.projector = torch.nn.ModuleList(
-            [CaptureProjector(), CaptureProjector(), CaptureProjector()]
-        )
-
-        with torch.no_grad():
-            outputs = model(torch.randn(2, 3, 32, 32))
+        H_c = image.shape[2] // model.patch_size
+        W_c = image.shape[3] // model.patch_size
+        fused_feats = torch.mean(torch.stack(return_layers), dim=0)
+        fused_feats = fused_feats.transpose(1, 2).contiguous().view(2, -1, H_c, W_c)
+        expected_projector_inputs = [
+            torch.nn.functional.interpolate(
+                fused_feats,
+                size=[int(H_c * (2 ** (1 - level))), int(W_c * (2 ** (1 - level)))],
+                mode="bilinear",
+                align_corners=False,
+            )
+            for level in range(model.num_levels)
+        ]
 
         assert len(outputs) == 3
-        assert torch.allclose(captured_inputs[1], torch.full((2, 16, 2, 2), 3.0))
+        assert len(captured_projector_inputs) == 3
+        for captured_input, expected_input in zip(
+            captured_projector_inputs, expected_projector_inputs
+        ):
+            assert torch.allclose(captured_input, expected_input)
 
-    def test_load_weights_path__loads_backbone_state_dict_strictly(
+    def test_load_weights_path__raises_on_missing_backbone_key(
         self, tmp_path: Path
     ) -> None:
         source = ECViTWrapper(
@@ -93,21 +109,48 @@ class TestECViTWrapper:
             interaction_indexes=[0],
             proj_dim=16,
         )
-        weights_path = tmp_path / "ecvitt.pth"
-        torch.save(source.backbone.state_dict(), weights_path)
+        state_dict = source.backbone.state_dict()
+        state_dict.popitem()
+        weights_path = tmp_path / "ecvitt_missing_key.pth"
+        torch.save(state_dict, weights_path)
 
-        loaded = ECViTWrapper(
+        with pytest.raises(RuntimeError, match="Missing key"):
+            ECViTWrapper(
+                name="ecvitt",
+                weights_path=weights_path,
+                embed_dim=16,
+                num_heads=1,
+                depth=1,
+                interaction_indexes=[0],
+                proj_dim=16,
+            )
+
+    def test_load_weights_path__raises_on_unexpected_backbone_key(
+        self, tmp_path: Path
+    ) -> None:
+        source = ECViTWrapper(
             name="ecvitt",
-            weights_path=weights_path,
             embed_dim=16,
             num_heads=1,
             depth=1,
             interaction_indexes=[0],
             proj_dim=16,
         )
+        state_dict = source.backbone.state_dict()
+        state_dict["unexpected.weight"] = torch.empty(1)
+        weights_path = tmp_path / "ecvitt_unexpected_key.pth"
+        torch.save(state_dict, weights_path)
 
-        for key, value in source.backbone.state_dict().items():
-            assert torch.equal(loaded.backbone.state_dict()[key], value)
+        with pytest.raises(RuntimeError, match="Unexpected key"):
+            ECViTWrapper(
+                name="ecvitt",
+                weights_path=weights_path,
+                embed_dim=16,
+                num_heads=1,
+                depth=1,
+                interaction_indexes=[0],
+                proj_dim=16,
+            )
 
     @pytest.mark.parametrize("container_key", ["state_dict", "model", "backbone"])
     def test_load_weights_path__unwraps_common_checkpoint_containers(
@@ -147,7 +190,10 @@ class TestECViTWrapper:
 
     @pytest.mark.skipif(
         os.environ.get("ECVIT_CHECKPOINT_DIR") is None,
-        reason="Set ECVIT_CHECKPOINT_DIR to validate official EdgeCrafter checkpoints.",
+        reason=(
+            "Set ECVIT_CHECKPOINT_DIR to a directory with pre-downloaded "
+            "EdgeCrafter checkpoints for optional local validation."
+        ),
     )
     @pytest.mark.parametrize("name", sorted(ECVIT_PRESETS))
     def test_official_ecvit_checkpoint_loads_strictly(self, name: str) -> None:
