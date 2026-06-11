@@ -48,6 +48,7 @@ dependencies = [
                             # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
     "pycocotools>=2.0.11; python_version>='3.9'",
+    "rich>=13.0",
     "numpy>1.23.0; python_version>='3.12'",  # numpy<=1.23 fails to build on Python>3.12 (no distutils).
 ]
 
