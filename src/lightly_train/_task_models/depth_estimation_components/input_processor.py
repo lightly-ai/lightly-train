@@ -8,8 +8,9 @@
 
 """Input processor for Depth Anything 3.
 
-Converts a list of image tensors into a single model-ready batch tensor, processing
-each image sequentially. The square center-crop step is omitted for "*crop" methods.
+Exposes the preprocessing pipeline as two stages: a per-image stage (``process_image``)
+and a batch stage (``process_batch``). The square center-crop step is omitted for
+"*crop" methods.
 """
 
 from __future__ import annotations
@@ -25,20 +26,24 @@ logger = logging.getLogger(__name__)
 
 
 class InputProcessor:
-    """Prepares a batch of images for model inference.
+    """Prepares images for model inference.
 
-    Converts a list of ``(C, H, W)`` image tensors into a single model-ready
-    ``(N, 3, H, W)`` tensor. The order of outputs matches the input order.
+    The pipeline is split into a per-image stage (``process_image``) and a batch
+    stage (``process_batch``). The order of outputs matches the input order.
 
     Pipeline:
-      1) Convert to a float32 RGB tensor in [0, 255]
-      2) Boundary resize (upper/lower bound, preserving aspect ratio)
-      3) Enforce divisibility by PATCH_SIZE:
-         - "*resize" methods: each dimension is rounded to nearest multiple
-           (may up/downscale a few px)
-         - "*crop"   methods: each dimension is floored to nearest multiple via center crop
-      4) Apply ImageNet normalization
-      5) Stack into (N, 3, H, W)
+      1) ``process_image`` (per image):
+         a) Convert to a float32 RGB tensor in [0, 255]
+         b) Boundary resize (upper/lower bound, preserving aspect ratio)
+         c) Enforce divisibility by PATCH_SIZE:
+            - "*resize" methods: each dimension is rounded to nearest multiple
+              (may up/downscale a few px)
+            - "*crop"   methods: each dimension is floored to nearest multiple via
+              center crop
+      2) ``process_batch`` (per batch):
+         a) Center-crop all images to the smallest size in the batch
+         b) Stack into (N, 3, H, W)
+         c) Apply ImageNet normalization
     """
 
     NORMALIZE_MEAN = (0.485, 0.456, 0.406)
@@ -51,45 +56,31 @@ class InputProcessor:
         "lower_bound_crop",
     )
 
-    def __call__(
+    def process_image(
         self,
-        images: Sequence[Tensor],
+        img: Tensor,
+        *,
         process_res: int = 504,
         process_res_method: str = "upper_bound_resize",
     ) -> Tensor:
-        """Processes images into a model-ready batch.
+        """Processes a single image into a resized, patch-divisible tensor.
 
         Args:
-            images: Images with shape ``(C, H, W)``. Integer tensors are interpreted
+            img: Image with shape ``(C, H, W)``. Integer tensors are interpreted
                 in their dtype's value range (e.g. uint8 in [0, 255]) and float
                 tensors in [0, 1].
             process_res: Target size for the boundary resize.
             process_res_method: One of ``RESIZE_METHODS``.
 
         Returns:
-            A normalized batch tensor of shape ``(N, 3, H, W)``.
+            A float32 RGB tensor in [0, 255] with shape ``(3, H, W)``. Normalization
+            is applied later in ``process_batch``.
         """
-        if not images:
-            raise ValueError("The input image list is empty.")
         if process_res_method not in self.RESIZE_METHODS:
             raise ValueError(
                 f"Unsupported process_res_method '{process_res_method}'. Supported "
                 f"methods are: {self.RESIZE_METHODS}."
             )
-        processed = [
-            self._process_one(
-                img=img,
-                process_res=process_res,
-                process_res_method=process_res_method,
-            )
-            for img in images
-        ]
-        processed = self._unify_sizes(processed)
-        return torch.stack(processed)
-
-    def _process_one(
-        self, *, img: Tensor, process_res: int, process_res_method: str
-    ) -> Tensor:
         image = self._to_rgb_tensor(img)
         image = self._resize_bound(
             image, target_size=process_res, method=process_res_method
@@ -98,7 +89,23 @@ class InputProcessor:
             image = self._make_divisible_by_resize(image, patch=self.PATCH_SIZE)
         else:
             image = self._make_divisible_by_crop(image, patch=self.PATCH_SIZE)
-        return self._normalize_image(image)
+        return image
+
+    def process_batch(self, images: Sequence[Tensor]) -> Tensor:
+        """Processes images from ``process_image`` into a model-ready batch.
+
+        Args:
+            images: Float32 RGB tensors in [0, 255] with shape ``(3, H, W)``, as
+                returned by ``process_image``. Images with different sizes are
+                center-cropped to the smallest size in the batch.
+
+        Returns:
+            A normalized batch tensor of shape ``(N, 3, H, W)``.
+        """
+        if not images:
+            raise ValueError("The input image list is empty.")
+        unified = self._unify_sizes(list(images))
+        return self._normalize_image(torch.stack(unified))
 
     def _unify_sizes(self, images: list[Tensor]) -> list[Tensor]:
         """Center-crops all images to the smallest height and width in the batch."""

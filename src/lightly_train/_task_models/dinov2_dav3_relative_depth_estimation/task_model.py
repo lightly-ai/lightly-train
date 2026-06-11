@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -192,14 +192,69 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         if self.training:
             self.eval()
 
-        x = self._preprocess_image(image)
-        out = self.forward(x.unsqueeze(0))
-        _set_sky_regions_to_max_depth(out)
-        # TODO(Nauryzbay, 06/2026): Resize the depth map back to the original input
-        # (H, W) before returning. The official DA3 inference keeps the depth at the
-        # processing resolution and we mirror that here to stay close to their code,
-        # but the public `predict` API and users expect the original input resolution.
-        return out["depth"][0, 0]
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch([x])
+        raw = self.forward(batch)
+        return self.postprocess(raw, [metadata])[0]
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+    ) -> list[Tensor]:
+        """Returns relative-depth maps for the given batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape ``(C, H, W)``.
+
+        Returns:
+            One depth tensor of shape ``(H, W)`` per image at the processing
+            resolution. Images whose processed sizes differ are center-cropped to the
+            smallest size in the batch.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = self.preprocess_batch(tensors)
+        raw = self.forward(batch)
+        return self.postprocess(raw, metadata)
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        """Per-image preprocessing producing a model-input tensor and metadata.
+
+        The aspect-preserving resize means outputs across a batch may have different
+        shapes, so they are not always stackable; `preprocess_batch` therefore takes a
+        sequence and unifies the sizes.
+        """
+        x = file_helpers.as_image_tensor(image)
+        image_h, image_w = x.shape[-2:]
+        # Process on the input's native device: the cv2-parity resize rounds after an
+        # einsum whose accumulation order differs between CPU and GPU, so moving to the
+        # model device first could flip pixels and break bit-exactness.
+        x = self._input_processor.process_image(
+            x,
+            process_res=self.process_resolution,
+            process_res_method=self.process_res_method,
+        )
+        device = next(self.parameters()).device
+        return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(  # type: ignore[override]
+        self, batch: Sequence[Tensor]
+    ) -> Tensor:
+        stacked = self._input_processor.process_batch(batch)
+        return stacked.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
         """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``."""
@@ -209,6 +264,29 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             )
         feats = self._extract_features(x)
         out: dict[str, Tensor] = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
+        return out
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: dict[str, Tensor],
+        metadata: Sequence[dict[str, Any]],
+    ) -> list[Tensor]:
+        """Maps raw forward outputs to one depth tensor of shape ``(H, W)`` per image."""
+        depth_batch = raw_outputs["depth"]
+        sky_batch = raw_outputs.get("sky")
+        out: list[Tensor] = []
+        for i in range(len(metadata)):
+            depth = depth_batch[i, 0]
+            sky = None if sky_batch is None else sky_batch[i, 0]
+            depth = _set_sky_regions_to_max_depth(depth=depth, sky=sky)
+            # TODO(Nauryzbay, 06/2026): Resize the depth map back to the original input
+            # size (``orig_h``, ``orig_w`` from the metadata) before returning. The
+            # official DA3 inference keeps the depth at the processing resolution and
+            # we mirror that here to stay close to their code, but the public predict
+            # API and users expect the original input resolution. Note that for
+            # batches with mixed processed sizes the center-crop in `preprocess_batch`
+            # must be taken into account; a naive resize back is geometrically wrong.
+            out.append(depth)
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
@@ -224,26 +302,27 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         )
         return [patch_tokens for patch_tokens, _class_token in intermediate]
 
-    def _preprocess_image(self, image: PathLike | PILImage | Tensor) -> Tensor:
-        image_tensor = file_helpers.as_image_tensor(image)
-        batch = self._input_processor(
-            [image_tensor],
-            process_res=self.process_resolution,
-            process_res_method=self.process_res_method,
-        )
-        first_param = next(self.parameters())
-        return batch[0].to(device=first_param.device, dtype=first_param.dtype)
 
+def _set_sky_regions_to_max_depth(*, depth: Tensor, sky: Tensor | None) -> Tensor:
+    """Returns depth with sky pixels set to the 99th percentile of non-sky depth.
 
-def _set_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
-    if "depth" not in out or "sky" not in out:
-        return
+    Args:
+        depth: Depth tensor of shape ``(H, W)``.
+        sky: Sky-confidence tensor of shape ``(H, W)``, or None if the model has no
+            sky head. Pixels with confidence >= 0.3 are treated as sky.
 
-    non_sky_mask = out["sky"] < 0.3
+    Returns:
+        The depth tensor with sky pixels replaced, or the input depth unchanged if
+        there is no sky output or too few sky or non-sky pixels.
+    """
+    if sky is None:
+        return depth
+
+    non_sky_mask = sky < 0.3
     if non_sky_mask.sum() <= 10 or (~non_sky_mask).sum() <= 10:
-        return
+        return depth
 
-    non_sky_depth = out["depth"][non_sky_mask]
+    non_sky_depth = depth[non_sky_mask]
     if non_sky_depth.numel() > 100_000:
         generator = torch.Generator(device=non_sky_depth.device).manual_seed(42)
         idx = torch.randint(
@@ -256,9 +335,9 @@ def _set_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
         non_sky_depth = non_sky_depth[idx]
     non_sky_max = torch.quantile(non_sky_depth, 0.99)
 
-    depth = out["depth"].clone()
+    depth = depth.clone()
     depth[~non_sky_mask] = non_sky_max
-    out["depth"] = depth
+    return depth
 
 
 def _load_pretrained_weights(
