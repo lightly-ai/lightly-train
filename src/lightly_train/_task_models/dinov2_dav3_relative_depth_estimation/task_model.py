@@ -203,7 +203,8 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         Args:
             images:
                 Sequence of input images. Each can be a path, URL, PIL image, or
-                tensor of shape ``(C, H, W)``.
+                tensor. Tensors must have shape ``(C, H, W)``; uint8 tensors are
+                interpreted in [0, 255] and float tensors in [0, 1].
 
         Returns:
             One depth tensor of shape ``(H, W)`` per image, matching each image's
