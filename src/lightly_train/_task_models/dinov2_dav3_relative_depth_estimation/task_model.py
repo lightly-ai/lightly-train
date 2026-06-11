@@ -177,8 +177,8 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
-                shape ``(C, H, W)``; integer tensors are interpreted in their dtype's
-                value range (e.g. uint8 in [0, 255]) and float tensors in [0, 1].
+                shape ``(C, H, W)``; uint8 tensors are interpreted in [0, 255] and
+                float tensors in [0, 1].
 
         Returns:
             A depth tensor of shape ``(H, W)`` matching the original input resolution.
@@ -239,7 +239,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize rounds after an
         # einsum whose accumulation order differs between CPU and GPU, so moving to the
         # model device first could flip pixels and break bit-exactness.
-        x = image_utils._process_image(
+        x = image_utils.process_image(
             x,
             process_res=self.process_resolution,
             process_res_method=self.process_res_method,
@@ -250,7 +250,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
     def preprocess_batch(  # type: ignore[override]
         self, batch: Sequence[Tensor]
     ) -> Tensor:
-        stacked = image_utils._process_batch(batch)
+        stacked = image_utils.process_batch(batch)
         return stacked.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:

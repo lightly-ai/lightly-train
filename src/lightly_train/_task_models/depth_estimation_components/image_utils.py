@@ -9,16 +9,16 @@
 """Image preprocessing for Depth Anything 3.
 
 Exposes the preprocessing pipeline as two stages: a per-image stage
-(``_process_image``) and a batch stage (``_process_batch``). The order of outputs
+(``process_image``) and a batch stage (``process_batch``). The order of outputs
 matches the input order.
 
 Pipeline:
-  1) ``_process_image`` (per image):
+  1) ``process_image`` (per image):
      a) Convert to a float32 RGB tensor in [0, 255]
      b) Boundary resize (upper/lower bound, preserving aspect ratio)
      c) Enforce divisibility by PATCH_SIZE: each dimension is rounded to the
         nearest multiple (may up/downscale a few px)
-  2) ``_process_batch`` (per batch):
+  2) ``process_batch`` (per batch):
      a) Center-crop all images to the smallest size in the batch
      b) Stack into (N, 3, H, W)
      c) Apply ImageNet normalization
@@ -44,7 +44,7 @@ RESIZE_METHODS = (
 )
 
 
-def _process_image(
+def process_image(
     img: Tensor,
     *,
     process_res: int = 504,
@@ -53,15 +53,14 @@ def _process_image(
     """Processes a single image into a resized, patch-divisible tensor.
 
     Args:
-        img: Image with shape ``(C, H, W)``. Integer tensors are interpreted
-            in their dtype's value range (e.g. uint8 in [0, 255]) and float
-            tensors in [0, 1].
+        img: Image with shape ``(C, H, W)``. Uint8 tensors are interpreted in
+            [0, 255] and float tensors in [0, 1]; other dtypes raise.
         process_res: Target size for the boundary resize.
         process_res_method: One of ``RESIZE_METHODS``.
 
     Returns:
         A float32 RGB tensor in [0, 255] with shape ``(3, H, W)``. Normalization
-        is applied later in ``_process_batch``.
+        is applied later in ``process_batch``.
     """
     if process_res_method not in RESIZE_METHODS:
         raise ValueError(
@@ -74,12 +73,12 @@ def _process_image(
     return image
 
 
-def _process_batch(images: Sequence[Tensor]) -> Tensor:
-    """Processes images from ``_process_image`` into a model-ready batch.
+def process_batch(images: Sequence[Tensor]) -> Tensor:
+    """Processes images from ``process_image`` into a model-ready batch.
 
     Args:
         images: Float32 RGB tensors in [0, 255] with shape ``(3, H, W)``, as
-            returned by ``_process_image``. Images with different sizes are
+            returned by ``process_image``. Images with different sizes are
             center-cropped to the smallest size in the batch.
 
     Returns:
@@ -113,9 +112,9 @@ def _to_rgb_tensor(img: Tensor) -> Tensor:
 
     The pipeline operates in 0-255 float space so the resize arithmetic is
     bit-identical to the official uint8-based cv2 pipeline; uint8 values are kept
-    exactly, other integer dtypes are rescaled from their value range, and float
-    tensors are assumed to be in [0, 1]. Single-channel images are repeated to
-    three channels and an alpha channel is dropped.
+    exactly and float tensors are assumed to be in [0, 1]. Other dtypes raise.
+    Single-channel images are repeated to three channels and an alpha channel is
+    dropped.
     """
     if img.ndim != 3:
         raise ValueError(f"Expected image shape (C, H, W), got {tuple(img.shape)}.")
@@ -128,8 +127,12 @@ def _to_rgb_tensor(img: Tensor) -> Tensor:
         raise ValueError(f"Expected an image with 1, 3, or 4 channels, got {channels}.")
     if img.dtype == torch.uint8:
         return img.to(torch.float32)
-    out: Tensor = transforms_functional.to_dtype(img, dtype=torch.float32, scale=True)
-    return out.mul_(255.0)
+    if not img.dtype.is_floating_point:
+        raise ValueError(
+            f"Unsupported image dtype {img.dtype}. Supported dtypes are uint8 "
+            "and floating-point types."
+        )
+    return img.to(torch.float32) * 255.0
 
 
 def _normalize_image(img: Tensor) -> Tensor:
