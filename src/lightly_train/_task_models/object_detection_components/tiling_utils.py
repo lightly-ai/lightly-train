@@ -137,16 +137,23 @@ def _mask_iou(masks1: Tensor, masks2: Tensor) -> Tensor:
     masks1_flat = masks1.flatten(1).bool()
     masks2_flat = masks2.flatten(1).bool()
 
-    intersection = (masks1_flat[:, None] & masks2_flat[None, :]).sum(dim=-1)
     area1 = masks1_flat.sum(dim=1)
     area2 = masks2_flat.sum(dim=1)
-    union = area1[:, None] + area2[None, :] - intersection
 
-    return torch.where(
-        union > 0,
-        intersection.float() / union.float(),
-        torch.zeros_like(union, dtype=torch.float),
-    )
+    # Compute IoUs one row of masks1 at a time. Materializing the full
+    # (N1, N2, H*W) intersection tensor at once can exhaust memory for many
+    # full-resolution masks, so we bound peak memory to a single (N2, H*W) slice.
+    ious = torch.zeros(masks1_flat.shape[0], masks2_flat.shape[0], device=masks1.device)
+    for i in range(masks1_flat.shape[0]):
+        intersection = (masks1_flat[i] & masks2_flat).sum(dim=1)
+        union = area1[i] + area2 - intersection
+        ious[i] = torch.where(
+            union > 0,
+            intersection.float() / union.float(),
+            torch.zeros_like(union, dtype=torch.float),
+        )
+
+    return ious
 
 
 def combine_object_detection_tiles(
@@ -186,12 +193,17 @@ def combine_object_detection_tiles(
     if boxes_global.numel() > 0 and boxes_tiles.numel() > 0:
         # Compute overlap between tiles and global predictions.
         ious = box_iou(boxes_tiles, boxes_global)
-        max_iou, argmax = ious.max(dim=1)
 
-        # Only keep tiles predictions that do not overlap with a
-        # global prediction of the same class.
-        same_label = labels_tiles == labels_global[argmax]
-        keep = torch.logical_or(max_iou <= global_local_iou_threshold, ~same_label)
+        # Only keep tiles predictions that do not overlap above the threshold with
+        # any global prediction of the same class. The same-label check must be
+        # applied before reducing over global predictions: reducing first (e.g.
+        # via the single max-IoU global box) would miss a same-label overlap that
+        # is not the strongest one.
+        same_label = labels_tiles[:, None] == labels_global[None, :]
+        overlaps_same_label = (same_label & (ious > global_local_iou_threshold)).any(
+            dim=1
+        )
+        keep = ~overlaps_same_label
         labels_tiles = labels_tiles[keep]
         boxes_tiles = boxes_tiles[keep]
         scores_tiles = scores_tiles[keep]
@@ -205,21 +217,67 @@ def combine_object_detection_tiles(
 
 
 def combine_instance_segmentation_tiles(
+    pred_global: dict[str, Tensor],
     pred_tiles: dict[str, Tensor],
-    nms_iou_threshold: float,
+    nms_iou_threshold: float = 0.5,
+    global_local_iou_threshold: float = 0.5,
 ) -> tuple[Tensor, Tensor, Tensor]:
-    """Combine tiled instance segmentation predictions with mask NMS."""
-    labels = pred_tiles["labels"]
-    masks = pred_tiles["masks"]
-    scores = pred_tiles["scores"]
+    """Combine predictions from global and tiled instance segmentation views.
 
-    if masks.numel() == 0:
-        return labels, masks, scores
+    Args:
+        pred_global: dict with keys "labels", "masks", "scores". Masks must be
+            full-image binary masks of shape (N, H, W).
+        pred_tiles: dict with keys "labels", "masks", "scores". Masks must be
+            stitched into full-image coordinates with shape (N, H, W).
+        nms_iou_threshold: Mask IoU used in NMS of tiles predictions.
+        global_local_iou_threshold: Mask IoU above which a tile mask is removed if
+            it matches a global mask of same label.
 
-    keep = _class_aware_mask_nms(
-        labels=labels,
-        masks=masks,
-        scores=scores,
-        iou_threshold=nms_iou_threshold,
-    )
-    return labels[keep], masks[keep], scores[keep]
+    Returns:
+        Filtered labels, masks, scores as a tuple.
+    """
+    # Get tiles and global predictions.
+    labels_global = pred_global["labels"]
+    masks_global = pred_global["masks"]
+    scores_global = pred_global["scores"]
+    labels_tiles = pred_tiles["labels"]
+    masks_tiles = pred_tiles["masks"]
+    scores_tiles = pred_tiles["scores"]
+
+    # NMS on tiles predictions is needed due overlapping tiles.
+    if masks_tiles.numel() > 0:
+        keep = _class_aware_mask_nms(
+            labels=labels_tiles,
+            masks=masks_tiles,
+            scores=scores_tiles,
+            iou_threshold=nms_iou_threshold,
+        )
+        labels_tiles = labels_tiles[keep]
+        masks_tiles = masks_tiles[keep]
+        scores_tiles = scores_tiles[keep]
+
+    # Drop tile masks that overlap global masks of same class.
+    if masks_global.numel() > 0 and masks_tiles.numel() > 0:
+        # Compute overlap between tiles and global predictions.
+        ious = _mask_iou(masks_tiles, masks_global)
+
+        # Only keep tiles predictions that do not overlap above the threshold with
+        # any global prediction of the same class. The same-label check must be
+        # applied before reducing over global predictions: reducing first (e.g.
+        # via the single max-IoU global mask) would miss a same-label overlap that
+        # is not the strongest one.
+        same_label = labels_tiles[:, None] == labels_global[None, :]
+        overlaps_same_label = (same_label & (ious > global_local_iou_threshold)).any(
+            dim=1
+        )
+        keep = ~overlaps_same_label
+        labels_tiles = labels_tiles[keep]
+        masks_tiles = masks_tiles[keep]
+        scores_tiles = scores_tiles[keep]
+
+    # Concatenate the global and tiles predictions.
+    labels = torch.cat([labels_global, labels_tiles], dim=0)
+    masks = torch.cat([masks_global, masks_tiles], dim=0)
+    scores = torch.cat([scores_global, scores_tiles], dim=0)
+
+    return labels, masks, scores
