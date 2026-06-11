@@ -10,17 +10,14 @@
 
 Exposes the preprocessing pipeline as two stages: a per-image stage
 (``_process_image``) and a batch stage (``_process_batch``). The order of outputs
-matches the input order. The square center-crop step is omitted for "*crop" methods.
+matches the input order.
 
 Pipeline:
   1) ``_process_image`` (per image):
      a) Convert to a float32 RGB tensor in [0, 255]
      b) Boundary resize (upper/lower bound, preserving aspect ratio)
-     c) Enforce divisibility by PATCH_SIZE:
-        - "*resize" methods: each dimension is rounded to nearest multiple
-          (may up/downscale a few px)
-        - "*crop"   methods: each dimension is floored to nearest multiple via
-          center crop
+     c) Enforce divisibility by PATCH_SIZE: each dimension is rounded to the
+        nearest multiple (may up/downscale a few px)
   2) ``_process_batch`` (per batch):
      a) Center-crop all images to the smallest size in the batch
      b) Stack into (N, 3, H, W)
@@ -43,9 +40,7 @@ NORMALIZE_STD = (0.229, 0.224, 0.225)
 PATCH_SIZE = 14
 RESIZE_METHODS = (
     "upper_bound_resize",
-    "upper_bound_crop",
     "lower_bound_resize",
-    "lower_bound_crop",
 )
 
 
@@ -75,10 +70,7 @@ def _process_image(
         )
     image = _to_rgb_tensor(img)
     image = _resize_bound(image, target_size=process_res, method=process_res_method)
-    if process_res_method.endswith("resize"):
-        image = _make_divisible_by_resize(image, patch=PATCH_SIZE)
-    else:
-        image = _make_divisible_by_crop(image, patch=PATCH_SIZE)
+    image = _make_divisible_by_resize(image, patch=PATCH_SIZE)
     return image
 
 
@@ -251,26 +243,6 @@ def _cubic_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
         taps = (base + offset).long().clamp(min=0, max=src - 1)
         weights[rows, taps] += kernel(frac - offset)
     return weights
-
-
-def _make_divisible_by_crop(img: Tensor, *, patch: int) -> Tensor:
-    """Floors each dimension to the nearest multiple of ``patch`` via center crop.
-
-    Example: 504x377 -> 504x364.
-    """
-    h, w = img.shape[-2:]
-    new_h = (h // patch) * patch
-    new_w = (w // patch) * patch
-    if new_w == w and new_h == h:
-        return img
-    top = (h - new_h) // 2
-    left = (w - new_w) // 2
-    # The annotation asserts the type at the torchvision boundary: torchvision
-    # ships no py.typed marker, so mypy sees its functions as returning Any.
-    cropped: Tensor = transforms_functional.crop(
-        img, top=top, left=left, height=new_h, width=new_w
-    )
-    return cropped
 
 
 def _make_divisible_by_resize(img: Tensor, *, patch: int) -> Tensor:
