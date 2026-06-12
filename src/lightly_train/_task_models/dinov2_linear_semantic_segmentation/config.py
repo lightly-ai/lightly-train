@@ -7,15 +7,12 @@
 #
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from pydantic import Field
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import ModelRegistry
-
-logger = logging.getLogger(__name__)
 
 
 class LinearSemanticSegmentationConfig(PydanticConfig):
