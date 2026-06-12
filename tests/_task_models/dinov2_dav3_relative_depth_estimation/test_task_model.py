@@ -21,18 +21,11 @@ from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model
 @pytest.fixture()
 def tiny_model_args() -> dict[str, Any]:
     return {
-        "backbone_name": "custom",
         "out_layers": (0, 1, 2, 3),
         "image_size": 56,
         "patch_size": 14,
-        "dim_in": 32,
         "features": 16,
         "out_channels": (8, 16, 32, 32),
-        "backbone_args": {
-            "embed_dim": 32,
-            "depth": 4,
-            "num_heads": 4,
-        },
     }
 
 
