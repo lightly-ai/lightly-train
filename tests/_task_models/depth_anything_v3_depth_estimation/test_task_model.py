@@ -36,7 +36,7 @@ def tiny_model_args() -> dict[str, Any]:
     }
 
 
-def test_task_model__predict_returns_processed_resolution(
+def test_task_model__predict_returns_original_resolution(
     tiny_model_args: dict[str, Any],
 ) -> None:
     model = DepthAnythingV3RelativeDepthEstimation(
@@ -49,12 +49,37 @@ def test_task_model__predict_returns_processed_resolution(
 
     depth = model.predict(image)
 
-    # Matches the official DA3 `Prediction` resolution: the longest side (80) is
-    # bounded to `process_resolution` (56), giving (W=56, H=45), then both sides are
-    # rounded to the nearest multiple of the patch size (14), giving (W=56, H=42).
-    assert depth.shape == (42, 56)
+    # Inference runs at the processing resolution (56, 42) and the depth map is
+    # resized back to the original input resolution.
+    assert depth.shape == (64, 80)
     assert depth.dtype == next(model.parameters()).dtype
     assert torch.isfinite(depth).all()
+
+
+def test_task_model__predict_batch_mixed_sizes(
+    tiny_model_args: dict[str, Any],
+) -> None:
+    model = DepthAnythingV3RelativeDepthEstimation(
+        model_name="dinov2/dav3-relative-large",
+        process_resolution=56,
+        model_args=tiny_model_args,
+        load_weights=False,
+    )
+    images = [
+        Image.new("RGB", (80, 64), color=(32, 64, 128)),
+        Image.new("RGB", (56, 56), color=(128, 64, 32)),
+    ]
+
+    depths = model.predict_batch(images)
+
+    # The processed sizes differ, so the batch is center-cropped to the smallest
+    # processed size before inference; each depth map is still resized back to its
+    # image's original resolution.
+    assert len(depths) == 2
+    assert depths[0].shape == (64, 80)
+    assert depths[1].shape == (56, 56)
+    for depth in depths:
+        assert torch.isfinite(depth).all()
 
 
 def test_task_model__forward_returns_depth_and_sky(

@@ -165,4 +165,5 @@ def custom_interpolate(
         ]
         return torch.cat(outs, dim=0).contiguous()
 
-    return F.interpolate(x, size=size, mode=mode, align_corners=align_corners)
+    x = F.interpolate(x, size=size, mode=mode, align_corners=align_corners)
+    return x
