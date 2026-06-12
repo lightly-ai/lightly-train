@@ -22,9 +22,7 @@ from lightly_train._data import cache, download, file_helpers
 from lightly_train._env import Env
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.depth_estimation_components import image_utils
-from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.dpt import (
-    DPT,
-)
+from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
