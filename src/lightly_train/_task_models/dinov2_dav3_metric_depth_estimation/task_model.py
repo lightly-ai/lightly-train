@@ -47,8 +47,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     }
 }
 
-# Fixed normalization constant from the official DA3 metric depth formula
-# ``metric_depth = focal * output / 300``.
 _METRIC_SCALE_FACTOR = 300.0
 
 

@@ -44,7 +44,6 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
     },
 }
 
-# Task model classes per (parsed) model name.
 _MODEL_CLASSES: dict[
     str,
     type[DepthAnythingV3MetricDepthEstimation]
