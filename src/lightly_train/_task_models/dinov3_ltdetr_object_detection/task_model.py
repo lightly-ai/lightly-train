@@ -1049,7 +1049,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         keep_tiles = scores_tiles > threshold
 
         # Combine global and tiles predictions.
-        labels, boxes, scores = tiling_utils.combine_predictions_tiles_and_global(
+        labels, boxes, scores = tiling_utils.combine_object_detection_tiles(
             pred_global={
                 "labels": labels_global[keep_global],
                 "bboxes": boxes_global[keep_global],
