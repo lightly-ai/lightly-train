@@ -58,6 +58,9 @@ from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
+from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
+    DINOv2LinearSemanticSegmentationTrain,
+)
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
 )
@@ -78,9 +81,6 @@ from lightly_train._task_models.image_classification.train_model import (
 )
 from lightly_train._task_models.image_classification_multihead.train_model import (
     ImageClassificationMultiheadTrain,
-)
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
-    DINOv2LinearSemanticSegmentationTrain,
 )
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
