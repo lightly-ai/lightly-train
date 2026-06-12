@@ -9,13 +9,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
-from numpy.typing import NDArray
+import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
@@ -23,7 +22,9 @@ from lightly_train._data import cache, download, file_helpers
 from lightly_train._env import Env
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.depth_estimation_components import image_utils
-from lightly_train._task_models.depth_estimation_components.dpt import DPT
+from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.dpt import (
+    DPT,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -100,7 +101,6 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         self.process_resolution = process_resolution
 
         self.process_res_method = "upper_bound_resize"
-        self._input_processor = InputProcessor()  # type: ignore[no-untyped-call]
 
         net_args = dict(config["model_args"])
         if model_args is not None:
@@ -177,26 +177,82 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
-                shape ``(C, H, W)``.
+                shape ``(C, H, W)``; uint8 tensors are interpreted in [0, 255] and
+                float tensors in [0, 1].
 
         Returns:
-            A depth tensor of shape ``(H, W)`` at the Depth Anything V3 processing
-            resolution (the longest side resized to ``process_resolution``, both sides rounded
-            to a multiple of the patch size). This matches the official ``Prediction``
-            resolution. Larger values correspond to farther scene content.
+            A depth tensor of shape ``(H, W)`` matching the original input resolution.
+            Larger values correspond to farther scene content.
         """
         self._track_inference()
         if self.training:
             self.eval()
 
-        x = self._preprocess_image(image)
-        out = self.forward(x.unsqueeze(0))
-        _set_sky_regions_to_max_depth(out)
-        # TODO(Nauryzbay, 06/2026): Resize the depth map back to the original input
-        # (H, W) before returning. The official DA3 inference keeps the depth at the
-        # processing resolution and we mirror that here to stay close to their code,
-        # but the public `predict` API and users expect the original input resolution.
-        return out["depth"][0, 0]
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch([x])
+        raw = self.forward(batch)
+        return self.postprocess(raw, [metadata])[0]
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+    ) -> list[Tensor]:
+        """Returns relative-depth maps for the given batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor. Tensors must have shape ``(C, H, W)``; uint8 tensors are
+                interpreted in [0, 255] and float tensors in [0, 1].
+
+        Returns:
+            One depth tensor of shape ``(H, W)`` per image, matching each image's
+            original resolution. Images whose processed sizes differ are
+            center-cropped to the smallest size in the batch before inference, so
+            their depth maps are slightly stretched when resized back.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = self.preprocess_batch(tensors)
+        raw = self.forward(batch)
+        return self.postprocess(raw, metadata)
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        """Per-image preprocessing producing a model-input tensor and metadata.
+
+        The aspect-preserving resize means outputs across a batch may have different
+        shapes, so they are not always stackable; `preprocess_batch` therefore takes a
+        sequence and unifies the sizes.
+        """
+        x = file_helpers.as_image_tensor(image)
+        image_h, image_w = x.shape[-2:]
+        # Process on the input's native device: the cv2-parity resize rounds after an
+        # einsum whose accumulation order differs between CPU and GPU, so moving to the
+        # model device first could flip pixels and break bit-exactness.
+        x = image_utils.process_image(
+            x,
+            process_res=self.process_resolution,
+            process_res_method=self.process_res_method,
+        )
+        device = next(self.parameters()).device
+        return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(  # type: ignore[override]
+        self, batch: Sequence[Tensor]
+    ) -> Tensor:
+        stacked = image_utils.process_batch(batch)
+        return stacked.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
         """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``."""
@@ -206,6 +262,33 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             )
         feats = self._extract_features(x)
         out: dict[str, Tensor] = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
+        return out
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: dict[str, Tensor],
+        metadata: Sequence[dict[str, Any]],
+    ) -> list[Tensor]:
+        """Maps raw forward outputs to one depth tensor per image, bilinearly resized
+        to the original input size (``orig_h``, ``orig_w`` from the metadata)."""
+        depth_batch = raw_outputs["depth"]
+        sky_batch = raw_outputs.get("sky")
+        out: list[Tensor] = []
+        for i, meta in enumerate(metadata):
+            depth = depth_batch[i, 0]
+            sky = None if sky_batch is None else sky_batch[i, 0]
+            # Sky handling runs at the processing resolution to match the official
+            # threshold semantics.
+            depth = _set_sky_regions_to_max_depth(depth=depth, sky=sky)
+            orig_h, orig_w = meta["orig_h"], meta["orig_w"]
+            if depth.shape != (orig_h, orig_w):
+                depth = F.interpolate(
+                    depth[None, None],
+                    size=(orig_h, orig_w),
+                    mode="bilinear",
+                    align_corners=False,
+                )[0, 0]
+            out.append(depth)
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
@@ -221,26 +304,27 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         )
         return [patch_tokens for patch_tokens, _class_token in intermediate]
 
-    def _preprocess_image(self, image: PathLike | PILImage | Tensor) -> Tensor:
-        proc_input = _as_input_processor_image(image)
-        batch, _exts, _intrinsics = self._input_processor(
-            [proc_input],
-            process_res=self.process_resolution,
-            process_res_method=self.process_res_method,
-        )
-        first_param = next(self.parameters())
-        return batch[0].to(device=first_param.device, dtype=first_param.dtype)
 
+def _set_sky_regions_to_max_depth(*, depth: Tensor, sky: Tensor | None) -> Tensor:
+    """Returns depth with sky pixels set to the 99th percentile of non-sky depth.
 
-def _set_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
-    if "depth" not in out or "sky" not in out:
-        return
+    Args:
+        depth: Depth tensor of shape ``(H, W)``.
+        sky: Sky-confidence tensor of shape ``(H, W)``, or None if the model has no
+            sky head. Pixels with confidence >= 0.3 are treated as sky.
 
-    non_sky_mask = out["sky"] < 0.3
+    Returns:
+        The depth tensor with sky pixels replaced, or the input depth unchanged if
+        there is no sky output or too few sky or non-sky pixels.
+    """
+    if sky is None:
+        return depth
+
+    non_sky_mask = sky < 0.3
     if non_sky_mask.sum() <= 10 or (~non_sky_mask).sum() <= 10:
-        return
+        return depth
 
-    non_sky_depth = out["depth"][non_sky_mask]
+    non_sky_depth = depth[non_sky_mask]
     if non_sky_depth.numel() > 100_000:
         generator = torch.Generator(device=non_sky_depth.device).manual_seed(42)
         idx = torch.randint(
@@ -253,9 +337,9 @@ def _set_sky_regions_to_max_depth(out: dict[str, Tensor]) -> None:
         non_sky_depth = non_sky_depth[idx]
     non_sky_max = torch.quantile(non_sky_depth, 0.99)
 
-    depth = out["depth"].clone()
+    depth = depth.clone()
     depth[~non_sky_mask] = non_sky_max
-    out["depth"] = depth
+    return depth
 
 
 def _load_pretrained_weights(
@@ -303,22 +387,3 @@ def _load_pretrained_weights(
     else:
         state_dict = dict(checkpoint)
     model.load_train_state_dict(state_dict)
-
-
-def _as_input_processor_image(
-    image: PathLike | PILImage | Tensor,
-) -> NDArray[np.uint8]:
-    """Converts an input image to an ``(H, W, C)`` / ``(H, W)`` uint8 array.
-
-    Routes through LightlyTrain's loaders (paths, URLs, PIL images, tensors) and
-    returns a NumPy image that the official DA3 ``InputProcessor`` accepts.
-    """
-    tensor = file_helpers.as_image_tensor(image)
-    if tensor.ndim != 3:
-        raise ValueError(f"Expected image shape (C, H, W), got {tuple(tensor.shape)}.")
-
-    array = tensor.permute(1, 2, 0).cpu().numpy()
-    if array.shape[2] == 1:
-        # `Image.fromarray` expects a 2D array for single-channel images.
-        array = array[:, :, 0]
-    return np.ascontiguousarray(array)
