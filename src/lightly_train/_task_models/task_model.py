@@ -19,6 +19,7 @@ from lightly_train.types import PathLike
 
 _INFERENCE_TYPE_PATTERNS: dict[str, str] = {
     "ObjectDetection": "object_detection",
+    "DepthEstimation": "depth_estimation",
     "SemanticSegmentation": "semantic_segmentation",
     "InstanceSegmentation": "instance_segmentation",
     "PanopticSegmentation": "panoptic_segmentation",

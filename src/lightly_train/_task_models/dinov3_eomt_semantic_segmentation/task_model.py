@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+from collections.abc import Sequence
 from typing import Any, Literal
 
 import torch
@@ -22,6 +23,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -286,38 +288,138 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         self._track_inference()
         if self.training:
             self.eval()
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch([x])
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata])[0]
 
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
         first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
+        device, dtype = first_param.device, first_param.dtype
 
-        # Load image
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
         )
 
         # Crop size is the short side of the training image size. We resize the image
-        # such that the short side of the image matches the crop size.
+        # such that the short side of the image matches the crop size. The long side
+        # therefore varies per image, so preprocessed tensors are NOT stackable across
+        # the batch.
         crop_size = min(self.image_size)
-        # (C, H, W) -> (C, H', W')
         x = transforms_functional.resize(x, size=[crop_size])
-        x = x.unsqueeze(0)  # (1, C, H', W')
 
-        logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
-        # Restrict logits to known classes only.
-        logits = logits[:, :-1]  # (1, K, H', W')
-        logits = F.interpolate(
-            logits, size=(image_h, image_w), mode="bilinear"
-        )  # (1, K|K+1, H, W)
+        # Origins describe where each crop sits in the resized image. They are
+        # computed here (image_idx=0) so `postprocess` can untile without
+        # recomputing them.
+        _, origins = self.tile(images=[x])
+        return x, {
+            "orig_h": image_h,
+            "orig_w": image_w,
+            "resized_h": int(x.shape[-2]),
+            "resized_w": int(x.shape[-1]),
+            "origins": origins,
+            "num_crops": len(origins),
+        }
 
-        masks = logits.argmax(dim=1)  # (1, H, W)
-        # Map internal class IDs to class IDs.
-        masks = self.internal_class_to_class[masks]  # (1, H, W)
-        return masks[0]
+    def preprocess_batch(  # type: ignore[override]
+        self, batch: Sequence[Tensor]
+    ) -> Tensor:
+        # Tile each variable-size image into square crops of size
+        # `min(image_size)` and stack them into a single (B, C, H, W) tensor.
+        crops_list, _ = self.tile(images=list(batch))
+        return torch.stack(crops_list)
+
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
+        # x is a batch of square crops with shape (B, C, H, W).
+        H, W = x.shape[-2:]
+
+        # Forward pass.
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            x, return_logits_per_layer=False
+        )
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
+
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: tuple[Tensor, Tensor],
+        metadata: Sequence[dict[str, Any]],
+    ) -> list[Tensor]:
+        mask_logits, class_logits = raw_outputs
+        # (sum N_i, K+1, crop_h, crop_w)
+        crop_logits_all = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+
+        # Split the batched crop logits back into one chunk per image.
+        crop_logits_per_image = torch.split(
+            crop_logits_all, [meta["num_crops"] for meta in metadata], dim=0
+        )
+
+        out: list[Tensor] = []
+        for image_crops, meta in zip(crop_logits_per_image, metadata):
+            # Untile back to the resized image size.
+            logits = self.untile(
+                crop_logits=image_crops,
+                origins=meta["origins"],
+                image_sizes=[(meta["resized_h"], meta["resized_w"])],
+            )[0]  # (K+1, H', W')
+
+            # Restrict to known classes and interpolate to original image size.
+            logits = logits[:-1].unsqueeze(0)  # (1, K, H', W')
+            logits = F.interpolate(
+                logits, size=(meta["orig_h"], meta["orig_w"]), mode="bilinear"
+            )
+            masks = logits.argmax(dim=1)  # (1, H, W)
+            masks = self.internal_class_to_class[masks]
+            out.append(masks[0])
+
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+    ) -> list[Tensor]:
+        """Returns the predicted masks for the given batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape (C, H, W).
+
+        Returns:
+            A list of predicted masks, one per input image. Each mask is a tensor
+            of shape (H, W) where the values represent the class IDs as defined in
+            the `classes` argument of your dataset. The model will always predict
+            the pixels as one of the known classes even when your dataset contains
+            ignored classes defined by the `ignore_classes` argument.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = self.preprocess_batch(tensors)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
@@ -516,15 +618,16 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # x is a batch of images with shape (B, C, H, W).
         _, _, H, W = x.shape
 
-        # The current implementation of tile and untile leads to large amounts of memory being consumed when
-        # running the model as ONNX. Therefore we add a fallback for the case when these methods are not necessary.
-        use_onnx_fallback = torch.onnx.is_in_onnx_export() and H == W
+        if torch.onnx.is_in_onnx_export() and H != W:
+            raise ValueError(
+                f"ONNX export requires square images (H == W), got H={H}, W={W}."
+            )
 
         # Tiling.
-        if use_onnx_fallback:
+        if torch.onnx.is_in_onnx_export() or H == W:
             crops = x
         else:
-            image_sizes = [img.shape[-2:] for img in x]
+            image_sizes = [(H, W)] * x.shape[0]
             crops_list, origins = self.tile(images=x)
             crops = torch.stack(crops_list)
         crop_h, crop_w = crops.shape[-2:]
@@ -540,7 +643,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         # Interpolate and untile.
         mask_logits = F.interpolate(mask_logits, (crop_h, crop_w), mode="bilinear")
         crop_logits = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
-        if use_onnx_fallback:
+        if torch.onnx.is_in_onnx_export() or H == W:
             logits = crop_logits
         else:
             logits_list = self.untile(
@@ -691,6 +794,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         have a dynamic batch dimension for the input. The graph produces two
         outputs: masks and logits.
 
+        Only square images (height == width) are supported. Tiling for
+        non-square images is not compatible with ONNX export.
+
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
         ONNX Runtime.
@@ -707,9 +813,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 If True, the ONNX graph will have a dynamic batch dimension for the
                 input. If False, the batch dimension is fixed to `batch_size`.
             height:
-                Height of the ONNX input. If None, will be taken from `self.image_size`.
+                Height of the ONNX input. If None, will be taken from
+                `self.image_size`. Must be equal to `width`.
             width:
-                Width of the ONNX input. If None, will be taken from `self.image_size`.
+                Width of the ONNX input. If None, will be taken from
+                `self.image_size`. Must be equal to `height`.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -719,6 +827,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 reference forward pass.
             format_args:
                 Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Raises:
+            ValueError: If height != width.
 
         Returns:
             None. Writes the ONNX model to `out`.
@@ -749,11 +860,22 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         height = self.image_size[0] if height is None else height
         width = self.image_size[1] if width is None else width
+        if height != width:
+            raise ValueError(
+                f"ONNX export requires square images (height == width), got "
+                f"height={height}, width={width}. Tiling for non-square images "
+                f"is not supported during ONNX export."
+            )
         num_channels = len(self.image_normalize["mean"])
+
+        check_onnx_dynamo_requirements()
 
         if dynamic_batch_size:
             batch_size = 2
-        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+            batch_dim = torch.export.Dim("batch_size", min=1, max=2**31 - 1)
+            dynamic_shapes = ({0: batch_dim},)
+        else:
+            dynamic_shapes = None
 
         dummy_input = torch.randn(
             batch_size,
@@ -775,8 +897,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
+            dynamo=True,
+            dynamic_shapes=dynamic_shapes,
             **(format_args or {}),
         )
 

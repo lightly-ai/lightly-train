@@ -23,6 +23,7 @@ from typing_extensions import Self
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
     DINOv2STAs,
@@ -513,8 +514,9 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
         dinov2.mask_token.requires_grad = False  # type: ignore
 
+        model_wrapper = DINOv2ViTModelWrapper(dinov2)
         self.backbone: DINOv2STAs = DINOv2STAs(
-            model=dinov2,
+            model_wrapper=model_wrapper,
             # Disable STA for DINOv2 as it doesn't work well with patch size 14.
             use_sta=False,
             **config.backbone_wrapper.model_dump(),
@@ -787,36 +789,10 @@ class DINOv2LTDETRObjectDetection(TaskModel):
         self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
-
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
-
-        # Load image
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        # Normalize the image.
-        if self.image_normalize is not None:
-            x = transforms_functional.normalize(
-                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-            )
-        x = transforms_functional.resize(x, self.image_size)
-        x = x.unsqueeze(0)
-
-        # Select high-confidence predictions. Noteworthy that the selection approach
-        # flattens the first two dimensions and would not work with batchsize > 1.
-        labels, boxes, scores = self(
-            x, orig_target_size=torch.tensor([[image_h, image_w]], device=device)
-        )
-        keep = scores > threshold
-        labels, boxes, scores = labels[keep], boxes[keep], scores[keep]
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
@@ -1040,8 +1016,9 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         config = config_cls()
         config.decoder_name = decoder_name
 
+        model_wrapper = DINOv2ViTModelWrapper(dinov2)
         self.backbone: DINOv2STAs = DINOv2STAs(
-            model=dinov2,
+            model_wrapper=model_wrapper,
             # Disable STA for DINOv2 as it doesn't work well with patch size 14.
             use_sta=False,
             **config.backbone_wrapper.model_dump(),
