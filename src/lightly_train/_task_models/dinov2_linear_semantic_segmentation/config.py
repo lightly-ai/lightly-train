@@ -23,7 +23,9 @@ class LinearSemanticSegmentationConfig(PydanticConfig):
     backbone_args: dict[str, Any] = Field(default_factory=dict)
 
 
-LINEAR_SEG_MODEL_REGISTRY: ModelRegistry[LinearSemanticSegmentationConfig] = ModelRegistry()
+LINEAR_SEG_MODEL_REGISTRY: ModelRegistry[LinearSemanticSegmentationConfig] = (
+    ModelRegistry()
+)
 
 
 class LinearSegConfigRegistry(ConfigsNamespace):
