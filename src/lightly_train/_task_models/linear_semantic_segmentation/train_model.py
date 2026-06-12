@@ -29,10 +29,10 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
-    DINOv2LinearSemanticSegmentation,
+from lightly_train._task_models.linear_semantic_segmentation.task_model import (
+    LinearSemanticSegmentation as DINOv2LinearSemanticSegmentation,
 )
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.transforms import (
+from lightly_train._task_models.linear_semantic_segmentation.transforms import (
     DINOv2LinearSemanticSegmentationTrainTransform,
     DINOv2LinearSemanticSegmentationTrainTransformArgs,
     DINOv2LinearSemanticSegmentationValTransform,
