@@ -22,9 +22,6 @@ from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer as DINOv2VisionTransformer,
-)
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.config import (
@@ -145,9 +142,8 @@ class LinearSemanticSegmentation(TaskModel):
         # TODO(Guarin, 07/25): Improve how mask tokens are handled for fine-tuning.
         # Should we drop them from the model? We disable grads here for DDP to work
         # without find_unused_parameters=True.
-        underlying = self.backbone.get_model()
-        if isinstance(underlying, DINOv2VisionTransformer):
-            underlying.mask_token.requires_grad = False
+        if config.freeze_mask_token:
+            self.backbone.get_model().mask_token.requires_grad = False
 
         # Load the backbone weights if a path is provided.
         # TODO(Thomas,07/2026): this should be done in the package.

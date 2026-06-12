@@ -7,9 +7,9 @@
 #
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import ModelRegistry
@@ -18,6 +18,16 @@ from lightly_train._configs.model_registry import ModelRegistry
 class LinearSemanticSegmentationConfig(PydanticConfig):
     backbone_name: str = ""  # full "package/backbone" string, e.g. "dinov2/vits14"
     backbone_args: dict[str, Any] = Field(default_factory=dict)
+    freeze_mask_token: bool = False
+
+    @model_validator(mode="after")
+    def _check_freeze_mask_token(self) -> Self:
+        if self.freeze_mask_token and not self.backbone_name.startswith("dinov2/"):
+            raise ValueError(
+                f"freeze_mask_token=True is only supported for DINOv2 backbones "
+                f"(backbone_name must start with 'dinov2/'), got '{self.backbone_name}'."
+            )
+        return self
 
 
 LINEAR_SEG_MODEL_REGISTRY: ModelRegistry[LinearSemanticSegmentationConfig] = (
@@ -36,6 +46,7 @@ class LinearSegConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
     @LINEAR_SEG_MODEL_REGISTRY.register(
         "dinov2/vitb14-linear",
@@ -46,6 +57,7 @@ class LinearSegConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
     @LINEAR_SEG_MODEL_REGISTRY.register(
         "dinov2/vitl14-linear",
@@ -56,6 +68,7 @@ class LinearSegConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
     @LINEAR_SEG_MODEL_REGISTRY.register(
         "dinov2/vitg14-linear",
@@ -66,6 +79,7 @@ class LinearSegConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
     # --- DINOv3 ViT variants ---
     @LINEAR_SEG_MODEL_REGISTRY.register(
