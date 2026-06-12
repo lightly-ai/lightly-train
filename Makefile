@@ -100,7 +100,7 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
-		-x src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py \
+		-x src/lightly_train/_models/ecvit/ecvit.py \
 		-x src/lightly_train/_task_models/object_detection_components \
 		-x src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/esnet.py \
@@ -162,7 +162,7 @@ add-header:
 
 	# Apply the Apache 2.0 license header to EdgeCrafter derived files
 	uv run --frozen licenseheaders -t dev_tools/edgecrafter_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py \
+		-f src/lightly_train/_models/ecvit/ecvit.py \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files

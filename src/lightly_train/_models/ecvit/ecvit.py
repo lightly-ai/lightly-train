@@ -9,7 +9,8 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.#
+# limitations under the License.
+#
 """
 EdgeCrafter: Compact ViTs for Edge Dense Prediction via Task-Specialized Distillation
 Copyright (c) 2026 The EdgeCrafter Authors. All Rights Reserved.
@@ -24,7 +25,7 @@ the terms of the DINOv3 License Agreement.
 Modified from https://huggingface.co/spaces/Hila/RobustViT/blob/main/ViT/ViT_new.py
 
 # Modifications Copyright 2026 Lightly AG:
-- Ported the ECViT backbone and ViTAdapter to Lightly.
+- Ported the ECViT backbone adapter to Lightly.
 - Removed EdgeCrafter registry/distributed dependencies.
 - Added typed LTDETR-compatible tuple output.
 """
@@ -32,28 +33,33 @@ Modified from https://huggingface.co/spaces/Hila/RobustViT/blob/main/ViT/ViT_new
 from __future__ import annotations
 
 import math
-import os
 import warnings
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, Union, cast
+from typing import Any, cast
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from typing_extensions import TypeAlias
 
 from lightly_train._models.dinov3.dinov3_src.layers.ffn_layers import Mlp
 from lightly_train._models.dinov3.dinov3_src.layers.rope_position_encoding import (
     RopePositionEmbedding,
 )
+from lightly_train._models.model_wrapper import (
+    ArchitectureInfo,
+    ArchitectureInfoGettable,
+    ForwardFeaturesOutput,
+    ForwardPoolOutput,
+    ModelWrapper,
+)
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     ConvNormLayer,
 )
+from lightly_train.types import PathLike
 
-PathLike: TypeAlias = Union[str, "os.PathLike[str]"]
 _DEFAULT = object()
 
 
@@ -392,7 +398,7 @@ class VisionTransformer(nn.Module):
             nn.init.zeros_(m.bias)
             nn.init.ones_(m.weight)
 
-    def forward(self, x: Tensor) -> list[Tensor]:
+    def forward_with_grid(self, x: Tensor) -> tuple[list[Tensor], tuple[int, int]]:
         outs = []
         x_embed = cast(Tensor, self.patch_embed(x))
         _, _, H, W = x_embed.shape
@@ -401,19 +407,25 @@ class VisionTransformer(nn.Module):
         register_token = self.register_token.expand(x_embed.shape[0], -1, -1)
         x = torch.cat((register_token, x_embed), dim=1)
         sin, cos = self.rope_embed(H=H, W=W)
+        sin = sin.to(device=x_embed.device, dtype=x_embed.dtype)
+        cos = cos.to(device=x_embed.device, dtype=x_embed.dtype)
         rope_sincos = sin.unsqueeze(0).unsqueeze(0), cos.unsqueeze(0).unsqueeze(0)
 
         for i, blk in enumerate(self.blocks):
             x = blk(x, rope_sincos=rope_sincos)
             if i in self.return_layers:
                 outs.append(x[:, 1:])
+        return outs, (H, W)
+
+    def forward(self, x: Tensor) -> list[Tensor]:
+        outs, _ = self.forward_with_grid(x)
         return outs
 
 
-class ECViTWrapper(nn.Module):
+class ECViTWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
     """EdgeCrafter ECViT backbone wrapper for LTDETR-style feature pyramids.
 
-    The forward path intentionally follows EdgeCrafter's ``ViTAdapter``:
+    The forward path intentionally follows EdgeCrafter's ECViT adapter:
     selected ECViT token outputs are averaged, reshaped to a spatial map,
     interpolated to three levels, projected, and returned as ``(P3, P4, P5)``.
     """
@@ -506,6 +518,7 @@ class ECViTWrapper(nn.Module):
                 for dim in self.proj_dim
             ]
         )
+        self._pool = nn.AdaptiveAvgPool2d((1, 1))
 
     @property
     def backbone_model(self) -> nn.Module:
@@ -517,10 +530,9 @@ class ECViTWrapper(nn.Module):
         self.backbone.load_state_dict(state_dict, strict=True)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
-        H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size
         bs = x.shape[0]
 
-        return_layers = self.backbone(x)
+        return_layers, (H_c, W_c) = self.backbone.forward_with_grid(x)
         if len(return_layers) == 0:
             raise RuntimeError(
                 "ECViT backbone returned no layers. Check interaction_indexes."
@@ -532,8 +544,8 @@ class ECViTWrapper(nn.Module):
         proj_feats = []
         for i in range(self.num_levels):
             scale = 2 ** (1 - i)
-            resize_H = int(H_c * scale)
-            resize_W = int(W_c * scale)
+            resize_H = max(1, int(H_c * scale))
+            resize_W = max(1, int(W_c * scale))
             feature = F.interpolate(
                 fused_feats,
                 size=[resize_H, resize_W],
@@ -549,8 +561,26 @@ class ECViTWrapper(nn.Module):
                 layer(feat) for layer, feat in zip(self.projector, proj_feats)
             ]
 
-        assert len(proj_feats) == 3
+        if len(proj_feats) != 3:
+            raise RuntimeError(
+                f"Expected 3 ECViT feature levels, got {len(proj_feats)}."
+            )
         return proj_feats[0], proj_feats[1], proj_feats[2]
+
+    def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
+        return {"features": self.forward(x)[-1]}
+
+    def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
+        return {"pooled_features": self._pool(x["features"])}
+
+    def feature_dim(self) -> int:
+        return self.proj_dim[-1]
+
+    def get_model(self) -> "ECViTWrapper":
+        return self
+
+    def architecture_info(self) -> ArchitectureInfo:
+        return {"model_type": "transformer", "norm_type": "layernorm"}
 
 
 def _load_torch_checkpoint(path: Path) -> object:
@@ -589,8 +619,3 @@ def _unwrap_state_dict(state: object) -> Mapping[str, Tensor]:
         return state_dict
 
     raise TypeError("Expected checkpoint to contain a tensor state dict.")
-
-
-# EdgeCrafter calls this module ViTAdapter. Keep the alias for familiarity while the
-# Lightly-facing name describes the LTDETR backbone wrapper contract.
-ViTAdapter = ECViTWrapper

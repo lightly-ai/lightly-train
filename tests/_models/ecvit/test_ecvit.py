@@ -13,9 +13,10 @@ from pathlib import Path
 import pytest
 import torch
 
-from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_wrapper import (
-    ECVIT_PRESETS,
-    ECViTWrapper,
+from lightly_train._models.ecvit import ECVIT_PRESETS, ECViTWrapper
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
+    missing_model_wrapper_attrs,
 )
 
 
@@ -71,20 +72,21 @@ class TestECViTWrapper:
         ]
         try:
             with torch.no_grad():
-                return_layers = model.backbone(image)
+                return_layers, (H_c, W_c) = model.backbone.forward_with_grid(image)
                 outputs = model(image)
         finally:
             for hook_handle in hook_handles:
                 hook_handle.remove()
 
-        H_c = image.shape[2] // model.patch_size
-        W_c = image.shape[3] // model.patch_size
         fused_feats = torch.mean(torch.stack(return_layers), dim=0)
         fused_feats = fused_feats.transpose(1, 2).contiguous().view(2, -1, H_c, W_c)
         expected_projector_inputs = [
             torch.nn.functional.interpolate(
                 fused_feats,
-                size=[int(H_c * (2 ** (1 - level))), int(W_c * (2 ** (1 - level)))],
+                size=[
+                    max(1, int(H_c * (2 ** (1 - level)))),
+                    max(1, int(W_c * (2 ** (1 - level)))),
+                ],
                 mode="bilinear",
                 align_corners=False,
             )
@@ -187,6 +189,88 @@ class TestECViTWrapper:
     def test_init__invalid_num_levels_raises(self) -> None:
         with pytest.raises(NotImplementedError, match="Only support num_levels=3"):
             ECViTWrapper(name="ecvitt", num_levels=4)
+
+    def test_forward__uses_actual_patch_embed_grid_for_non_multiple_size(self) -> None:
+        model = ECViTWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        model.eval()
+
+        with torch.no_grad():
+            outputs = model(torch.randn(2, 3, 33, 33))
+
+        assert [output.shape for output in outputs] == [
+            torch.Size([2, 16, 6, 6]),
+            torch.Size([2, 16, 3, 3]),
+            torch.Size([2, 16, 1, 1]),
+        ]
+
+    def test_forward__keeps_valid_feature_sizes_for_tiny_inputs(self) -> None:
+        model = ECViTWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        model.eval()
+
+        with torch.no_grad():
+            outputs = model(torch.randn(2, 3, 8, 8))
+
+        assert [output.shape for output in outputs] == [
+            torch.Size([2, 16, 2, 2]),
+            torch.Size([2, 16, 1, 1]),
+            torch.Size([2, 16, 1, 1]),
+        ]
+
+    def test_forward__preserves_rope_dtype_for_half_precision(self) -> None:
+        model = ECViTWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        ).half()
+        model.eval()
+
+        with torch.no_grad():
+            outputs = model(torch.randn(2, 3, 32, 32, dtype=torch.float16))
+
+        assert all(output.dtype == torch.float16 for output in outputs)
+
+    def test_model_wrapper_interface(self) -> None:
+        model = ECViTWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        model.eval()
+
+        assert isinstance(model, ModelWrapper)
+        assert not missing_model_wrapper_attrs(model, exclude_module_attrs=True)
+        assert model.feature_dim() == 16
+        assert model.get_model() is model
+        assert model.architecture_info() == {
+            "model_type": "transformer",
+            "norm_type": "layernorm",
+        }
+        with torch.no_grad():
+            features = model.forward_features(torch.randn(2, 3, 32, 32))
+            pooled = model.forward_pool(features)
+
+        assert features["features"].shape == torch.Size([2, 16, 1, 1])
+        assert pooled["pooled_features"].shape == torch.Size([2, 16, 1, 1])
 
     @pytest.mark.skipif(
         os.environ.get("ECVIT_CHECKPOINT_DIR") is None,

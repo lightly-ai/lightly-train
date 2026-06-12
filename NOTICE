@@ -15,9 +15,9 @@ This project incorporates the following third-party components:
 - License: Apache License 2.0
 - License file: licences/EDGECRAFTER_LICENSE
 - Modifications:
-  - Ported the ECViT backbone and ViTAdapter to LightlyTrain. Affected file: `src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py`.
-  - Removed EdgeCrafter registry/distributed dependencies. Affected file: `src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py`.
-  - Added typed LTDETR-compatible tuple output. Affected file: `src/lightly_train/_task_models/dinov3_ltdetr_object_detection/ecvit_wrapper.py`.
+  - Ported the ECViT backbone adapter to LightlyTrain. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+  - Removed EdgeCrafter registry/distributed dependencies. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+  - Added typed LTDETR-compatible tuple output. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
 
 **DINOv2**
 - Source: https://github.com/facebookresearch/dinov2
