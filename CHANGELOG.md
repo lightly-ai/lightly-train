@@ -5,6 +5,13 @@ All notable changes to Lightly**Train** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add Slicing Aided Hyper Inference (SAHI) for EoMT instance segmentation to improve
+  small instance recall at inference via `predict_sahi`.
+
 ## [0.15.1] - 2026-05-28
 
 ### Added
