@@ -7,9 +7,10 @@
 #
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import Any
 
 from pydantic import Field, model_validator
+from typing_extensions import Self
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import ModelRegistry
