@@ -9,9 +9,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
+    MultiScaleFeatureCNN,
+    MultiScaleFeatureViT,
+)
 from lightly_train.types import PackageModel
 
 
@@ -63,4 +67,22 @@ class Package(BasePackage):
     @abstractmethod
     def get_model_wrapper(cls, model: PackageModel) -> ModelWrapper:
         """Wrap the underlying model with the ModelWrapper."""
+        ...
+
+
+class MultiScaleFeaturePackage(Package):
+    @classmethod
+    @abstractmethod
+    def get_model_wrapper(
+        cls, model: PackageModel
+    ) -> MultiScaleFeatureViT | MultiScaleFeatureCNN:
+        """Wrap the underlying model with a ModelWrapper that supports multi-scale features."""
+        ...
+
+
+@runtime_checkable
+class ModelNameParser(Protocol):
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> str:
+        """Implements custom model parsing logic, for e.g. backwards compatibility."""
         ...
