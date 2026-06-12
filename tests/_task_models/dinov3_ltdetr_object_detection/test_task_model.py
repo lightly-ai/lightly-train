@@ -529,3 +529,134 @@ def test_export_onnx__fp16(
         for init in model_onnx.graph.initializer
     )
     assert has_fp16
+
+
+# ---------------------------------------------------------------------------
+# EdgeCrafter (ECViT) backbone tests
+# ---------------------------------------------------------------------------
+#
+# The ECViT backbones are exposed under the ``edgecrafter/`` package prefix
+# (e.g. ``edgecrafter/ecvitt-ltdetr``) and are dispatched inside the DINOv3
+# LTDETR task model. These tests verify the wiring without depending on the
+# pretrained weight download.
+
+
+ECVIT_LTDETR_MODEL_NAMES = [
+    "edgecrafter/ecvitt-ltdetr",
+    "edgecrafter/ecvittplus-ltdetr",
+    "edgecrafter/ecvits-ltdetr",
+    "edgecrafter/ecvitsplus-ltdetr",
+]
+
+
+@pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
+def test_is_supported_model__ecvit(model_name: str) -> None:
+    assert DINOv3LTDETRObjectDetection.is_supported_model(model_name) is True
+
+
+@pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
+def test_parse_model_name__ecvit(model_name: str) -> None:
+    parsed = DINOv3LTDETRObjectDetection.parse_model_name(model_name)
+    assert parsed["package_name"] == "edgecrafter"
+    assert parsed["model_name"] == model_name
+    # backbone_name is the bare ECViT preset (no package prefix, no -ltdetr
+    # suffix).
+    assert parsed["backbone_name"] in {
+        "ecvitt",
+        "ecvittplus",
+        "ecvits",
+        "ecvitsplus",
+    }
+
+
+@pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
+def test_create_train_model__ecvit(
+    model_name: str,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+        ECViTBackboneWrapper,
+    )
+
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name=model_name,
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+    # ECViT always resolves to patch_size=16 (the ECViT-NN ConvPyramidPatchEmbed
+    # uses a fixed patch size of 16).
+    assert model_args.patch_size == 16
+
+    train_model = _create_train_model(
+        model_args, model_name=model_name, model_init_args={"patch_size": 16}
+    )
+    task_model = train_model.model
+    # The backbone must be an ECViTBackboneWrapper, not a DINOv3 wrapper.
+    assert isinstance(task_model.backbone, ECViTBackboneWrapper)
+    # ECViT has no mask_token; the constructor must not have tried to freeze
+    # one (which would AttributeError).
+    assert not hasattr(task_model.backbone, "mask_token")
+    # The wrapped ECViTWrapper itself must not have a mask_token either.
+    assert not hasattr(task_model.backbone.backbone_model, "mask_token")
+
+
+@pytest.mark.parametrize("should_freeze", [True, False])
+def test_freeze_backbone_on_set_train_mode__ecvit(should_freeze: bool) -> None:
+    # ECViT's backbone has no mask_token, so the constructor's DINOv3-ViT
+    # branch (which would call ``backbone.mask_token.requires_grad = False``)
+    # must be skipped. This test exercises the full construction + set_train_mode
+    # path to confirm there is no AttributeError on ``mask_token``.
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
+        use_ema_model=True,
+        backbone_freeze=should_freeze,
+    )
+    train_model = _create_train_model(
+        model_args,
+        model_name="edgecrafter/ecvitt-ltdetr",
+        model_init_args={"patch_size": 16},
+    )
+    task_model_backbone = train_model.model.backbone
+    assert isinstance(task_model_backbone, nn.Module)
+    assert not hasattr(task_model_backbone, "mask_token")
+
+    train_model.set_train_mode()
+
+    assert _is_module_frozen(task_model_backbone) == should_freeze
+
+
+def test_resolve_auto__ecvit_patch_size_is_16(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # Belt-and-braces: the explicit resolve_auto test for the ECViT package
+    # branch, separate from the parametrized _create_train_model test above.
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="edgecrafter/ecvitsplus-ltdetr",
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+    assert model_args.patch_size == 16
+
+
+def test_resolve_auto__ecvit_model_init_args_patch_size_wins(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # An explicit ``patch_size`` in ``model_init_args`` must override the
+    # ECViT default of 16 (same precedence as the DINOv3 path).
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="edgecrafter/ecvitt-ltdetr",
+        model_init_args={"patch_size": 32},
+        data_args=dummy_yolo_detection_data_args,
+    )
+    assert model_args.patch_size == 32

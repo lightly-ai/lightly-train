@@ -34,6 +34,7 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
 )
+from lightly_train._models import package_helpers
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
@@ -168,20 +169,31 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
             if patch_size is not None:
                 self.patch_size = int(patch_size)
             else:
-                match = re.match(
-                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
-                    model_name,
-                )
-
-                if match is not None:
-                    self.patch_size = int(match.group("patch_size"))
-                elif re.match(r"dinov3/convnext.*", model_name) is not None:
-                    self.patch_size = None
+                # EdgeCrafter (ECViT) backbones all use a fixed patch size of 16
+                # (the ECViT-NN uses a ConvPyramidPatchEmbed that only supports
+                # patch_size=16). Resolve that here so the train/val transforms
+                # can pick the right image-size divisor and scale-jitter base.
+                try:
+                    package_name, _ = package_helpers.parse_model_name(model_name)
+                except ValueError:
+                    package_name = ""
+                if package_name == "edgecrafter":
+                    self.patch_size = 16
                 else:
-                    raise ValueError(
-                        "Unable to resolve patch_size='auto' for model "
-                        f"{model_name!r}. Please provide a concrete patch_size."
+                    match = re.match(
+                        r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
+                        model_name,
                     )
+
+                    if match is not None:
+                        self.patch_size = int(match.group("patch_size"))
+                    elif re.match(r"dinov3/convnext.*", model_name) is not None:
+                        self.patch_size = None
+                    else:
+                        raise ValueError(
+                            "Unable to resolve patch_size='auto' for model "
+                            f"{model_name!r}. Please provide a concrete patch_size."
+                        )
         if self.scheduler_flat_steps == "auto" or self.scheduler_no_aug_steps == "auto":
             scheduler_step_schedule = resolve_ltdetr_step_schedule(
                 total_steps=total_steps,
