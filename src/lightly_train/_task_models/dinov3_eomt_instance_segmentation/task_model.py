@@ -36,6 +36,7 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.scale_block im
     ScaleBlock,
 )
 from lightly_train._task_models.eomt import hooks
+from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -388,6 +389,179 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         batch = self.preprocess_batch(batch)
         raw = self.forward_backend(batch)
         return self.postprocess(raw, metadata, threshold=threshold)
+
+    @torch.no_grad()
+    def predict_sahi(
+        self,
+        image: PathLike | PILImage | Tensor,
+        threshold: float = 0.8,
+        overlap: float = 0.2,
+        nms_iou_threshold: float = 0.5,
+        global_local_iou_threshold: float = 0.5,
+        batch_size: int | None = None,
+    ) -> dict[str, Tensor]:
+        """Run Slicing Aided Hyper Inference (SAHI) for instance segmentation.
+
+        The image is converted to a tensor, then:
+
+        - A resized-and-padded full-image "global" prediction is computed.
+        - The image is tiled into overlapping crops of size ``self.image_size``.
+        - Each tile is run through the model (in batches of ``batch_size``) and its
+          masks are stitched back into the original image coordinates.
+        - Global and tile predictions are merged using mask NMS and a global/local
+          consistency heuristic. NMS is only applied on tile predictions; the
+          heuristic discards tile predictions that heavily overlap global
+          predictions.
+
+        Args:
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape
+                (C, H, W).
+            threshold:
+                Score threshold for filtering low-confidence predictions.
+            overlap:
+                Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
+            nms_iou_threshold:
+                Mask IoU threshold used for non-maximum suppression when merging
+                predictions from tiles. A lower value yields fewer predictions.
+            global_local_iou_threshold:
+                Mask IoU above which a tile prediction is discarded because it
+                matches a global prediction of the same class. A lower value yields
+                fewer predictions.
+            batch_size:
+                Number of tiles to run through the model at once. If None, all tiles
+                are processed in a single batch. Must be a positive integer.
+
+        Returns:
+            A dictionary with:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "masks": Tensor of shape (N, H, W) with binary masks at the
+                    original image resolution.
+                - "scores": Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        orig_h, orig_w = x.shape[-2:]
+        tile_h, tile_w = self.image_size
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.normalize(
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
+        )
+
+        x_global, (crop_h, crop_w) = self.resize_and_pad(x)
+        global_batch = self.preprocess_batch(x_global.unsqueeze(0))
+        global_raw = self.forward_backend(global_batch)
+        pred_global = self.postprocess(
+            global_raw,
+            [
+                {
+                    "orig_h": orig_h,
+                    "orig_w": orig_w,
+                    "crop_h": crop_h,
+                    "crop_w": crop_w,
+                }
+            ],
+            threshold=threshold,
+        )[0]
+
+        tiles, coordinates = tiling_utils.tile_image(
+            image=x,
+            overlap=overlap,
+            tile_size=self.image_size,
+            padding_mode="pad",
+        )
+
+        if batch_size is None:
+            batch_size = len(tiles)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer or None.")
+
+        all_labels: list[Tensor] = []
+        all_masks: list[Tensor] = []
+        all_scores: list[Tensor] = []
+
+        for start in range(0, len(tiles), batch_size):
+            end = min(start + batch_size, len(tiles))
+            tile_batch = self.preprocess_batch(tiles[start:end])
+            coordinate_batch = coordinates[start:end]
+
+            raw = self.forward_backend(tile_batch)
+            metadata: list[dict[str, Any]] = []
+            valid_sizes: list[tuple[int, int]] = []
+            for coordinate in coordinate_batch:
+                x_start = int(coordinate[0].item())
+                y_start = int(coordinate[1].item())
+                valid_h = min(tile_h, orig_h - y_start)
+                valid_w = min(tile_w, orig_w - x_start)
+                valid_sizes.append((valid_h, valid_w))
+                metadata.append(
+                    {
+                        "orig_h": valid_h,
+                        "orig_w": valid_w,
+                        "crop_h": valid_h,
+                        "crop_w": valid_w,
+                    }
+                )
+
+            predictions = self.postprocess(raw, metadata, threshold=threshold)
+            for prediction, coordinate, valid_size in zip(
+                predictions, coordinate_batch, valid_sizes
+            ):
+                labels = prediction["labels"]
+                masks = prediction["masks"]
+                scores = prediction["scores"]
+                if labels.numel() == 0:
+                    continue
+
+                x_start = int(coordinate[0].item())
+                y_start = int(coordinate[1].item())
+                valid_h, valid_w = valid_size
+                full_masks = masks.new_zeros(
+                    (masks.shape[0], orig_h, orig_w), dtype=torch.bool
+                )
+                full_masks[
+                    :, y_start : y_start + valid_h, x_start : x_start + valid_w
+                ] = masks[:, :valid_h, :valid_w]
+
+                all_labels.append(labels)
+                all_masks.append(full_masks)
+                all_scores.append(scores)
+
+        if len(all_labels) > 0:
+            labels_tiles = torch.cat(all_labels, dim=0)
+            masks_tiles = torch.cat(all_masks, dim=0)
+            scores_tiles = torch.cat(all_scores, dim=0)
+        else:
+            labels_tiles = torch.empty(0, dtype=torch.long, device=device)
+            masks_tiles = torch.empty(
+                (0, orig_h, orig_w), dtype=torch.bool, device=device
+            )
+            scores_tiles = torch.empty(0, dtype=dtype, device=device)
+
+        labels, masks, scores = tiling_utils.combine_instance_segmentation_tiles(
+            pred_global=pred_global,
+            pred_tiles={
+                "labels": labels_tiles,
+                "masks": masks_tiles,
+                "scores": scores_tiles,
+            },
+            nms_iou_threshold=nms_iou_threshold,
+            global_local_iou_threshold=global_local_iou_threshold,
+        )
+        return {
+            "labels": labels,
+            "masks": masks,
+            "scores": scores,
+        }
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # Function used for ONNX export
