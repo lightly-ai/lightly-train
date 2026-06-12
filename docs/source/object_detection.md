@@ -594,6 +594,19 @@ models are available:
   [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-large-ltdetr`
 
+### LTDETR EdgeCrafter (ECViT) Models
+
+- `edgecrafter/ecvitt-ltdetr`
+- `edgecrafter/ecvittplus-ltdetr`
+- `edgecrafter/ecvits-ltdetr`
+- `edgecrafter/ecvitsplus-ltdetr`
+
+The ECViT backbones are initialized from the
+[upstream EdgeCrafter pretrained weights](https://github.com/capsule2077/edgecrafter/releases)
+and are exposed as drop-in replacements for the DINOv3 ViT LTDETR backbones. See
+[EdgeCrafter (ECViT)](#models-edgecrafter) for the full list of supported models and
+notes on the wrapper.
+
 Unless noted otherwise, all DINOv3 backbones are initialized from weights
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
 The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained

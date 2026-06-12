@@ -70,6 +70,7 @@ pages):
 
 - [DINOv2](#models-dinov2)
 - [DINOv3](#models-dinov3)
+- [EdgeCrafter (ECViT)](#models-edgecrafter)
 - [Torchvision](#models-torchvision)
 - [TIMM](#models-timm)
 - [Ultralytics](#models-ultralytics)
@@ -86,6 +87,7 @@ maxdepth: 1
 Overview <self>
 dinov2
 dinov3
+edgecrafter
 torchvision
 timm
 ultralytics
