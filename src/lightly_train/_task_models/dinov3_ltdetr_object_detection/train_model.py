@@ -39,6 +39,9 @@ from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -566,6 +569,16 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             connector_params = [
                 p for p in backbone.parameters() if id(p) not in vit_params_ids
             ]
+        elif isinstance(backbone, ECViTBackboneWrapper):
+            # ECViTModelWrapper has two parts:
+            #   - self.backbone  (VisionTransformer) - loaded with pretrained
+            #     weights, so it gets the low backbone_lr_factor.
+            #   - self.projector (nn.ModuleList of ConvNormLayer) - freshly
+            #     initialized, so it is merged into the detector group to
+            #     train at the full LR (same split as the DINOv3 ViT branch).
+            ecvit_wrapper = backbone._model_wrapper  # type: ignore[attr-defined]
+            backbone_params = list(ecvit_wrapper.backbone.parameters())
+            connector_params = list(ecvit_wrapper.projector.parameters())
         else:
             backbone_params = list(backbone.parameters())
             connector_params = []
