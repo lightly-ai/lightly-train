@@ -687,7 +687,9 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 load_weights=load_weights,
                 **get_model_kwargs,
             )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper))
+        assert isinstance(
+            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+        )
 
         # Map preset name -> (config_cls, config_name_strip_suffixes). For
         # ECViT we strip no suffixes (the preset names are bare) and route
