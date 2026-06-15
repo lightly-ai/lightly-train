@@ -7,9 +7,10 @@
 #
 from __future__ import annotations
 
-from typing import Any, Iterable, Self
+from typing import Any, Iterable
 
 from pydantic import BaseModel, ConfigDict
+from typing_extensions import Self
 
 
 class ConfigsNamespace:
