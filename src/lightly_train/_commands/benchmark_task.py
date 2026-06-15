@@ -87,7 +87,7 @@ def benchmark_object_detection(
     num_workers: int | Literal["auto"] = "auto",
     overwrite: bool = False,
     device: str | None = None,
-    backend_args: dict[str, Any] | None = None,
+    backend_args: dict[str, Any] | BenchmarkBackendArgs | None = None,
 ) -> BenchmarkResult:
     """Benchmark an object detection model on a validation dataset.
 
@@ -127,14 +127,15 @@ def benchmark_object_detection(
         backend_args:
             Backend configuration. Use ``format`` to select the backend:
             ``"torch"`` (default), ``"onnx"``, or ``"tensorrt"``. ONNX and
-            TensorRT backends accept an optional ``export_args`` dict forwarded
-            to ``model.export_onnx()``.
+            TensorRT backends accept an optional ``export_args`` dict
+            forwarded to ``model.export_onnx()``.
 
     Returns:
         BenchmarkResult containing metric values and timing statistics.
     """
-    args = {k: v for k, v in locals().items() if v is not None}
-    config = validate.pydantic_model_validate(BenchmarkObjectDetectionConfig, args)
+    if backend_args is None:
+        backend_args = {"format": "torch"}
+    config = validate.pydantic_model_validate(BenchmarkObjectDetectionConfig, locals())
     return _benchmark_object_detection_from_config(config=config)
 
 
@@ -267,12 +268,9 @@ def _benchmark_object_detection_from_config(
 
             if step % print_every == 0 or step == total_batches - 1:
                 processed = min((step + 1) * config.batch_size, total_images)
-                num_preds = sum(len(p["labels"]) for p in metric_preds)
-                num_targets = sum(len(t["labels"]) for t in targets)
                 print(
                     f"Step {step + 1}/{total_batches} "
-                    f"({processed}/{total_images} images) "
-                    f"- {num_preds} predictions, {num_targets} ground truth boxes",
+                    f"({processed}/{total_images} images)",
                     flush=True,
                 )
 
@@ -294,14 +292,8 @@ def _benchmark_object_detection_from_config(
         ),
     )
 
-    model_name: str | None
-    model_class: str
-    if isinstance(config.model, TaskModel):
-        model_name = getattr(config.model, "model_name", None)
-        model_class = type(config.model).__name__
-    else:
-        model_name = str(config.model)
-        model_class = "N/A"
+    model_name: str | None = getattr(model, "model_name", None)
+    model_class = type(model).__name__
 
     device_info = _get_device_info(device=device)
 

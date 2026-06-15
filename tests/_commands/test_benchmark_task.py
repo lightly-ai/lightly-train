@@ -28,6 +28,7 @@ from lightly_train._commands.benchmark_types import (
     BenchmarkObjectDetectionConfig,
     BenchmarkResult,
     ObjectDetectionPrediction,
+    TorchBackendArgs,
 )
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
@@ -207,6 +208,14 @@ class TestBenchmarkObjectDetectionConfig:
             dataset_name="test-coco",
             data=data_dict,  # type: ignore[arg-type]
             model=_FakeObjectDetectionModel(),
+            batch_size=1,
+            threshold=0.0,
+            warmup_steps=0,
+            steps=None,
+            num_workers="auto",
+            overwrite=False,
+            device=None,
+            backend_args=TorchBackendArgs(),
         )
         assert isinstance(config.data, COCOObjectDetectionDataArgs)
 
@@ -218,6 +227,14 @@ class TestBenchmarkObjectDetectionConfig:
                 dataset_name="test-coco",
                 data=data_dict,  # type: ignore[arg-type]
                 model=_FakeObjectDetectionModel(),
+                batch_size=1,
+                threshold=0.0,
+                warmup_steps=0,
+                steps=None,
+                num_workers="auto",
+                overwrite=False,
+                device=None,
+                backend_args=TorchBackendArgs(),
                 unknown_field="value",  # type: ignore[call-arg]
             )
 

@@ -239,7 +239,7 @@ class TorchBackendArgs(PydanticConfig):
 
     format: Literal["torch"] = "torch"
     compile: bool = False
-    precision: Literal["fp32", "fp16", "bf16"] = "fp32"
+    precision: Literal["fp32", "fp16-mixed", "bf16-mixed"] = "fp32"
 
 
 class ONNXBackendArgs(PydanticConfig):
@@ -270,17 +270,17 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
         Field(discriminator="format"),
     ]
     model: TaskModel | PathLike
-    batch_size: int = Field(default=1, ge=1)
-    threshold: float = 0.0
-    warmup_steps: int = 0
-    steps: int | None = Field(default=None, ge=1)
-    num_workers: int | Literal["auto"] = "auto"
-    overwrite: bool = False
-    device: str | None = None
+    batch_size: int = Field(ge=1)
+    threshold: float
+    warmup_steps: int
+    steps: int | None = Field(ge=1)
+    num_workers: int | Literal["auto"]
+    overwrite: bool
+    device: str | None
     backend_args: Annotated[
         BenchmarkBackendArgs,
         Field(discriminator="format"),
-    ] = Field(default_factory=TorchBackendArgs)
+    ]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

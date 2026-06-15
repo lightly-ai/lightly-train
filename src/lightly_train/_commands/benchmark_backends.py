@@ -26,6 +26,38 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import ObjectDetectionBatch
 
 
+def _rescale_and_filter_predictions(
+    *,
+    labels: Tensor,
+    boxes: Tensor,
+    scores: Tensor,
+    metadata: list[dict[str, int]],
+    model_w: int,
+    model_h: int,
+    threshold: float,
+) -> list[ObjectDetectionPrediction]:
+    """Rescale boxes from model input size to original image coordinates and filter by score threshold."""
+    results: list[ObjectDetectionPrediction] = []
+    for i in range(len(metadata)):
+        orig_w = metadata[i]["orig_w"]
+        orig_h = metadata[i]["orig_h"]
+        img_boxes = boxes[i].clone()
+        img_boxes[:, 0] *= orig_w / model_w
+        img_boxes[:, 1] *= orig_h / model_h
+        img_boxes[:, 2] *= orig_w / model_w
+        img_boxes[:, 3] *= orig_h / model_h
+
+        keep = scores[i] > threshold
+        results.append(
+            {
+                "bboxes": img_boxes[keep],
+                "scores": scores[i][keep],
+                "labels": labels[i][keep],
+            }
+        )
+    return results
+
+
 class ObjectDetectionBackend(ABC):
     """Object detection backend."""
 
@@ -67,7 +99,10 @@ class TorchBackend(ObjectDetectionBackend):
 
         # predict
         precision = self.backend_args.precision
-        autocast_dtype = {"fp16": torch.float16, "bf16": torch.bfloat16}.get(precision)
+        autocast_dtype = {
+            "fp16-mixed": torch.float16,
+            "bf16-mixed": torch.bfloat16,
+        }.get(precision)
         start_predict = time.perf_counter()
         with torch.autocast(
             device_type=self.device.type,
@@ -202,25 +237,15 @@ class ONNXBackend(ObjectDetectionBackend):
         # The ONNX forward() rescales boxes to the model input size when
         # orig_target_size is not provided. Rescale to original image
         # coordinates.
-        results: list[ObjectDetectionPrediction] = []
-        for i in range(len(metadata)):
-            orig_w = metadata[i]["orig_w"]
-            orig_h = metadata[i]["orig_h"]
-            boxes = boxes_unscaled[i].clone()
-            boxes[:, 0] *= orig_w / model_w
-            boxes[:, 1] *= orig_h / model_h
-            boxes[:, 2] *= orig_w / model_w
-            boxes[:, 3] *= orig_h / model_h
-
-            keep = scores[i] > self.threshold
-            results.append(
-                {
-                    "bboxes": boxes[keep],
-                    "scores": scores[i][keep],
-                    "labels": labels[i][keep],
-                }
-            )
-
+        results = _rescale_and_filter_predictions(
+            labels=labels,
+            boxes=boxes_unscaled,
+            scores=scores,
+            metadata=metadata,
+            model_w=model_w,
+            model_h=model_h,
+            threshold=self.threshold,
+        )
         return results, time_predict
 
 
@@ -335,23 +360,13 @@ class TensorRTBackend(ObjectDetectionBackend):
         boxes_batch = outputs["boxes"].cpu()
         scores_batch = outputs["scores"].cpu()
 
-        results: list[ObjectDetectionPrediction] = []
-        for i in range(len(metadata)):
-            orig_w = metadata[i]["orig_w"]
-            orig_h = metadata[i]["orig_h"]
-            boxes = boxes_batch[i].clone()
-            boxes[:, 0] *= orig_w / model_w
-            boxes[:, 1] *= orig_h / model_h
-            boxes[:, 2] *= orig_w / model_w
-            boxes[:, 3] *= orig_h / model_h
-
-            keep = scores_batch[i] > self.threshold
-            results.append(
-                {
-                    "bboxes": boxes[keep],
-                    "scores": scores_batch[i][keep],
-                    "labels": labels_batch[i][keep],
-                }
-            )
-
+        results = _rescale_and_filter_predictions(
+            labels=labels_batch,
+            boxes=boxes_batch,
+            scores=scores_batch,
+            metadata=metadata,
+            model_w=model_w,
+            model_h=model_h,
+            threshold=self.threshold,
+        )
         return results, time_predict
