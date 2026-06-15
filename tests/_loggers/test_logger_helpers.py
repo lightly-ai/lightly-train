@@ -152,7 +152,10 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
             jsonl=None,
-            mlflow=MLFlowLoggerArgs(experiment_name="abc"),
+            mlflow=MLFlowLoggerArgs(
+                experiment_name="abc",
+                tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}",
+            ),
             tensorboard=None,
             wandb=None,
         ),
@@ -164,8 +167,9 @@ def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
     assert (
         temp_experiment.name == "abc"
     )  # MLFlowLogger uses the experiment id (will be 1).
-    assert logger.save_dir is not None
-    assert Path(logger.save_dir) == tmp_path  # Cannot check for log_dir as it is None.
+    # save_dir is None for non-file tracking URIs, but the out directory is still
+    # passed to the logger.
+    assert logger.save_temp_dir == str(tmp_path)
 
 
 def test_log_image_to_loggers__tensorboard(tmp_path: Path) -> None:
@@ -206,8 +210,9 @@ def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
     # Verifies the image is written as a PNG artifact with correct pixel content.
     mlflow_logger = MLFlowLogger(
         experiment_name="test_exp",
-        tracking_uri=(tmp_path / "mlruns").as_uri(),
+        tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}",
         save_dir=tmp_path,
+        artifact_location=(tmp_path / "artifacts").as_uri(),
     )
     image = PILImageModule.new("RGB", (4, 4), color=(128, 0, 0))
 
