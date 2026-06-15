@@ -42,7 +42,9 @@ class TestDepthAnythingV3MetricDepthEstimation:
             load_weights=False,
         )
         image = Image.new("RGB", (80, 64), color=(32, 64, 128))
-        intrinsics = torch.tensor([[600.0, 0.0, 40.0], [0.0, 600.0, 32.0], [0.0, 0.0, 1.0]])
+        intrinsics = torch.tensor(
+            [[600.0, 0.0, 40.0], [0.0, 600.0, 32.0], [0.0, 0.0, 1.0]]
+        )
 
         depth = model.predict(image, intrinsics=intrinsics)
 
