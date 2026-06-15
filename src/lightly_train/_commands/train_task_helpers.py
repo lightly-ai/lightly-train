@@ -58,8 +58,8 @@ from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
-    DINOv2LinearSemanticSegmentationTrain,
+from lightly_train._task_models.linear_semantic_segmentation.train_model import (
+    LinearSemanticSegmentationTrain,
 )
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
@@ -126,7 +126,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv2LinearSemanticSegmentationTrain,
+    LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
     SemanticSegmentationMultiheadTrain,
     DINOv2LTDETRObjectDetectionTrain,
