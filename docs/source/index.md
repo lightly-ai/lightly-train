@@ -39,10 +39,6 @@ Also check out [LightlyStudio](https://github.com/lightly-ai/lightly-studio) to 
 visualize your annotations and predictions.
 
 ## News
-
-- 2026-06-15: ⚡ **EdgeCrafter Object Detection:** Fine-tune compact EdgeCrafter ECViT
-  backbones with LTDETR for efficient
-  [object detection](https://docs.lightly.ai/train/stable/object_detection.html). ⚡
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
   2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
