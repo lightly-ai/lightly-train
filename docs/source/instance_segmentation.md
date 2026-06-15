@@ -170,6 +170,41 @@ fig.show()
 ```{figure} /_static/images/instance_segmentation/cats.jpg
 ```
 
+### Improving Small Instance Segmentation
+
+Segmenting small instances in high-resolution images can be challenging because they may
+occupy only a few pixels when the image is resized to the model's input resolution. To
+address this, we support Slicing Aided Hyper Inference (SAHI) allowing the model to make
+predictions from overlapping tiles of the original image at full resolution and then
+merge the predictions.
+
+Using tiled inference requires no extra setup:
+
+```python
+import lightly_train
+
+model = lightly_train.load_model("dinov3/vitl16-eomt-inst-coco")
+results = model.predict_sahi(image="image.jpg")
+results["labels"]   # Class labels, tensor of shape (num_instances,)
+results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
+                    # Height and width correspond to the original image size.
+results["scores"]   # Confidence scores, tensor of shape (num_instances,)
+```
+
+You can customize the behavior via the following parameters:
+
+- `overlap`: Fraction of overlap between neighboring tiles. Higher values increase
+  small-instance recall but also increase computation.
+- `threshold`: Minimum confidence score required to keep a predicted instance.
+- `nms_iou_threshold`: Mask IoU threshold used for class-aware non-maximum suppression
+  when merging predictions coming from different tiles.
+- `global_local_iou_threshold`: Our SAHI-style inference combines predictions from both
+  the *global* (full-image) view and the *local* tiles. To avoid duplicate instances, a
+  tile prediction is suppressed when its mask IoU with a same-class prediction from the
+  global view exceeds `global_local_iou_threshold`.
+- `batch_size`: Number of tiles processed per forward pass. Defaults to `None`, which
+  processes all tiles at once; lower it to reduce peak memory usage.
+
 (instance-segmentation-data)=
 
 ## Data
