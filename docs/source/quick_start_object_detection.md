@@ -11,7 +11,8 @@ target:
 
 This guide demonstrates how to use Lightly**Train** for object detection with our
 state-of-the-art LTDETR model built on
-[DINOv3](https://github.com/facebookresearch/dinov3).
+[DINOv3](https://github.com/facebookresearch/dinov3). LTDETR also supports compact
+[EdgeCrafter ECViT](#models-edgecrafter) backbones for custom fine-tuning.
 
 ## Installation
 
@@ -142,6 +143,7 @@ import lightly_train
 lightly_train.train_object_detection(
     out="out/my_experiment",
     model="dinov3/convnext-tiny-ltdetr-coco",
+    # For EdgeCrafter ECViT, use e.g. model="edgecrafter/ecvitt-ltdetr".
     steps=100,  # Small number of steps for demonstration, default is 90_000.
     batch_size=4,  # Small batch size for demonstration, default is 16.
     data={
