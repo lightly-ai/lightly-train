@@ -600,7 +600,7 @@ def test_create_train_model__ecvit(
     # ECViT has no mask_token; the constructor must not have tried to freeze
     # one (which would AttributeError).
     assert not hasattr(task_model.backbone, "mask_token")
-    # The wrapped ECViTWrapper itself must not have a mask_token either.
+    # The wrapped ECViTModelWrapper itself must not have a mask_token either.
     assert not hasattr(task_model.backbone.backbone_model, "mask_token")
 
 

@@ -36,7 +36,7 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
-from lightly_train._models.ecvit.ecvit import ECViTWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -673,7 +673,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
         # and ignores `patch_size`/`weights` in model_args).
         if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone: ConvNeXt | DinoVisionTransformer | ECViTWrapper = (
+            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
                 EDGE_CRAFTER_PACKAGE.get_model(
                     model_name=parsed_name["backbone_name"],
                     model_args=None,
@@ -687,7 +687,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 load_weights=load_weights,
                 **get_model_kwargs,
             )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer, ECViTWrapper))
+        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper))
 
         # Map preset name -> (config_cls, config_name_strip_suffixes). For
         # ECViT we strip no suffixes (the preset names are bare) and route
@@ -708,7 +708,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             #   ecvitt         -> proj_dim 192 -> ViTT
             #   ecvittplus     -> proj_dim 256 -> ViTTPlus
             #   ecvits         -> proj_dim 256 -> ViTTPlus (embed_dim=384 is
-            #                     projected down to 256 by ECViTWrapper)
+            #                     projected down to 256 by ECViTModelWrapper)
             #   ecvitsplus     -> proj_dim 256 -> ViTTPlus
             "ecvitt": _DINOv3LTDETRObjectDetectionViTTConfig,
             "ecvittplus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
@@ -726,7 +726,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
-        if isinstance(backbone, ECViTWrapper):
+        if isinstance(backbone, ECViTModelWrapper):
             # ECViT already fuses its own pyramid; no SpatialPriorModule
             # (use_sta=False). The wrapper exposes (P3, P4, P5) with channel
             # counts matching the encoder config's in_channels via `proj_dim`.

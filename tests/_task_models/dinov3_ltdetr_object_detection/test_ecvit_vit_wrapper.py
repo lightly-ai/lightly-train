@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from lightly_train._models.ecvit.ecvit import ECViTWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
@@ -20,12 +20,12 @@ class TestECViTBackboneWrapper:
     def test_patch_size_is_16(self) -> None:
         # ECViT uses a ConvPyramidPatchEmbed with a fixed patch size of 16; the
         # wrapper exposes that fixed value for the train/val transforms.
-        ecvit = ECViTWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
+        ecvit = ECViTModelWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
         wrapper = ECViTBackboneWrapper(model_wrapper=ecvit)
         assert wrapper.patch_size == 16
 
     def test_backbone_model_returns_wrapped_ecvit(self) -> None:
-        ecvit = ECViTWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
+        ecvit = ECViTModelWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
         wrapper = ECViTBackboneWrapper(model_wrapper=ecvit)
         assert wrapper.backbone_model is ecvit
 
@@ -34,10 +34,10 @@ class TestECViTBackboneWrapper:
         ["ecvitt", "ecvittplus", "ecvits", "ecvitsplus"],
     )
     def test_forward_matches_ecvit_wrapper_output(self, name: str) -> None:
-        # The wrapper must be a pass-through: forward(x) == ECViTWrapper.forward(x).
+        # The wrapper must be a pass-through: forward(x) == ECViTModelWrapper.forward(x).
         # We use a small model (depth=1, tiny dims) to keep the test fast and
         # independent of any pretrained weight download.
-        ecvit = ECViTWrapper(
+        ecvit = ECViTModelWrapper(
             name=name,
             depth=1,
             interaction_indexes=[0],
@@ -63,7 +63,7 @@ class TestECViTBackboneWrapper:
         # Unlike the DINOv3 ViT-based DINOv3STAs, ECViT has no mask_token.
         # The task model constructor must not try to freeze one on the ECViT
         # branch (see DINOv3LTDETRObjectDetection.__init__).
-        ecvit = ECViTWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
+        ecvit = ECViTModelWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
         wrapper = ECViTBackboneWrapper(model_wrapper=ecvit)
         assert not hasattr(wrapper, "mask_token")
         assert not hasattr(wrapper.backbone_model, "mask_token")

@@ -17,7 +17,7 @@ from lightly_train._env import Env
 from lightly_train._models.ecvit.ecvit import (
     ECVIT_PRESETS,
     ECVIT_PRETRAINED_URLS,
-    ECViTWrapper,
+    ECViTModelWrapper,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
@@ -85,8 +85,8 @@ class EdgeCrafterPackage(Package):
         return model_name
 
     @classmethod
-    def is_supported_model(cls, model: ECViTWrapper | ModelWrapper | Any) -> bool:
-        return isinstance(model, ECViTWrapper)
+    def is_supported_model(cls, model: ECViTModelWrapper | ModelWrapper | Any) -> bool:
+        return isinstance(model, ECViTModelWrapper)
 
     @classmethod
     def get_model(
@@ -95,8 +95,8 @@ class EdgeCrafterPackage(Package):
         num_input_channels: int = 3,
         model_args: dict[str, Any] | None = None,
         load_weights: bool = True,
-    ) -> ECViTWrapper:
-        """Build an :class:`ECViTWrapper` for the given preset.
+    ) -> ECViTModelWrapper:
+        """Build an :class:`ECViTModelWrapper` for the given preset.
 
         Multi-channel input is intentionally not supported: ``num_input_channels``
         must be 3. The parameter is kept on the signature for parity with
@@ -123,22 +123,22 @@ class EdgeCrafterPackage(Package):
                 preset_name=preset_name, model_info=MODEL_NAME_TO_INFO[preset_name]
             )
 
-        return ECViTWrapper(name=preset_name, weights_path=weights_path)
+        return ECViTModelWrapper(name=preset_name, weights_path=weights_path)
 
     @classmethod
-    def get_model_wrapper(cls, model: ECViTWrapper) -> ECViTWrapper:
+    def get_model_wrapper(cls, model: ECViTModelWrapper) -> ECViTModelWrapper:
         if not cls.is_supported_model(model):
             raise ValueError(
                 f"EdgeCrafterPackage cannot create a model wrapper for model of "
-                f"type {type(model)}. The model must be an ECViTWrapper."
+                f"type {type(model)}. The model must be an ECViTModelWrapper."
             )
-        # ECViTWrapper is already a ModelWrapper.
+        # ECViTModelWrapper is already a ModelWrapper.
         return model
 
     @classmethod
     def export_model(
         cls,
-        model: ECViTWrapper | ModelWrapper | Any,
+        model: ECViTModelWrapper | ModelWrapper | Any,
         out: Path,
         log_example: bool = True,
     ) -> None:
@@ -147,7 +147,7 @@ class EdgeCrafterPackage(Package):
         if not cls.is_supported_model(model):
             raise ValueError(
                 f"EdgeCrafterPackage cannot export model of type {type(model)}. "
-                "The model must be an ECViTWrapper."
+                "The model must be an ECViTModelWrapper."
             )
         torch.save(model.state_dict(), out)
 
