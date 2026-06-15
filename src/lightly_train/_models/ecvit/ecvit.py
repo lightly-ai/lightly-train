@@ -462,7 +462,9 @@ class ECViTModelWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
                 f"Unknown ffn_layer: {ffn_layer}. Available: {list(FFN_LAYER_REGISTRY)}"
             )
         if num_levels != 3:
-            raise NotImplementedError("Only support num_levels=3 for ECViTModelWrapper.")
+            raise NotImplementedError(
+                "Only support num_levels=3 for ECViTModelWrapper."
+            )
 
         preset = ECVIT_PRESETS[name]
         resolved_embed_dim = cast(
