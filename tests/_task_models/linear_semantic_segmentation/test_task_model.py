@@ -14,7 +14,10 @@ from lightly_train._task_models.linear_semantic_segmentation.task_model import (
     LinearSemanticSegmentation,
 )
 
-_IMAGE_NORMALIZE = {"mean": (0.485, 0.456, 0.406), "std": (0.229, 0.224, 0.225)}
+_IMAGE_NORMALIZE: dict[str, tuple[float, ...]] = {
+    "mean": (0.485, 0.456, 0.406),
+    "std": (0.229, 0.224, 0.225),
+}
 _CLASSES = {0: "background", 1: "car"}
 
 
