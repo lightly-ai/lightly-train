@@ -40,8 +40,9 @@ def test_task_model__predict_returns_original_resolution(
         load_weights=False,
     )
     image = Image.new("RGB", (80, 64), color=(32, 64, 128))
+    intrinsics = torch.tensor([[600.0, 0.0, 40.0], [0.0, 600.0, 32.0], [0.0, 0.0, 1.0]])
 
-    depth = model.predict(image)
+    depth = model.predict(image, intrinsics=intrinsics)
 
     # Inference runs at the processing resolution (56, 42) and the depth map is
     # resized back to the original input resolution.
@@ -59,15 +60,21 @@ def test_task_model__predict_intrinsics_scale_depth_by_focal(
         model_args=tiny_model_args,
         load_weights=False,
     )
-    # A 56x56 image is processed at its own size, so the focal length is not rescaled
-    # and fx = fy = 600 gives an exact metric scale of 600 / 300 = 2.
+    # A 56x56 image is processed at its own size, so focal lengths are not rescaled.
+    # fx = fy = 600 → scale 600/300 = 2; fx = fy = 1200 → scale 1200/300 = 4.
+    # Doubling the focal should exactly double the metric depth.
     image = Image.new("RGB", (56, 56), color=(32, 64, 128))
-    intrinsics = torch.tensor([[600.0, 0.0, 28.0], [0.0, 600.0, 28.0], [0.0, 0.0, 1.0]])
+    intrinsics_600 = torch.tensor(
+        [[600.0, 0.0, 28.0], [0.0, 600.0, 28.0], [0.0, 0.0, 1.0]]
+    )
+    intrinsics_1200 = torch.tensor(
+        [[1200.0, 0.0, 28.0], [0.0, 1200.0, 28.0], [0.0, 0.0, 1.0]]
+    )
 
-    canonical = model.predict(image)
-    metric = model.predict(image, intrinsics=intrinsics)
+    depth_600 = model.predict(image, intrinsics=intrinsics_600)
+    depth_1200 = model.predict(image, intrinsics=intrinsics_1200)
 
-    assert torch.equal(metric, canonical * 2.0)
+    assert torch.equal(depth_1200, depth_600 * 2.0)
 
 
 def test_task_model__predict_batch_intrinsics_per_image(
@@ -88,12 +95,17 @@ def test_task_model__predict_batch_intrinsics_per_image(
         torch.tensor([[1200.0, 0.0, 28.0], [0.0, 1200.0, 28.0], [0.0, 0.0, 1.0]]),
     ]
 
-    canonical = model.predict_batch(images)
-    metric = model.predict_batch(images, intrinsics=intrinsics)
+    # Scale each image's focal by 2 to verify per-image scaling.
+    intrinsics_doubled = [
+        torch.tensor([[1200.0, 0.0, 28.0], [0.0, 1200.0, 28.0], [0.0, 0.0, 1.0]]),
+        torch.tensor([[2400.0, 0.0, 28.0], [0.0, 2400.0, 28.0], [0.0, 0.0, 1.0]]),
+    ]
 
-    # Each image is scaled by its own focal: 600 / 300 = 2 and 1200 / 300 = 4.
-    assert torch.equal(metric[0], canonical[0] * 2.0)
-    assert torch.equal(metric[1], canonical[1] * 4.0)
+    metric = model.predict_batch(images, intrinsics=intrinsics)
+    metric_doubled = model.predict_batch(images, intrinsics=intrinsics_doubled)
+
+    assert torch.equal(metric_doubled[0], metric[0] * 2.0)
+    assert torch.equal(metric_doubled[1], metric[1] * 2.0)
 
 
 def test__processed_focal_length() -> None:
