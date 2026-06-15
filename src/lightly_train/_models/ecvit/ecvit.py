@@ -422,7 +422,7 @@ class VisionTransformer(nn.Module):
         return outs
 
 
-class ECViTWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
+class ECViTModelWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
     """EdgeCrafter ECViT backbone wrapper for LTDETR-style feature pyramids.
 
     The forward path intentionally follows EdgeCrafter's ECViT adapter:
@@ -462,7 +462,7 @@ class ECViTWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
                 f"Unknown ffn_layer: {ffn_layer}. Available: {list(FFN_LAYER_REGISTRY)}"
             )
         if num_levels != 3:
-            raise NotImplementedError("Only support num_levels=3 for ECViTWrapper.")
+            raise NotImplementedError("Only support num_levels=3 for ECViTModelWrapper.")
 
         preset = ECVIT_PRESETS[name]
         resolved_embed_dim = cast(
@@ -576,7 +576,7 @@ class ECViTWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
     def feature_dim(self) -> int:
         return self.proj_dim[-1]
 
-    def get_model(self) -> "ECViTWrapper":
+    def get_model(self) -> "ECViTModelWrapper":
         return self
 
     def architecture_info(self) -> ArchitectureInfo:

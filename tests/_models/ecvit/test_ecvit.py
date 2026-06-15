@@ -13,14 +13,14 @@ from pathlib import Path
 import pytest
 import torch
 
-from lightly_train._models.ecvit import ECVIT_PRESETS, ECViTWrapper
+from lightly_train._models.ecvit import ECVIT_PRESETS, ECViTModelWrapper
 from lightly_train._models.model_wrapper import (
     ModelWrapper,
     missing_model_wrapper_attrs,
 )
 
 
-class TestECViTWrapper:
+class TestECViTModelWrapper:
     @pytest.mark.parametrize(
         ("name", "expected_channels"),
         [
@@ -33,7 +33,7 @@ class TestECViTWrapper:
     def test_forward__all_presets_return_three_projected_levels(
         self, name: str, expected_channels: int
     ) -> None:
-        model = ECViTWrapper(name=name, depth=1, interaction_indexes=[0])
+        model = ECViTModelWrapper(name=name, depth=1, interaction_indexes=[0])
         model.eval()
 
         with torch.no_grad():
@@ -48,7 +48,7 @@ class TestECViTWrapper:
         ]
 
     def test_forward__averages_selected_layers_before_projecting(self) -> None:
-        model = ECViTWrapper(
+        model = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -103,7 +103,7 @@ class TestECViTWrapper:
     def test_load_weights_path__raises_on_missing_backbone_key(
         self, tmp_path: Path
     ) -> None:
-        source = ECViTWrapper(
+        source = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -117,7 +117,7 @@ class TestECViTWrapper:
         torch.save(state_dict, weights_path)
 
         with pytest.raises(RuntimeError, match="Missing key"):
-            ECViTWrapper(
+            ECViTModelWrapper(
                 name="ecvitt",
                 weights_path=weights_path,
                 embed_dim=16,
@@ -130,7 +130,7 @@ class TestECViTWrapper:
     def test_load_weights_path__raises_on_unexpected_backbone_key(
         self, tmp_path: Path
     ) -> None:
-        source = ECViTWrapper(
+        source = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -144,7 +144,7 @@ class TestECViTWrapper:
         torch.save(state_dict, weights_path)
 
         with pytest.raises(RuntimeError, match="Unexpected key"):
-            ECViTWrapper(
+            ECViTModelWrapper(
                 name="ecvitt",
                 weights_path=weights_path,
                 embed_dim=16,
@@ -158,7 +158,7 @@ class TestECViTWrapper:
     def test_load_weights_path__unwraps_common_checkpoint_containers(
         self, tmp_path: Path, container_key: str
     ) -> None:
-        source = ECViTWrapper(
+        source = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -169,7 +169,7 @@ class TestECViTWrapper:
         weights_path = tmp_path / "ecvitt.pth"
         torch.save({container_key: source.backbone.state_dict()}, weights_path)
 
-        loaded = ECViTWrapper(
+        loaded = ECViTModelWrapper(
             name="ecvitt",
             weights_path=weights_path,
             embed_dim=16,
@@ -184,14 +184,14 @@ class TestECViTWrapper:
 
     def test_init__invalid_name_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown ECViT model name"):
-            ECViTWrapper(name="unknown")
+            ECViTModelWrapper(name="unknown")
 
     def test_init__invalid_num_levels_raises(self) -> None:
         with pytest.raises(NotImplementedError, match="Only support num_levels=3"):
-            ECViTWrapper(name="ecvitt", num_levels=4)
+            ECViTModelWrapper(name="ecvitt", num_levels=4)
 
     def test_forward__uses_actual_patch_embed_grid_for_non_multiple_size(self) -> None:
-        model = ECViTWrapper(
+        model = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -211,7 +211,7 @@ class TestECViTWrapper:
         ]
 
     def test_forward__keeps_valid_feature_sizes_for_tiny_inputs(self) -> None:
-        model = ECViTWrapper(
+        model = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -231,7 +231,7 @@ class TestECViTWrapper:
         ]
 
     def test_forward__preserves_rope_dtype_for_half_precision(self) -> None:
-        model = ECViTWrapper(
+        model = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -247,7 +247,7 @@ class TestECViTWrapper:
         assert all(output.dtype == torch.float16 for output in outputs)
 
     def test_model_wrapper_interface(self) -> None:
-        model = ECViTWrapper(
+        model = ECViTModelWrapper(
             name="ecvitt",
             embed_dim=16,
             num_heads=1,
@@ -284,6 +284,6 @@ class TestECViTWrapper:
         checkpoint_dir = Path(os.environ["ECVIT_CHECKPOINT_DIR"])
         checkpoint_path = checkpoint_dir / f"{name}.pth"
 
-        model = ECViTWrapper(name=name, weights_path=checkpoint_path)
+        model = ECViTModelWrapper(name=name, weights_path=checkpoint_path)
 
         assert len(model.backbone.state_dict()) > 0

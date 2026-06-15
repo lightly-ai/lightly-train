@@ -8,7 +8,7 @@
 from lightly_train._models.ecvit.ecvit import (
     ECVIT_PRESETS,
     ECVIT_PRETRAINED_URLS,
-    ECViTWrapper,
+    ECViTModelWrapper,
 )
 
-__all__ = ["ECVIT_PRESETS", "ECVIT_PRETRAINED_URLS", "ECViTWrapper"]
+__all__ = ["ECVIT_PRESETS", "ECVIT_PRETRAINED_URLS", "ECViTModelWrapper"]
