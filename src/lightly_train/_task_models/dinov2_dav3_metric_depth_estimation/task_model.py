@@ -163,7 +163,7 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         return model.lower() in _MODEL_CONFIGS
 
     @torch.no_grad()
-    def predict(
+    def predict(  # type: ignore[override]
         self,
         image: PathLike | PILImage | Tensor,
         intrinsics: Tensor,
@@ -202,7 +202,7 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         return self.postprocess(raw, [metadata])[0]
 
     @torch.no_grad()
-    def predict_batch(
+    def predict_batch(  # type: ignore[override]
         self,
         images: Sequence[PathLike | PILImage | Tensor],
         intrinsics: Sequence[Tensor],
