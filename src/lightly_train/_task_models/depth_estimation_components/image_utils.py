@@ -27,6 +27,7 @@ Pipeline:
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Sequence
 
 import torch
@@ -71,6 +72,39 @@ def process_image(
     image = _resize_bound(image, target_size=process_res, method=process_res_method)
     image = _make_divisible_by_resize(image, patch=PATCH_SIZE)
     return image
+
+
+def process_image_da2(
+    img: Tensor,
+    *,
+    input_size: int = 518,
+    patch: int = PATCH_SIZE,
+) -> Tensor:
+    """Processes a single image with the Depth Anything V2 preprocessing.
+
+    Reproduces the official MiDaS-style transform: a lower-bound resize so the shorter
+    side reaches ``input_size``, with both sides rounded to a multiple of ``patch``,
+    applied as a single cubic resampling on the float image with no intermediate
+    rounding (matching ``cv2.INTER_CUBIC`` on the float [0, 1] reference image). The
+    result stays in [0, 255] float space; ImageNet normalization is applied later in
+    ``process_batch``.
+
+    Args:
+        img: Image with shape ``(C, H, W)``. Uint8 tensors are interpreted in [0, 255]
+            and float tensors in [0, 1]; other dtypes raise.
+        input_size: Target size for the shorter side of the lower-bound resize.
+        patch: The patch size; both output dimensions are rounded to a multiple of it.
+
+    Returns:
+        A float64 RGB tensor in [0, 255] with shape ``(3, H', W')`` where H' and W' are
+        multiples of ``patch``.
+    """
+    image = _to_rgb_tensor(img).to(torch.float64)
+    h, w = image.shape[-2:]
+    new_h, new_w = _da2_target_size(h=h, w=w, input_size=input_size, patch=patch)
+    if (new_h, new_w) == (h, w):
+        return image
+    return _resize_cubic_no_round(image, new_h=new_h, new_w=new_w)
 
 
 def process_batch(images: Sequence[Tensor]) -> Tensor:
@@ -200,6 +234,46 @@ def _resize_to(img: Tensor, *, new_h: int, new_w: int, method: str) -> Tensor:
     return x.round().clamp(min=0.0, max=255.0)
 
 
+def _resize_cubic_no_round(img: Tensor, *, new_h: int, new_w: int) -> Tensor:
+    """Resizes a ``(C, H, W)`` float image to ``(new_h, new_w)`` with cv2-equivalent
+    cubic resampling, without rounding back to the integer grid.
+
+    Unlike ``_resize_to``, this matches the Depth Anything V2 reference, which resizes
+    the float image with ``cv2.INTER_CUBIC`` and keeps the (possibly out-of-[0, 255])
+    floating-point result. The cubic weights inherit the image dtype (float64) to match
+    cv2's double-precision arithmetic.
+    """
+    h, w = img.shape[-2:]
+    row_weights = _cubic_weights(src=h, dst=new_h, device=img.device, dtype=img.dtype)
+    col_weights = _cubic_weights(src=w, dst=new_w, device=img.device, dtype=img.dtype)
+    x = torch.einsum("ph,chw->cpw", row_weights, img)
+    x = torch.einsum("qw,cpw->cpq", col_weights, x)
+    return x
+
+
+def _da2_target_size(*, h: int, w: int, input_size: int, patch: int) -> tuple[int, int]:
+    """Computes the Depth Anything V2 (MiDaS) target size for a lower-bound resize.
+
+    Scales so the shorter side reaches ``input_size`` (both sides scaled by the same
+    factor), then constrains each side to a multiple of ``patch``: round to the nearest
+    multiple, but ceil to a multiple if that would fall below ``input_size``. Mirrors
+    the official ``Resize.get_size`` with ``resize_method="lower_bound"`` and
+    ``ensure_multiple_of=patch``.
+
+    Returns:
+        The ``(new_h, new_w)`` target size, both multiples of ``patch``.
+    """
+    scale = max(input_size / h, input_size / w)
+
+    def _constrain(x: float) -> int:
+        y = int(round(x / patch) * patch)
+        if y < input_size:
+            y = int(math.ceil(x / patch) * patch)
+        return y
+
+    return _constrain(scale * h), _constrain(scale * w)
+
+
 def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
     """Builds the ``(dst, src)`` cv2 ``INTER_AREA`` overlap-weight matrix for one axis.
 
@@ -216,7 +290,9 @@ def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
     return (hi - lo).clamp(min=0) / scale
 
 
-def _cubic_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
+def _cubic_weights(
+    *, src: int, dst: int, device: torch.device, dtype: torch.dtype = torch.float32
+) -> Tensor:
     """Builds the ``(dst, src)`` cv2 ``INTER_CUBIC`` weight matrix for one axis.
 
     Uses the Keys cubic convolution kernel with ``a = -0.75`` (cv2's constant) and
@@ -224,10 +300,17 @@ def _cubic_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
     ``(i + 0.5) * scale - 0.5`` from its four nearest taps; taps falling outside the
     image clamp to the border (cv2's replicate behavior), accumulating their weight.
     The four kernel weights sum to one, so no renormalization is needed.
+
+    Args:
+        src: Source axis length.
+        dst: Destination axis length.
+        device: Device on which the weights are created.
+        dtype: Floating-point dtype of the weights. The Depth Anything V2 pipeline uses
+            float64 to match cv2's double-precision cubic on float images.
     """
     a = -0.75
     scale = src / dst
-    out_idx = torch.arange(dst, dtype=torch.float32, device=device)
+    out_idx = torch.arange(dst, dtype=dtype, device=device)
     center = (out_idx + 0.5) * scale - 0.5
     base = torch.floor(center)
     frac = center - base
@@ -240,7 +323,7 @@ def _cubic_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
             t <= 1, inner, torch.where(t < 2, outer, torch.zeros_like(t))
         )
 
-    weights = torch.zeros(dst, src, dtype=torch.float32, device=device)
+    weights = torch.zeros(dst, src, dtype=dtype, device=device)
     rows = torch.arange(dst, device=device)
     for offset in (-1, 0, 1, 2):
         taps = (base + offset).long().clamp(min=0, max=src - 1)
