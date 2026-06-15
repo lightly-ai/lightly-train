@@ -401,10 +401,18 @@ def _make_scratch(
     c3 = out_shape * (4 if expand else 1)
     c4 = out_shape * (8 if expand else 1)
 
-    scratch.layer1_rn = nn.Conv2d(in_shape[0], c1, 3, 1, 1, bias=False, groups=groups)
-    scratch.layer2_rn = nn.Conv2d(in_shape[1], c2, 3, 1, 1, bias=False, groups=groups)
-    scratch.layer3_rn = nn.Conv2d(in_shape[2], c3, 3, 1, 1, bias=False, groups=groups)
-    scratch.layer4_rn = nn.Conv2d(in_shape[3], c4, 3, 1, 1, bias=False, groups=groups)
+    scratch.layer1_rn = nn.Conv2d(
+        in_shape[0], c1, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
+    scratch.layer2_rn = nn.Conv2d(
+        in_shape[1], c2, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
+    scratch.layer3_rn = nn.Conv2d(
+        in_shape[2], c3, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
+    scratch.layer4_rn = nn.Conv2d(
+        in_shape[3], c4, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
     return scratch
 
 
