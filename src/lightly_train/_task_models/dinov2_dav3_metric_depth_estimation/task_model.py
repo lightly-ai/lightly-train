@@ -281,7 +281,7 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize rounds after an
         # einsum whose accumulation order differs between CPU and GPU, so moving to the
         # model device first could flip pixels and break bit-exactness.
-        x = image_utils.process_image(
+        x = image_utils.process_image_dav3(
             x,
             process_res=self.process_resolution,
             process_res_method=self.process_res_method,

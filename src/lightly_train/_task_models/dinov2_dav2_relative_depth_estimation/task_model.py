@@ -268,7 +268,7 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize uses an einsum
         # whose accumulation order differs between CPU and GPU, so moving to the model
         # device first could shift pixels and break parity.
-        x = image_utils.process_image_da2(x, input_size=self.process_resolution)
+        x = image_utils.process_image_dav2(x, input_size=self.process_resolution)
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 

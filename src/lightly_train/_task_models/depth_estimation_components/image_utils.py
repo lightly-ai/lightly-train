@@ -6,22 +6,33 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-"""Image preprocessing for Depth Anything 3.
+"""Image preprocessing for the Depth Anything depth-estimation models.
 
-Exposes the preprocessing pipeline as two stages: a per-image stage
-(``process_image``) and a batch stage (``process_batch``). The order of outputs
-matches the input order.
+The pipeline is split into a per-image stage and a shared batch stage so the
+per-image stage can be baked into an export while the batch stage stays dynamic.
+Output order always matches input order.
 
-Pipeline:
-  1) ``process_image`` (per image):
-     a) Convert to a float32 RGB tensor in [0, 255]
-     b) Boundary resize (upper/lower bound, preserving aspect ratio)
-     c) Enforce divisibility by PATCH_SIZE: each dimension is rounded to the
-        nearest multiple (may up/downscale a few px)
-  2) ``process_batch`` (per batch):
-     a) Center-crop all images to the smallest size in the batch
-     b) Stack into (N, 3, H, W)
-     c) Apply ImageNet normalization
+Per-image stage (one function per model family, both producing a float RGB
+tensor in [0, 255] of shape ``(3, H, W)``):
+
+  - ``process_image_dav3`` (Depth Anything 3):
+      a) Convert to a float32 RGB tensor in [0, 255].
+      b) Boundary resize (upper/lower bound, preserving aspect ratio).
+      c) Round each dimension to the nearest multiple of ``PATCH_SIZE`` via a
+         small resize.
+    Every resize rounds back to the integer grid, reproducing the official
+    uint8-based cv2 pipeline bit-exactly.
+
+  - ``process_image_dav2`` (Depth Anything V2):
+      A single cubic resize so the shorter side reaches the target, with both
+      sides rounded to a multiple of ``PATCH_SIZE``. Runs in float64 with no
+      intermediate rounding, matching the official float ``cv2.INTER_CUBIC``
+      pipeline.
+
+Batch stage (shared, ``process_batch``):
+  a) Center-crop all images to the smallest size in the batch.
+  b) Stack into ``(N, 3, H, W)``.
+  c) Apply ImageNet normalization.
 """
 
 from __future__ import annotations
@@ -45,13 +56,19 @@ RESIZE_METHODS = (
 )
 
 
-def process_image(
+def process_image_dav3(
     img: Tensor,
     *,
     process_res: int = 504,
     process_res_method: str = "upper_bound_resize",
 ) -> Tensor:
-    """Processes a single image into a resized, patch-divisible tensor.
+    """Processes a single image with the Depth Anything 3 preprocessing.
+
+    Resizes the image so one side matches ``process_res`` (preserving the aspect
+    ratio), then rounds both sides to a multiple of ``PATCH_SIZE``. Both resizes
+    run in 0-255 float space and round back to the integer grid, matching the
+    official uint8-based cv2 pipeline bit-exactly. ImageNet normalization is
+    applied later in ``process_batch``.
 
     Args:
         img: Image with shape ``(C, H, W)``. Uint8 tensors are interpreted in
@@ -60,21 +77,20 @@ def process_image(
         process_res_method: One of ``RESIZE_METHODS``.
 
     Returns:
-        A float32 RGB tensor in [0, 255] with shape ``(3, H, W)``. Normalization
-        is applied later in ``process_batch``.
+        A float32 RGB tensor in [0, 255] with shape ``(3, H, W)``.
     """
     if process_res_method not in RESIZE_METHODS:
         raise ValueError(
             f"Unsupported process_res_method '{process_res_method}'. Supported "
             f"methods are: {RESIZE_METHODS}."
         )
-    image = _to_rgb_tensor(img)
+    image = _to_float_rgb(img)
     image = _resize_bound(image, target_size=process_res, method=process_res_method)
-    image = _make_divisible_by_resize(image, patch=PATCH_SIZE)
+    image = _resize_to_patch_multiple(image, patch=PATCH_SIZE)
     return image
 
 
-def process_image_da2(
+def process_image_dav2(
     img: Tensor,
     *,
     input_size: int = 518,
@@ -99,21 +115,21 @@ def process_image_da2(
         A float64 RGB tensor in [0, 255] with shape ``(3, H', W')`` where H' and W' are
         multiples of ``patch``.
     """
-    image = _to_rgb_tensor(img).to(torch.float64)
+    image = _to_float_rgb(img).to(torch.float64)
     h, w = image.shape[-2:]
-    new_h, new_w = _da2_target_size(h=h, w=w, input_size=input_size, patch=patch)
+    new_h, new_w = _dav2_target_size(h=h, w=w, input_size=input_size, patch=patch)
     if (new_h, new_w) == (h, w):
         return image
-    return _resize_cubic_no_round(image, new_h=new_h, new_w=new_w)
+    return _resize(image, new_h=new_h, new_w=new_w, method="cubic", round_to_grid=False)
 
 
 def process_batch(images: Sequence[Tensor]) -> Tensor:
-    """Processes images from ``process_image`` into a model-ready batch.
+    """Processes per-image tensors into a model-ready batch.
 
     Args:
-        images: Float32 RGB tensors in [0, 255] with shape ``(3, H, W)``, as
-            returned by ``process_image``. Images with different sizes are
-            center-cropped to the smallest size in the batch.
+        images: Float RGB tensors in [0, 255] with shape ``(3, H, W)``, as returned by
+            ``process_image_dav3`` or ``process_image_dav2``. Images with different
+            sizes are center-cropped to the smallest size in the batch.
 
     Returns:
         A normalized batch tensor of shape ``(N, 3, H, W)``.
@@ -141,7 +157,7 @@ def _unify_sizes(images: list[Tensor]) -> list[Tensor]:
     ]
 
 
-def _to_rgb_tensor(img: Tensor) -> Tensor:
+def _to_float_rgb(img: Tensor) -> Tensor:
     """Converts a ``(C, H, W)`` image tensor to a float32 RGB tensor in [0, 255].
 
     The pipeline operates in 0-255 float space so the resize arithmetic is
@@ -192,66 +208,32 @@ def _resize_bound(img: Tensor, *, target_size: int, method: str) -> Tensor:
     new_w = max(1, int(round(w * scale)))
     # As in cv2, the kernel choice is joint over both axes: a resize that enlarges
     # either axis uses cubic, otherwise area.
-    interpolation = "cubic" if new_h > h or new_w > w else "area"
-    return _resize_to(img, new_h=new_h, new_w=new_w, method=interpolation)
+    method = "cubic" if new_h > h or new_w > w else "area"
+    return _resize(img, new_h=new_h, new_w=new_w, method=method, round_to_grid=True)
 
 
-def _resize_to(img: Tensor, *, new_h: int, new_w: int, method: str) -> Tensor:
-    """Resizes a ``(C, H, W)`` float image to ``(new_h, new_w)``.
+def _resize_to_patch_multiple(img: Tensor, *, patch: int) -> Tensor:
+    """Rounds each dimension to the nearest multiple of ``patch`` via a small resize."""
 
-    Reproduces the cv2 resampling the official DA3 reference depends on without an
-    OpenCV dependency: ``"area"`` matches ``INTER_AREA`` and ``"cubic"`` matches
-    ``INTER_CUBIC``. Both are separable, so per-axis ``(dst, src)`` weight matrices
-    are built and applied along the height then the width. The result is rounded
-    back to the integer grid (in float, without a dtype change), reproducing cv2's
-    round-back-to-uint8 so values match the official pipeline bit-exactly; skipping
-    this quantization shifts the model input enough to visibly change the predicted
-    depth.
+    def nearest_multiple(x: int) -> int:
+        down = (x // patch) * patch
+        up = down + patch
+        return up if abs(up - x) <= abs(x - down) else down
 
-    Args:
-        img: Float image tensor with shape ``(C, H, W)``.
-        new_h: Target height.
-        new_w: Target width.
-        method: Interpolation method, either ``"area"`` or ``"cubic"``.
-
-    Returns:
-        The resized image with shape ``(C, new_h, new_w)``.
-    """
-    if method == "area":
-        weights = _area_weights
-    elif method == "cubic":
-        weights = _cubic_weights
-    else:
-        raise ValueError(
-            f"Unsupported resize method '{method}'. Supported methods are: "
-            f"('area', 'cubic')."
-        )
     h, w = img.shape[-2:]
-    row_weights = weights(src=h, dst=new_h, device=img.device)
-    col_weights = weights(src=w, dst=new_w, device=img.device)
-    x = torch.einsum("ph,chw->cpw", row_weights, img)
-    x = torch.einsum("qw,cpw->cpq", col_weights, x)
-    return x.round().clamp(min=0.0, max=255.0)
+    new_h = max(1, nearest_multiple(h))
+    new_w = max(1, nearest_multiple(w))
+    if new_w == w and new_h == h:
+        return img
+    # As in cv2, the kernel choice is joint over both axes: a resize that enlarges
+    # either axis uses cubic, otherwise area.
+    method = "cubic" if new_h > h or new_w > w else "area"
+    return _resize(img, new_h=new_h, new_w=new_w, method=method, round_to_grid=True)
 
 
-def _resize_cubic_no_round(img: Tensor, *, new_h: int, new_w: int) -> Tensor:
-    """Resizes a ``(C, H, W)`` float image to ``(new_h, new_w)`` with cv2-equivalent
-    cubic resampling, without rounding back to the integer grid.
-
-    Unlike ``_resize_to``, this matches the Depth Anything V2 reference, which resizes
-    the float image with ``cv2.INTER_CUBIC`` and keeps the (possibly out-of-[0, 255])
-    floating-point result. The cubic weights inherit the image dtype (float64) to match
-    cv2's double-precision arithmetic.
-    """
-    h, w = img.shape[-2:]
-    row_weights = _cubic_weights(src=h, dst=new_h, device=img.device, dtype=img.dtype)
-    col_weights = _cubic_weights(src=w, dst=new_w, device=img.device, dtype=img.dtype)
-    x = torch.einsum("ph,chw->cpw", row_weights, img)
-    x = torch.einsum("qw,cpw->cpq", col_weights, x)
-    return x
-
-
-def _da2_target_size(*, h: int, w: int, input_size: int, patch: int) -> tuple[int, int]:
+def _dav2_target_size(
+    *, h: int, w: int, input_size: int, patch: int
+) -> tuple[int, int]:
     """Computes the Depth Anything V2 (MiDaS) target size for a lower-bound resize.
 
     Scales so the shorter side reaches ``input_size`` (both sides scaled by the same
@@ -274,7 +256,55 @@ def _da2_target_size(*, h: int, w: int, input_size: int, patch: int) -> tuple[in
     return _constrain(scale * h), _constrain(scale * w)
 
 
-def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
+def _resize(
+    img: Tensor, *, new_h: int, new_w: int, method: str, round_to_grid: bool
+) -> Tensor:
+    """Resizes a ``(C, H, W)`` float image to ``(new_h, new_w)``.
+
+    Reproduces the cv2 resampling the official Depth Anything reference depends on
+    without an OpenCV dependency: ``"area"`` matches ``INTER_AREA`` and ``"cubic"``
+    matches ``INTER_CUBIC``. Both are separable, so per-axis ``(dst, src)`` weight
+    matrices are built (inheriting ``img``'s dtype to match cv2's arithmetic, float64
+    for the DAv2 pipeline and float32 for DAv3) and applied along the height then the
+    width.
+
+    Args:
+        img: Float image tensor with shape ``(C, H, W)``.
+        new_h: Target height.
+        new_w: Target width.
+        method: Interpolation method, either ``"area"`` or ``"cubic"``.
+        round_to_grid: If ``True``, round the result back to the integer grid (in
+            float, without a dtype change) and clamp to [0, 255], reproducing cv2's
+            round-back-to-uint8 so DAv3 values match the official pipeline bit-exactly;
+            skipping this quantization shifts the model input enough to visibly change
+            the predicted depth. The DAv2 pipeline keeps the unrounded float result and
+            passes ``False``.
+
+    Returns:
+        The resized image with shape ``(C, new_h, new_w)``.
+    """
+    if method == "area":
+        weights = _area_weights
+    elif method == "cubic":
+        weights = _cubic_weights
+    else:
+        raise ValueError(
+            f"Unsupported resize method '{method}'. Supported methods are: "
+            f"('area', 'cubic')."
+        )
+    h, w = img.shape[-2:]
+    row_weights = weights(src=h, dst=new_h, device=img.device, dtype=img.dtype)
+    col_weights = weights(src=w, dst=new_w, device=img.device, dtype=img.dtype)
+    x = torch.einsum("ph,chw->cpw", row_weights, img)
+    x = torch.einsum("qw,cpw->cpq", col_weights, x)
+    if round_to_grid:
+        x = x.round().clamp(min=0.0, max=255.0)
+    return x
+
+
+def _area_weights(
+    *, src: int, dst: int, device: torch.device, dtype: torch.dtype = torch.float32
+) -> Tensor:
     """Builds the ``(dst, src)`` cv2 ``INTER_AREA`` overlap-weight matrix for one axis.
 
     Output cell ``i`` spans ``[i * scale, (i + 1) * scale)`` in source coordinates,
@@ -283,8 +313,8 @@ def _area_weights(*, src: int, dst: int, device: torch.device) -> Tensor:
     identity, so an unchanged axis is passed through exactly.
     """
     scale = src / dst
-    out_idx = torch.arange(dst, dtype=torch.float32, device=device)[:, None]
-    src_idx = torch.arange(src, dtype=torch.float32, device=device)[None, :]
+    out_idx = torch.arange(dst, dtype=dtype, device=device)[:, None]
+    src_idx = torch.arange(src, dtype=dtype, device=device)[None, :]
     lo = torch.maximum(out_idx * scale, src_idx)
     hi = torch.minimum((out_idx + 1) * scale, src_idx + 1)
     return (hi - lo).clamp(min=0) / scale
@@ -329,22 +359,3 @@ def _cubic_weights(
         taps = (base + offset).long().clamp(min=0, max=src - 1)
         weights[rows, taps] += kernel(frac - offset)
     return weights
-
-
-def _make_divisible_by_resize(img: Tensor, *, patch: int) -> Tensor:
-    """Rounds each dimension to the nearest multiple of ``patch`` via small resize."""
-
-    def nearest_multiple(x: int) -> int:
-        down = (x // patch) * patch
-        up = down + patch
-        return up if abs(up - x) <= abs(x - down) else down
-
-    h, w = img.shape[-2:]
-    new_h = max(1, nearest_multiple(h))
-    new_w = max(1, nearest_multiple(w))
-    if new_w == w and new_h == h:
-        return img
-    # As in cv2, the kernel choice is joint over both axes: a resize that enlarges
-    # either axis uses cubic, otherwise area.
-    interpolation = "cubic" if new_h > h or new_w > w else "area"
-    return _resize_to(img, new_h=new_h, new_w=new_w, method=interpolation)
