@@ -15,7 +15,7 @@ make your source code available under AGPL-3.0.
 ### Commercial License
 
 For businesses and organizations that need to keep their code and models private. Covers
-model training, edge deployment, and inference. No obligation to open-source your work.
+model training and deployment. No obligation to open-source your work.
 
 ### Free Community License
 
@@ -39,13 +39,13 @@ We publish our pricing openly so you know what to expect before reaching out.
 
 **Startup and Growth Plans**
 
-- Commercial use license (model training, edge deployment, and inference)
+- Commercial use license (model training and deployment)
 - Startup: Community support
 - Growth: Basic support
 
 **Enterprise Plan**
 
-- Commercial use license (model training, edge deployment, and inference)
+- Commercial use license (model training and deployment)
 - Priority support
 - Joint Slack channel
 - Co-development engineering

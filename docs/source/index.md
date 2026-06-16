@@ -238,7 +238,7 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 | **Enterprise** | Custom          | > \$10M revenue **or** > 100 employees |
 
 All commercial plans include a license for model training, edge deployment, and
-inference. See the full [Licensing](licensing) page for plan details and inclusions.
+inference. See the full [Licensing](licensing.md) page for plan details and inclusions.
 
 [Contact us](https://www.lightly.ai/contact) to get started — we'll find the right
 option for your project!
