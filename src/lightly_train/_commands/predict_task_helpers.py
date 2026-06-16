@@ -13,19 +13,23 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import numpy as np
+from albumentations.pytorch import ToTensorV2
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from albumentations.pytorch import ToTensorV2
-
 from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._env import Env
-from lightly_train._task_models.task_model import TaskModel
-from lightly_train.types import DatasetItem, NDArrayMask, PathLike, TransformInput, TransformOutput
+from lightly_train.types import (
+    DatasetItem,
+    NDArrayMask,
+    PathLike,
+    TransformInput,
+    TransformOutput,
+)
 
 logger = logging.getLogger(__name__)
 

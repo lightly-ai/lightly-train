@@ -26,7 +26,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
-from lightly_train._pre_post_processors.semantic_segmentation import (
+from lightly_train._post_processors.semantic_segmentation import (
     SemanticSegmentationPostProcessor,
 )
 from lightly_train._task_models.task_model import TaskModel
