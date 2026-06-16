@@ -76,6 +76,32 @@ if __name__ == "__main__":
     )
 ```
 
+### Train an EdgeCrafter LTDETR Model
+
+To fine-tune an EdgeCrafter ECViT backbone, use one of the EdgeCrafter LTDETR model
+names:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="edgecrafter/ecvitt-ltdetr",
+        data={
+            "format": "yolo",
+            "path": "my_data_dir",
+            "train": "images/train2017",
+            "val": "images/val2017",
+            "names": {
+                0: "person",
+                1: "bicycle",
+                # ...
+            },
+        },
+    )
+```
+
 During training, both the
 
 - best (with highest validation mAP<sub>50:95</sub>) and
