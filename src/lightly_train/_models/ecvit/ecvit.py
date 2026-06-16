@@ -37,7 +37,7 @@ import warnings
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import torch
 import torch.nn as nn
@@ -578,7 +578,7 @@ class ECViTModelWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
     def feature_dim(self) -> int:
         return self.proj_dim[-1]
 
-    def get_model(self) -> "ECViTModelWrapper":
+    def get_model(self) -> Self:
         return self
 
     def architecture_info(self) -> ArchitectureInfo:
