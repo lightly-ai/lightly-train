@@ -76,9 +76,7 @@ def convert_checkpoint(
     )
 
     if weights is None:
-        parsed_name = DepthAnythingV2RelativeDepthEstimation.parse_model_name(
-            model_name
-        )
+        parsed_name = _parse_model_name(model_name)
         hf_weights = _HF_WEIGHTS[parsed_name]
         logger.info(
             f"Downloading official weights from '{hf_weights['repo_id']}' "
@@ -142,6 +140,16 @@ def main() -> None:
         out=args.out,
         model_name=args.model_name,
         weights=args.weights,
+    )
+
+
+def _parse_model_name(model_name: str) -> str:
+    key = model_name.lower()
+    if key in _HF_WEIGHTS:
+        return key
+    raise ValueError(
+        f"Model name '{model_name}' is not supported. Available models are: "
+        f"{sorted(_HF_WEIGHTS)}."
     )
 
 
