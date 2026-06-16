@@ -87,27 +87,26 @@ def test__resize_to_patch_multiple__halfway_rounds_up() -> None:
 
 
 def test__dav2_target_size__lower_bound_rounds_to_multiple_of_14() -> None:
-    # The shorter side (480) scales to process_resolution (518); the longer side scales
-    # by the same factor (690.67) and rounds to the nearest multiple of 14 (686).
+    # The shorter side (480) scales to process_res (518); the longer side scales by the
+    # same factor (690.67) and rounds to the nearest multiple of 14 (686).
     new_h, new_w = image_utils._dav2_target_size(
-        h=480, w=640, process_resolution=518, patch=14
+        h=480, w=640, process_res=518, patch=14
     )
     assert (new_h, new_w) == (518, 686)
 
 
-def test__dav2_target_size__square_maps_to_process_resolution() -> None:
+def test__dav2_target_size__square_maps_to_process_res() -> None:
     new_h, new_w = image_utils._dav2_target_size(
-        h=500, w=500, process_resolution=518, patch=14
+        h=500, w=500, process_res=518, patch=14
     )
     assert (new_h, new_w) == (518, 518)
 
 
 def test__dav2_target_size__ceils_when_below_min_val() -> None:
-    # With a process_resolution that is not a multiple of patch, rounding the shorter
-    # side down would fall below process_resolution, so it must ceil up to the next
-    # multiple (532).
+    # With a process_res that is not a multiple of patch, rounding the shorter side down
+    # would fall below process_res, so it must ceil up to the next multiple (532).
     new_h, new_w = image_utils._dav2_target_size(
-        h=500, w=500, process_resolution=520, patch=14
+        h=500, w=500, process_res=520, patch=14
     )
     assert (new_h, new_w) == (532, 532)
 
@@ -135,10 +134,10 @@ def test_process_image_dav2__matches_official_cubic_pipeline() -> None:
     generator = torch.Generator().manual_seed(0)
     img = torch.randint(0, 256, (3, 360, 540), generator=generator, dtype=torch.uint8)
 
-    out = image_utils.process_image_dav2(img, process_resolution=518, patch=14)
+    out = image_utils.process_image_dav2(img, process_res=518)
 
     new_h, new_w = image_utils._dav2_target_size(
-        h=360, w=540, process_resolution=518, patch=14
+        h=360, w=540, process_res=518, patch=14
     )
     assert out.shape == (3, new_h, new_w)
     # The official pipeline resizes the float image with cv2.INTER_CUBIC without

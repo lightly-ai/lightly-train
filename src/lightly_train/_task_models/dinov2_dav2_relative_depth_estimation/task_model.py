@@ -251,9 +251,7 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         """
         x = file_helpers.as_image_tensor(image)
         image_h, image_w = x.shape[-2:]
-        x = image_utils.process_image_dav2(
-            x, process_resolution=self.process_resolution
-        )
+        x = image_utils.process_image_dav2(x, process_res=self.process_resolution)
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 
