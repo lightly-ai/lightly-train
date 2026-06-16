@@ -33,7 +33,7 @@ class TestECViTBackboneWrapper:
         "name",
         ["ecvitt", "ecvittplus", "ecvits", "ecvitsplus"],
     )
-    def test_forward_matches_ecvit_wrapper_output(self, name: str) -> None:
+    def test_forward__matches_ecvit_wrapper_output(self, name: str) -> None:
         # The wrapper must be a pass-through: forward(x) == ECViTModelWrapper.forward(x).
         # We use a small model (depth=1, tiny dims) to keep the test fast and
         # independent of any pretrained weight download.
