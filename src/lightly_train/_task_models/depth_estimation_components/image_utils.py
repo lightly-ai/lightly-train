@@ -93,22 +93,22 @@ def process_image_dav3(
 def process_image_dav2(
     img: Tensor,
     *,
-    input_size: int = 518,
+    process_resolution: int = 518,
     patch: int = PATCH_SIZE,
 ) -> Tensor:
     """Processes a single image with the Depth Anything V2 preprocessing.
 
     Reproduces the official MiDaS-style transform: a lower-bound resize so the shorter
-    side reaches ``input_size``, with both sides rounded to a multiple of ``patch``,
-    applied as a single cubic resampling on the float image with no intermediate
-    rounding (matching ``cv2.INTER_CUBIC`` on the float [0, 1] reference image). The
-    result stays in [0, 255] float space; ImageNet normalization is applied later in
-    ``process_batch``.
+    side reaches ``process_resolution``, with both sides rounded to a multiple of
+    ``patch``, applied as a single cubic resampling on the float image with no
+    intermediate rounding (matching ``cv2.INTER_CUBIC`` on the float [0, 1] reference
+    image). The result stays in [0, 255] float space; ImageNet normalization is applied
+    later in ``process_batch``.
 
     Args:
         img: Image with shape ``(C, H, W)``. Uint8 tensors are interpreted in [0, 255]
             and float tensors in [0, 1]; other dtypes raise.
-        input_size: Target size for the shorter side of the lower-bound resize.
+        process_resolution: Target size for the shorter side of the lower-bound resize.
         patch: The patch size; both output dimensions are rounded to a multiple of it.
 
     Returns:
@@ -117,7 +117,9 @@ def process_image_dav2(
     """
     image = _to_float_rgb(img).to(torch.float64)
     h, w = image.shape[-2:]
-    new_h, new_w = _dav2_target_size(h=h, w=w, input_size=input_size, patch=patch)
+    new_h, new_w = _dav2_target_size(
+        h=h, w=w, process_resolution=process_resolution, patch=patch
+    )
     if (new_h, new_w) == (h, w):
         return image
     return _resize(image, new_h=new_h, new_w=new_w, method="cubic", round_to_grid=False)
@@ -232,24 +234,24 @@ def _resize_to_patch_multiple(img: Tensor, *, patch: int) -> Tensor:
 
 
 def _dav2_target_size(
-    *, h: int, w: int, input_size: int, patch: int
+    *, h: int, w: int, process_resolution: int, patch: int
 ) -> tuple[int, int]:
     """Computes the Depth Anything V2 (MiDaS) target size for a lower-bound resize.
 
-    Scales so the shorter side reaches ``input_size`` (both sides scaled by the same
-    factor), then constrains each side to a multiple of ``patch``: round to the nearest
-    multiple, but ceil to a multiple if that would fall below ``input_size``. Mirrors
-    the official ``Resize.get_size`` with ``resize_method="lower_bound"`` and
-    ``ensure_multiple_of=patch``.
+    Scales so the shorter side reaches ``process_resolution`` (both sides scaled by the
+    same factor), then constrains each side to a multiple of ``patch``: round to the
+    nearest multiple, but ceil to a multiple if that would fall below
+    ``process_resolution``. Mirrors the official ``Resize.get_size`` with
+    ``resize_method="lower_bound"`` and ``ensure_multiple_of=patch``.
 
     Returns:
         The ``(new_h, new_w)`` target size, both multiples of ``patch``.
     """
-    scale = max(input_size / h, input_size / w)
+    scale = max(process_resolution / h, process_resolution / w)
 
     def _constrain(x: float) -> int:
         y = int(round(x / patch) * patch)
-        if y < input_size:
+        if y < process_resolution:
             y = int(math.ceil(x / patch) * patch)
         return y
 

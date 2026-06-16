@@ -28,10 +28,6 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
-# Per-variant architecture, following the official Depth Anything V2 configs:
-# small (ViT-S), base (ViT-B), and large (ViT-L). The relative-depth models share
-# output_dim=1, image_size=518, and patch_size=14; they differ in the backbone, the
-# extracted layer indices, the DPT feature width, and the per-stage channels.
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-small": {
         "canonical_name": "dinov2/dav2-relative-small",
@@ -255,10 +251,9 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         """
         x = file_helpers.as_image_tensor(image)
         image_h, image_w = x.shape[-2:]
-        # Process on the input's native device: the cv2-parity resize uses an einsum
-        # whose accumulation order differs between CPU and GPU, so moving to the model
-        # device first could shift pixels and break parity.
-        x = image_utils.process_image_dav2(x, input_size=self.process_resolution)
+        x = image_utils.process_image_dav2(
+            x, process_resolution=self.process_resolution
+        )
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 
