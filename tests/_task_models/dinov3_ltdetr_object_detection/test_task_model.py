@@ -660,3 +660,106 @@ def test_resolve_auto__ecvit_model_init_args_patch_size_wins(
         data_args=dummy_yolo_detection_data_args,
     )
     assert model_args.patch_size == 32
+
+
+@pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
+def test_task_model__ecvit_rejects_non_16_patch_size(model_name: str) -> None:
+    # The ECViT-NN ConvPyramidPatchEmbed only supports patch_size=16. The
+    # task model must reject any other value with a ValueError naming the
+    # constraint; otherwise the decoder's `config.resolve_auto` would build
+    # strides at the wrong scale and anchors would be misaligned.
+    with pytest.raises(ValueError, match=r"patch_size=16"):
+        DINOv3LTDETRObjectDetection(
+            model_name=model_name,
+            classes={0: "class_0", 1: "class_1"},
+            image_size=(640, 640),
+            patch_size=32,
+            load_weights=False,
+        )
+
+
+@pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
+@pytest.mark.parametrize("patch_size", [16, None])
+def test_task_model__ecvit_accepts_patch_size_16_or_default(
+    model_name: str, patch_size: int | None
+) -> None:
+    # Either an explicit patch_size=16 or the default None must construct
+    # successfully, and the decoder strides must be `[8, 16, 32]` (matching
+    # what the ECViTBackboneWrapper actually emits).
+    model = DINOv3LTDETRObjectDetection(
+        model_name=model_name,
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        patch_size=patch_size,
+        load_weights=False,
+    )
+    assert model.decoder.feat_strides == [8, 16, 32]
+
+
+@pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
+def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
+    model_name: str,
+) -> None:
+    # The pretrained ECViT VisionTransformer must get the low
+    # `backbone_lr_factor`, but the freshly initialized projector must train
+    # at the full detector LR. Otherwise the connector never converges
+    # during fine-tuning.
+    from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+    from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+        ECViTBackboneWrapper,
+    )
+
+    # Disable the LR-warmup `start_factor` so the current lr in the
+    # optimizer's param groups equals the configured base lr (PyTorch's
+    # `_LRScheduler.__init__` calls `step()` once, which would otherwise
+    # scale every group by `scheduler_start_factor`).
+    train_model = _create_train_model(
+        DINOv3LTDETRObjectDetectionTrainArgs(scheduler_start_factor=1.0),
+        model_name=model_name,
+        model_init_args={"patch_size": 16},
+    )
+    backbone = train_model.model.backbone
+    assert isinstance(backbone, ECViTBackboneWrapper)
+    ecvit_wrapper = backbone.backbone_model
+    assert isinstance(ecvit_wrapper, ECViTModelWrapper)
+
+    pretrained_param_ids = {id(p) for p in ecvit_wrapper.backbone.parameters()}
+    projector_param_ids = {id(p) for p in ecvit_wrapper.projector.parameters()}
+    assert pretrained_param_ids.isdisjoint(projector_param_ids)
+    assert len(pretrained_param_ids) > 0
+    assert len(projector_param_ids) > 0
+
+    optimizer, _ = train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+    by_name = {g["name"]: g for g in optimizer.param_groups}
+
+    expected_backbone_lr = (
+        train_model.model_args.lr * train_model.model_args.backbone_lr_factor
+    )
+    expected_detector_lr = train_model.model_args.lr
+
+    # Params get split between the weight-decay and no-weight-decay variants
+    # of each LR group based on `optimizer_helpers.get_weight_decay_parameters`.
+    # Assert membership on the union of the two variants per side.
+    backbone_union_ids: set[int] = set()
+    for group_name in ("backbone", "backbone_no_wd"):
+        group = by_name[group_name]
+        assert group["lr"] == pytest.approx(expected_backbone_lr)
+        backbone_union_ids.update(id(p) for p in group["params"])
+    assert backbone_union_ids == pretrained_param_ids, (
+        "backbone groups together must contain exactly the pretrained "
+        "ECViT VisionTransformer params (and nothing else)"
+    )
+
+    detector_union_ids: set[int] = set()
+    for group_name in ("detector", "detector_no_wd"):
+        group = by_name[group_name]
+        assert group["lr"] == pytest.approx(expected_detector_lr)
+        detector_union_ids.update(id(p) for p in group["params"])
+    # The freshly initialized projector must end up in the detector group
+    # (not the backbone group) so it trains at the full detector LR.
+    assert projector_param_ids <= detector_union_ids, (
+        "detector groups together must include the freshly initialized ECViT projector"
+    )
+    assert projector_param_ids.isdisjoint(backbone_union_ids), (
+        "projector params must not be in the backbone groups"
+    )

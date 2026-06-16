@@ -17,7 +17,7 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper
 
 
 class TestECViTBackboneWrapper:
-    def test_patch_size_is_16(self) -> None:
+    def test__init__patch_size_is_16(self) -> None:
         # ECViT uses a ConvPyramidPatchEmbed with a fixed patch size of 16; the
         # wrapper exposes that fixed value for the train/val transforms.
         ecvit = ECViTModelWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
@@ -33,7 +33,7 @@ class TestECViTBackboneWrapper:
         "name",
         ["ecvitt", "ecvittplus", "ecvits", "ecvitsplus"],
     )
-    def test_forward_matches_ecvit_wrapper_output(self, name: str) -> None:
+    def test_forward__matches_ecvit_wrapper_output(self, name: str) -> None:
         # The wrapper must be a pass-through: forward(x) == ECViTModelWrapper.forward(x).
         # We use a small model (depth=1, tiny dims) to keep the test fast and
         # independent of any pretrained weight download.
@@ -59,7 +59,7 @@ class TestECViTBackboneWrapper:
         for w, e in zip(wrapped_out, ecvit_out):
             assert torch.equal(w, e)
 
-    def test_wrapper_does_not_expose_mask_token(self) -> None:
+    def test__init__does_not_expose_mask_token(self) -> None:
         # Unlike the DINOv3 ViT-based DINOv3STAs, ECViT has no mask_token.
         # The task model constructor must not try to freeze one on the ECViT
         # branch (see DINOv3LTDETRObjectDetection.__init__).

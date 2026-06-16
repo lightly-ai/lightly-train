@@ -648,6 +648,23 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         package_name = parsed_name["package_name"]
         if package_name == EDGE_CRAFTER_PACKAGE.name:
             self._expected_input_channels: int = 3
+            # ECViT only supports patch_size=16 (the ECViT-NN uses a
+            # ConvPyramidPatchEmbed that raises NotImplementedError otherwise).
+            # We hard-code it here so the decoder's `config.resolve_auto`
+            # below resolves to the correct `[8, 16, 32]` strides regardless
+            # of whether the caller passed `patch_size=16` explicitly or
+            # relied on the default `None`. The `backbone_model_args` dict
+            # built next is discarded for EdgeCrafter (we pass
+            # `model_args=None` to EDGE_CRAFTER_PACKAGE.get_model), so this
+            # only affects the decoder strides.
+            if patch_size is not None and patch_size != 16:
+                raise ValueError(
+                    f"ECViT (EdgeCrafter) backbones only support "
+                    f"patch_size=16, but got patch_size={patch_size} for "
+                    f"model {model_name!r}. Remove the `patch_size` argument "
+                    "(or set it to 16) to use this model."
+                )
+            patch_size = 16
         elif backbone_args is not None and "in_chans" in backbone_args:
             self._expected_input_channels = backbone_args["in_chans"]
         elif self.image_normalize is not None:
