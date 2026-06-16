@@ -92,7 +92,7 @@ _PRETRAIN_HELP_MSG = f"""
         batch_size (int):
             Global batch size. The batch size per device/GPU is inferred from this value
             and the number of devices and nodes. Default: {_train_cfg.batch_size}
-        gradient_accumulation_steps:
+        gradient_accumulation_steps (int):
             Number of gradient accumulation steps. Set to 1 to disable gradient accumulation.
             The effective global batch size is batch_size * gradient_accumulation_steps.
             This is equivalent to passing trainer_args={{"accumulate_grad_batches": N}}.
