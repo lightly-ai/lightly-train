@@ -100,6 +100,7 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
+		-x src/lightly_train/_models/ecvit/ecvit.py \
 		-x src/lightly_train/_task_models/object_detection_components \
 		-x src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/esnet.py \
@@ -130,11 +131,15 @@ add-header:
 		   src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
+		   src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
+		   src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 
-	# Apply Lightly's header to tiling_utils.py
+	# Apply Lightly's header to tiling_utils.py and LT-DETR files
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl \
 		-f src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
+		src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
+		src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to D-FINE derived files
@@ -157,6 +162,11 @@ add-header:
 		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
 		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
 		src/lightly_train/_task_models/object_detection_components/flat_cosine.py \
+		-E py
+
+	# Apply the Apache 2.0 license header to EdgeCrafter derived files
+	uv run --frozen licenseheaders -t dev_tools/edgecrafter_licenseheader.tmpl \
+		-f src/lightly_train/_models/ecvit/ecvit.py \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files
