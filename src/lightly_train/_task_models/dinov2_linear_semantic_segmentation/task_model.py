@@ -26,6 +26,9 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._pre_post_processors.semantic_segmentation import (
+    SemanticSegmentationPostProcessor,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -89,13 +92,11 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         if self.class_ignore_index is not None:
             internal_class_to_class.append(self.class_ignore_index)
 
-        # Efficient lookup for converting internal class IDs to class IDs.
-        # Registered as buffer to be automatically moved to the correct device.
-        self.internal_class_to_class: Tensor
-        self.register_buffer(
-            "internal_class_to_class",
-            torch.tensor(internal_class_to_class, dtype=torch.long),
-            persistent=False,  # No need to save it in the state dict.
+        self._post_processor = SemanticSegmentationPostProcessor(
+            internal_class_to_class=torch.tensor(
+                internal_class_to_class, dtype=torch.long
+            ),
+            class_ignore_index=self.class_ignore_index,
         )
 
         # GT masks contain the raw `class_ignore_index` value (e.g. -100) for
@@ -138,7 +139,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
         if self.backbone_freeze:
             self.freeze_backbone()
 
-        self.head = Linear(embed_dim, len(self.internal_class_to_class))
+        self.head = Linear(embed_dim, len(internal_class_to_class))
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -284,18 +285,13 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
                 crop_logits=image_crops,
                 origins=meta["origins"],
                 image_sizes=[(meta["resized_h"], meta["resized_w"])],
-            )[0]  # (K|K+1, H', W')
+            )[0].unsqueeze(0)  # (1, K|K+1, H', W')
 
-            if self.class_ignore_index is not None:
-                # Restrict to known classes only.
-                logits = logits[:-1]
-            logits = logits.unsqueeze(0)  # (1, K, H', W')
             logits = F.interpolate(
                 logits, size=(meta["orig_h"], meta["orig_w"]), mode="bilinear"
             )
-            masks = logits.argmax(dim=1)  # (1, H, W)
-            masks = self.internal_class_to_class[masks]
-            out.append(masks[0])
+            result = self._post_processor(logits)[0]
+            out.append(result)
 
         return out
 
@@ -339,7 +335,7 @@ class DINOv2LinearSemanticSegmentation(TaskModel):
             # Restrict logits to known classes only.
             logits = logits[:, :-1]  # (1, K, H, W)
         masks = logits.argmax(dim=1)  # (B, H, W)
-        masks = self.internal_class_to_class[masks]
+        masks = self._post_processor.internal_class_to_class[masks]
         return masks, logits
 
     def forward_train(self, x: Tensor) -> Tensor:
