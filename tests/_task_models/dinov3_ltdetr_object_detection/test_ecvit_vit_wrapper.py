@@ -17,7 +17,7 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper
 
 
 class TestECViTBackboneWrapper:
-    def test_patch_size_is_16(self) -> None:
+    def test__init__patch_size_is_16(self) -> None:
         # ECViT uses a ConvPyramidPatchEmbed with a fixed patch size of 16; the
         # wrapper exposes that fixed value for the train/val transforms.
         ecvit = ECViTModelWrapper(name="ecvitt", depth=1, interaction_indexes=[0])
