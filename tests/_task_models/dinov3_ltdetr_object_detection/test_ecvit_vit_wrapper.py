@@ -59,7 +59,7 @@ class TestECViTBackboneWrapper:
         for w, e in zip(wrapped_out, ecvit_out):
             assert torch.equal(w, e)
 
-    def test_wrapper_does_not_expose_mask_token(self) -> None:
+    def test__init__does_not_expose_mask_token(self) -> None:
         # Unlike the DINOv3 ViT-based DINOv3STAs, ECViT has no mask_token.
         # The task model constructor must not try to freeze one on the ECViT
         # branch (see DINOv3LTDETRObjectDetection.__init__).

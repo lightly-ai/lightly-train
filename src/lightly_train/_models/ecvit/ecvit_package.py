@@ -99,10 +99,10 @@ class EdgeCrafterPackage(Package):
         """Build an :class:`ECViTModelWrapper` for the given preset.
 
         Multi-channel input is intentionally not supported: ``num_input_channels``
-        must be 3. The parameter is kept on the signature for parity with
-        :class:`Package` but is otherwise ignored.
+        must be 3. ECViT also does not accept ``model_args`` overrides.
         """
-        del model_args  # No ECViT-specific overrides today.
+        if model_args is not None:
+            raise ValueError("ECViT backbones do not support model_args overrides.")
         if num_input_channels != 3:
             raise ValueError(
                 "ECViT backbones only support 3 input channels, got "
