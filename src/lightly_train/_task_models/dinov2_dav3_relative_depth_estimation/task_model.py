@@ -92,8 +92,13 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 Intended for debugging before the checkpoint is hosted.
         """
         super().__init__(locals(), ignore_args={"load_weights", "weights"})
-        parsed_name = self.parse_model_name(model_name)
-        config = _MODEL_CONFIGS[parsed_name]
+        key = model_name.lower()
+        if key not in _MODEL_CONFIGS:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available models are: "
+                f"{self.list_model_names()}."
+            )
+        config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
         self.process_resolution = process_resolution
@@ -151,22 +156,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> str:
-        key = model_name.lower()
-        if key in _MODEL_CONFIGS:
-            return key
-        raise ValueError(
-            f"Model name '{model_name}' is not supported. Available models are: "
-            f"{cls.list_model_names()}."
-        )
+        return model.lower() in _MODEL_CONFIGS
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
