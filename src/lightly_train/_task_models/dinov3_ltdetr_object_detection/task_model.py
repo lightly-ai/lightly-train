@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 import torch
 from PIL.Image import Image as PILImage
@@ -36,11 +36,16 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -635,11 +640,33 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.image_normalize = image_normalize
 
-        # Resolve the backbone's expected input channel count using the same
-        # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
-        # overrides image_normalize, which overrides the DINOv3 default of 3.
-        if backbone_args is not None and "in_chans" in backbone_args:
-            self._expected_input_channels: int = backbone_args["in_chans"]
+        # Resolve the backbone's expected input channel count. For the DINOv3
+        # package we follow the same precedence as DINOV3_PACKAGE.get_model:
+        # backbone_args["in_chans"] overrides image_normalize, which overrides
+        # the DINOv3 default of 3. The EdgeCrafter (ECViT) package does not
+        # support multi-channel input, so we always force 3 there.
+        package_name = parsed_name["package_name"]
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            self._expected_input_channels: int = 3
+            # ECViT only supports patch_size=16 (the ECViT-NN uses a
+            # ConvPyramidPatchEmbed that raises NotImplementedError otherwise).
+            # We hard-code it here so the decoder's `config.resolve_auto`
+            # below resolves to the correct `[8, 16, 32]` strides regardless
+            # of whether the caller passed `patch_size=16` explicitly or
+            # relied on the default `None`. The `backbone_model_args` dict
+            # built next is discarded for EdgeCrafter (we pass
+            # `model_args=None` to EDGE_CRAFTER_PACKAGE.get_model), so this
+            # only affects the decoder strides.
+            if patch_size is not None and patch_size != 16:
+                raise ValueError(
+                    f"ECViT (EdgeCrafter) backbones only support "
+                    f"patch_size=16, but got patch_size={patch_size} for "
+                    f"model {model_name!r}. Remove the `patch_size` argument "
+                    "(or set it to 16) to use this model."
+                )
+            patch_size = 16
+        elif backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels = backbone_args["in_chans"]
         elif self.image_normalize is not None:
             self._expected_input_channels = len(self.image_normalize["mean"])
         else:
@@ -659,15 +686,32 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         if self.image_normalize is not None:
             get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
 
-        # Get the backbone.
-        backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
-            model_args=backbone_model_args,
-            load_weights=load_weights,
-            **get_model_kwargs,
+        # Get the backbone. ECViT lives in its own package and is loaded via
+        # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
+        # and ignores `patch_size`/`weights` in model_args).
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
+                EDGE_CRAFTER_PACKAGE.get_model(
+                    model_name=parsed_name["backbone_name"],
+                    model_args=None,
+                    load_weights=load_weights,
+                )
+            )
+        else:
+            backbone = DINOV3_PACKAGE.get_model(
+                model_name=parsed_name["backbone_name"],
+                model_args=backbone_model_args,
+                load_weights=load_weights,
+                **get_model_kwargs,
+            )
+        assert isinstance(
+            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
         )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
 
+        # Map preset name -> (config_cls, config_name_strip_suffixes). For
+        # ECViT we strip no suffixes (the preset names are bare) and route
+        # through the DINOv3 ViT-shaped configs that match the wrapper's
+        # `proj_dim` (the per-level channel count the wrapper actually emits).
         config_mapping = {
             "vitt16": _DINOv3LTDETRObjectDetectionViTTConfig,
             "vitt16plus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
@@ -678,6 +722,17 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
             "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
             "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
+            # ECViT presets (EdgeCrafter). Reuse the DINOv3 ViT-shaped configs
+            # that match the wrapper's proj_dim:
+            #   ecvitt         -> proj_dim 192 -> ViTT
+            #   ecvittplus     -> proj_dim 256 -> ViTTPlus
+            #   ecvits         -> proj_dim 256 -> ViTTPlus (embed_dim=384 is
+            #                     projected down to 256 by ECViTModelWrapper)
+            #   ecvitsplus     -> proj_dim 256 -> ViTTPlus
+            "ecvitt": _DINOv3LTDETRObjectDetectionViTTConfig,
+            "ecvittplus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
+            "ecvits": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
+            "ecvitsplus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
         }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
@@ -688,9 +743,14 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         config.resolve_auto(patch_size=patch_size)
 
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
-        if isinstance(backbone, DinoVisionTransformer):
+        if isinstance(backbone, ECViTModelWrapper):
+            # ECViT already fuses its own pyramid; no SpatialPriorModule
+            # (use_sta=False). The wrapper exposes (P3, P4, P5) with channel
+            # counts matching the encoder config's in_channels via `proj_dim`.
+            self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
+        elif isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
 
@@ -729,9 +789,13 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
-        ]
+        # Concatenate the DINOv3 and EdgeCrafter (ECViT) backbone model names,
+        # each suffixed with the LTDETR task suffix. Both packages share this
+        # task model.
+        names: list[str] = []
+        names.extend(DINOV3_PACKAGE.list_model_names())
+        names.extend(EDGE_CRAFTER_PACKAGE.list_model_names())
+        return [f"{name}-{cls.model_suffix}" for name in names]
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
@@ -744,7 +808,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
+        def raise_invalid_name() -> NoReturn:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}."
@@ -762,18 +826,37 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         except ValueError:
             raise_invalid_name()
 
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
+        # Accept both DINOv3 and EdgeCrafter (ECViT) packages.
+        if package_name == DINOV3_PACKAGE.name:
+            try:
+                backbone_name = DINOV3_PACKAGE.parse_model_name(
+                    model_name=backbone_name
+                )
+            except ValueError:
+                raise_invalid_name()
+            return {
+                "package_name": DINOV3_PACKAGE.name,
+                "model_name": (
+                    f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}"
+                ),
+                "backbone_name": backbone_name,
+            }
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            try:
+                backbone_name = EDGE_CRAFTER_PACKAGE.parse_model_name(
+                    model_name=backbone_name
+                )
+            except ValueError:
+                raise_invalid_name()
+            return {
+                "package_name": EDGE_CRAFTER_PACKAGE.name,
+                "model_name": (
+                    f"{EDGE_CRAFTER_PACKAGE.name}/{backbone_name}-{cls.model_suffix}"
+                ),
+                "backbone_name": backbone_name,
+            }
 
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
-        return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
+        raise_invalid_name()
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
