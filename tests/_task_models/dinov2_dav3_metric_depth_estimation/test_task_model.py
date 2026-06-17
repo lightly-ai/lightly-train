@@ -37,10 +37,12 @@ class TestDepthAnythingV3MetricDepthEstimation:
     ) -> None:
         model = DepthAnythingV3MetricDepthEstimation(
             model_name="dinov2/dav3-metric-large",
-            process_resolution=56,
             model_args=tiny_model_args,
             load_weights=False,
         )
+        # Production fixes the inference size at 504; override it here so inference
+        # runs at a tiny resolution and the test stays fast.
+        model.inference_size = 56
         image = Image.new("RGB", (80, 64), color=(32, 64, 128))
         intrinsics = torch.tensor(
             [[600.0, 0.0, 40.0], [0.0, 600.0, 32.0], [0.0, 0.0, 1.0]]
@@ -60,10 +62,12 @@ class TestDepthAnythingV3MetricDepthEstimation:
     ) -> None:
         model = DepthAnythingV3MetricDepthEstimation(
             model_name="dinov2/dav3-metric-large",
-            process_resolution=56,
             model_args=tiny_model_args,
             load_weights=False,
         )
+        # Production fixes the inference size at 504; override it here so inference
+        # runs at a tiny resolution and the test stays fast.
+        model.inference_size = 56
         # A 56x56 image is processed at its own size, so focal lengths are not rescaled.
         # fx = fy = 600 → scale 600/300 = 2; fx = fy = 1200 → scale 1200/300 = 4.
         # Doubling the focal should exactly double the metric depth.
@@ -86,10 +90,12 @@ class TestDepthAnythingV3MetricDepthEstimation:
     ) -> None:
         model = DepthAnythingV3MetricDepthEstimation(
             model_name="dinov2/dav3-metric-large",
-            process_resolution=56,
             model_args=tiny_model_args,
             load_weights=False,
         )
+        # Production fixes the inference size at 504; override it here so inference
+        # runs at a tiny resolution and the test stays fast.
+        model.inference_size = 56
         images = [
             Image.new("RGB", (56, 56), color=(32, 64, 128)),
             Image.new("RGB", (56, 56), color=(128, 64, 32)),
