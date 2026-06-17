@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Literal
@@ -345,6 +346,10 @@ class PicoDetObjectDetection(TaskModel):
         else:
             new_state_dict = state_dict
 
+        # internal_class_to_class is a non-persistent buffer initialized in
+        # __init__, but training checkpoints may include it. Remove to avoid
+        # unexpected key errors.
+        new_state_dict.pop("internal_class_to_class", None)
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
 
     def _forward_train(self, images: Tensor) -> dict[str, Tensor | list[Tensor]]:
@@ -467,6 +472,69 @@ class PicoDetObjectDetection(TaskModel):
         )
         obj_logits = cls_logits.max(dim=-1).values
         return boxes_xyxy, obj_logits, cls_logits
+
+    def forward_backend(self, x: Tensor) -> Any:
+        """Run the model and return raw outputs in model-input coordinates.
+
+        Calls ``forward`` without ``orig_target_size`` so that boxes remain in
+        model-input coordinates. Use ``postprocess`` to rescale to original
+        image dimensions.
+
+        Args:
+            x: Input tensor of shape (B, C, H, W).
+
+        Returns:
+            Tuple of (boxes_xyxy, obj_logits, cls_logits).
+        """
+        return self.forward(x)
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: Any,
+        metadata: Sequence[dict[str, Any]],
+        threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        """Rescale boxes to original image coordinates and filter by threshold.
+
+        Args:
+            raw_outputs:
+                Tuple of (boxes_xyxy, obj_logits, cls_logits) from
+                ``forward_backend``, with boxes in model-input coordinates.
+            metadata:
+                Per-image metadata with ``orig_w`` and ``orig_h`` keys.
+            threshold:
+                Score threshold for filtering detections.
+
+        Returns:
+            List of prediction dicts with ``labels``, ``bboxes``, and
+            ``scores`` keys.
+        """
+        boxes_xyxy, obj_logits, cls_logits = raw_outputs
+        model_h, model_w = self.image_size
+
+        scores = torch.sigmoid(obj_logits)
+        internal_labels = cls_logits.argmax(dim=-1)
+        labels = self.internal_class_to_class[internal_labels]
+
+        out: list[dict[str, Tensor]] = []
+        for i in range(len(metadata)):
+            orig_w = metadata[i]["orig_w"]
+            orig_h = metadata[i]["orig_h"]
+            boxes = boxes_xyxy[i].clone()
+            boxes[:, 0] *= orig_w / model_w
+            boxes[:, 1] *= orig_h / model_h
+            boxes[:, 2] *= orig_w / model_w
+            boxes[:, 3] *= orig_h / model_h
+
+            keep = scores[i] > threshold
+            out.append(
+                {
+                    "labels": labels[i][keep],
+                    "bboxes": boxes[keep],
+                    "scores": scores[i][keep],
+                }
+            )
+        return out
 
     @torch.no_grad()
     def predict(

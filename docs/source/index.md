@@ -229,9 +229,19 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
   stages, or anyone exploring or experimenting with LightlyTrain. Empower the next
   generation of innovators with full access to the world of pretraining.
 
-We're committed to supporting both open-source and commercial users.
-[Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
-your project!
+### Commercial Pricing
+
+| Plan           | Price           | Eligibility                            |
+| -------------- | --------------- | -------------------------------------- |
+| **Startup**    | \$5,000 / year  | < \$1M revenue **or** < 10 employees   |
+| **Growth**     | \$10,000 / year | < \$10M revenue **or** < 100 employees |
+| **Enterprise** | Custom          | > \$10M revenue **or** > 100 employees |
+
+All commercial plans include a license for model training, edge deployment, and
+inference. See the full [Licensing](licensing.md) page for plan details and inclusions.
+
+[Contact us](https://www.lightly.ai/contact) to get started — we'll find the right
+option for your project!
 
 ## Contact
 
@@ -268,5 +278,6 @@ docker
 tutorials/index
 python_api/index
 faq
+licensing
 changelog
 ```
