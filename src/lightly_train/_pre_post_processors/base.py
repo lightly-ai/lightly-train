@@ -9,9 +9,13 @@ import functools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from typing import (
+    Any,
     Protocol,
     runtime_checkable,
+    Literal
 )
+from pathlib import Path
+from lightly_train._configs.config import PydanticConfig
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field
@@ -110,7 +114,20 @@ def _model_output_unflatten(
     return output_type(**field_values)
 
 
-class FullGraphMixin(ABC):
+class DynamoExportConfig(PydanticConfig):
+    out: str | Path
+    precision: Literal["auto", "fp32", "fp16"] = "auto"
+    batch_size: int = 1
+    dynamic_batch_size: bool = True
+    height: int | None = None
+    width: int | None = None
+    opset_version: int | None = None
+    simplify: bool = True
+    verify: bool = True
+    format_args: dict[str, Any] | None = None
+
+
+class DynamoExportMixin(ABC):
     """A base class for modules that should be compiled with full graph optimization."""
 
     @property
@@ -130,6 +147,22 @@ class FullGraphMixin(ABC):
             return original(self, *args, **kwargs)
 
         cls.forward = torch.compile(checked_forward, fullgraph=True)
+
+    def export_onnx(
+        self,
+        out: str | Path,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        batch_size: int = 1,
+        dynamic_batch_size: bool = True,
+        height: int | None = None,
+        width: int | None = None,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        pass
 
 
 @runtime_checkable

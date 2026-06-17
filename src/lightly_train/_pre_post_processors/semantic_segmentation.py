@@ -16,7 +16,7 @@ from torch.nn import Module
 
 from lightly_train._pre_post_processors.base import (
     ExportableProcessor,
-    FullGraphMixin,
+    DynamoExportMixin,
     ModelInputSpec,
     ModelOutputSpec,
     TensorSpec,
@@ -35,7 +35,7 @@ class SemanticSegmentationSoftMaxPostProcessorOutput(BaseModelOutput):
 
 
 class SemanticSegmentationSoftMaxPostProcessor(
-    Module, FullGraphMixin, ExportableProcessor
+    Module, DynamoExportMixin, ExportableProcessor
 ):
     """Post processor for semantic segmentation that applies a softmax to the output of the model.
 
