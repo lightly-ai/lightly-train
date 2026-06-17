@@ -28,6 +28,10 @@ class LinearSemanticSegmentationConfig(PydanticConfig):
                 f"freeze_mask_token=True is only supported for DINOv2 backbones "
                 f"(backbone_name must start with 'dinov2/'), got '{self.backbone_name}'."
             )
+        if self.backbone_name.startswith("dinov2/") and not self.freeze_mask_token:
+            raise ValueError(
+                f"DINOv2 backbones require freeze_mask_token=True, got freeze_mask_token={self.freeze_mask_token}."
+            )
         return self
 
 
