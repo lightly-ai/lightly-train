@@ -84,13 +84,8 @@ class LinearSemanticSegmentation(TaskModel):
         if config.backbone_name:
             backbone_model = config.backbone_name
         else:
-            # Fallback: derive backbone model from the model_name string.
-            if not model_name.endswith(f"-{self.model_suffix}"):
-                raise ValueError(
-                    f"Model name '{model_name}' is not supported. Available "
-                    f"models are: {self.list_model_names()}."
-                )
-            backbone_model = model_name[: -len(f"-{self.model_suffix}")]
+            # Fallback: derive (and validate) the backbone from the model_name string.
+            backbone_model = self._parse_backbone_name(model_name)
 
         self.model_name = model_name
         self.classes = classes
@@ -160,8 +155,8 @@ class LinearSemanticSegmentation(TaskModel):
         return [
             f"{name}-{cls.model_suffix}"
             for pkg in package_helpers.list_packages()
-            for name in pkg.list_model_names()
             if isinstance(pkg, MultiScaleFeaturePackage)
+            for name in pkg.list_model_names()
         ]
 
     @classmethod
@@ -171,16 +166,38 @@ class LinearSemanticSegmentation(TaskModel):
             return True
         except KeyError:
             pass
-        # Fallback: accept structurally valid names with a supported MultiScaleFeaturePackage.
-        if not model.endswith(f"-{cls.model_suffix}"):
-            return False
-        backbone_part = model[: -len(f"-{cls.model_suffix}")]
+        # Fallback: accept structurally valid names with a supported
+        # MultiScaleFeaturePackage backbone.
         try:
-            package_name, _ = package_helpers.parse_model_name(backbone_part)
-            package = package_helpers.get_package(package_name)
+            cls._parse_backbone_name(model)
+            return True
         except ValueError:
             return False
-        return isinstance(package, MultiScaleFeaturePackage)
+
+    @classmethod
+    def _parse_backbone_name(cls, model_name: str) -> str:
+        """Derive and validate the backbone name from an (unregistered) model name.
+
+        Strips the ``-{model_suffix}`` suffix and verifies the backbone belongs to a
+        ``MultiScaleFeaturePackage``. Raises ``ValueError`` if the name is unsupported.
+        """
+        if not model_name.endswith(f"-{cls.model_suffix}"):
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}."
+            )
+        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
+        try:
+            package_name, _ = package_helpers.parse_model_name(backbone_name)
+            package = package_helpers.get_package(package_name)
+        except ValueError:
+            package = None  # type: ignore[assignment]
+        if not isinstance(package, MultiScaleFeaturePackage):
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}."
+            )
+        return backbone_name
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
