@@ -15,12 +15,10 @@ from torch.export import Dim
 from torch.nn import Module
 
 from lightly_train._pre_post_processors.base import (
-    ExportableProcessor,
+    BaseModelOutput,
     DynamoExportMixin,
     ModelInputSpec,
-    ModelOutputSpec,
     TensorSpec,
-    BaseModelOutput,
 )
 
 
@@ -34,9 +32,7 @@ class SemanticSegmentationSoftMaxPostProcessorOutput(BaseModelOutput):
     probabilities: Tensor
 
 
-class SemanticSegmentationSoftMaxPostProcessor(
-    Module, DynamoExportMixin, ExportableProcessor
-):
+class SemanticSegmentationSoftMaxPostProcessor(Module, DynamoExportMixin):
     """Post processor for semantic segmentation that applies a softmax to the output of the model.
 
     This is useful for models that output logits, and we want to convert them to probabilities.
@@ -55,11 +51,9 @@ class SemanticSegmentationSoftMaxPostProcessor(
             },
         )
 
-    @property
-    def model_output_spec(self) -> ModelOutputSpec:
-        return ModelOutputSpec(output_names=["probabilities"])
-
-    def forward(self, logits: Tensor) -> SemanticSegmentationSoftMaxPostProcessorOutput:
+    def forward(  # type: ignore[override]
+        self, logits: Tensor
+    ) -> SemanticSegmentationSoftMaxPostProcessorOutput:
         """Applies a softmax to the input tensor.
 
         Args:
