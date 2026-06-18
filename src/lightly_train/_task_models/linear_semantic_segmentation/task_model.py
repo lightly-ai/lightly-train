@@ -24,7 +24,7 @@ from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import MultiScaleFeaturePackage
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.config import (
+from lightly_train._task_models.linear_semantic_segmentation.config import (
     LINEAR_SEG_MODEL_REGISTRY,
     LinearSegConfigRegistry,
 )
