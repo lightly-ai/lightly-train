@@ -36,6 +36,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-small-hypersim": {
         "canonical_name": "dinov2/dav2-metric-small-hypersim",
         "backbone_name": "vits14-noreg",
+        "inference_size": 518,
         # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
         # `load_weights=True` can download it. Until then pass a local `weights` path.
         "weights_url": None,
@@ -52,6 +53,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-base-hypersim": {
         "canonical_name": "dinov2/dav2-metric-base-hypersim",
         "backbone_name": "vitb14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -66,6 +68,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-large-hypersim": {
         "canonical_name": "dinov2/dav2-metric-large-hypersim",
         "backbone_name": "vitl14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -80,6 +83,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-small-vkitti": {
         "canonical_name": "dinov2/dav2-metric-small-vkitti",
         "backbone_name": "vits14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -94,6 +98,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-base-vkitti": {
         "canonical_name": "dinov2/dav2-metric-base-vkitti",
         "backbone_name": "vitb14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -108,6 +113,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-large-vkitti": {
         "canonical_name": "dinov2/dav2-metric-large-vkitti",
         "backbone_name": "vitl14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -131,7 +137,6 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
         self,
         *,
         model_name: str = "dinov2/dav2-metric-large-hypersim",
-        process_resolution: int = 518,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -143,10 +148,6 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
                 The Depth Anything V2 metric model name. One of
                 ``"dinov2/dav2-metric-{small,base,large}-hypersim"`` (indoor, 20 m) or
                 ``"dinov2/dav2-metric-{small,base,large}-vkitti"`` (outdoor, 80 m).
-            process_resolution:
-                Target size for the shorter image side during inference. The resized
-                height and width are rounded to a multiple of the patch size. The
-                official Depth Anything V2 inference default is 518.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
@@ -176,7 +177,10 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
         config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
-        self.process_resolution = process_resolution
+        # The inference size is fixed per model: it is the official Depth Anything V2
+        # inference resolution and predictions are resized back to the original image
+        # size, so it is not a user-facing parameter.
+        self.inference_size = int(config["inference_size"])
 
         net_args = dict(config["model_args"])
         if model_args is not None:
@@ -305,7 +309,7 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
         """
         x = file_helpers.as_image_tensor(image)
         image_h, image_w = x.shape[-2:]
-        x = image_utils.process_image_dav2(x, process_res=self.process_resolution)
+        x = image_utils.process_image_dav2(x, process_res=self.inference_size)
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 
