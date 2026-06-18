@@ -34,6 +34,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav3-metric-large": {
         "canonical_name": "dinov2/dav3-metric-large",
         "backbone_name": "vitl14-noreg",
+        "inference_size": 504,
         # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
         # `load_weights=True` can download it. Until then pass a local `weights` path.
         "weights_url": None,
@@ -61,7 +62,6 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         self,
         *,
         model_name: str = "dinov2/dav3-metric-large",
-        process_resolution: int = 504,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -72,10 +72,6 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
             model_name:
                 The Depth Anything V3 model name. The only supported name is
                 ``"dinov2/dav3-metric-large"``.
-            process_resolution:
-                Upper bound for the longest image side during inference. The resized
-                height and width are rounded to the nearest multiple of the DA3 patch
-                size. The official DA3 inference default is 504.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
@@ -92,8 +88,8 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
                 checkpoint via ``load_train_state_dict``.
             weights:
                 Optional path to a converted Depth Anything V3 checkpoint (the
-                ``convert_checkpoint`` output) to load instead of the hosted weights.
-                Intended for debugging before the checkpoint is hosted.
+                ``convert_checkpoint_dav3`` output) to load instead of the hosted
+                weights. Intended for debugging before the checkpoint is hosted.
         """
         super().__init__(locals(), ignore_args={"load_weights", "weights"})
         key = model_name.lower()
@@ -105,7 +101,10 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
-        self.process_resolution = process_resolution
+        # The inference size is fixed per model: Depth Anything V3 was trained at this
+        # resolution and predictions are resized back to the original image size, so it
+        # is not a user-facing parameter.
+        self.inference_size = int(config["inference_size"])
 
         self.process_res_method = "upper_bound_resize"
 
@@ -268,7 +267,7 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         # model device first could flip pixels and break bit-exactness.
         x = depth_image_utils.process_image_dav3(
             x,
-            process_res=self.process_resolution,
+            process_res=self.inference_size,
             process_res_method=self.process_res_method,
         )
         device = next(self.parameters()).device
@@ -420,7 +419,8 @@ def _load_pretrained_weights(
     """Loads the converted Depth Anything V3 checkpoint into the model in place.
 
     A local ``weights`` path takes precedence; otherwise the checkpoint is downloaded
-    from ``weights_url`` into the model cache. Both come from ``convert_checkpoint``.
+    from ``weights_url`` into the model cache. Both come from
+    ``convert_checkpoint_dav3``.
     """
     if weights is not None:
         checkpoint_path = Path(weights).expanduser()
@@ -446,7 +446,7 @@ def _load_pretrained_weights(
         raise RuntimeError(
             "No pretrained Depth Anything V3 checkpoint is available yet: the hosted "
             "weights URL is not set. Pass `weights=<converted .pt>` (produced by the "
-            "convert_checkpoint script) to load a local checkpoint, or set "
+            "convert_checkpoint_dav3 script) to load a local checkpoint, or set "
             "`load_weights=False`."
         )
 

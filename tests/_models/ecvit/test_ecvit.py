@@ -14,6 +14,7 @@ import pytest
 import torch
 
 from lightly_train._models.ecvit import ECVIT_PRESETS, ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._models.model_wrapper import (
     ModelWrapper,
     missing_model_wrapper_attrs,
@@ -287,3 +288,13 @@ class TestECViTModelWrapper:
         model = ECViTModelWrapper(name=name, weights_path=checkpoint_path)
 
         assert len(model.backbone.state_dict()) > 0
+
+
+class TestEdgeCrafterPackage:
+    def test_get_model__rejects_model_args(self) -> None:
+        with pytest.raises(ValueError, match="model_args"):
+            EDGE_CRAFTER_PACKAGE.get_model(
+                model_name="ecvitt",
+                model_args={"foo": 1},
+                load_weights=False,
+            )

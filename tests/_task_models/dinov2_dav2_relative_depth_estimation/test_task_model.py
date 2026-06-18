@@ -36,10 +36,12 @@ class TestDepthAnythingV2RelativeDepthEstimation:
     ) -> None:
         model = DepthAnythingV2RelativeDepthEstimation(
             model_name="dinov2/dav2-relative-large",
-            process_resolution=56,
             model_args=tiny_model_args,
             load_weights=False,
         )
+        # Production fixes the inference size at 518; override it here so inference
+        # runs at a tiny resolution and the test stays fast.
+        model.inference_size = 56
         image = Image.new("RGB", (80, 64), color=(32, 64, 128))
 
         depth = model.predict(image)
@@ -56,10 +58,12 @@ class TestDepthAnythingV2RelativeDepthEstimation:
     ) -> None:
         model = DepthAnythingV2RelativeDepthEstimation(
             model_name="dinov2/dav2-relative-large",
-            process_resolution=56,
             model_args=tiny_model_args,
             load_weights=False,
         )
+        # Production fixes the inference size at 518; override it here so inference
+        # runs at a tiny resolution and the test stays fast.
+        model.inference_size = 56
         images = [
             Image.new("RGB", (80, 64), color=(32, 64, 128)),
             Image.new("RGB", (56, 56), color=(128, 64, 32)),
@@ -82,10 +86,12 @@ class TestDepthAnythingV2RelativeDepthEstimation:
     ) -> None:
         model = DepthAnythingV2RelativeDepthEstimation(
             model_name="dinov2/dav2-relative-large",
-            process_resolution=56,
             model_args=tiny_model_args,
             load_weights=False,
         )
+        # Production fixes the inference size at 518; override it here so inference
+        # runs at a tiny resolution and the test stays fast.
+        model.inference_size = 56
         x = torch.randn(2, 3, 56, 70)
 
         out = model(x)
