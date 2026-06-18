@@ -28,6 +28,7 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 #  - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor that helper expects rather
 #     than a pre-split per-level tuple to reuse existing `deformable_attention_core_func_v2` in `utils.py` without modification.
 #  - Added FP32 guards around bbox refinement for stability in mixed precision
+#  - Added optional decoder query-state returns for instance segmentation heads.
 from __future__ import annotations
 
 import copy
@@ -447,6 +448,7 @@ class TransformerDecoder(nn.Module):
         attn_mask=None,
         memory_mask=None,
         dn_meta=None,
+        return_query_states=False,
     ):
         output = target
         output_detach = pred_corners_undetach = 0
@@ -456,6 +458,7 @@ class TransformerDecoder(nn.Module):
         dec_out_logits = []
         dec_out_pred_corners = []
         dec_out_refs = []
+        query_states = []
         if not hasattr(self, "project"):
             project = weighting_function(self.reg_max, up, reg_scale)
         else:
@@ -531,6 +534,9 @@ class TransformerDecoder(nn.Module):
                     # Lqe does not affect the performance here.
                     scores_fp32 = self.lqe_layers[i](scores_fp32, pred_corners_fp32)
 
+                if return_query_states:
+                    query_states.append(output)
+
                 if self.training:
                     # Use FP32 for training (loss numerical stability).
                     dec_out_logits.append(scores_fp32)
@@ -548,6 +554,17 @@ class TransformerDecoder(nn.Module):
             pred_corners_undetach = pred_corners_fp32
             ref_points_detach = inter_ref_bbox_fp32.detach().to(dtype=output.dtype)
             output_detach = output.detach()
+
+        if return_query_states:
+            return (
+                torch.stack(dec_out_bboxes),
+                torch.stack(dec_out_logits),
+                torch.stack(dec_out_pred_corners),
+                torch.stack(dec_out_refs),
+                pre_bboxes_fp32,
+                pre_scores,
+                torch.stack(query_states),
+            )
 
         return (
             torch.stack(dec_out_bboxes),
