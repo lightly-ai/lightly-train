@@ -38,6 +38,7 @@ def test_missing_model_wrapper_attrs(exclude_module_attrs: bool) -> None:
                 "load_state_dict",
                 "modules",
                 "parameters",
+                "requires_grad_",
                 "state_dict",
             ],
         ),
