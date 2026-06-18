@@ -85,6 +85,16 @@ class TestLinearSemanticSegmentation:
         for mask, img in zip(result, images):
             assert mask.shape == img.shape[1:]
 
+    def test_init__freezes_dinov2_mask_token(self) -> None:
+        """A registered DINOv2 model disables grads on the unused mask token.
+
+        The segmentation head never consumes the mask token, so leaving its grad
+        enabled breaks DDP during full fine-tuning (backbone_freeze=False). This
+        checks the config flag is wired through to the actual parameter.
+        """
+        model = _make_model("dinov2/vits14-linear", image_size=(14, 14))
+        assert model.backbone.get_model().mask_token.requires_grad is False
+
 
 class TestLinearSemanticSegmentationConfig:
     def test_freeze_mask_token__raises_for_non_dinov2(self) -> None:

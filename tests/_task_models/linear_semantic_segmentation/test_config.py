@@ -7,11 +7,11 @@
 #
 from __future__ import annotations
 
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.config import (
+from lightly_train._task_models.linear_semantic_segmentation.config import (
     LINEAR_SEG_MODEL_REGISTRY,
     LinearSegConfigRegistry,
 )
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
+from lightly_train._task_models.linear_semantic_segmentation.task_model import (
     LinearSemanticSegmentation,
 )
 
