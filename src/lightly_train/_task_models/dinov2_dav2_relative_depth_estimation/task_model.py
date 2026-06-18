@@ -32,6 +32,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-small": {
         "canonical_name": "dinov2/dav2-relative-small",
         "backbone_name": "vits14-noreg",
+        "inference_size": 518,
         # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
         # `load_weights=True` can download it. Until then pass a local `weights` path.
         "weights_url": None,
@@ -47,6 +48,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-base": {
         "canonical_name": "dinov2/dav2-relative-base",
         "backbone_name": "vitb14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -60,6 +62,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-large": {
         "canonical_name": "dinov2/dav2-relative-large",
         "backbone_name": "vitl14-noreg",
+        "inference_size": 518,
         "weights_url": None,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -82,7 +85,6 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         self,
         *,
         model_name: str = "dinov2/dav2-relative-large",
-        process_resolution: int = 518,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -94,10 +96,6 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
                 The Depth Anything V2 model name. One of
                 ``"dinov2/dav2-relative-small"``, ``"dinov2/dav2-relative-base"``, or
                 ``"dinov2/dav2-relative-large"``.
-            process_resolution:
-                Target size for the shorter image side during inference. The resized
-                height and width are rounded to a multiple of the patch size. The
-                official Depth Anything V2 inference default is 518.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``, or
@@ -127,7 +125,10 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
-        self.process_resolution = process_resolution
+        # The inference size is fixed per model: it is the official Depth Anything V2
+        # inference resolution and predictions are resized back to the original image
+        # size, so it is not a user-facing parameter.
+        self.inference_size = int(config["inference_size"])
 
         net_args = dict(config["model_args"])
         if model_args is not None:
@@ -137,9 +138,9 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         self.out_layers: tuple[int, ...] = tuple(net_args["out_layers"])
         self.patch_size = patch_size
 
-        # Reproduce the plain (register-free, unchunked, MLP-FFN) ViT that Depth Anything
-        # V2 is built on so the state dict keys match the checkpoint; `block_chunks=0`
-        # keeps the `blocks.{i}.` key layout. The backbone is built without weights: when
+        # Reproduce the plain (register-free, unchunked, MLP-FFN) ViT that DA2 is built
+        # on so the state dict keys match the checkpoint; `block_chunks=0` keeps the
+        # `blocks.{i}.` key layout. The backbone is built without weights: when
         # `load_weights` is True the converted DA2 checkpoint is loaded below instead.
         backbone_model_args: dict[str, Any] = {
             "img_size": int(net_args["image_size"]),
@@ -221,10 +222,9 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
 
         Returns:
             One depth tensor of shape ``(H, W)`` per image, matching each image's
-            original resolution. Larger values correspond to nearer scene content.
-            Images whose processed sizes differ are center-cropped to the smallest size
-            in the batch before inference, so their depth maps are slightly stretched
-            when resized back.
+            original resolution. Images whose processed sizes differ are
+            center-cropped to the smallest size in the batch before inference, so
+            their depth maps are slightly stretched when resized back.
         """
         self._track_inference()
         if self.training:
@@ -251,7 +251,7 @@ class DepthAnythingV2RelativeDepthEstimation(TaskModel):
         """
         x = file_helpers.as_image_tensor(image)
         image_h, image_w = x.shape[-2:]
-        x = image_utils.process_image_dav2(x, process_res=self.process_resolution)
+        x = image_utils.process_image_dav2(x, process_res=self.inference_size)
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 
@@ -316,7 +316,8 @@ def _load_pretrained_weights(
     """Loads the converted Depth Anything V2 checkpoint into the model in place.
 
     A local ``weights`` path takes precedence; otherwise the checkpoint is downloaded
-    from ``weights_url`` into the model cache. Both come from ``convert_checkpoint_dav2``.
+    from ``weights_url`` into the model cache. Both come from
+    ``convert_checkpoint_dav2``.
     """
     if weights is not None:
         checkpoint_path = Path(weights).expanduser()
