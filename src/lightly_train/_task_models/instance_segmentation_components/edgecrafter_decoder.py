@@ -56,14 +56,30 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
         kwargs["eval_spatial_size"] = eval_spatial_size
         super().__init__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
+        # The mask head consumes one decoder query state per block. The decoder
+        # can only emit ``hidden_dim``-width query states; wider post-``eval_idx``
+        # layers (``layer_scale > 1`` with ``eval_idx < num_layers - 1``) are
+        # interpolated to a scaled width the mask head cannot consume, which
+        # would leave masks misaligned with the per-layer box/logit outputs, so
+        # that configuration is unsupported.
+        if (
+            self.decoder.layer_scale > 1
+            and self.decoder.eval_idx != self.decoder.num_layers - 1
+        ):
+            raise ValueError(
+                "EdgeCrafter instance segmentation does not support decoders "
+                "with wider post-eval_idx layers (layer_scale > 1 and "
+                "eval_idx < num_layers - 1)."
+            )
+
         self.mask_spatial_level = mask_spatial_level
         self.mask_head = EdgeCrafterInstanceSegmentationHead(
             in_dim=self.hidden_dim,
-            # One block per query state returned by the decoder. The decoder
-            # only emits query states for layers up to ``eval_idx`` (the wider
-            # post-``eval_idx`` layers carry mismatched widths), so the block
-            # count must match that rather than the full layer count.
-            num_blocks=self.decoder.eval_idx + 1,
+            # One block per decoder layer. With the unsupported wide-layer config
+            # rejected above, this equals the number of query states the decoder
+            # emits: ``num_layers`` when ``layer_scale == 1``, and ``eval_idx + 1
+            # == num_layers`` when ``layer_scale > 1``.
+            num_blocks=len(self.decoder.layers),
             bottleneck_ratio=mask_bottleneck_ratio,
             downsample_ratio=mask_downsample_ratio,
             image_size=eval_spatial_size,

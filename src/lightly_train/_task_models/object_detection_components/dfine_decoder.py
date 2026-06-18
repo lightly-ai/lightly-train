@@ -496,13 +496,15 @@ class TransformerDecoder(nn.Module):
             )
 
             # Collect one query state per executed decoder layer for the
-            # instance-segmentation mask head. We only collect layers up to
-            # ``eval_idx``: in eval the loop breaks at ``eval_idx`` so these are
-            # the only executed layers anyway, and the wider post-``eval_idx``
-            # layers (``layer_scale > 1``) carry interpolated, mismatched widths
-            # that the mask head cannot consume and that would break the
-            # ``torch.stack(query_states)`` below.
-            if return_query_states and i <= self.eval_idx:
+            # instance-segmentation mask head. Only states with ``hidden_dim``
+            # width are usable. When ``layer_scale > 1`` the post-``eval_idx``
+            # layers are interpolated to a scaled width that the mask head cannot
+            # consume and that would break ``torch.stack(query_states)`` below,
+            # so those are skipped. When ``layer_scale == 1`` every layer keeps
+            # ``hidden_dim`` width, so we collect them all (in training) to stay
+            # aligned with the per-layer box/logit outputs; in eval the loop
+            # breaks at ``eval_idx`` either way.
+            if return_query_states and (i <= self.eval_idx or self.layer_scale == 1):
                 query_states.append(output)
 
             # Run the bbox refinement in fp32 to avoid fp16 overflow in the
