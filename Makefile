@@ -106,6 +106,9 @@ add-header:
 		-x src/lightly_train/_task_models/picodet_object_detection/esnet.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/losses.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/pico_head.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/dpt.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -194,6 +197,13 @@ add-header:
 	# Apply the DINOv3 license header to the DINOv3 derived files
 	uv run --frozen licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
 		-d src/lightly_train/_models/dinov3/dinov3_src \
+		-E py
+
+	# Apply the Apache 2.0 license header to Depth Anything V3 derived files
+	uv run --frozen licenseheaders -t dev_tools/depth_anything_3_licenseheader.tmpl \
+		-f src/lightly_train/_task_models/depth_estimation_components/dpt.py \
+		src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
+		src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 
 
