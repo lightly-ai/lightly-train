@@ -21,7 +21,9 @@ from torch import Tensor
 from lightly_train._data import cache, download, file_helpers
 from lightly_train._env import Env
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._task_models.depth_estimation_components import image_utils
+from lightly_train._task_models.depth_estimation_components import (
+    image_utils as depth_image_utils,
+)
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
@@ -29,8 +31,8 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
-    "dinov2/dav3-relative-large": {
-        "canonical_name": "dinov2/dav3-relative-large",
+    "dinov2/dav3-metric-large": {
+        "canonical_name": "dinov2/dav3-metric-large",
         "backbone_name": "vitl14-noreg",
         "inference_size": 504,
         # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
@@ -48,16 +50,18 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     }
 }
 
+_METRIC_SCALE_FACTOR = 300.0
 
-class DepthAnythingV3RelativeDepthEstimation(TaskModel):
-    """Depth Anything V3 relative-depth inference model."""
 
-    model_suffix = "dav3_relative_large"
+class DepthAnythingV3MetricDepthEstimation(TaskModel):
+    """Depth Anything V3 metric-depth inference model."""
+
+    model_suffix = "dav3_metric_large"
 
     def __init__(
         self,
         *,
-        model_name: str = "dinov2/dav3-relative-large",
+        model_name: str = "dinov2/dav3-metric-large",
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -67,7 +71,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         Args:
             model_name:
                 The Depth Anything V3 model name. The only supported name is
-                ``"dinov2/dav3-relative-large"``.
+                ``"dinov2/dav3-metric-large"``.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
@@ -158,14 +162,23 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         return model.lower() in _MODEL_CONFIGS
 
     @torch.no_grad()
-    def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
-        """Returns a relative-depth map for the given image.
+    def predict(  # type: ignore[override]
+        self,
+        image: PathLike | PILImage | Tensor,
+        intrinsics: Tensor,
+    ) -> Tensor:
+        """Returns a metric-depth map for the given image.
 
         Args:
             image:
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape ``(C, H, W)``; uint8 tensors are interpreted in [0, 255] and
                 float tensors in [0, 1].
+            intrinsics:
+                ``(3, 3)`` camera intrinsics matrix of the original image in pixel
+                coordinates. The output is metric depth in meters following the official
+                DA3 formula ``metric_depth = focal * output / 300``, with the focal
+                length rescaled to the processing resolution.
 
         Returns:
             A depth tensor of shape ``(H, W)`` matching the original input resolution.
@@ -176,22 +189,34 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             self.eval()
 
         x, metadata = self.preprocess_image(image)
+        metadata["focal"] = _processed_focal_length(
+            intrinsics=intrinsics,
+            orig_h=metadata["orig_h"],
+            orig_w=metadata["orig_w"],
+            proc_h=int(x.shape[-2]),
+            proc_w=int(x.shape[-1]),
+        )
         batch = self.preprocess_batch([x])
         raw = self.forward(batch)
         return self.postprocess(raw, [metadata])[0]
 
     @torch.no_grad()
-    def predict_batch(
+    def predict_batch(  # type: ignore[override]
         self,
         images: Sequence[PathLike | PILImage | Tensor],
+        intrinsics: Sequence[Tensor],
     ) -> list[Tensor]:
-        """Returns relative-depth maps for the given batch of images.
+        """Returns metric-depth maps for the given batch of images.
 
         Args:
             images:
                 Sequence of input images. Each can be a path, URL, PIL image, or
                 tensor. Tensors must have shape ``(C, H, W)``; uint8 tensors are
                 interpreted in [0, 255] and float tensors in [0, 1].
+            intrinsics:
+                Sequence of ``(3, 3)`` camera intrinsics matrices, one per image, in
+                original-image pixel coordinates. Each output is metric depth in meters
+                following the official DA3 formula ``metric_depth = focal * output / 300``.
 
         Returns:
             One depth tensor of shape ``(H, W)`` per image, matching each image's
@@ -203,10 +228,23 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         if self.training:
             self.eval()
 
+        if len(intrinsics) != len(images):
+            raise ValueError(
+                f"Expected one intrinsics matrix per image, got {len(intrinsics)} "
+                f"intrinsics for {len(images)} images."
+            )
+
         tensors: list[Tensor] = []
         metadata: list[dict[str, Any]] = []
-        for image in images:
+        for i, image in enumerate(images):
             x, meta = self.preprocess_image(image)
+            meta["focal"] = _processed_focal_length(
+                intrinsics=intrinsics[i],
+                orig_h=meta["orig_h"],
+                orig_w=meta["orig_w"],
+                proc_h=int(x.shape[-2]),
+                proc_w=int(x.shape[-1]),
+            )
             tensors.append(x)
             metadata.append(meta)
         batch = self.preprocess_batch(tensors)
@@ -227,7 +265,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize rounds after an
         # einsum whose accumulation order differs between CPU and GPU, so moving to the
         # model device first could flip pixels and break bit-exactness.
-        x = image_utils.process_image(
+        x = depth_image_utils.process_image(
             x,
             process_res=self.inference_size,
             process_res_method=self.process_res_method,
@@ -238,7 +276,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
     def preprocess_batch(  # type: ignore[override]
         self, batch: Sequence[Tensor]
     ) -> Tensor:
-        stacked = image_utils.process_batch(batch)
+        stacked = depth_image_utils.process_batch(batch)
         return stacked.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
@@ -257,7 +295,9 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         metadata: Sequence[dict[str, Any]],
     ) -> list[Tensor]:
         """Maps raw forward outputs to one depth tensor per image, bilinearly resized
-        to the original input size (``orig_h``, ``orig_w`` from the metadata)."""
+        to the original input size (``orig_h``, ``orig_w`` from the metadata). When the
+        metadata contains a ``focal`` entry, the depth is scaled to metric units before
+        the resize."""
         depth_batch = raw_outputs["depth"]
         sky_batch = raw_outputs.get("sky")
         out: list[Tensor] = []
@@ -267,7 +307,13 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             # Sky handling runs at the processing resolution to match the official
             # threshold semantics.
             depth = _set_sky_regions_to_max_depth(depth=depth, sky=sky)
+            focal = meta.get("focal")
+            if focal is not None:
+                # Official DA3 metric scaling, applied after the sky fill at the
+                # processing resolution as in the official nested model.
+                depth = depth * (focal / _METRIC_SCALE_FACTOR)
             orig_h, orig_w = meta["orig_h"], meta["orig_w"]
+
             if depth.shape != (orig_h, orig_w):
                 depth = F.interpolate(
                     depth[None, None],
@@ -290,6 +336,41 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             norm=True,
         )
         return [patch_tokens for patch_tokens, _class_token in intermediate]
+
+
+def _processed_focal_length(
+    *,
+    intrinsics: Tensor,
+    orig_h: int,
+    orig_w: int,
+    proc_h: int,
+    proc_w: int,
+) -> float:
+    """Returns the focal length in pixels at the processing resolution.
+
+    Mirrors the official DA3 input processor, which rescales ``fx`` by the width ratio
+    and ``fy`` by the height ratio, and the official metric scaling, which uses the
+    average of ``fx`` and ``fy``. Center-cropping during batch size unification does
+    not change the focal length, so the pre-crop processed size is the right reference.
+
+    Args:
+        intrinsics: Camera intrinsics matrix of shape ``(3, 3)`` in original-image
+            pixel coordinates.
+        orig_h: Original image height.
+        orig_w: Original image width.
+        proc_h: Processed image height.
+        proc_w: Processed image width.
+
+    Returns:
+        The focal length in pixels at the processing resolution.
+    """
+    if intrinsics.shape != (3, 3):
+        raise ValueError(
+            f"Expected intrinsics of shape (3, 3), got {tuple(intrinsics.shape)}."
+        )
+    fx = float(intrinsics[0, 0]) * (proc_w / orig_w)
+    fy = float(intrinsics[1, 1]) * (proc_h / orig_h)
+    return (fx + fy) / 2
 
 
 def _set_sky_regions_to_max_depth(*, depth: Tensor, sky: Tensor | None) -> Tensor:
@@ -330,7 +411,7 @@ def _set_sky_regions_to_max_depth(*, depth: Tensor, sky: Tensor | None) -> Tenso
 
 
 def _load_pretrained_weights(
-    model: DepthAnythingV3RelativeDepthEstimation,
+    model: DepthAnythingV3MetricDepthEstimation,
     *,
     weights_url: str | None,
     weights: PathLike | None,
