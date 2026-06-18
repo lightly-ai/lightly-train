@@ -197,6 +197,15 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
+    #### Depth Estimation
+    "dinov2/dav3-relative-large": (
+        "dinov2_dav3_relative_large_260618_84f8e30b.pt",
+        "84f8e30b691dfd5ebb94a013bb6cd661c022ebba4f22e173d3087ced9ce8a0e6",
+    ),
+    "dinov2/dav3-metric-large": (
+        "dinov2_dav3_metric_large_260618_55bed860.pt",
+        "55bed8604eb6a3a19664e5e7a4e3aecc67a02369135da8665b43871e9becc6a7",
+    ),
 }
 
 
