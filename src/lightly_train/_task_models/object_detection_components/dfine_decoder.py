@@ -29,6 +29,11 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 #     than a pre-split per-level tuple to reuse existing `deformable_attention_core_func_v2` in `utils.py` without modification.
 #  - Added FP32 guards around bbox refinement for stability in mixed precision
 #  - Added optional decoder query-state returns for instance segmentation heads.
+#  - Split ``_get_encoder_input`` into ``_get_projected_feats`` (applies the
+#     ``input_proj`` layers) and ``_get_encoder_input_from_projected_feats``
+#     (flattens to encoder memory), so instance segmentation heads can reuse the
+#     projected features as a spatial input without projecting them twice.
+#     ``_get_encoder_input`` is kept as a thin wrapper for the detection path.
 from __future__ import annotations
 
 import copy
@@ -490,6 +495,16 @@ class TransformerDecoder(nn.Module):
                 query_pos_embed,
             )
 
+            # Collect one query state per executed decoder layer for the
+            # instance-segmentation mask head. We only collect layers up to
+            # ``eval_idx``: in eval the loop breaks at ``eval_idx`` so these are
+            # the only executed layers anyway, and the wider post-``eval_idx``
+            # layers (``layer_scale > 1``) carry interpolated, mismatched widths
+            # that the mask head cannot consume and that would break the
+            # ``torch.stack(query_states)`` below.
+            if return_query_states and i <= self.eval_idx:
+                query_states.append(output)
+
             # Run the bbox refinement in fp32 to avoid fp16 overflow in the
             # bbox_head / pre_bbox_head MLP outputs. The addition of MLP
             # output and inverse_sigmoid(ref_points) before sigmoid is a
@@ -533,9 +548,6 @@ class TransformerDecoder(nn.Module):
                     scores_fp32 = score_head[i](output_fp32)
                     # Lqe does not affect the performance here.
                     scores_fp32 = self.lqe_layers[i](scores_fp32, pred_corners_fp32)
-
-                if return_query_states:
-                    query_states.append(output)
 
                 if self.training:
                     # Use FP32 for training (loss numerical stability).
@@ -833,8 +845,7 @@ class DFINETransformer(nn.Module):
                 )
                 in_channels = self.hidden_dim
 
-    def _get_encoder_input(self, feats: List[torch.Tensor]):
-        # get projection features
+    def _get_projected_feats(self, feats: List[torch.Tensor]) -> list[torch.Tensor]:
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
         if self.num_levels > len(proj_feats):
             len_srcs = len(proj_feats)
@@ -843,8 +854,11 @@ class DFINETransformer(nn.Module):
                     proj_feats.append(self.input_proj[i](feats[-1]))
                 else:
                     proj_feats.append(self.input_proj[i](proj_feats[-1]))
+        return proj_feats
 
-        # get encoder inputs
+    def _get_encoder_input_from_projected_feats(
+        self, proj_feats: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, list[list[int]]]:
         feat_flatten = []
         spatial_shapes = []
         for feat in proj_feats:
@@ -856,6 +870,10 @@ class DFINETransformer(nn.Module):
 
         # [b, l, c]
         return torch.concat(feat_flatten, 1), spatial_shapes
+
+    def _get_encoder_input(self, feats: List[torch.Tensor]):
+        proj_feats = self._get_projected_feats(feats)
+        return self._get_encoder_input_from_projected_feats(proj_feats)
 
     def _generate_anchors(
         self,

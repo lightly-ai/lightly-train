@@ -79,15 +79,24 @@ class EdgeCrafterInstanceSegmentationPostProcessor(RTDETRPostProcessor):
                     .repeat(1, 1, mask_pred.shape[-2], mask_pred.shape[-1]),
                 )
         else:
+            if mask_pred is not None:
+                # EdgeCrafter only gathers masks in the focal-loss branch; its
+                # softmax branch has no mask path. Fail loudly instead of
+                # silently dropping the predicted masks.
+                raise NotImplementedError(
+                    "Mask postprocessing is only supported with use_focal_loss=True."
+                )
+            # Return the converted/scaled xyxy boxes, not the raw normalized
+            # cxcywh ``boxes`` tensor.
+            boxes = bbox_pred
             scores = F.softmax(logits, dim=-1)[:, :, :-1]
             scores, labels = scores.max(dim=-1)
             if scores.shape[1] > self.num_top_queries:
                 scores, index = torch.topk(scores, self.num_top_queries, dim=-1)
                 labels = torch.gather(labels, dim=1, index=index)
-                boxes = torch.gather(
-                    boxes,
+                boxes = bbox_pred.gather(
                     dim=1,
-                    index=index.unsqueeze(-1).tile(1, 1, boxes.shape[-1]),
+                    index=index.unsqueeze(-1).tile(1, 1, bbox_pred.shape[-1]),
                 )
 
         if self.deploy_mode:
@@ -96,11 +105,12 @@ class EdgeCrafterInstanceSegmentationPostProcessor(RTDETRPostProcessor):
             return labels, boxes, scores
 
         if self.remap_mscoco_category:
-            data_dataset = __import__(
-                "lightly_train.data.dataset",
-                fromlist=["mscoco_label2category"],
+            # Matches the parent RTDETRPostProcessor; the module is provided by
+            # the runtime data package only when category remapping is enabled.
+            from ...data.dataset import (  # type: ignore[import-not-found]
+                mscoco_label2category,
             )
-            mscoco_label2category = data_dataset.mscoco_label2category
+
             labels = (
                 torch.tensor(
                     [mscoco_label2category[int(x.item())] for x in labels.flatten()]
@@ -121,7 +131,7 @@ class EdgeCrafterInstanceSegmentationPostProcessor(RTDETRPostProcessor):
                     size=(int(h), int(w)),
                     mode="bilinear",
                     align_corners=False,
-                )
+                ).squeeze(1)
                 result["masks"] = mask > 0.0
                 results.append(result)
         else:

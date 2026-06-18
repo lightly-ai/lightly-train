@@ -18,7 +18,8 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 
 # Modifications Copyright 2026 Lightly AG:
 # - Added EdgeCrafter instance segmentation mask output support.
-# - Kept encoder auxiliary and pre-decoder outputs box/class-only.
+# - Kept encoder auxiliary outputs box/class-only (matching EdgeCrafter, whose
+#   ``enc_aux_outputs`` carry no masks).
 from __future__ import annotations
 
 from typing import Any
@@ -49,16 +50,20 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
         mask_downsample_ratio: int = 4,
         mask_spatial_level: int = 0,
         mask_layer_scale_init_value: float = 0.0,
+        eval_spatial_size: tuple[int, int],
         **kwargs: Any,
     ) -> None:
+        kwargs["eval_spatial_size"] = eval_spatial_size
         super().__init__(*args, **kwargs)  # type: ignore[no-untyped-call]
-
-        eval_spatial_size = self.eval_spatial_size
 
         self.mask_spatial_level = mask_spatial_level
         self.mask_head = EdgeCrafterInstanceSegmentationHead(
             in_dim=self.hidden_dim,
-            num_blocks=len(self.decoder.layers),
+            # One block per query state returned by the decoder. The decoder
+            # only emits query states for layers up to ``eval_idx`` (the wider
+            # post-``eval_idx`` layers carry mismatched widths), so the block
+            # count must match that rather than the full layer count.
+            num_blocks=self.decoder.eval_idx + 1,
             bottleneck_ratio=mask_bottleneck_ratio,
             downsample_ratio=mask_downsample_ratio,
             image_size=eval_spatial_size,
@@ -71,10 +76,13 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
         targets: list[dict[str, Tensor]] | None = None,
         spatial_feat: Tensor | None = None,
     ) -> dict[str, Any]:
+        proj_feats = self._get_projected_feats(feats)  # type: ignore[no-untyped-call]
         if spatial_feat is None:
-            spatial_feat = feats[self.mask_spatial_level]
+            spatial_feat = proj_feats[self.mask_spatial_level]
 
-        memory, spatial_shapes = self._get_encoder_input(feats)  # type: ignore[no-untyped-call]
+        memory, spatial_shapes = self._get_encoder_input_from_projected_feats(
+            proj_feats
+        )  # type: ignore[no-untyped-call]
 
         if self.training and self.num_denoising > 0:
             denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = (
@@ -197,7 +205,14 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
                 enc_topk_logits_list,
                 enc_topk_bboxes_list,
             )
-            out["pre_outputs"] = {"pred_logits": pre_logits, "pred_boxes": pre_bboxes}
+            # EdgeCrafter sets ``pre_outputs["pred_masks"] = pre_segs`` where
+            # ``pre_segs`` is the final decoder layer's mask (``dec_out_segs[-1]``);
+            # after the denoising split that is exactly ``out_masks[-1]``.
+            out["pre_outputs"] = {
+                "pred_logits": pre_logits,
+                "pred_boxes": pre_bboxes,
+                "pred_masks": out_masks[-1],
+            }
             out["enc_meta"] = {"class_agnostic": self.query_select_method == "agnostic"}
 
             if dn_meta is not None:
@@ -213,6 +228,7 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
                 out["dn_pre_outputs"] = {
                     "pred_logits": dn_pre_logits,
                     "pred_boxes": dn_pre_bboxes,
+                    "pred_masks": dn_out_masks[-1],
                 }
                 out["dn_meta"] = dn_meta
 
