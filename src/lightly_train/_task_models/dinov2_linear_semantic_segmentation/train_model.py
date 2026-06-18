@@ -30,7 +30,7 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
-    DINOv2LinearSemanticSegmentation,
+    LinearSemanticSegmentation,
 )
 from lightly_train._task_models.dinov2_linear_semantic_segmentation.transforms import (
     DINOv2LinearSemanticSegmentationTrainTransform,
@@ -87,7 +87,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
     train_model_args_cls = DINOv2LinearSemanticSegmentationTrainArgs
     task_metric_args_cls = SemanticSegmentationTaskMetricArgs
-    task_model_cls = DINOv2LinearSemanticSegmentation
+    task_model_cls = LinearSemanticSegmentation
     train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
     val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
     torch_compile_args_cls = TorchCompileArgs
@@ -109,7 +109,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         normalize = no_auto(val_transform_args.normalize)
 
         self.model_args = model_args
-        self.model = DINOv2LinearSemanticSegmentation(
+        self.model = LinearSemanticSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
             class_ignore_index=(
@@ -151,7 +151,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         self.viz_max_images = 4
         self.viz_alpha = 0.6
 
-    def get_task_model(self) -> DINOv2LinearSemanticSegmentation:
+    def get_task_model(self) -> LinearSemanticSegmentation:
         return self.model
 
     def training_step(
