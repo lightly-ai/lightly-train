@@ -1302,6 +1302,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # TODO(Thomas, 12/25): Add warm-up forward if needed.
 
+        # TODO(Simon, 06/26): We might call it bboxes instead of boxes to be consistent
         # Set the input/output names.
         input_names = ["images"]
         output_names = ["labels", "boxes", "scores"]

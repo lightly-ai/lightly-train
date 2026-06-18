@@ -22,9 +22,7 @@ from lightly_train._data import cache, download, file_helpers
 from lightly_train._env import Env
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.depth_estimation_components import image_utils
-from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.dpt import (
-    DPT,
-)
+from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -34,6 +32,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav3-relative-large": {
         "canonical_name": "dinov2/dav3-relative-large",
         "backbone_name": "vitl14-noreg",
+        "inference_size": 504,
         # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
         # `load_weights=True` can download it. Until then pass a local `weights` path.
         "weights_url": None,
@@ -59,7 +58,6 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         self,
         *,
         model_name: str = "dinov2/dav3-relative-large",
-        process_resolution: int = 504,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -70,10 +68,6 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             model_name:
                 The Depth Anything V3 model name. The only supported name is
                 ``"dinov2/dav3-relative-large"``.
-            process_resolution:
-                Upper bound for the longest image side during inference. The resized
-                height and width are rounded to the nearest multiple of the DA3 patch
-                size. The official DA3 inference default is 504.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
@@ -94,11 +88,19 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 Intended for debugging before the checkpoint is hosted.
         """
         super().__init__(locals(), ignore_args={"load_weights", "weights"})
-        parsed_name = self.parse_model_name(model_name)
-        config = _MODEL_CONFIGS[parsed_name]
+        key = model_name.lower()
+        if key not in _MODEL_CONFIGS:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available models are: "
+                f"{self.list_model_names()}."
+            )
+        config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
-        self.process_resolution = process_resolution
+        # The inference size is fixed per model: Depth Anything V3 was trained at this
+        # resolution and predictions are resized back to the original image size, so it
+        # is not a user-facing parameter.
+        self.inference_size = int(config["inference_size"])
 
         self.process_res_method = "upper_bound_resize"
 
@@ -153,22 +155,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> str:
-        key = model_name.lower()
-        if key in _MODEL_CONFIGS:
-            return key
-        raise ValueError(
-            f"Model name '{model_name}' is not supported. Available models are: "
-            f"{cls.list_model_names()}."
-        )
+        return model.lower() in _MODEL_CONFIGS
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
@@ -242,7 +229,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         # model device first could flip pixels and break bit-exactness.
         x = image_utils.process_image(
             x,
-            process_res=self.process_resolution,
+            process_res=self.inference_size,
             process_res_method=self.process_res_method,
         )
         device = next(self.parameters()).device
