@@ -11,12 +11,13 @@ import math
 from pathlib import Path
 from typing import Any, Literal, TypedDict, Union
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 from rich.console import Console
 from rich.markdown import Markdown
 from torch import Tensor
 from typing_extensions import Annotated
 
+from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
@@ -283,6 +284,16 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
     ]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _prepare_data(cls, v: Any) -> Any:
+        # Load the data config from a YAML file if a path is given, then default the
+        # format to "yolo" if none is specified. This mirrors the behavior of
+        # train_object_detection so that the data config is consistent across both.
+        v = validate.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
+        v = validate.set_default_data_format(v)
+        return v
 
 
 _SIZE_SUFFIXES = {"small", "medium", "large"}
