@@ -310,30 +310,11 @@ def _load_pretrained_weights(
     """Loads the converted Depth Anything V2 checkpoint into the model in place.
 
     A local converted ``weights`` path takes precedence. Otherwise the checkpoint is
-    resolved via ``task_model_helpers.download_checkpoint`` (downloaded to the model
-    cache and verified against its sha256) -- but only the Apache-2.0 models are hosted.
-    The non-commercial models are not redistributed: convert them locally with
-    ``convert_checkpoint_dav2`` and pass the result via ``weights``.
+    resolved via ``task_model_helpers.download_checkpoint``, which downloads the hosted
+    Apache-2.0 models (verified against their sha256) and raises with local-conversion
+    instructions for the non-commercial models, which are not redistributed.
     """
-    if weights is not None:
-        checkpoint: PathLike = weights
-    elif canonical_name in task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH:
-        checkpoint = canonical_name
-    else:
-        raise RuntimeError(
-            f"'{canonical_name}' is not hosted by LightlyTrain. Make sure you "
-            "understand its license and how it applies to your use, then convert the "
-            "weights locally:\n"
-            "  1. Download the official Depth Anything V2 checkpoint from Hugging "
-            "Face.\n"
-            "  2. Convert it (run without `--weights` to see which file to download):\n"
-            "       python -m lightly_train._task_models.depth_estimation_components"
-            ".convert_checkpoint_dav2 --model-name "
-            f"{canonical_name} --weights <official.pth> --out <converted.pt>\n"
-            "  3. Reload with `weights=<converted.pt>`, or set `load_weights=False` "
-            "to skip."
-        )
-
+    checkpoint: PathLike = weights if weights is not None else canonical_name
     checkpoint_path = task_model_helpers.download_checkpoint(checkpoint=checkpoint)
     state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if isinstance(state, Mapping) and "train_model" in state:

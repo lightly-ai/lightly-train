@@ -16,6 +16,7 @@ from pytest import MonkeyPatch
 from torch.hub import download_url_to_file
 
 from lightly_train import load_model
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
 )
@@ -58,3 +59,26 @@ def test_load_model__download_invalid_model__fails() -> None:
 
     with pytest.raises(ValueError, match=re.escape(expected_error_message)):
         load_model(invalid_model_name)
+
+
+def test_download_checkpoint__non_hosted_dav2__raises_convert_guidance() -> None:
+    model_name = "dinov2/dav2-relative-large"
+
+    with pytest.raises(ValueError) as exc_info:
+        task_model_helpers.download_checkpoint(model_name)
+
+    message = str(exc_info.value)
+    assert model_name in message
+    assert "non-commercial" in message
+    assert "convert_checkpoint_dav2" in message
+
+
+def test_download_checkpoint__unknown_name__raises_generic() -> None:
+    model_name = "definitely-not-a-valid-model-name"
+
+    with pytest.raises(ValueError) as exc_info:
+        task_model_helpers.download_checkpoint(model_name)
+
+    message = str(exc_info.value)
+    assert f"Unknown model name or checkpoint path: '{model_name}'" in message
+    assert "convert_checkpoint_dav2" not in message

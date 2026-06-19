@@ -13,7 +13,7 @@ import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 import torch
 
@@ -303,7 +303,7 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
                 f"{checkpoint_hash(local_ckpt_path)}"
             )
     else:
-        raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
+        _raise_unknown_checkpoint_error(checkpoint=checkpoint)
     return local_ckpt_path
 
 
@@ -332,6 +332,48 @@ def checkpoint_hash(path: Path) -> str:
         while block := f.read(4096):
             sha256_hash.update(block)
     return sha256_hash.hexdigest().lower()
+
+
+def _raise_unknown_checkpoint_error(checkpoint: PathLike) -> NoReturn:
+    """Raises a helpful error for an unknown model name or checkpoint path.
+
+    Non-hosted Depth Anything V2 models are recognized but not redistributed; for those
+    a verbose message points to the local converter. Everything else raises the generic
+    error.
+    """
+    # Imported lazily: these modules import `task_model_helpers` at module level, so a
+    # top-level import here would be circular. This runs only on the error path.
+    from lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model import (
+        DepthAnythingV2MetricDepthEstimation,
+    )
+    from lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model import (
+        DepthAnythingV2RelativeDepthEstimation,
+    )
+
+    ckpt_str = str(checkpoint)
+    # The DAv2 task models' own registry is the source of truth for known names. Hosted
+    # DAv2 models are matched earlier against DOWNLOADABLE_MODEL_URL_AND_HASH, so a known
+    # name reaching here is a non-commercial variant that must be converted locally.
+    dav2_model_names = {
+        name.lower()
+        for cls in (
+            DepthAnythingV2RelativeDepthEstimation,
+            DepthAnythingV2MetricDepthEstimation,
+        )
+        for name in cls.list_model_names()
+    }
+    if ckpt_str.lower() in dav2_model_names:
+        raise ValueError(
+            f"'{ckpt_str}' is a Depth Anything V2 model with a non-commercial license, "
+            "which LightlyTrain does not host. Make sure you understand its license "
+            "and how it applies to your use, then convert it locally and load the "
+            "checkpoint by its path:\n"
+            "  python -m lightly_train._task_models.depth_estimation_components"
+            f".convert_checkpoint_dav2 --model-name {ckpt_str} --out <converted.pt>\n"
+            "The converter reports the license and which official weights to download. "
+            'Then call lightly_train.load_model("<converted.pt>").'
+        )
+    raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
 
 
 def _resolve_device(device: str | torch.device | None) -> torch.device:
