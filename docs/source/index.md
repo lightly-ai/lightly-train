@@ -1,10 +1,10 @@
 # <span style="display:none;">LightlyTrain Documentation</span>
 
 <div style="text-align: center; margin-bottom: 2rem;">
-  <a href="https://www.lightly.ai/lightly-train" target="_blank" class="mobile-only">
+  <a href="https://www.lightly.ai/demo" target="_blank" class="mobile-only">
     <img src="_static/lightlyBannerMobile.svg" alt="LightlyTrain Banner" style="max-width: 100%; height: auto;" />
   </a>
-  <a href="https://www.lightly.ai/lightly-train" target="_blank" class="desktop-only">
+  <a href="https://www.lightly.ai/demo" target="_blank" class="desktop-only">
     <img src="_static/lightlyBanner.svg" alt="LightlyTrain Banner" style="max-width: 100%; height: auto;" />
   </a>
 </div>
