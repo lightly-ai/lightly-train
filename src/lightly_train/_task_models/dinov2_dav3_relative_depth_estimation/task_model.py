@@ -20,7 +20,9 @@ from torch import Tensor
 from lightly_train._data import file_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.depth_estimation_components import image_utils
+from lightly_train._task_models.depth_estimation_components import (
+    image_utils as depth_image_utils,
+)
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
@@ -222,7 +224,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize rounds after an
         # einsum whose accumulation order differs between CPU and GPU, so moving to the
         # model device first could flip pixels and break bit-exactness.
-        x = image_utils.process_image_dav3(
+        x = depth_image_utils.process_image_dav3(
             x,
             process_res=self.inference_size,
             process_res_method=self.process_res_method,
@@ -233,7 +235,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
     def preprocess_batch(  # type: ignore[override]
         self, batch: Sequence[Tensor]
     ) -> Tensor:
-        stacked = image_utils.process_batch(batch)
+        stacked = depth_image_utils.process_batch(batch)
         return stacked.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
