@@ -350,6 +350,7 @@ class DINOv2LTDETRDSPObjectDetection(DINOv2LTDETRObjectDetection):
         )
 
         postprocessor_config = config.rtdetr_postprocessor.model_dump()
+        postprocessor_config.update({"num_classes": len(self.classes)})
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
             **postprocessor_config
         )
