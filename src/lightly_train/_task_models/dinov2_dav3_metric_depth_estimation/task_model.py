@@ -88,8 +88,8 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
                 checkpoint via ``load_train_state_dict``.
             weights:
                 Optional path to a converted Depth Anything V3 checkpoint (the
-                ``convert_checkpoint`` output) to load instead of the hosted weights.
-                Intended for debugging before the checkpoint is hosted.
+                ``convert_checkpoint_dav3`` output) to load instead of the hosted
+                weights. Intended for debugging before the checkpoint is hosted.
         """
         super().__init__(locals(), ignore_args={"load_weights", "weights"})
         key = model_name.lower()
@@ -265,7 +265,7 @@ class DepthAnythingV3MetricDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize rounds after an
         # einsum whose accumulation order differs between CPU and GPU, so moving to the
         # model device first could flip pixels and break bit-exactness.
-        x = depth_image_utils.process_image(
+        x = depth_image_utils.process_image_dav3(
             x,
             process_res=self.inference_size,
             process_res_method=self.process_res_method,
@@ -419,7 +419,8 @@ def _load_pretrained_weights(
     """Loads the converted Depth Anything V3 checkpoint into the model in place.
 
     A local ``weights`` path takes precedence; otherwise the checkpoint is downloaded
-    from ``weights_url`` into the model cache. Both come from ``convert_checkpoint``.
+    from ``weights_url`` into the model cache. Both come from
+    ``convert_checkpoint_dav3``.
     """
     if weights is not None:
         checkpoint_path = Path(weights).expanduser()
@@ -445,7 +446,7 @@ def _load_pretrained_weights(
         raise RuntimeError(
             "No pretrained Depth Anything V3 checkpoint is available yet: the hosted "
             "weights URL is not set. Pass `weights=<converted .pt>` (produced by the "
-            "convert_checkpoint script) to load a local checkpoint, or set "
+            "convert_checkpoint_dav3 script) to load a local checkpoint, or set "
             "`load_weights=False`."
         )
 
