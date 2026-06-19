@@ -96,6 +96,21 @@ _MODEL_CLASSES: dict[
 # remap drops it and we tolerate it being missing, keeping the model's random init.
 _ALLOWED_MISSING_OFFICIAL_KEYS = {"backbone.mask_token"}
 
+# License per (parsed) model name. Only the Apache-2.0 models are hosted by LightlyTrain
+# and auto-downloaded from Hugging Face. The non-commercial models must be downloaded by
+# the user, who is responsible for complying with the model's license terms.
+_MODEL_LICENSES: dict[str, str] = {
+    "dinov2/dav2-relative-small": "Apache-2.0",
+    "dinov2/dav2-relative-base": "CC-BY-NC-4.0",
+    "dinov2/dav2-relative-large": "CC-BY-NC-4.0",
+    "dinov2/dav2-metric-small-hypersim": "Apache-2.0",
+    "dinov2/dav2-metric-base-hypersim": "CC-BY-NC-4.0",
+    "dinov2/dav2-metric-large-hypersim": "CC-BY-NC-4.0",
+    "dinov2/dav2-metric-small-vkitti": "CC-BY-NC-4.0",
+    "dinov2/dav2-metric-base-vkitti": "CC-BY-NC-4.0",
+    "dinov2/dav2-metric-large-vkitti": "CC-BY-NC-4.0",
+}
+
 
 def convert_checkpoint(
     out: Path,
@@ -117,6 +132,15 @@ def convert_checkpoint(
         The path to the exported checkpoint.
     """
     parsed_name = _parse_model_name(model_name)
+    license_info = _MODEL_LICENSES[parsed_name]
+    is_apache = license_info == "Apache-2.0"
+    if not is_apache:
+        logger.warning(
+            f"'{parsed_name}' is licensed under {license_info}, NOT Apache-2.0. "
+            "LightlyTrain does not host or redistribute it; you are responsible for "
+            "complying with its license terms."
+        )
+
     model_cls = _MODEL_CLASSES[parsed_name]
     model = model_cls(
         model_name=parsed_name,
@@ -125,6 +149,13 @@ def convert_checkpoint(
 
     if weights is None:
         hf_weights = _HF_WEIGHTS[parsed_name]
+        if not is_apache:
+            raise ValueError(
+                f"Refusing to download '{parsed_name}' from Hugging Face because it is "
+                f"licensed under {license_info} (not Apache-2.0). Download "
+                f"'{hf_weights['filename']}' from '{hf_weights['repo_id']}' yourself "
+                "and pass it via `--weights <path>`."
+            )
         logger.info(
             f"Downloading official weights from '{hf_weights['repo_id']}' "
             f"({hf_weights['filename']})..."
@@ -143,7 +174,7 @@ def convert_checkpoint(
         "model_class_path": model.class_path,
         "model_init_args": model.init_args,
         "train_model": model.state_dict(),
-        "license_info": "",
+        "license_info": license_info,
     }
 
     out = Path(out).expanduser()

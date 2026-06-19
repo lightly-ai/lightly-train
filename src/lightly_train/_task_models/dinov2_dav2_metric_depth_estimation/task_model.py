@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any
 
 import torch
@@ -18,9 +17,9 @@ import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
-from lightly_train._data import cache, download, file_helpers
-from lightly_train._env import Env
+from lightly_train._data import file_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.depth_estimation_components import image_utils
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
@@ -37,9 +36,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-small-hypersim",
         "backbone_name": "vits14-noreg",
         "inference_size": 518,
-        # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
-        # `load_weights=True` can download it. Until then pass a local `weights` path.
-        "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
             "image_size": 518,
@@ -54,7 +50,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-base-hypersim",
         "backbone_name": "vitb14-noreg",
         "inference_size": 518,
-        "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
             "image_size": 518,
@@ -69,7 +64,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-large-hypersim",
         "backbone_name": "vitl14-noreg",
         "inference_size": 518,
-        "weights_url": None,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
             "image_size": 518,
@@ -84,7 +78,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-small-vkitti",
         "backbone_name": "vits14-noreg",
         "inference_size": 518,
-        "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
             "image_size": 518,
@@ -99,7 +92,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-base-vkitti",
         "backbone_name": "vitb14-noreg",
         "inference_size": 518,
-        "weights_url": None,
         "model_args": {
             "out_layers": (2, 5, 8, 11),
             "image_size": 518,
@@ -114,7 +106,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-large-vkitti",
         "backbone_name": "vitl14-noreg",
         "inference_size": 518,
-        "weights_url": None,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
             "image_size": 518,
@@ -165,7 +156,7 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
             weights:
                 Optional path to a converted Depth Anything V2 metric checkpoint (the
                 ``convert_checkpoint_dav2`` output) to load instead of the hosted
-                weights. Intended for debugging before the checkpoint is hosted.
+                weights. Required for the non-Apache-2.0 models, which are not hosted.
         """
         super().__init__(locals(), ignore_args={"load_weights", "weights"})
         key = model_name.lower()
@@ -228,8 +219,8 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
         if load_weights:
             _load_pretrained_weights(
                 model=self,
-                weights_url=config["weights_url"],
                 weights=weights,
+                canonical_name=config["canonical_name"],
             )
 
     @classmethod
@@ -375,45 +366,33 @@ class DepthAnythingV2MetricDepthEstimation(TaskModel):
 def _load_pretrained_weights(
     model: DepthAnythingV2MetricDepthEstimation,
     *,
-    weights_url: str | None,
     weights: PathLike | None,
+    canonical_name: str,
 ) -> None:
     """Loads the converted Depth Anything V2 metric checkpoint into the model in place.
 
-    A local ``weights`` path takes precedence; otherwise the checkpoint is downloaded
-    from ``weights_url`` into the model cache. Both come from ``convert_checkpoint_dav2``.
+    A local converted ``weights`` path takes precedence. Otherwise the checkpoint is
+    resolved via ``task_model_helpers.download_checkpoint`` (downloaded to the model
+    cache and verified against its sha256) -- but only the Apache-2.0 models are hosted.
+    The non-commercial models are not redistributed: convert them locally with
+    ``convert_checkpoint_dav2`` and pass the result via ``weights``.
     """
     if weights is not None:
-        checkpoint_path = Path(weights).expanduser()
-        if not checkpoint_path.is_file():
-            raise ValueError(f"Checkpoint file '{checkpoint_path}' does not exist.")
-    elif weights_url is not None:
-        checkpoint_path = cache.get_model_cache_dir() / Path(weights_url).name
-        if not checkpoint_path.exists():
-            logger.info(
-                f"Downloading Depth Anything V2 weights from '{weights_url}' to "
-                f"'{checkpoint_path}'."
-            )
-            download.download_from_url(
-                weights_url,
-                checkpoint_path,
-                timeout=Env.LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC.value,
-            )
-        else:
-            logger.info(
-                f"Using cached Depth Anything V2 weights from '{checkpoint_path}'."
-            )
+        checkpoint: PathLike = weights
+    elif canonical_name in task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH:
+        checkpoint = canonical_name
     else:
         raise RuntimeError(
-            "No pretrained Depth Anything V2 metric checkpoint is available yet: the "
-            "hosted weights URL is not set. Pass `weights=<converted .pt>` (produced by "
-            "the convert_checkpoint_dav2 script) to load a local checkpoint, or set "
+            f"'{canonical_name}' is not hosted by LightlyTrain because it is not "
+            "Apache-2.0 licensed. Download the official checkpoint, convert it with the "
+            "convert_checkpoint_dav2 script, and pass `weights=<converted .pt>`. Or set "
             "`load_weights=False`."
         )
 
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    if isinstance(checkpoint, Mapping) and "train_model" in checkpoint:
-        state_dict = dict(checkpoint["train_model"])
+    checkpoint_path = task_model_helpers.download_checkpoint(checkpoint=checkpoint)
+    state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if isinstance(state, Mapping) and "train_model" in state:
+        state_dict = dict(state["train_model"])
     else:
-        state_dict = dict(checkpoint)
+        state_dict = dict(state)
     model.load_train_state_dict(state_dict)
