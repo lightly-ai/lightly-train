@@ -106,9 +106,9 @@ _MODEL_LICENSES: dict[str, str] = {
     "dinov2/dav2-metric-small-hypersim": "Apache-2.0",
     "dinov2/dav2-metric-base-hypersim": "CC-BY-NC-4.0",
     "dinov2/dav2-metric-large-hypersim": "CC-BY-NC-4.0",
-    "dinov2/dav2-metric-small-vkitti": "CC-BY-NC-4.0",
-    "dinov2/dav2-metric-base-vkitti": "CC-BY-NC-4.0",
-    "dinov2/dav2-metric-large-vkitti": "CC-BY-NC-4.0",
+    "dinov2/dav2-metric-small-vkitti": "CC-BY-NC-SA-3.0",
+    "dinov2/dav2-metric-base-vkitti": "CC-BY-NC-SA-3.0",
+    "dinov2/dav2-metric-large-vkitti": "CC-BY-NC-SA-3.0",
 }
 
 

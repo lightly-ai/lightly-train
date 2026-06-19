@@ -383,10 +383,17 @@ def _load_pretrained_weights(
         checkpoint = canonical_name
     else:
         raise RuntimeError(
-            f"'{canonical_name}' is not hosted by LightlyTrain because it is not "
-            "Apache-2.0 licensed. Download the official checkpoint, convert it with the "
-            "convert_checkpoint_dav2 script, and pass `weights=<converted .pt>`. Or set "
-            "`load_weights=False`."
+            f"'{canonical_name}' is not hosted by LightlyTrain. Make sure you "
+            "understand its license and how it applies to your use, then convert the "
+            "weights locally:\n"
+            "  1. Download the official Depth Anything V2 checkpoint from Hugging "
+            "Face.\n"
+            "  2. Convert it (run without `--weights` to see which file to download):\n"
+            "       python -m lightly_train._task_models.depth_estimation_components"
+            ".convert_checkpoint_dav2 --model-name "
+            f"{canonical_name} --weights <official.pth> --out <converted.pt>\n"
+            "  3. Reload with `weights=<converted.pt>`, or set `load_weights=False` "
+            "to skip."
         )
 
     checkpoint_path = task_model_helpers.download_checkpoint(checkpoint=checkpoint)
