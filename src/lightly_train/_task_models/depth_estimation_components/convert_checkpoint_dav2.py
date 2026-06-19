@@ -8,6 +8,7 @@
 """Convert official Depth Anything V2 weights into a LightlyTrain checkpoint.
 Example:
 python -m lightly_train._task_models.depth_estimation_components.convert_checkpoint_dav2 --model-name dinov2/dav2-relative-small --out ckpt/dav2_relative_small.pt
+python -m lightly_train._task_models.depth_estimation_components.convert_checkpoint_dav2 --model-name dinov2/dav2-metric-large-hypersim --out ckpt/dav2_metric_hypersim_large.pt
 """
 
 from __future__ import annotations
@@ -22,6 +23,9 @@ import torch
 from torch import Tensor
 
 from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model import (
+    DepthAnythingV2MetricDepthEstimation,
+)
 from lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model import (
     DepthAnythingV2RelativeDepthEstimation,
 )
@@ -42,6 +46,48 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
         "repo_id": "depth-anything/Depth-Anything-V2-Large",
         "filename": "depth_anything_v2_vitl.pth",
     },
+    "dinov2/dav2-metric-small-hypersim": {
+        "repo_id": "depth-anything/Depth-Anything-V2-Metric-Hypersim-Small",
+        "filename": "depth_anything_v2_metric_hypersim_vits.pth",
+    },
+    "dinov2/dav2-metric-base-hypersim": {
+        "repo_id": "depth-anything/Depth-Anything-V2-Metric-Hypersim-Base",
+        "filename": "depth_anything_v2_metric_hypersim_vitb.pth",
+    },
+    "dinov2/dav2-metric-large-hypersim": {
+        "repo_id": "depth-anything/Depth-Anything-V2-Metric-Hypersim-Large",
+        "filename": "depth_anything_v2_metric_hypersim_vitl.pth",
+    },
+    "dinov2/dav2-metric-small-vkitti": {
+        "repo_id": "depth-anything/Depth-Anything-V2-Metric-VKITTI-Small",
+        "filename": "depth_anything_v2_metric_vkitti_vits.pth",
+    },
+    "dinov2/dav2-metric-base-vkitti": {
+        "repo_id": "depth-anything/Depth-Anything-V2-Metric-VKITTI-Base",
+        "filename": "depth_anything_v2_metric_vkitti_vitb.pth",
+    },
+    "dinov2/dav2-metric-large-vkitti": {
+        "repo_id": "depth-anything/Depth-Anything-V2-Metric-VKITTI-Large",
+        "filename": "depth_anything_v2_metric_vkitti_vitl.pth",
+    },
+}
+
+# Task model class per (parsed) model name. The relative and metric models share the
+# official checkpoint layout and DPT shapes, so the same key remapping works for both.
+_MODEL_CLASSES: dict[
+    str,
+    type[DepthAnythingV2RelativeDepthEstimation]
+    | type[DepthAnythingV2MetricDepthEstimation],
+] = {
+    "dinov2/dav2-relative-small": DepthAnythingV2RelativeDepthEstimation,
+    "dinov2/dav2-relative-base": DepthAnythingV2RelativeDepthEstimation,
+    "dinov2/dav2-relative-large": DepthAnythingV2RelativeDepthEstimation,
+    "dinov2/dav2-metric-small-hypersim": DepthAnythingV2MetricDepthEstimation,
+    "dinov2/dav2-metric-base-hypersim": DepthAnythingV2MetricDepthEstimation,
+    "dinov2/dav2-metric-large-hypersim": DepthAnythingV2MetricDepthEstimation,
+    "dinov2/dav2-metric-small-vkitti": DepthAnythingV2MetricDepthEstimation,
+    "dinov2/dav2-metric-base-vkitti": DepthAnythingV2MetricDepthEstimation,
+    "dinov2/dav2-metric-large-vkitti": DepthAnythingV2MetricDepthEstimation,
 }
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is never
@@ -70,13 +116,14 @@ def convert_checkpoint(
     Returns:
         The path to the exported checkpoint.
     """
-    model = DepthAnythingV2RelativeDepthEstimation(
-        model_name=model_name,
+    parsed_name = _parse_model_name(model_name)
+    model_cls = _MODEL_CLASSES[parsed_name]
+    model = model_cls(
+        model_name=parsed_name,
         load_weights=False,
     )
 
     if weights is None:
-        parsed_name = _parse_model_name(model_name)
         hf_weights = _HF_WEIGHTS[parsed_name]
         logger.info(
             f"Downloading official weights from '{hf_weights['repo_id']}' "
@@ -145,11 +192,11 @@ def main() -> None:
 
 def _parse_model_name(model_name: str) -> str:
     key = model_name.lower()
-    if key in _HF_WEIGHTS:
+    if key in _MODEL_CLASSES:
         return key
     raise ValueError(
         f"Model name '{model_name}' is not supported. Available models are: "
-        f"{sorted(_HF_WEIGHTS)}."
+        f"{sorted(_MODEL_CLASSES)}."
     )
 
 
@@ -166,7 +213,9 @@ def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
 
 
 def _load_official_weights(
-    model: DepthAnythingV2RelativeDepthEstimation, path: Path
+    model: DepthAnythingV2RelativeDepthEstimation
+    | DepthAnythingV2MetricDepthEstimation,
+    path: Path,
 ) -> None:
     state_dict = _load_state_dict_file(path)
     remapped = _remap_official_da2_keys(state_dict)
