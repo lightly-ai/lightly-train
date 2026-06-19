@@ -5,8 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **LTDETR**: **DINOv3**- and **DINOv2**-based object detection models
-with the super fast RT-DETR detection architecture! Our largest model achieves an mAP<sub>50:95</sub> of 60.0 on the COCO validation set!
+🔥 LightlyTrain now supports training **LTDETR**: **DINOv3**-, **DINOv2**-, and **EdgeCrafter ECViT**-based object detection models with the super fast RT-DETR detection architecture! Our largest model achieves an mAP<sub>50:95</sub> of 60.0 on the COCO validation set!
 ```
 
 (object-detection-benchmark-results)=
@@ -15,9 +14,10 @@ with the super fast RT-DETR detection architecture! Our largest model achieves a
 
 Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and
 inference latency of different DINOv3 and DINOv2-based models, fine-tuned on the COCO
-dataset. You can check [here](object-detection-use-model-weights) for how to use these
-model checkpoints for further fine-tuning. The average latency values were measured
-using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
+dataset. EdgeCrafter ECViT LTDETR models are also supported for custom fine-tuning. You
+can check [here](object-detection-use-model-weights) for how to use these model
+checkpoints for further fine-tuning. The average latency values were measured using
+TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
@@ -43,7 +43,8 @@ using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 
 Training an object detection model with LightlyTrain is straightforward and only
 requires a few lines of code. See [data](#object-detection-data) for details on how to
-prepare your dataset.
+prepare your dataset. Besides DINOv2 and DINOv3 backbones, LTDETR also supports compact
+[EdgeCrafter ECViT](#models-edgecrafter) backbones for efficient dense prediction.
 
 ### Train an Object Detection Model
 
@@ -72,6 +73,32 @@ if __name__ == "__main__":
             # as negative samples.
             # "skip_if_label_file_missing": True,
         }
+    )
+```
+
+### Train an EdgeCrafter LTDETR Model
+
+To fine-tune an EdgeCrafter ECViT backbone, use one of the EdgeCrafter LTDETR model
+names:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="edgecrafter/ecvitt-ltdetr",
+        data={
+            "format": "yolo",
+            "path": "my_data_dir",
+            "train": "images/train2017",
+            "val": "images/val2017",
+            "names": {
+                0: "person",
+                1: "bicycle",
+                # ...
+            },
+        },
     )
 ```
 
@@ -602,6 +629,18 @@ DINOv3 backbone weights instead. Models marked as EUPE use
 [DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
 models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+
+### LTDETR EdgeCrafter ECViT Models
+
+- `edgecrafter/ecvitt-ltdetr`
+- `edgecrafter/ecvittplus-ltdetr`
+- `edgecrafter/ecvits-ltdetr`
+- `edgecrafter/ecvitsplus-ltdetr`
+
+All EdgeCrafter ECViT backbones are initialized from EdgeCrafter weights and are under
+the
+[Apache 2.0 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/EDGECRAFTER_LICENSE).
+They currently support RGB images only.
 
 ### LTDETR DINOv2 Models
 
