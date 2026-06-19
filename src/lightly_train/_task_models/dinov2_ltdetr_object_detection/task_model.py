@@ -19,9 +19,6 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train._data import file_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._task_models.dinov2_ltdetr import (
-    task_model as _shared_ltdetr_task_model,
-)
 from lightly_train._task_models.dinov2_ltdetr.task_model import (
     _DINOv2LTDETRBase,
     _DINOv2LTDETRConfig,
@@ -50,23 +47,6 @@ from lightly_train._task_models.object_detection_components.rtdetrv2_decoder imp
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
-
-# Backwards-compatible private aliases for internal/tests imports. The shared
-# config classes moved to ``dinov2_ltdetr.task_model``; keep the old
-# object-detection-prefixed names working here.
-_DINOv2LTDETRObjectDetectionConfig = _shared_ltdetr_task_model._DINOv2LTDETRConfig
-_DINOv2LTDETRObjectDetectionViTSConfig = (
-    _shared_ltdetr_task_model._DINOv2LTDETRViTSConfig
-)
-_DINOv2LTDETRObjectDetectionViTBConfig = (
-    _shared_ltdetr_task_model._DINOv2LTDETRViTBConfig
-)
-_DINOv2LTDETRObjectDetectionViTLConfig = (
-    _shared_ltdetr_task_model._DINOv2LTDETRViTLConfig
-)
-_DINOv2LTDETRObjectDetectionViTGConfig = (
-    _shared_ltdetr_task_model._DINOv2LTDETRViTGConfig
-)
 
 
 class DINOv2LTDETRObjectDetection(_DINOv2LTDETRBase):

@@ -25,9 +25,6 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
-from lightly_train._task_models.dinov3_ltdetr import (
-    task_model as _shared_ltdetr_task_model,
-)
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _DINOv3LTDETRBase,
     _DINOv3LTDETRConfig,
@@ -46,113 +43,6 @@ from lightly_train._task_models.object_detection_components.rtdetrv2_decoder imp
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
-
-# Backwards-compatible private aliases for internal/tests imports.
-_DFINETransformerConfig = _shared_ltdetr_task_model._DFINETransformerConfig
-_DFINETransformerConvNextConfig = (
-    _shared_ltdetr_task_model._DFINETransformerConvNextConfig
-)
-_DFINETransformerConvNextTinyConfig = (
-    _shared_ltdetr_task_model._DFINETransformerConvNextTinyConfig
-)
-_DFINETransformerConvNextSmallConfig = (
-    _shared_ltdetr_task_model._DFINETransformerConvNextSmallConfig
-)
-_DFINETransformerConvNextBaseConfig = (
-    _shared_ltdetr_task_model._DFINETransformerConvNextBaseConfig
-)
-_DFINETransformerConvNextLargeConfig = (
-    _shared_ltdetr_task_model._DFINETransformerConvNextLargeConfig
-)
-_DFINETransformerViTTConfig = _shared_ltdetr_task_model._DFINETransformerViTTConfig
-_DFINETransformerViTTPlusConfig = (
-    _shared_ltdetr_task_model._DFINETransformerViTTPlusConfig
-)
-_DFINETransformerViTSConfig = _shared_ltdetr_task_model._DFINETransformerViTSConfig
-_DFINETransformerViTBConfig = _shared_ltdetr_task_model._DFINETransformerViTBConfig
-_DFINETransformerViTLConfig = _shared_ltdetr_task_model._DFINETransformerViTLConfig
-_DINOv3LTDETRObjectDetectionConfig = _shared_ltdetr_task_model._DINOv3LTDETRConfig
-_DINOv3LTDETRObjectDetectionLargeConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRLargeConfig
-)
-_DINOv3LTDETRObjectDetectionBaseConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRBaseConfig
-)
-_DINOv3LTDETRObjectDetectionSmallConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRSmallConfig
-)
-_DINOv3LTDETRObjectDetectionTinyConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRTinyConfig
-)
-_DINOv3LTDETRObjectDetectionViTTConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRViTTConfig
-)
-_DINOv3LTDETRObjectDetectionViTTPlusConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRViTTPlusConfig
-)
-_DINOv3LTDETRObjectDetectionViTSConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRViTSConfig
-)
-_DINOv3LTDETRObjectDetectionViTBConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRViTBConfig
-)
-_DINOv3LTDETRObjectDetectionViTLConfig = (
-    _shared_ltdetr_task_model._DINOv3LTDETRViTLConfig
-)
-_HybridEncoderConfig = _shared_ltdetr_task_model._HybridEncoderConfig
-_HybridEncoderTinyConfig = _shared_ltdetr_task_model._HybridEncoderTinyConfig
-_HybridEncoderSmallConfig = _shared_ltdetr_task_model._HybridEncoderSmallConfig
-_HybridEncoderBaseConfig = _shared_ltdetr_task_model._HybridEncoderBaseConfig
-_HybridEncoderLargeConfig = _shared_ltdetr_task_model._HybridEncoderLargeConfig
-_HybridEncoderViTTConfig = _shared_ltdetr_task_model._HybridEncoderViTTConfig
-_HybridEncoderViTTPlusConfig = _shared_ltdetr_task_model._HybridEncoderViTTPlusConfig
-_HybridEncoderViTSConfig = _shared_ltdetr_task_model._HybridEncoderViTSConfig
-_HybridEncoderViTBConfig = _shared_ltdetr_task_model._HybridEncoderViTBConfig
-_HybridEncoderViTLConfig = _shared_ltdetr_task_model._HybridEncoderViTLConfig
-_RTDETRBackboneWrapperViTTConfig = (
-    _shared_ltdetr_task_model._RTDETRBackboneWrapperViTTConfig
-)
-_RTDETRBackboneWrapperViTTPlusConfig = (
-    _shared_ltdetr_task_model._RTDETRBackboneWrapperViTTPlusConfig
-)
-_RTDETRBackboneWrapperViTSConfig = (
-    _shared_ltdetr_task_model._RTDETRBackboneWrapperViTSConfig
-)
-_RTDETRBackboneWrapperViTBConfig = (
-    _shared_ltdetr_task_model._RTDETRBackboneWrapperViTBConfig
-)
-_RTDETRBackboneWrapperViTLConfig = (
-    _shared_ltdetr_task_model._RTDETRBackboneWrapperViTLConfig
-)
-_RTDETRPostProcessorConfig = _shared_ltdetr_task_model._RTDETRPostProcessorConfig
-_RTDETRTransformerv2Config = _shared_ltdetr_task_model._RTDETRTransformerv2Config
-_RTDETRTransformerv2TinyConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2TinyConfig
-)
-_RTDETRTransformerv2SmallConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2SmallConfig
-)
-_RTDETRTransformerv2BaseConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2BaseConfig
-)
-_RTDETRTransformerv2LargeConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2LargeConfig
-)
-_RTDETRTransformerv2ViTTConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2ViTTConfig
-)
-_RTDETRTransformerv2ViTTPlusConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2ViTTPlusConfig
-)
-_RTDETRTransformerv2ViTSConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2ViTSConfig
-)
-_RTDETRTransformerv2ViTBConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2ViTBConfig
-)
-_RTDETRTransformerv2ViTLConfig = (
-    _shared_ltdetr_task_model._RTDETRTransformerv2ViTLConfig
-)
 
 
 class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
