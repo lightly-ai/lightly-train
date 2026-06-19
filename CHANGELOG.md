@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add depth estimation inference with Depth Anything V2 and V3 models, covering both
+  relative and metric depth (`dinov2/dav2-relative-*`, `dinov2/dav2-metric-*`,
+  `dinov2/dav3-relative-large`, `dinov2/dav3-metric-large`). Checkpoints are converted
+  to the LightlyTrain format; the Apache-2.0 models are hosted for download, while the
+  CC-BY-NC-4.0 Depth Anything V2 variants must be converted locally with
+  `convert_checkpoint_dav2`.
 - Add Slicing Aided Hyper Inference (SAHI) for EoMT instance segmentation to improve
   small instance recall at inference via `predict_sahi`.
 

@@ -50,7 +50,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
 class DepthAnythingV3RelativeDepthEstimation(TaskModel):
     """Depth Anything V3 relative-depth inference model."""
 
-    model_suffix = "dav3_relative_large"
+    model_suffix = "dav3_relative"
 
     def __init__(
         self,
@@ -143,7 +143,8 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         if load_weights:
             _load_pretrained_weights(
                 model=self,
-                checkpoint=weights if weights is not None else config["canonical_name"],
+                weights=weights,
+                canonical_name=config["canonical_name"],
             )
 
     @classmethod
@@ -329,14 +330,17 @@ def _set_sky_regions_to_max_depth(*, depth: Tensor, sky: Tensor | None) -> Tenso
 def _load_pretrained_weights(
     model: DepthAnythingV3RelativeDepthEstimation,
     *,
-    checkpoint: PathLike,
+    weights: PathLike | None,
+    canonical_name: str,
 ) -> None:
     """Loads the converted Depth Anything V3 checkpoint into the model in place.
 
-    The checkpoint is resolved via ``task_model_helpers.download_checkpoint``: either a
-    local converted ``.pt`` path or a downloadable model name (downloaded to the model
-    cache and verified against its sha256). It is produced by ``convert_checkpoint_dav3``.
+    A local converted ``weights`` path takes precedence. Otherwise the checkpoint is
+    resolved by ``canonical_name`` via ``task_model_helpers.download_checkpoint``
+    (downloaded to the model cache and verified against its sha256). It is produced by
+    ``convert_checkpoint_dav3``.
     """
+    checkpoint: PathLike = weights if weights is not None else canonical_name
     checkpoint_path = task_model_helpers.download_checkpoint(checkpoint=checkpoint)
     state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if isinstance(state, Mapping) and "train_model" in state:
