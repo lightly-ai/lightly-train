@@ -84,6 +84,10 @@ dist = [
     "twine>=6.1.0",
     "wheel>=0.45.1",
 ]
+benchmarks = [
+    "onnxruntime-gpu==1.25.1; python_version>='3.11' and platform_system == 'Linux'",
+    "tensorrt-cu13==10.16.1.11; platform_system == 'Linux'",
+]
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
