@@ -1501,8 +1501,11 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            # We convert the fp32 attention scores already during ONNX export
+            # We convert the fp32 attention scores already during ONNX export, so we
+            # build a strongly-typed engine: TensorRT then honors those fp32 Cast nodes
+            # instead of forcing the whole attention into FP16 (which overflows to NaN).
             fp32_attention_scores=False,
+            strongly_typed=True,
             verbose=verbose,
         )
 
