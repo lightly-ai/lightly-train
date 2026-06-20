@@ -22,9 +22,11 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._task_models.dinov3_ltdetr.task_model import (
+    _RTDETRTransformerv2Config,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
-    _RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,

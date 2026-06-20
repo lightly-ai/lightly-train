@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 import torch
@@ -21,7 +21,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
+    DINOv2LTDETRDSPObjectDetection,
     DINOv2LTDETRObjectDetection,
 )
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
@@ -215,3 +217,48 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     # predict_batch returns whatever postprocess produced.
     assert result is postprocess_spy.spy_return
+
+
+def _build_dsp_model(mocker: MockerFixture) -> DINOv2LTDETRDSPObjectDetection:
+    # The DSP variant overrides __init__ and deliberately skips the base LTDETR
+    # __init__ via super(_DINOv2LTDETRBase, self). Unlike the regular variant it
+    # builds its backbone without exposing load_weights, so patch get_model to
+    # avoid downloading pretrained weights.
+    original_get_model = DINOV2_VIT_PACKAGE.get_model
+
+    def _get_model_no_download(*args: Any, **kwargs: Any) -> Any:
+        kwargs["load_weights"] = False
+        return original_get_model(*args, **kwargs)
+
+    mocker.patch.object(
+        DINOV2_VIT_PACKAGE, "get_model", side_effect=_get_model_no_download
+    )
+
+    return DINOv2LTDETRDSPObjectDetection(
+        model_name="dinov2/vits14-ltdetr-dsp",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(224, 224),
+    )
+
+
+def test_dsp_variant__builds_full_stack(mocker: MockerFixture) -> None:
+    # Guards the refactoring: the __init__ override that skips the base class init
+    # must still wire up a complete, correctly-configured object graph.
+    model = _build_dsp_model(mocker)
+
+    assert isinstance(model.backbone, nn.Module)
+    assert isinstance(model.encoder, nn.Module)
+    assert isinstance(model.decoder, nn.Module)
+    assert isinstance(model.postprocessor, nn.Module)
+
+    # The class-id lookup buffer registered by the override must match `classes`.
+    assert model.internal_class_to_class.tolist() == [0, 1]
+
+
+def test_dsp_variant__forward(mocker: MockerFixture) -> None:
+    model = _build_dsp_model(mocker)
+    model.deploy()
+    with torch.no_grad():
+        labels, boxes, scores = model(torch.rand(1, 3, 224, 224))
+    assert labels.shape[0] == boxes.shape[0] == scores.shape[0] == 1
+    assert boxes.shape[-1] == 4
