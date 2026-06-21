@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any, Literal
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
@@ -65,7 +66,6 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
         return EdgeCrafterInstanceSegmentationTransformer(  # type: ignore[no-untyped-call]
             **decoder_config,
             eval_spatial_size=self.image_size,
-            mask_spatial_level=0,
         )
 
     def build_postprocessor(
@@ -147,13 +147,25 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
         labels_batch = self.internal_class_to_class[labels_batch]
 
         out: list[dict[str, Tensor]] = []
-        for i in range(len(metadata)):
+        for i, meta in enumerate(metadata):
             keep = scores_batch[i] > threshold
+            # The deploy postprocessor returns raw mask logits at the mask-head
+            # resolution (image_size // downsample_ratio). Interpolate them back
+            # to the original image size and binarize, matching the
+            # postprocessor's non-deploy branch and the instance-segmentation
+            # `predict` contract (boolean masks of shape (N, orig_h, orig_w)).
+            masks = masks_batch[i][keep]
+            masks = F.interpolate(
+                masks.unsqueeze(1),
+                size=(int(meta["orig_h"]), int(meta["orig_w"])),
+                mode="bilinear",
+                align_corners=False,
+            ).squeeze(1)
             out.append(
                 {
                     "labels": labels_batch[i][keep],
                     "bboxes": boxes_batch[i][keep],
-                    "masks": masks_batch[i][keep],
+                    "masks": masks > 0.0,
                     "scores": scores_batch[i][keep],
                 }
             )
