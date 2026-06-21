@@ -829,13 +829,7 @@ The `benchmark_object_detection` command measures the **inference performance** 
 object detection model on a validation dataset. It runs inference over the validation
 split and reports both detection accuracy (mAP/mAR, including per-class mAP) and timing
 statistics (latency and throughput). This is useful to compare inference backends and
-precisions before deploying a model to production or to an edge device.
-
-```{note}
-This is different from the [reference benchmark numbers](#object-detection-benchmark-results)
-at the top of this page, which report the accuracy of our pretrained models. The command
-described here benchmarks *your* model on *your* dataset and hardware.
-```
+precisions before deploying a model to production.
 
 ### Basic Usage
 
@@ -859,8 +853,9 @@ if __name__ == "__main__":
 ```
 
 The `model` can be a path to an exported model, a model hosted by LightlyTrain (e.g.
-`"dinov3/vitt16-ltdetr-coco"`), or a loaded `TaskModel`. The `data` argument accepts the
-same dictionary or YAML path as [`train_object_detection`](#object-detection-data).
+`"dinov3/vitt16-ltdetr-coco"`), or a model loaded with the `lightly_train.load_model()` 
+function. The `data` argument accepts the same dictionary or YAML path as 
+[`train_object_detection`](#object-detection-data).
 
 The command returns a `BenchmarkResult` and writes two files to the `out` directory:
 
@@ -967,14 +962,3 @@ result = lightly_train.benchmark_object_detection(
 
 The ONNX and TensorRT backends require their respective optional dependencies to be
 installed (see the export sections above).
-
-````{note}
-When using the `tensorrt` backend (or the `tensorrt` provider of the ONNX backend) with
-the pip-installed TensorRT libraries, you may need to add the `tensorrt_libs` package to
-the dynamic linker path so that `libnvinfer` can be loaded at runtime. Otherwise ONNX
-Runtime may silently fall back to the CUDA or CPU provider. For example:
-
-```bash
-export LD_LIBRARY_PATH="$(python -c 'import tensorrt_libs; print(tensorrt_libs.__path__[0])'):${LD_LIBRARY_PATH}"
-```
-````
