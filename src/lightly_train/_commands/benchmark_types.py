@@ -17,7 +17,7 @@ from rich.markdown import Markdown
 from torch import Tensor
 from typing_extensions import Annotated
 
-from lightly_train._configs import validate
+from lightly_train._commands import data_helpers
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
@@ -291,8 +291,8 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
         # Load the data config from a YAML file if a path is given, then default the
         # format to "yolo" if none is specified. This mirrors the behavior of
         # train_object_detection so that the data config is consistent across both.
-        v = validate.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
-        v = validate.set_default_data_format(v)
+        v = data_helpers.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
+        v = data_helpers.set_default_data_format(v)
         return v
 
 

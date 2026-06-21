@@ -26,7 +26,7 @@ from lightly_train import (
     _torch_compile,
     _torch_helpers,
 )
-from lightly_train._commands import _warnings, common_helpers
+from lightly_train._commands import _warnings, common_helpers, data_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._commands.train_task_helpers import BestAggregatedMetricValues
 from lightly_train._configs import validate
@@ -1884,7 +1884,7 @@ class TrainTaskConfig(PydanticConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _load_yaml_if_path(cls, v: Any) -> Any:
-        return validate.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
+        return data_helpers.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
 
 
 class ImageClassificationMulticlassTrainTaskConfig(TrainTaskConfig):
@@ -1907,7 +1907,7 @@ class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _set_default_format(cls, v: Any) -> Any:
-        return validate.set_default_data_format(v)
+        return data_helpers.set_default_data_format(v)
 
 
 class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
@@ -1925,7 +1925,7 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _set_default_format(cls, v: Any) -> Any:
-        return validate.set_default_data_format(v)
+        return data_helpers.set_default_data_format(v)
 
 
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):
