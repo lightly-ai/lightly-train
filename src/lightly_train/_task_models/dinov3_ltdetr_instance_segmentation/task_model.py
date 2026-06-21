@@ -82,10 +82,13 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
         x = self.backbone(x)
         x = self.encoder(x)
 
-        return self.decoder(
-            feats=x,
-            spatial_feat=x[0],
-        )
+        # Don't pass ``spatial_feat`` so the decoder uses its projected feature
+        # ``proj_feats[0]``. For ViT/ECViT presets the decoder's ``input_proj`` is
+        # ``Identity`` (encoder and decoder share ``hidden_dim``), so this matches
+        # EdgeCrafter's ``spatial_feat = x[0]``. For ConvNeXt presets the encoder
+        # emits more channels than the decoder ``hidden_dim``; using the projected
+        # feature gives the mask head the channel count it expects.
+        return self.decoder(feats=x)
 
     def forward(
         self, x: Tensor, orig_target_size: Tensor | None = None
@@ -112,11 +115,9 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
         x = self.encoder(x)
-        x = self.decoder(
-            feats=x,
-            targets=targets,
-            spatial_feat=x[0],
-        )
+        # See ``forward_backend``: omit ``spatial_feat`` so the decoder uses its
+        # projected feature ``proj_feats[0]`` (Identity for ViT/ECViT presets).
+        x = self.decoder(feats=x, targets=targets)
         return x
 
     def postprocess(  # type: ignore[override]
