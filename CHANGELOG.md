@@ -46,6 +46,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix PicoDet fine-tuning with mismatched `num_classes`.
 - Fix DINOv3 LT-DETR patch size precedence so `model_args.patch_size` overrides the
   backbone default.
+- Fix TensorRT export with LT-DETR ViT-S, which caused overflows due to non-enforcement
+  of "strongly-typed" option in the TensorRT exporter.
 
 ### Security
 
