@@ -107,7 +107,7 @@ Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 Train image classification models with any backbone.<br>
 ```
 
-```{grid-item-card} Depth Estimation
+```{grid-item-card} Depth Estimation (NEW)
 :link: depth_estimation.html
 <img src="_static/images/tasks/depth_estimation.png" height="64"><br>
 Run Depth Anything V2 and V3 monocular depth inference.<br>

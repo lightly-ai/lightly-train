@@ -371,8 +371,8 @@ if __name__ == "__main__":
 <details>
 <summary><strong>Depth Estimation</strong></summary>
 
-Run monocular depth inference with Depth Anything V2 and V3 models. Inference only;
-training is not yet supported.
+Run monocular depth inference with Depth Anything V2 and V3 models. Training support
+will be released soon!
 
 #### Usage
 
