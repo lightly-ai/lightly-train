@@ -259,7 +259,7 @@ from torchvision.io import decode_image
 from torchvision.utils import draw_bounding_boxes
 import urllib.request
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("edgecrafter/ecvitt-ltdetr-coco")
 img = "http://images.cocodataset.org/val2017/000000577932.jpg"
 results = model.predict(img)
 

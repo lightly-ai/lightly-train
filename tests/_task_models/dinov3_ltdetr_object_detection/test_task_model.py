@@ -792,12 +792,17 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
         ECViTBackboneWrapper,
     )
 
-    # Disable the LR-warmup `start_factor` so the current lr in the
-    # optimizer's param groups equals the configured base lr (PyTorch's
-    # `_LRScheduler.__init__` calls `step()` once, which would otherwise
-    # scale every group by `scheduler_start_factor`).
+    # Pin the linear scheduler here: this test asserts optimizer param-group
+    # membership and LRs (the backbone/detector split), not the scheduler.
+    # The default `flat-cosine` would otherwise auto-resolve flat/no_aug steps
+    # from the test's `total_steps=1000` and collide with the default
+    # `lr_warmup_steps=2000`.
+    # `scheduler_start_factor=1.0` neutralizes LinearLR's init `step()` scaling.
     train_model = _create_train_model(
-        DINOv3LTDETRObjectDetectionTrainArgs(scheduler_start_factor=1.0),
+        DINOv3LTDETRObjectDetectionTrainArgs(
+            scheduler_name="linear",
+            scheduler_start_factor=1.0,
+        ),
         model_name=model_name,
         model_init_args={"patch_size": 16},
     )
@@ -812,7 +817,10 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     assert len(pretrained_param_ids) > 0
     assert len(projector_param_ids) > 0
 
-    optimizer, _ = train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+    optimizer, _ = train_model.get_optimizer(
+        total_steps=1000,
+        global_batch_size=train_model.model_args.default_batch_size,
+    )
     by_name = {g["name"]: g for g in optimizer.param_groups}
 
     expected_backbone_lr = (

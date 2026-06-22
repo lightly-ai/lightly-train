@@ -10,7 +10,7 @@ please refer to the [](pretrain-settings) page.
 | ----------------------------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`out`](#out)                                   | `str`<br>`Path`               | —              | Output directory where checkpoints, logs, and exported models are written.                                                                                          |
 | [`data`](#data)                                 | `dict`<br>`str`               | —              | Dataset configuration dict, or path to a YAML file containing the dataset configuration.                                                                            |
-| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"dinov3/vitt16-ltdetr-coco"`) or path to a local checkpoint to fine-tune from.                                                              |
+| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"edgecrafter/ecvitt-ltdetr-coco"`) or path to a local checkpoint to fine-tune from.                                                              |
 | [`model_args`](#model_args)                     | `dict`                        | `None`         | Task/model-specific training hyperparameters.                                                                                                                       |
 | [`steps`](#steps)                               | `int`                         | `"auto"`       | Number of training steps. `"auto"` selects a model-dependent default.                                                                                               |
 | [`precision`](#precision)                       | `str`                         | `"bf16-mixed"` | Numeric precision mode (e.g. `"16-true"`, `"32-true"`, `"bf16-mixed"`).                                                                                             |
@@ -89,7 +89,7 @@ CPU cores.
 
 ### `model`
 
-Model identifier (for example `"dinov3/vitt16-ltdetr-coco"`) or the path to a checkpoint
+Model identifier (for example `"edgecrafter/ecvitt-ltdetr-coco"`) or the path to a checkpoint
 or exported model file. LightlyTrain automatically downloads weights if needed.
 
 To resume from a crashed or interrupted run, use the
@@ -171,7 +171,7 @@ import lightly_train
 
 lightly_train.train_object_detection(
     ...,
-    model="dinov3/vitt16-ltdetr-coco",  # Loads built-in fine-tuned model.
+    model="edgecrafter/ecvitt-ltdetr-coco",  # Loads built-in fine-tuned model.
     model_args={
         "backbone_weights": "/path/to/backbone_weights.ckpt",  # Ignored when loading built-in model.
     },

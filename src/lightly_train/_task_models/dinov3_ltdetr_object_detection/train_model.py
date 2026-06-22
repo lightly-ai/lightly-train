@@ -98,17 +98,15 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
-    default_batch_size: ClassVar[int] = 16
-    default_steps: ClassVar[int] = (
-        100_000 // 16 * 72
-    )  # TODO (Lionel, 10/25): Adjust default steps.
+    default_batch_size: ClassVar[int] = 32
+    default_steps: ClassVar[int] = 266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
     patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
-    decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
+    decoder_name: Literal["rtdetrv2", "dfine"] = "dfine"
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -135,7 +133,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     # Optimizer configuration
     lr: float = Field(
-        default=1e-4,
+        default=5e-4,
         validation_alias=AliasChoices("lr", "optimizer_lr"),
     )
     weight_decay: float = Field(
@@ -145,10 +143,10 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
     # Per-parameter-group overrides
-    backbone_lr_factor: float = 1e-2
+    backbone_lr_factor: float = 0.05
 
     # Scheduler configuration
-    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
+    scheduler_name: Literal["linear", "flat-cosine"] = "flat-cosine"
     scheduler_start_factor: float = 0.01
     lr_warmup_steps: int = Field(
         default=2000,
