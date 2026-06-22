@@ -102,8 +102,7 @@ def benchmark_object_detection(
             Included in the benchmark report.
         data:
             The dataset configuration or path to a YAML file with the configuration
-            (same format as train_object_detection). The ``format`` defaults to
-            ``"yolo"`` if not specified. See the documentation for more information:
+            (same format as train_object_detection). See the documentation for more information:
             https://docs.lightly.ai/train/stable/object_detection.html#data
         model:
             A loaded TaskModel instance or a path to an exported model file.

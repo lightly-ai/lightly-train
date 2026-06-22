@@ -842,7 +842,7 @@ if __name__ == "__main__":
         dataset_name="My Dataset",  # Human-readable name shown in the report.
         model="out/my_experiment/exported_models/exported_best.pt",
         data={
-            # Same format as train_object_detection. "format" defaults to "yolo".
+            # Same format as train_object_detection.
             "path": "my_data_dir",
             "train": "images/train",
             "val": "images/val",  # The benchmark runs on the validation split.
@@ -853,8 +853,8 @@ if __name__ == "__main__":
 ```
 
 The `model` can be a path to an exported model, a model hosted by LightlyTrain (e.g.
-`"dinov3/vitt16-ltdetr-coco"`), or a model loaded with the `lightly_train.load_model()` 
-function. The `data` argument accepts the same dictionary or YAML path as 
+`"dinov3/vitt16-ltdetr-coco"`), or a model loaded with the `lightly_train.load_model()`
+function. The `data` argument accepts the same dictionary or YAML path as
 [`train_object_detection`](#object-detection-data).
 
 The command returns a `BenchmarkResult` and writes two files to the `out` directory:
@@ -954,7 +954,7 @@ result = lightly_train.benchmark_object_detection(
     backend_args={
         "format": "tensorrt",
         "precision": "fp16",         # One of "fp32", "fp16".
-        # "export_args": {...},      # Optional, forwarded to model.export_onnx().
+        # "export_args": {...},      # Optional, forwarded to model.export_tensorrt().
     },
     device="cuda",
 )

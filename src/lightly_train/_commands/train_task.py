@@ -1884,7 +1884,9 @@ class TrainTaskConfig(PydanticConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _load_yaml_if_path(cls, v: Any) -> Any:
-        return data_helpers.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
+        return data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
 
 
 class ImageClassificationMulticlassTrainTaskConfig(TrainTaskConfig):
