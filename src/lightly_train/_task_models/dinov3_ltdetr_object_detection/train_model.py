@@ -99,7 +99,9 @@ logger = logging.getLogger(__name__)
 
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 32
-    default_steps: ClassVar[int] = 266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
+    default_steps: ClassVar[int] = (
+        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
+    )
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
