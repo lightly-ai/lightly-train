@@ -153,6 +153,9 @@ if __name__ == "__main__":
     )
 ```
 
+
+`````
+
 (object-detection-use-model-weights)=
 
 ### Load the Trained Model from Checkpoint and Predict
@@ -259,7 +262,7 @@ from torchvision.io import decode_image
 from torchvision.utils import draw_bounding_boxes
 import urllib.request
 
-model = lightly_train.load_model("edgecrafter/ecvitt-ltdetr-coco")
+model = lightly_train.load_model("ltdetrv2-s")
 img = "http://images.cocodataset.org/val2017/000000577932.jpg"
 results = model.predict(img)
 
@@ -655,7 +658,7 @@ an LTDETRv2 or DINOv3 LTDETR model above.
 
 All models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-```
+`````
 
 ```{dropdown} Legacy: PicoDet Models
 

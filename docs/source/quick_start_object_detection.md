@@ -49,7 +49,7 @@ download the model weights and load the model:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("edgecrafter/ecvitt-ltdetr-coco")
+model = lightly_train.load_model("ltdetrv2-s")
 ```
 
 ### Predict the objects
