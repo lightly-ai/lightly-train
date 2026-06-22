@@ -158,6 +158,33 @@ def test_resolve_auto__uses_vit_model_name(
 
 
 @pytest.mark.parametrize(
+    "model_name",
+    ["ltdetrv2-s", "ltdetrv2-m", "ltdetrv2-l", "ltdetrv2-x"],
+)
+def test_resolve_auto__uses_ltdetrv2_alias(
+    model_name: str,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # Regression test for TRN-2187: ``resolve_auto`` runs before the task-model
+    # constructor canonicalizes short LT-DETRv2 aliases, so it must resolve
+    # them itself (via ``parse_model_name``) rather than raising
+    # ``Unable to resolve patch_size='auto'``. All aliases map to EdgeCrafter
+    # (ECViT) backbones with a fixed patch_size of 16.
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name=model_name,
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.patch_size == 16
+
+
+@pytest.mark.parametrize(
     ("model_name", "expected_patch_size"),
     [("dinov3/vitt16-ltdetr-coco", 36), ("dinov3/convnext-tiny-ltdetr-coco", 47)],
 )
