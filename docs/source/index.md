@@ -107,6 +107,12 @@ Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 Train image classification models with any backbone.<br>
 ```
 
+```{grid-item-card} Depth Estimation
+:link: depth_estimation.html
+<img src="_static/images/tasks/depth_estimation.png" height="64"><br>
+Run Depth Anything V2 and V3 monocular depth inference.<br>
+```
+
 ```{grid-item-card} Distillation
 :link: pretrain_distill/methods/distillation.html
 <img src="_static/images/tasks/distillation.png" height="64"><br>
@@ -268,6 +274,7 @@ instance_segmentation
 panoptic_segmentation
 semantic_segmentation
 image_classification
+depth_estimation
 pretrain_distill/index
 predict_autolabel
 embed
