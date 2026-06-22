@@ -12,7 +12,8 @@ computer vision models. It covers the entire model development lifecycle from
 pretraining DINOv2/v3 vision foundation models on your unlabeled data to fine-tuning
 transformer and YOLO models on detection and segmentation tasks for edge deployment.
 
-Struggling to get good results with pre-training? Talk to one of our experts [Contact us](https://www.lightly.ai/contact)
+Struggling to get good results with pre-training? Talk to one of our experts
+[Contact us](https://www.lightly.ai/contact)
 
 Using LightlyTrain at work, in production, on the edge, or to build proprietary models?
 You likely need a Commercial License. [Contact us](https://www.lightly.ai/contact) to
