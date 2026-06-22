@@ -87,7 +87,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="edgecrafter/ecvitt-ltdetr",
+        model="ltdetrv2-s",
         data={
             "format": "yolo",
             "path": "my_data_dir",
@@ -632,10 +632,10 @@ models are under the
 
 ### LTDETR EdgeCrafter ECViT Models
 
-- `edgecrafter/ecvitt-ltdetr`
-- `edgecrafter/ecvittplus-ltdetr`
-- `edgecrafter/ecvits-ltdetr`
-- `edgecrafter/ecvitsplus-ltdetr`
+- `ltdetrv2-s` (alias for `edgecrafter/ecvitt-ltdetr`)
+- `ltdetrv2-m` (alias for `edgecrafter/ecvittplus-ltdetr`)
+- `ltdetrv2-l` (alias for `edgecrafter/ecvits-ltdetr`)
+- `ltdetrv2-x` (alias for `edgecrafter/ecvitsplus-ltdetr`)
 
 All EdgeCrafter ECViT backbones are initialized from EdgeCrafter weights and are under
 the

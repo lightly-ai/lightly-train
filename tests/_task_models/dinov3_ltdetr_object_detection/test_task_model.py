@@ -606,6 +606,57 @@ def test_create_train_model__ecvit(
     assert not hasattr(task_model.backbone.backbone_model, "mask_token")
 
 
+# ---------------------------------------------------------------------------
+# Short LT-DETRv2 alias tests
+# ---------------------------------------------------------------------------
+#
+# ``ltdetrv2-{s,m,l,x}`` is a public alias that resolves to the canonical
+# EdgeCrafter (ECViT) LT-DETR object-detection model name. These tests verify
+# that the alias is accepted by ``is_supported_model`` and resolves to the
+# correct canonical name in ``parse_model_name`` (which is also what the
+# task model ``__init__`` stores as ``self.model_name``).
+
+LTDETR_V2_ALIAS_MODEL_NAMES = [
+    "ltdetrv2-s",
+    "ltdetrv2-m",
+    "ltdetrv2-l",
+    "ltdetrv2-x",
+]
+
+LTDETR_V2_ALIAS_TO_CANONICAL: dict[str, str] = {
+    "ltdetrv2-s": "edgecrafter/ecvitt-ltdetr",
+    "ltdetrv2-m": "edgecrafter/ecvittplus-ltdetr",
+    "ltdetrv2-l": "edgecrafter/ecvits-ltdetr",
+    "ltdetrv2-x": "edgecrafter/ecvitsplus-ltdetr",
+}
+
+
+@pytest.mark.parametrize("model_name", LTDETR_V2_ALIAS_MODEL_NAMES)
+def test_is_supported_model__ltdetrv2_alias(model_name: str) -> None:
+    assert DINOv3LTDETRObjectDetection.is_supported_model(model_name) is True
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"),
+    list(LTDETR_V2_ALIAS_TO_CANONICAL.items()),
+)
+def test_parse_model_name__ltdetrv2_alias(alias: str, canonical: str) -> None:
+    parsed = DINOv3LTDETRObjectDetection.parse_model_name(alias)
+    assert parsed["package_name"] == "edgecrafter"
+    assert parsed["model_name"] == canonical
+    # backbone_name must be the bare ECViT preset (no package prefix, no
+    # -ltdetr suffix) so the EdgeCrafter package can load the weights.
+    assert parsed["backbone_name"] == canonical.removeprefix(
+        "edgecrafter/"
+    ).removesuffix("-ltdetr")
+
+
+def test_list_model_names__includes_ltdetrv2_aliases() -> None:
+    names = DINOv3LTDETRObjectDetection.list_model_names()
+    for alias in LTDETR_V2_ALIAS_MODEL_NAMES:
+        assert alias in names, f"Expected alias {alias!r} in list_model_names()"
+
+
 @pytest.mark.parametrize("should_freeze", [True, False])
 def test_freeze_backbone_on_set_train_mode__ecvit(should_freeze: bool) -> None:
     # ECViT's backbone has no mask_token, so the constructor's DINOv3-ViT

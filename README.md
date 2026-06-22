@@ -105,7 +105,7 @@ if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
         model="dinov3/vitt16-ltdetr-coco",
-        # For EdgeCrafter ECViT, use e.g. model="edgecrafter/ecvitt-ltdetr".
+        # For EdgeCrafter ECViT, use e.g. model="ltdetrv2-s".
         data={
             "path": "my_data_dir",
             "train": "images/train",
