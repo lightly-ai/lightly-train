@@ -110,8 +110,6 @@ if __name__ == "__main__":
 
 ## Pretrain and Fine-tune an Object Detection Model
 
-````{dropdown} Legacy: Pretrain a DINOv2 backbone, then fine-tune
-
 The following workflow pretrains a **DINOv2** backbone with self-supervised learning
 and then fine-tunes it as a DINOv2 LTDETR detection model. LTDETRv2 and DINOv3 LTDETR
 (see [Model](#object-detection-model)) are the recommended paths for new projects; this
