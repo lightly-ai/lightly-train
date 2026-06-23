@@ -337,12 +337,28 @@ import lightly_train
 lightly_train.train_object_detection(
     ...,
     data={
-        "format": ...,           # either "yolo" or "coco"
+        "format": "yolo",        # optional, either "yolo" or "coco", defaults to "yolo"
         "ignore_classes": [...], # optional list of class IDs that should be skipped during training
          # format specific options
     },
 )
 ```
+
+The `format` key is optional and defaults to `"yolo"` if omitted.
+
+Instead of a dictionary, you can also pass a path to a YAML file containing the same
+configuration. This is convenient if you already have an Ultralytics-style `data.yaml`:
+
+```python
+lightly_train.train_object_detection(
+    ...,
+    data="path/to/data.yaml",
+)
+```
+
+Any keys in the YAML file that are not part of the configuration are ignored. The same
+`data` argument (dictionary or YAML path) is also accepted by
+[`benchmark_object_detection`](#object-detection-benchmark).
 
 If you would like to skip specific classes during training, add their IDs to the
 optional `ignore_classes` list. The trainer omits these classes from loss computation
@@ -799,3 +815,150 @@ when exporting to TensorRT.
 
 You can also learn more about exporting LTDETR to TensorRT using our Colab notebook:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
+
+(object-detection-benchmark)=
+
+## Benchmarking
+
+```{note}
+The benchmark command is in **beta**. Its API and report format may change in future
+releases.
+```
+
+The `benchmark_object_detection` command measures the **inference performance** of an
+object detection model on a validation dataset. It runs inference over the validation
+split and reports both detection accuracy (mAP/mAR, including per-class mAP) and timing
+statistics (latency and throughput). This is useful to compare inference backends and
+precisions before deploying a model to production.
+
+### Basic Usage
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    result = lightly_train.benchmark_object_detection(
+        out="out/my_benchmark",
+        dataset_name="My Dataset",  # Human-readable name shown in the report.
+        model="out/my_experiment/exported_models/exported_best.pt",
+        data={
+            # Same format as train_object_detection.
+            "path": "my_data_dir",
+            "train": "images/train",
+            "val": "images/val",  # The benchmark runs on the validation split.
+            "names": {0: "class_a", 1: "class_b"},
+        },
+    )
+    result.print()  # Pretty-print the report to the console.
+```
+
+The `model` can be a path to an exported model, a model hosted by LightlyTrain (e.g.
+`"dinov3/vitt16-ltdetr-coco"`), or a model loaded with the `lightly_train.load_model()`
+function. The `data` argument accepts the same dictionary or YAML path as
+[`train_object_detection`](#object-detection-data).
+
+The command returns a `BenchmarkResult` and writes two files to the `out` directory:
+
+- `benchmark_results.json`: the full result as JSON.
+- `benchmark_summary.md`: a human-readable Markdown report.
+
+The report (also available via `result.to_markdown()`) contains the run configuration,
+device info, performance metrics, and a throughput & latency table, for example:
+
+```text
+# Benchmark Report — my_benchmark
+
+## Run Config
+- Model: out/my_experiment/exported_models/exported_best.pt
+- Backend: torch, fp32
+- Dataset: My Dataset (5000/5000 images)
+...
+
+## Performance Metrics
+| Metric        | Value  |
+| ---           |   ---: |
+| mAP@0.5:0.95  | 0.5421 |
+| mAP@0.50      | 0.7123 |
+...
+
+## Throughput & Latency
+|                    |  min |  max | mean | median | std |
+| ---                | ---: | ---: | ---: |   ---: | ---:|
+| Throughput (img/s) | ...  | ...  | ...  |  ...   | ... |
+| Latency (ms/img)   | ...  | ...  | ...  |  ...   | ... |
+```
+
+### Parameters
+
+The most relevant parameters are:
+
+- `batch_size`: Number of images processed at once. Default `1`.
+- `warmup_steps`: Number of warmup batches run before measuring. Warmup results are
+  discarded. Recommended when benchmarking GPU backends. Default `0`.
+- `steps`: Maximum number of batches to process. `None` (default) processes the whole
+  validation split.
+- `threshold`: Score threshold below which detections are discarded. Default `0.0`.
+- `num_workers`: Number of data loading workers. Default `"auto"`.
+- `device`: Device to run on, e.g. `"cpu"` or `"cuda"`. If `None` (default), the device
+  is auto-detected based on the backend.
+- `overwrite`: Overwrite the output directory if it already exists. Default `False`.
+
+### Backends
+
+The `backend_args` parameter selects the inference backend and its precision. Three
+backends are supported via the `format` key:
+
+#### Torch (default)
+
+Runs inference with PyTorch. Supports `torch.compile` and mixed precision.
+
+```python
+result = lightly_train.benchmark_object_detection(
+    ...,
+    backend_args={
+        "format": "torch",
+        "compile": False,            # Set True to compile the model with torch.compile.
+        "precision": "fp32",         # One of "fp32", "fp16-mixed", "bf16-mixed".
+    },
+    device="cuda",
+)
+```
+
+#### ONNX
+
+Runs inference through ONNX Runtime. The model is exported to ONNX internally (see
+[Exporting a Checkpoint to ONNX](#exporting-a-checkpoint-to-onnx)). Choose the execution
+provider with `provider`.
+
+```python
+result = lightly_train.benchmark_object_detection(
+    ...,
+    backend_args={
+        "format": "onnx",
+        "provider": "cuda",          # One of "cpu", "cuda", "tensorrt".
+        "precision": "fp16",         # One of "fp32", "fp16".
+        # "export_args": {...},      # Optional, forwarded to model.export_onnx().
+    },
+    device="cuda",
+)
+```
+
+#### TensorRT
+
+Builds a TensorRT engine for fast GPU inference (see
+[Exporting a Checkpoint to TensorRT](#object-detection-tensorrt)).
+
+```python
+result = lightly_train.benchmark_object_detection(
+    ...,
+    backend_args={
+        "format": "tensorrt",
+        "precision": "fp16",         # One of "fp32", "fp16".
+        # "export_args": {...},      # Optional, forwarded to model.export_tensorrt().
+    },
+    device="cuda",
+)
+```
+
+The ONNX and TensorRT backends require their respective optional dependencies to be
+installed (see the export sections above).
