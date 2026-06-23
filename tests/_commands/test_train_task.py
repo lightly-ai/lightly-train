@@ -213,6 +213,9 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
                 1: "class_1",
             },
         },
+        model_args={
+            "scheduler_name": "linear",
+        },
         steps=2,
         batch_size=2,
         num_workers=2,
