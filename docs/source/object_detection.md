@@ -44,10 +44,10 @@ measured using TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch si
 
 Training an object detection model with LightlyTrain is straightforward and only
 requires a few lines of code. See [data](#object-detection-data) for details on how to
-prepare your dataset. LTDETR is a single DINOv3-based detection family built on the RT-DETR
-architecture. Choose a compact **LTDETRv2** model (`ltdetrv2-s/m/l/x`) for efficient
-detection, or a larger DINOv3 ViT/ConvNeXt model for maximum accuracy. DINOv2 backbones
-are also supported (see the [Model](#object-detection-model) section).
+prepare your dataset. LTDETR is a single DINOv3-based detection family built on the
+RT-DETR architecture. Choose a compact **LTDETRv2** model (`ltdetrv2-s/m/l/x`) for
+efficient detection, or a larger DINOv3 ViT/ConvNeXt model for maximum accuracy. DINOv2
+backbones are also supported (see the [Model](#object-detection-model) section).
 
 ### Train an LTDETR Model
 
