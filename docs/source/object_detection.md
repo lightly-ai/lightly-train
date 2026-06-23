@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **LTDETR**, a DINOv3-based object detection family with the super fast RT-DETR detection architecture! Pick a compact **LTDETRv2** model (`ltdetrv2-s/m/l/x`) for efficient detection, or a larger DINOv3 ViT/ConvNeXt model for maximum accuracy. Our largest model achieves an mAP<sub>50:95</sub> of 60.0 on the COCO validation set!
+🔥 LightlyTrain's **LTDETRv2** is out with great improvements in the supporting backbone and other contributions from SOTA research! We achieved 50.4mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
