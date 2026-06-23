@@ -110,9 +110,9 @@ if __name__ == "__main__":
 
 ## Pretrain and Fine-tune an Object Detection Model
 
-The following workflow pretrains a **DINOv2** backbone with self-supervised learning
-and then fine-tunes it as a DINOv2 LTDETR detection model. LTDETRv2 and DINOv3 LTDETR
-(see [Model](#object-detection-model)) are the recommended paths for new projects; this
+The following workflow pretrains a **DINOv2** backbone with self-supervised learning and
+then fine-tunes it as a DINOv2 LTDETR detection model. LTDETRv2 and DINOv3 LTDETR (see
+[Model](#object-detection-model)) are the recommended paths for new projects; this
 DINOv2 workflow is kept for backward compatibility. It is especially useful if your
 dataset is only partially labeled or if you have access to a large amount of unlabeled
 data.
@@ -153,7 +153,8 @@ if __name__ == "__main__":
         }
     )
 ```
-````
+
+`````
 
 (object-detection-use-model-weights)=
 
@@ -657,15 +658,15 @@ an LTDETRv2 or DINOv3 LTDETR model above.
 
 All models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-````
+`````
 
-````{dropdown} Legacy: PicoDet Models
+```{dropdown} Legacy: PicoDet Models
 
 Picodet models are in preview.
 
 - `picodet-s-coco` (pretrained on COCO)
 - `picodet-l-coco` (pretrained on COCO)
-````
+```
 
 ## Training Settings
 
