@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-🔥 LightlyTrain's **LTDETRv2** is out with great improvements in the supporting backbone and other contributions from SOTA research! We achieved 50.4mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
+🔥 LightlyTrain's **LTDETRv2** is out with great improvements from SOTA research! We achieved 50.6mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
