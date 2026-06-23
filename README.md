@@ -104,11 +104,10 @@ size 1. All models are optimized using `tensorrt==10.13.3.9`.
 import lightly_train
 
 if __name__ == "__main__":
-    # Train an object detection model with a DINOv3 or EdgeCrafter ECViT backbone
+    # Train with our most recent LT-DETRv2 detector based on DINOv3 and EdgeCrafter.
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/vitt16-ltdetr-coco",
-        # For EdgeCrafter ECViT, use e.g. model="edgecrafter/ecvitt-ltdetr".
+        model="ltdetrv2-s",
         data={
             "path": "my_data_dir",
             "train": "images/train",
@@ -125,7 +124,7 @@ if __name__ == "__main__":
     # Load model and run inference
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
     # Or use one of the models provided by LightlyTrain
-    # model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
+    # model = lightly_train.load_model("ltdetrv2-s")
     results = model.predict("image.jpg")
     results["labels"]   # Class labels, tensor of shape (num_boxes,)
     results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel

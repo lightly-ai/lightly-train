@@ -143,7 +143,7 @@ import lightly_train
 lightly_train.train_object_detection(
     out="out/my_experiment",
     model="dinov3/vitt16-ltdetr-coco",
-    # For EdgeCrafter ECViT, use e.g. model="edgecrafter/ecvitt-ltdetr".
+    # For EdgeCrafter ECViT, use e.g. model="ltdetrv2-s".
     steps=100,  # Small number of steps for demonstration, default is 90_000.
     batch_size=4,  # Small batch size for demonstration, default is 16.
     data={
