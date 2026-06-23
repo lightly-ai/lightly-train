@@ -153,8 +153,7 @@ if __name__ == "__main__":
     )
 ```
 
-
-`````
+````
 
 (object-detection-use-model-weights)=
 
@@ -658,7 +657,7 @@ an LTDETRv2 or DINOv3 LTDETR model above.
 
 All models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-`````
+````
 
 ```{dropdown} Legacy: PicoDet Models
 
