@@ -154,8 +154,6 @@ if __name__ == "__main__":
     )
 ```
 
-`````
-
 (object-detection-use-model-weights)=
 
 ### Load the Trained Model from Checkpoint and Predict
@@ -594,8 +592,8 @@ models are available:
 ### LTDETR Models (DINOv3-based)
 
 LTDETR is a single DINOv3-based detection family built on the RT-DETR architecture. The
-**LTDETRv2** models below are the compact, efficient tier (`ltdetrv2-s/m/l/x`, backed
-by ECViT backbones); the DINOv3 ViT/ConvNeXt models are the larger, high-accuracy tier.
+**LTDETRv2** models below are the compact, efficient tier (`ltdetrv2-s/m/l/x`, backed by
+ECViT backbones); the DINOv3 ViT/ConvNeXt models are the larger, high-accuracy tier.
 Both tiers share the same hybrid encoder + RT-DETRv2/D-FINE decoder.
 
 #### LTDETRv2 Models (compact tier)
@@ -646,7 +644,7 @@ DINOv3 backbone weights instead. Models marked as EUPE use
 models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
-````{dropdown} Legacy: DINOv2 LTDETR Models
+```{dropdown} Legacy: DINOv2 LTDETR Models
 
 DINOv2-backed LTDETR models. Kept for backward compatibility; for new projects prefer
 an LTDETRv2 or DINOv3 LTDETR model above.
@@ -658,7 +656,7 @@ an LTDETRv2 or DINOv3 LTDETR model above.
 
 All models are
 [pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
-`````
+```
 
 ```{dropdown} Legacy: PicoDet Models
 
