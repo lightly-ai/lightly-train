@@ -69,6 +69,39 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         x = self.encoder(x)
         return self.decoder(x)
 
+    def forward(
+        self, x: Tensor, orig_target_size: Tensor | None = None
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        # Function used for ONNX export
+        if orig_target_size is None:
+            h, w = x.shape[-2:]
+            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
+        else:
+            # Flip from (H, W) to (W, H).
+            orig_target_size = orig_target_size[:, [1, 0]]
+
+            # Move to device.
+            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
+
+        # Forward the image through the model.
+        x = self.forward_backend(x)
+
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
+        # Postprocessor must be in deploy mode at this point. It returns only tuples
+        # during deploy mode.
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+        return (labels, boxes, scores)
+
+    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(feats=x, targets=targets)
+        return x
+
     def postprocess(  # type: ignore[override]
         self,
         raw_outputs: Any | dict[str, Tensor],
@@ -224,41 +257,6 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             "bboxes": boxes,
             "scores": scores,
         }
-
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None = None
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Function used for ONNX export
-        if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
-        else:
-            # Flip from (H, W) to (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-
-            # Move to device.
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        # Forward the image through the model.
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(x)
-
-        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
-            self.postprocessor(x, orig_target_size_)
-        )
-        # Postprocessor must be in deploy mode at this point. It returns only tuples
-        # during deploy mode.
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]
-        return (labels, boxes, scores)
-
-    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(feats=x, targets=targets)
-        return x
 
     @torch.no_grad()
     def export_onnx(
