@@ -673,9 +673,12 @@ def test_parse_model_name__ltdetrv2_alias(alias: str, canonical: str) -> None:
     assert parsed["model_name"] == canonical
     # backbone_name must be the bare ECViT preset (no package prefix, no
     # -ltdetr suffix) so the EdgeCrafter package can load the weights.
-    assert parsed["backbone_name"] == canonical.removeprefix(
-        "edgecrafter/"
-    ).removesuffix("-ltdetr")
+    expected_backbone_name = canonical
+    if expected_backbone_name.startswith("edgecrafter/"):
+        expected_backbone_name = expected_backbone_name[len("edgecrafter/") :]
+    if expected_backbone_name.endswith("-ltdetr"):
+        expected_backbone_name = expected_backbone_name[: -len("-ltdetr")]
+    assert parsed["backbone_name"] == expected_backbone_name
 
 
 def test_list_model_names__includes_ltdetrv2_aliases() -> None:
