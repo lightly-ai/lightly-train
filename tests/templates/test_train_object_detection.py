@@ -95,7 +95,7 @@ class TestTrainObjectDetectionTemplate:
         assert '"skip_if_annotations_missing": True' in result
         assert 'batch_size="auto"' in result
         assert 'num_workers="auto"' in result
-        assert 'model="dinov3/vitt16-ltdetr-coco"' in result
+        assert 'model="ltdetrv2-s-coco"' in result
         assert "model_args=None" in result
         assert 'steps="auto"' in result
         assert 'precision="bf16-mixed"' in result

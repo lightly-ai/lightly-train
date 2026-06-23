@@ -61,6 +61,15 @@ def test_load_model__download_invalid_model__fails() -> None:
         load_model(invalid_model_name)
 
 
+def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
+    # ``ltdetrv2-s-coco`` is the public name for the hosted ECViT-T LTDETR COCO
+    # checkpoint. It must resolve to the same (file, hash) as the canonical
+    # ``edgecrafter/ecvitt-ltdetr-coco`` entry so load_model/train downloads the
+    # identical file regardless of which name the user passes.
+    d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
+    assert d["ltdetrv2-s-coco"] == d["edgecrafter/ecvitt-ltdetr-coco"]
+
+
 def test_download_checkpoint__non_hosted_dav2__raises_convert_guidance() -> None:
     model_name = "dinov2/dav2-relative-large"
 

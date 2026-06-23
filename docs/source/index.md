@@ -163,7 +163,7 @@ import lightly_train
 # Load the model from the best checkpoint
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 # Or load one of the models hosted by LightlyTrain
-model = lightly_train.load_model("ltdetrv2-s")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict("image.jpg")
 ```
 
