@@ -8,12 +8,9 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Any, Literal, Union
 
-import fsspec
 import torch
-import yaml
 from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
@@ -29,7 +26,7 @@ from lightly_train import (
     _torch_compile,
     _torch_helpers,
 )
-from lightly_train._commands import _warnings, common_helpers
+from lightly_train._commands import _warnings, common_helpers, data_helpers
 from lightly_train._commands import train_task_helpers as helpers
 from lightly_train._commands.train_task_helpers import BestAggregatedMetricValues
 from lightly_train._configs import validate
@@ -1887,24 +1884,9 @@ class TrainTaskConfig(PydanticConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _load_yaml_if_path(cls, v: Any) -> Any:
-        if isinstance(v, (str, Path)):
-            with fsspec.open(v, "r") as file:
-                v = yaml.safe_load(file)
-            # Ignore all fields in YAML file that are not part of the Pydantic model.
-            # As data can be a Union, it would be impossible to figure out which fields to exclude, so in that
-            # case we include the fields of all union members.
-            annotation = cls.model_fields["data"].annotation
-            if get_origin(annotation) is Union:
-                members = get_args(annotation)
-            else:
-                members = (annotation,)
-            data_attributes = {
-                name
-                for m in members
-                for name in m.model_fields  # type: ignore
-            }
-            v = {name: value for name, value in v.items() if name in data_attributes}
-        return v
+        return data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
 
 
 class ImageClassificationMulticlassTrainTaskConfig(TrainTaskConfig):
@@ -1927,9 +1909,7 @@ class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _set_default_format(cls, v: Any) -> Any:
-        if isinstance(v, dict) and "format" not in v:
-            v = {**v, "format": "yolo"}
-        return v
+        return data_helpers.set_default_data_format(v)
 
 
 class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
@@ -1947,9 +1927,7 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _set_default_format(cls, v: Any) -> Any:
-        if isinstance(v, dict) and "format" not in v:
-            v = {**v, "format": "yolo"}
-        return v
+        return data_helpers.set_default_data_format(v)
 
 
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):

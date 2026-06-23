@@ -12,6 +12,9 @@ computer vision models. It covers the entire model development lifecycle from
 pretraining DINOv2/v3 vision foundation models on your unlabeled data to fine-tuning
 transformer and YOLO models on detection and segmentation tasks for edge deployment.
 
+Struggling to get good results with pre-training? Talk to one of our experts
+[Contact us](https://www.lightly.ai/contact)
+
 Using LightlyTrain at work, in production, on the edge, or to build proprietary models?
 You likely need a Commercial License. [Contact us](https://www.lightly.ai/contact) to
 request a license for commercial use.
@@ -364,6 +367,33 @@ if __name__ == "__main__":
     results["labels"]   # Class labels, tensor of shape (topk,)
     results["scores"]   # Confidence scores, tensor of shape (topk,)
 ```
+
+</details>
+
+<details>
+<summary><strong>Depth Estimation</strong></summary>
+
+Run monocular depth inference with Depth Anything V2 and V3 models. Training support
+will be released soon!
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/depth_estimation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/depth_estimation.ipynb)
+
+```python
+import lightly_train
+
+# Load a depth model provided by LightlyTrain
+model = lightly_train.load_model("dinov2/dav3-relative-large")
+
+# Predict a relative-depth map
+depth = model.predict("image.jpg")
+# depth is a tensor of shape (height, width) matching the input image.
+```
+
+Metric depth (in meters) and the full list of available models are covered in the
+[documentation](https://docs.lightly.ai/train/stable/depth_estimation.html).
 
 </details>
 
