@@ -148,7 +148,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="edgecrafter/ecvitt-ltdetr-coco",
+        model="ltdetrv2-s",
         data={
             # ... Data configuration
         }
@@ -163,7 +163,7 @@ import lightly_train
 # Load the model from the best checkpoint
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 # Or load one of the models hosted by LightlyTrain
-model = lightly_train.load_model("edgecrafter/ecvitt-ltdetr-coco")
+model = lightly_train.load_model("ltdetrv2-s")
 results = model.predict("image.jpg")
 ```
 

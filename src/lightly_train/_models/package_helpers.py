@@ -152,6 +152,4 @@ def parse_model_name(model: str) -> tuple[str, str]:
     model_name = parts[1]
     if package_name == "dinov2_vit":  # For backwards compatibility.
         package_name = "dinov2"
-    elif package_name == "ecvit":  # For backwards compatibility.
-        package_name = "edgecrafter"
     return package_name, model_name

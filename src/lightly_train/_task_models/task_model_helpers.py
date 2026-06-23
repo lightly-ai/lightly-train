@@ -79,6 +79,10 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "edgecrafter_ecvitt_ltdetr_coco_260522_2f46ce1e.pt",
         "2f46ce1e12ccb81d24130ff13295e8de66557b09282f4fcf7cfccfc648676264",
     ),
+    "ltdetrv2-s": (
+        "edgecrafter_ecvitt_ltdetr_coco_260522_2f46ce1e.pt",
+        "2f46ce1e12ccb81d24130ff13295e8de66557b09282f4fcf7cfccfc648676264",
+    ),
     "picodet-s-coco": (
         "picodet_s_coco_416_260303_23022a45.pt",
         "23022a456b2583246288041762a1a66d8d59820d5e775912cb4eb366d3a0cd68",
