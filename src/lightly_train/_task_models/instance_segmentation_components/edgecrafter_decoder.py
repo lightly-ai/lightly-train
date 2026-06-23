@@ -48,7 +48,6 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
         *args: Any,
         mask_bottleneck_ratio: int | None = 1,
         mask_downsample_ratio: int = 4,
-        mask_spatial_level: int = 0,
         mask_layer_scale_init_value: float = 0.0,
         eval_spatial_size: tuple[int, int],
         **kwargs: Any,
@@ -72,7 +71,6 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
                 "eval_idx < num_layers - 1)."
             )
 
-        self.mask_spatial_level = mask_spatial_level
         self.mask_head = EdgeCrafterInstanceSegmentationHead(
             in_dim=self.hidden_dim,
             # One block per decoder layer. With the unsupported wide-layer config
@@ -94,7 +92,7 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
     ) -> dict[str, Any]:
         proj_feats = self._get_projected_feats(feats)  # type: ignore[no-untyped-call]
         if spatial_feat is None:
-            spatial_feat = proj_feats[self.mask_spatial_level]
+            spatial_feat = proj_feats[0]
 
         memory, spatial_shapes = self._get_encoder_input_from_projected_feats(
             proj_feats
