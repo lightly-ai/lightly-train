@@ -61,7 +61,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="ltdetrv2-s",  # or a larger sibling, e.g. "dinov3/vitt16-ltdetr"
+        model="ltdetrv2-s",
         data={
             "format": "yolo",
             "path": "my_data_dir",
@@ -112,10 +112,9 @@ if __name__ == "__main__":
 
 The following workflow pretrains a **DINOv2** backbone with self-supervised learning and
 then fine-tunes it as a DINOv2 LTDETR detection model. LTDETRv2 and DINOv3 LTDETR (see
-[Model](#object-detection-model)) are the recommended paths for new projects; this
-DINOv2 workflow is kept for backward compatibility. It is especially useful if your
-dataset is only partially labeled or if you have access to a large amount of unlabeled
-data.
+[Model](#object-detection-model)) are the recommended paths for new projects; It is
+especially useful if your dataset is only partially labeled or if you have access to a
+large amount of unlabeled data.
 
 Check out the page on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2
 models on unlabeled data.
@@ -598,10 +597,10 @@ Both tiers share the same hybrid encoder + RT-DETRv2/D-FINE decoder.
 
 #### LTDETRv2 Models (compact tier)
 
-- `ltdetrv2-s` (alias for `edgecrafter/ecvitt-ltdetr`)
-- `ltdetrv2-m` (alias for `edgecrafter/ecvittplus-ltdetr`)
-- `ltdetrv2-l` (alias for `edgecrafter/ecvits-ltdetr`)
-- `ltdetrv2-x` (alias for `edgecrafter/ecvitsplus-ltdetr`)
+- `ltdetrv2-s`
+- `ltdetrv2-m`
+- `ltdetrv2-l`
+- `ltdetrv2-x`
 
 The LTDETRv2 backbones are initialized from EdgeCrafter weights and are under the
 [Apache 2.0 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/EDGECRAFTER_LICENSE).
