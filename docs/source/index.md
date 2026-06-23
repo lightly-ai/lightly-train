@@ -148,7 +148,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="ltdetrv2-s",
+        model="ltdetrv2-s-coco",
         data={
             # ... Data configuration
         }
