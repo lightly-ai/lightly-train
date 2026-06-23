@@ -39,6 +39,7 @@ exclude_patterns = []
 html_css_files = [
     "custom.css",  # File in _static/custom.css
 ]
+html_favicon = "_static/lightly_logo_fav.svg"
 html_theme = "furo"
 html_theme_options = {
     "sidebar_hide_name": True,

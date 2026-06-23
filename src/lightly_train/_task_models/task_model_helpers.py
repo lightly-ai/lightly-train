@@ -13,7 +13,7 @@ import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 import torch
 
@@ -197,6 +197,27 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
+    #### Depth Estimation
+    "dinov2/dav3-relative-large": (
+        "dinov2_dav3_relative_large_260618_84f8e30b.pt",
+        "84f8e30b691dfd5ebb94a013bb6cd661c022ebba4f22e173d3087ced9ce8a0e6",
+    ),
+    "dinov2/dav3-metric-large": (
+        "dinov2_dav3_metric_large_260618_55bed860.pt",
+        "55bed8604eb6a3a19664e5e7a4e3aecc67a02369135da8665b43871e9becc6a7",
+    ),
+    # Only the Apache-2.0 Depth Anything V2 models are hosted. The CC-BY-NC-4.0 models
+    # (relative base/large and the non-small metric variants) are not redistributed:
+    # convert them locally with convert_checkpoint_dav2 and pass the result via
+    # `weights=`.
+    "dinov2/dav2-relative-small": (
+        "dinov2_dav2_relative_small_260619_9575be90.pt",
+        "9575be9008699ff5c607e1210db67827df84bf7a7a8769e67e81fda363089acf",
+    ),
+    "dinov2/dav2-metric-small-hypersim": (
+        "dinov2_dav2_metric_small_hypersim_260619_3b1d5649.pt",
+        "3b1d56491e491b664f002df95cccf90eb53ea30f80f78066201fb2377f5f7cb0",
+    ),
 }
 
 
@@ -282,7 +303,7 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
                 f"{checkpoint_hash(local_ckpt_path)}"
             )
     else:
-        raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
+        _raise_unknown_checkpoint_error(checkpoint=checkpoint)
     return local_ckpt_path
 
 
@@ -311,6 +332,48 @@ def checkpoint_hash(path: Path) -> str:
         while block := f.read(4096):
             sha256_hash.update(block)
     return sha256_hash.hexdigest().lower()
+
+
+def _raise_unknown_checkpoint_error(checkpoint: PathLike) -> NoReturn:
+    """Raises a helpful error for an unknown model name or checkpoint path.
+
+    Non-hosted Depth Anything V2 models are recognized but not redistributed; for those
+    a verbose message points to the local converter. Everything else raises the generic
+    error.
+    """
+    # Imported lazily: these modules import `task_model_helpers` at module level, so a
+    # top-level import here would be circular. This runs only on the error path.
+    from lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model import (
+        DepthAnythingV2MetricDepthEstimation,
+    )
+    from lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model import (
+        DepthAnythingV2RelativeDepthEstimation,
+    )
+
+    ckpt_str = str(checkpoint)
+    # The DAv2 task models' own registry is the source of truth for known names. Hosted
+    # DAv2 models are matched earlier against DOWNLOADABLE_MODEL_URL_AND_HASH, so a known
+    # name reaching here is a non-commercial variant that must be converted locally.
+    dav2_model_names = {
+        name.lower()
+        for cls in (
+            DepthAnythingV2RelativeDepthEstimation,
+            DepthAnythingV2MetricDepthEstimation,
+        )
+        for name in cls.list_model_names()
+    }
+    if ckpt_str.lower() in dav2_model_names:
+        raise ValueError(
+            f"'{ckpt_str}' is a Depth Anything V2 model with a non-commercial license, "
+            "which LightlyTrain does not host. Make sure you understand its license "
+            "and how it applies to your use, then convert it locally and load the "
+            "checkpoint by its path:\n"
+            "  python -m lightly_train._task_models.depth_estimation_components"
+            f".convert_checkpoint_dav2 --model-name {ckpt_str} --out <converted.pt>\n"
+            "The converter reports the license and which official weights to download. "
+            'Then call lightly_train.load_model("<converted.pt>").'
+        )
+    raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
 
 
 def _resolve_device(device: str | torch.device | None) -> torch.device:

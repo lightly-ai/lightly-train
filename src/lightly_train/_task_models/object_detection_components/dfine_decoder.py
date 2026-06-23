@@ -28,6 +28,12 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 #  - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor that helper expects rather
 #     than a pre-split per-level tuple to reuse existing `deformable_attention_core_func_v2` in `utils.py` without modification.
 #  - Added FP32 guards around bbox refinement for stability in mixed precision
+#  - Added optional decoder query-state returns for instance segmentation heads.
+#  - Split ``_get_encoder_input`` into ``_get_projected_feats`` (applies the
+#     ``input_proj`` layers) and ``_get_encoder_input_from_projected_feats``
+#     (flattens to encoder memory), so instance segmentation heads can reuse the
+#     projected features as a spatial input without projecting them twice.
+#     ``_get_encoder_input`` is kept as a thin wrapper for the detection path.
 from __future__ import annotations
 
 import copy
@@ -447,6 +453,7 @@ class TransformerDecoder(nn.Module):
         attn_mask=None,
         memory_mask=None,
         dn_meta=None,
+        return_query_states=False,
     ):
         output = target
         output_detach = pred_corners_undetach = 0
@@ -456,6 +463,7 @@ class TransformerDecoder(nn.Module):
         dec_out_logits = []
         dec_out_pred_corners = []
         dec_out_refs = []
+        query_states = []
         if not hasattr(self, "project"):
             project = weighting_function(self.reg_max, up, reg_scale)
         else:
@@ -486,6 +494,18 @@ class TransformerDecoder(nn.Module):
                 attn_mask,
                 query_pos_embed,
             )
+
+            # Collect one query state per executed decoder layer for the
+            # instance-segmentation mask head. Only states with ``hidden_dim``
+            # width are usable. When ``layer_scale > 1`` the post-``eval_idx``
+            # layers are interpolated to a scaled width that the mask head cannot
+            # consume and that would break ``torch.stack(query_states)`` below,
+            # so those are skipped. When ``layer_scale == 1`` every layer keeps
+            # ``hidden_dim`` width, so we collect them all (in training) to stay
+            # aligned with the per-layer box/logit outputs; in eval the loop
+            # breaks at ``eval_idx`` either way.
+            if return_query_states and (i <= self.eval_idx or self.layer_scale == 1):
+                query_states.append(output)
 
             # Run the bbox refinement in fp32 to avoid fp16 overflow in the
             # bbox_head / pre_bbox_head MLP outputs. The addition of MLP
@@ -548,6 +568,17 @@ class TransformerDecoder(nn.Module):
             pred_corners_undetach = pred_corners_fp32
             ref_points_detach = inter_ref_bbox_fp32.detach().to(dtype=output.dtype)
             output_detach = output.detach()
+
+        if return_query_states:
+            return (
+                torch.stack(dec_out_bboxes),
+                torch.stack(dec_out_logits),
+                torch.stack(dec_out_pred_corners),
+                torch.stack(dec_out_refs),
+                pre_bboxes_fp32,
+                pre_scores,
+                torch.stack(query_states),
+            )
 
         return (
             torch.stack(dec_out_bboxes),
@@ -816,8 +847,7 @@ class DFINETransformer(nn.Module):
                 )
                 in_channels = self.hidden_dim
 
-    def _get_encoder_input(self, feats: List[torch.Tensor]):
-        # get projection features
+    def _get_projected_feats(self, feats: List[torch.Tensor]) -> list[torch.Tensor]:
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
         if self.num_levels > len(proj_feats):
             len_srcs = len(proj_feats)
@@ -826,8 +856,11 @@ class DFINETransformer(nn.Module):
                     proj_feats.append(self.input_proj[i](feats[-1]))
                 else:
                     proj_feats.append(self.input_proj[i](proj_feats[-1]))
+        return proj_feats
 
-        # get encoder inputs
+    def _get_encoder_input_from_projected_feats(
+        self, proj_feats: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, list[list[int]]]:
         feat_flatten = []
         spatial_shapes = []
         for feat in proj_feats:
@@ -839,6 +872,10 @@ class DFINETransformer(nn.Module):
 
         # [b, l, c]
         return torch.concat(feat_flatten, 1), spatial_shapes
+
+    def _get_encoder_input(self, feats: List[torch.Tensor]):
+        proj_feats = self._get_projected_feats(feats)
+        return self._get_encoder_input_from_projected_feats(proj_feats)
 
     def _generate_anchors(
         self,

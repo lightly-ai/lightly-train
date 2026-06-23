@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any
 
 import torch
@@ -18,13 +17,13 @@ import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
-from lightly_train._data import cache, download, file_helpers
-from lightly_train._env import Env
+from lightly_train._data import file_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._task_models.depth_estimation_components import image_utils
-from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.dpt import (
-    DPT,
+from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.depth_estimation_components import (
+    image_utils as depth_image_utils,
 )
+from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -34,9 +33,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav3-relative-large": {
         "canonical_name": "dinov2/dav3-relative-large",
         "backbone_name": "vitl14-noreg",
-        # TODO(Nauryzbay, 06/2026): Host the converted checkpoint and set its URL so
-        # `load_weights=True` can download it. Until then pass a local `weights` path.
-        "weights_url": None,
+        "inference_size": 504,
         "model_args": {
             "out_layers": (4, 11, 17, 23),
             "image_size": 518,
@@ -53,13 +50,12 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
 class DepthAnythingV3RelativeDepthEstimation(TaskModel):
     """Depth Anything V3 relative-depth inference model."""
 
-    model_suffix = "dav3_relative_large"
+    model_suffix = "dav3_relative"
 
     def __init__(
         self,
         *,
         model_name: str = "dinov2/dav3-relative-large",
-        process_resolution: int = 504,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -70,10 +66,6 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
             model_name:
                 The Depth Anything V3 model name. The only supported name is
                 ``"dinov2/dav3-relative-large"``.
-            process_resolution:
-                Upper bound for the longest image side during inference. The resized
-                height and width are rounded to the nearest multiple of the DA3 patch
-                size. The official DA3 inference default is 504.
             model_args:
                 Additional arguments controlling the DPT decoder and feature
                 extraction, e.g. ``out_layers``, ``features``, ``out_channels``,
@@ -90,15 +82,23 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
                 checkpoint via ``load_train_state_dict``.
             weights:
                 Optional path to a converted Depth Anything V3 checkpoint (the
-                ``convert_checkpoint`` output) to load instead of the hosted weights.
-                Intended for debugging before the checkpoint is hosted.
+                ``convert_checkpoint_dav3`` output) to load instead of the hosted
+                weights.
         """
         super().__init__(locals(), ignore_args={"load_weights", "weights"})
-        parsed_name = self.parse_model_name(model_name)
-        config = _MODEL_CONFIGS[parsed_name]
+        key = model_name.lower()
+        if key not in _MODEL_CONFIGS:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available models are: "
+                f"{self.list_model_names()}."
+            )
+        config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
-        self.process_resolution = process_resolution
+        # The inference size is fixed per model: Depth Anything V3 was trained at this
+        # resolution and predictions are resized back to the original image size, so it
+        # is not a user-facing parameter.
+        self.inference_size = int(config["inference_size"])
 
         self.process_res_method = "upper_bound_resize"
 
@@ -143,8 +143,8 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         if load_weights:
             _load_pretrained_weights(
                 model=self,
-                weights_url=config["weights_url"],
                 weights=weights,
+                canonical_name=config["canonical_name"],
             )
 
     @classmethod
@@ -153,22 +153,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> str:
-        key = model_name.lower()
-        if key in _MODEL_CONFIGS:
-            return key
-        raise ValueError(
-            f"Model name '{model_name}' is not supported. Available models are: "
-            f"{cls.list_model_names()}."
-        )
+        return model.lower() in _MODEL_CONFIGS
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
@@ -240,9 +225,9 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
         # Process on the input's native device: the cv2-parity resize rounds after an
         # einsum whose accumulation order differs between CPU and GPU, so moving to the
         # model device first could flip pixels and break bit-exactness.
-        x = image_utils.process_image(
+        x = depth_image_utils.process_image_dav3(
             x,
-            process_res=self.process_resolution,
+            process_res=self.inference_size,
             process_res_method=self.process_res_method,
         )
         device = next(self.parameters()).device
@@ -251,7 +236,7 @@ class DepthAnythingV3RelativeDepthEstimation(TaskModel):
     def preprocess_batch(  # type: ignore[override]
         self, batch: Sequence[Tensor]
     ) -> Tensor:
-        stacked = image_utils.process_batch(batch)
+        stacked = depth_image_utils.process_batch(batch)
         return stacked.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> dict[str, Tensor]:
@@ -345,45 +330,21 @@ def _set_sky_regions_to_max_depth(*, depth: Tensor, sky: Tensor | None) -> Tenso
 def _load_pretrained_weights(
     model: DepthAnythingV3RelativeDepthEstimation,
     *,
-    weights_url: str | None,
     weights: PathLike | None,
+    canonical_name: str,
 ) -> None:
     """Loads the converted Depth Anything V3 checkpoint into the model in place.
 
-    A local ``weights`` path takes precedence; otherwise the checkpoint is downloaded
-    from ``weights_url`` into the model cache. Both come from ``convert_checkpoint``.
+    A local converted ``weights`` path takes precedence. Otherwise the checkpoint is
+    resolved by ``canonical_name`` via ``task_model_helpers.download_checkpoint``
+    (downloaded to the model cache and verified against its sha256). It is produced by
+    ``convert_checkpoint_dav3``.
     """
-    if weights is not None:
-        checkpoint_path = Path(weights).expanduser()
-        if not checkpoint_path.is_file():
-            raise ValueError(f"Checkpoint file '{checkpoint_path}' does not exist.")
-    elif weights_url is not None:
-        checkpoint_path = cache.get_model_cache_dir() / Path(weights_url).name
-        if not checkpoint_path.exists():
-            logger.info(
-                f"Downloading Depth Anything V3 weights from '{weights_url}' to "
-                f"'{checkpoint_path}'."
-            )
-            download.download_from_url(
-                weights_url,
-                checkpoint_path,
-                timeout=Env.LIGHTLY_TRAIN_DOWNLOAD_CHUNK_TIMEOUT_SEC.value,
-            )
-        else:
-            logger.info(
-                f"Using cached Depth Anything V3 weights from '{checkpoint_path}'."
-            )
+    checkpoint: PathLike = weights if weights is not None else canonical_name
+    checkpoint_path = task_model_helpers.download_checkpoint(checkpoint=checkpoint)
+    state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if isinstance(state, Mapping) and "train_model" in state:
+        state_dict = dict(state["train_model"])
     else:
-        raise RuntimeError(
-            "No pretrained Depth Anything V3 checkpoint is available yet: the hosted "
-            "weights URL is not set. Pass `weights=<converted .pt>` (produced by the "
-            "convert_checkpoint script) to load a local checkpoint, or set "
-            "`load_weights=False`."
-        )
-
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    if isinstance(checkpoint, Mapping) and "train_model" in checkpoint:
-        state_dict = dict(checkpoint["train_model"])
-    else:
-        state_dict = dict(checkpoint)
+        state_dict = dict(state)
     model.load_train_state_dict(state_dict)

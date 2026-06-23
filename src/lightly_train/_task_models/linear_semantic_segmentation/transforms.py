@@ -29,7 +29,7 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import ImageSizeTuple
 
 
-class DINOv2LinearSemanticSegmentationColorJitterArgs(ColorJitterArgs):
+class LinearSemanticSegmentationColorJitterArgs(ColorJitterArgs):
     # Differences between EoMT and this transform:
     # - EoMT always applies brightness before contrast/saturation/hue.
     # - EoMT applies all transforms indedenently with probability 0.5. We apply either
@@ -42,7 +42,7 @@ class DINOv2LinearSemanticSegmentationColorJitterArgs(ColorJitterArgs):
     hue: float = 18.0 / 360.0
 
 
-class DINOv2LinearSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
+class LinearSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = None
     min_scale: float | None = 0.5
     max_scale: float | None = 2.0
@@ -52,12 +52,12 @@ class DINOv2LinearSemanticSegmentationScaleJitterArgs(ScaleJitterArgs):
     divisible_by: int | None = None
 
 
-class DINOv2LinearSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
+class LinearSemanticSegmentationSmallestMaxSizeArgs(SmallestMaxSizeArgs):
     max_size: list[int] = [518]
     prob: float = 1.0
 
 
-class DINOv2LinearSemanticSegmentationRandomCropArgs(RandomCropArgs):
+class LinearSemanticSegmentationRandomCropArgs(RandomCropArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
     pad_if_needed: bool = True
@@ -66,11 +66,9 @@ class DINOv2LinearSemanticSegmentationRandomCropArgs(RandomCropArgs):
     prob: float = 1.0
 
 
-class DINOv2LinearSemanticSegmentationTrainTransformArgs(
-    SemanticSegmentationTransformArgs
-):
+class LinearSemanticSegmentationTrainTransformArgs(SemanticSegmentationTransformArgs):
     """
-    Defines default transform arguments for semantic segmentation training with DINOv2.
+    Defines default transform arguments for linear semantic segmentation training.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
@@ -80,15 +78,15 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
-    color_jitter: DINOv2LinearSemanticSegmentationColorJitterArgs | None = Field(
-        default_factory=DINOv2LinearSemanticSegmentationColorJitterArgs
+    color_jitter: LinearSemanticSegmentationColorJitterArgs | None = Field(
+        default_factory=LinearSemanticSegmentationColorJitterArgs
     )
     scale_jitter: ScaleJitterArgs | None = Field(
-        default_factory=DINOv2LinearSemanticSegmentationScaleJitterArgs
+        default_factory=LinearSemanticSegmentationScaleJitterArgs
     )
     smallest_max_size: SmallestMaxSizeArgs | None = None
     random_crop: RandomCropArgs = Field(
-        default_factory=DINOv2LinearSemanticSegmentationRandomCropArgs
+        default_factory=LinearSemanticSegmentationRandomCropArgs
     )
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
@@ -117,11 +115,9 @@ class DINOv2LinearSemanticSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv2LinearSemanticSegmentationValTransformArgs(
-    SemanticSegmentationTransformArgs
-):
+class LinearSemanticSegmentationValTransformArgs(SemanticSegmentationTransformArgs):
     """
-    Defines default transform arguments for semantic segmentation validation with DINOv2.
+    Defines default transform arguments for linear semantic segmentation validation.
     """
 
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
@@ -134,7 +130,7 @@ class DINOv2LinearSemanticSegmentationValTransformArgs(
     color_jitter: ColorJitterArgs | None = None
     scale_jitter: ScaleJitterArgs | None = None
     smallest_max_size: SmallestMaxSizeArgs = Field(
-        default_factory=DINOv2LinearSemanticSegmentationSmallestMaxSizeArgs
+        default_factory=LinearSemanticSegmentationSmallestMaxSizeArgs
     )
     random_crop: RandomCropArgs | None = None
 
@@ -164,9 +160,9 @@ class DINOv2LinearSemanticSegmentationValTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv2LinearSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
-    transform_args_cls = DINOv2LinearSemanticSegmentationTrainTransformArgs
+class LinearSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
+    transform_args_cls = LinearSemanticSegmentationTrainTransformArgs
 
 
-class DINOv2LinearSemanticSegmentationValTransform(SemanticSegmentationTransform):
-    transform_args_cls = DINOv2LinearSemanticSegmentationValTransformArgs
+class LinearSemanticSegmentationValTransform(SemanticSegmentationTransform):
+    transform_args_cls = LinearSemanticSegmentationValTransformArgs

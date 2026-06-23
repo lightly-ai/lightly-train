@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 import torch
+import yaml
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
@@ -32,6 +33,9 @@ from lightly_train._commands.benchmark_types import (
 )
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
+)
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
@@ -237,6 +241,63 @@ class TestBenchmarkObjectDetectionConfig:
                 backend_args=TorchBackendArgs(),
                 unknown_field="value",  # type: ignore[call-arg]
             )
+
+    def test_defaults_format_to_yolo(self, tmp_path: Path) -> None:
+        # A data dict without an explicit "format" defaults to "yolo", matching
+        # train_object_detection.
+        config = BenchmarkObjectDetectionConfig(
+            out=str(tmp_path / "out"),
+            dataset_name="test-yolo",
+            data={  # type: ignore[arg-type]
+                "path": str(tmp_path),
+                "train": "images/train",
+                "val": "images/val",
+                "names": {0: "class_a"},
+            },
+            model=_FakeObjectDetectionModel(),
+            batch_size=1,
+            threshold=0.0,
+            warmup_steps=0,
+            steps=None,
+            num_workers="auto",
+            overwrite=False,
+            device=None,
+            backend_args=TorchBackendArgs(),
+        )
+        assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+        assert config.data.format == "yolo"
+
+    def test_loads_data_from_yaml_path(self, tmp_path: Path) -> None:
+        # A path to a YAML file is loaded automatically and unknown keys are ignored.
+        yaml_path = tmp_path / "data.yaml"
+        with yaml_path.open("w") as file:
+            yaml.safe_dump(
+                {
+                    "path": str(tmp_path),
+                    "train": "images/train",
+                    "val": "images/val",
+                    "names": {0: "class_a"},
+                    "unknown_key": "ignored",
+                },
+                file,
+            )
+        config = BenchmarkObjectDetectionConfig(
+            out=str(tmp_path / "out"),
+            dataset_name="test-yaml",
+            data=str(yaml_path),  # type: ignore[arg-type]
+            model=_FakeObjectDetectionModel(),
+            batch_size=1,
+            threshold=0.0,
+            warmup_steps=0,
+            steps=None,
+            num_workers="auto",
+            overwrite=False,
+            device=None,
+            backend_args=TorchBackendArgs(),
+        )
+        assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+        assert config.data.format == "yolo"
+        assert config.data.names == {0: "class_a"}
 
 
 class TestBenchmarkObjectDetectionE2E:

@@ -29,14 +29,14 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.task_model import (
-    DINOv2LinearSemanticSegmentation,
+from lightly_train._task_models.linear_semantic_segmentation.task_model import (
+    LinearSemanticSegmentation,
 )
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.transforms import (
-    DINOv2LinearSemanticSegmentationTrainTransform,
-    DINOv2LinearSemanticSegmentationTrainTransformArgs,
-    DINOv2LinearSemanticSegmentationValTransform,
-    DINOv2LinearSemanticSegmentationValTransformArgs,
+from lightly_train._task_models.linear_semantic_segmentation.transforms import (
+    LinearSemanticSegmentationTrainTransform,
+    LinearSemanticSegmentationTrainTransformArgs,
+    LinearSemanticSegmentationValTransform,
+    LinearSemanticSegmentationValTransformArgs,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -48,7 +48,7 @@ from lightly_train._visualize import semantic_segmentation
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
-class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
+class LinearSemanticSegmentationTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 16
     # Default comes from PVOC12
     default_steps: ClassVar[int] = 80_000
@@ -83,23 +83,23 @@ class DINOv2LinearSemanticSegmentationTrainArgs(TrainModelArgs):
             self.drop_path_rate = drop_path_rate
 
 
-class DINOv2LinearSemanticSegmentationTrain(TrainModel):
+class LinearSemanticSegmentationTrain(TrainModel):
     task = "semantic_segmentation"
-    train_model_args_cls = DINOv2LinearSemanticSegmentationTrainArgs
+    train_model_args_cls = LinearSemanticSegmentationTrainArgs
     task_metric_args_cls = SemanticSegmentationTaskMetricArgs
-    task_model_cls = DINOv2LinearSemanticSegmentation
-    train_transform_cls = DINOv2LinearSemanticSegmentationTrainTransform
-    val_transform_cls = DINOv2LinearSemanticSegmentationValTransform
+    task_model_cls = LinearSemanticSegmentation
+    train_transform_cls = LinearSemanticSegmentationTrainTransform
+    val_transform_cls = LinearSemanticSegmentationValTransform
     torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv2LinearSemanticSegmentationTrainArgs,
+        model_args: LinearSemanticSegmentationTrainArgs,
         data_args: MaskSemanticSegmentationDataArgs,
-        train_transform_args: DINOv2LinearSemanticSegmentationTrainTransformArgs,
-        val_transform_args: DINOv2LinearSemanticSegmentationValTransformArgs,
+        train_transform_args: LinearSemanticSegmentationTrainTransformArgs,
+        val_transform_args: LinearSemanticSegmentationValTransformArgs,
         load_weights: bool,
         metric_args: SemanticSegmentationTaskMetricArgs,
         gradient_accumulation_steps: int,
@@ -109,7 +109,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         normalize = no_auto(val_transform_args.normalize)
 
         self.model_args = model_args
-        self.model = DINOv2LinearSemanticSegmentation(
+        self.model = LinearSemanticSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
             class_ignore_index=(
@@ -151,7 +151,7 @@ class DINOv2LinearSemanticSegmentationTrain(TrainModel):
         self.viz_max_images = 4
         self.viz_alpha = 0.6
 
-    def get_task_model(self) -> DINOv2LinearSemanticSegmentation:
+    def get_task_model(self) -> LinearSemanticSegmentation:
         return self.model
 
     def training_step(

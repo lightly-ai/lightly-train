@@ -21,6 +21,9 @@ visualize your annotations and predictions.
 
 ## News
 
+- 2026-06-15: ⚡ **EdgeCrafter Object Detection:** Fine-tune compact EdgeCrafter ECViT
+  backbones with LTDETR for efficient
+  [object detection](https://docs.lightly.ai/train/stable/object_detection.html). ⚡
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
   2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
@@ -67,7 +70,7 @@ pip install lightly-train
 <details open>
 <summary><strong>Object Detection</strong></summary>
 
-Train LTDETR detection models with DINOv2 or DINOv3 backbones.
+Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbones.
 
 #### COCO Results
 
@@ -98,10 +101,11 @@ size 1. All models are optimized using `tensorrt==10.13.3.9`.
 import lightly_train
 
 if __name__ == "__main__":
-    # Train an object detection model with a DINOv3 backbone
+    # Train an object detection model with a DINOv3 or EdgeCrafter ECViT backbone
     lightly_train.train_object_detection(
         out="out/my_experiment",
         model="dinov3/vitt16-ltdetr-coco",
+        # For EdgeCrafter ECViT, use e.g. model="edgecrafter/ecvitt-ltdetr".
         data={
             "path": "my_data_dir",
             "train": "images/train",
@@ -365,6 +369,33 @@ if __name__ == "__main__":
 </details>
 
 <details>
+<summary><strong>Depth Estimation</strong></summary>
+
+Run monocular depth inference with Depth Anything V2 and V3 models. Training support
+will be released soon!
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/depth_estimation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/depth_estimation.ipynb)
+
+```python
+import lightly_train
+
+# Load a depth model provided by LightlyTrain
+model = lightly_train.load_model("dinov2/dav3-relative-large")
+
+# Predict a relative-depth map
+depth = model.predict("image.jpg")
+# depth is a tensor of shape (height, width) matching the input image.
+```
+
+Metric depth (in meters) and the full list of available models are covered in the
+[documentation](https://docs.lightly.ai/train/stable/depth_estimation.html).
+
+</details>
+
+<details>
 <summary><strong>Distillation (DINOv2/v3)</strong></summary>
 
 Pretrain any model architecture with unlabeled data by distilling the knowledge from
@@ -505,11 +536,12 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
-| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| Any    |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Model       |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ----------- | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| EdgeCrafter | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |                                                                          |                                                                          |                                                                                               |                                                                         |
+| Any         |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -557,9 +589,20 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
   stages, or anyone exploring or experimenting with LightlyTrain. Empower the next
   generation of innovators with full access to the world of pretraining.
 
-We're committed to supporting both open-source and commercial users.
-[Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
-your project!
+### Commercial Pricing
+
+| Plan           | Price           | Eligibility                            |
+| -------------- | --------------- | -------------------------------------- |
+| **Startup**    | \$5,000 / year  | < \$1M revenue **or** < 10 employees   |
+| **Growth**     | \$10,000 / year | < \$10M revenue **or** < 100 employees |
+| **Enterprise** | Custom          | > \$10M revenue **or** > 100 employees |
+
+All commercial plans include a license for model training, edge deployment, and
+inference. Enterprise plans include priority support, a joint Slack channel,
+co-development engineering, and influence on the product roadmap.
+
+[Contact us](https://www.lightly.ai/contact) to get started — we'll find the right
+option for your project!
 
 ## Contact
 
