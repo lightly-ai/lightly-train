@@ -393,7 +393,7 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class _DINOv3LTDETRConfig(PydanticConfig):
-    decoder_name: _LTDETRDecoderName = "rtdetrv2"
+    decoder_name: _LTDETRDecoderName = "dfine"
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     dfine_transformer: _DFINETransformerConfig
@@ -586,7 +586,7 @@ class _DINOv3LTDETRBase(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: _LTDETRDecoderName = "rtdetrv2",
+        decoder_name: _LTDETRDecoderName = "dfine",
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
