@@ -1,6 +1,6 @@
 (tutorials-yolo)=
 
-# Self-Supervised Pretraining for YOLOv26
+# Pretraining YOLOv26 with LightlyTrain
 
 This tutorial demonstrates how to pretrain a
 [YOLOv26](https://docs.ultralytics.com/models/yolo26#overview) model using LightlyTrain
