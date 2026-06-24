@@ -49,7 +49,7 @@ download the model weights and load the model:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 ```
 
 ### Predict the objects
@@ -142,10 +142,9 @@ import lightly_train
 
 lightly_train.train_object_detection(
     out="out/my_experiment",
-    model="dinov3/vitt16-ltdetr-coco",
-    # For EdgeCrafter ECViT, use e.g. model="ltdetrv2-s".
-    steps=100,  # Small number of steps for demonstration, default is 90_000.
-    batch_size=4,  # Small batch size for demonstration, default is 16.
+    model="ltdetrv2-s-coco",
+    steps=100,  # Small number of steps for demonstration, default is 266_112.
+    batch_size=4,  # Small batch size for demonstration, default is 32.
     data={
         "path": "coco128_yolo",
         "train": "images/train2017",

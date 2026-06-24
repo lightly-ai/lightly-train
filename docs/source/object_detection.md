@@ -5,11 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-🔥 LightlyTrain's **LTDETRv2** is out with 4 compact variants and improvements
-from SOTA research! We achieved 50.4mAP<sub>50:95</sub> on COCO 2017 validation
-set (+1 mAP from the previous LTDETR with 55% shorter training schedule). We
-also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1,
-and input resolution 640x640!
+🔥 LightlyTrain's **LTDETRv2** is out with great improvements from SOTA research! We achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
@@ -64,7 +60,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="ltdetrv2-s",
+        model="ltdetrv2-s-coco",
         data={
             "format": "yolo",
             "path": "my_data_dir",
@@ -175,7 +171,7 @@ Or use one of the models provided by LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("ltdetrv2-s")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict("image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_boxes,)
 results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
@@ -197,7 +193,7 @@ from torchvision import io, utils
 
 import lightly_train
 
-model = lightly_train.load_model("ltdetrv2-s")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict_sahi(image="image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_boxes,)
 results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
@@ -233,7 +229,7 @@ Using tiled inference requires no extra setup:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("ltdetrv2-s")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict_sahi(image="image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_boxes,)
 results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
@@ -262,7 +258,7 @@ from torchvision.io import decode_image
 from torchvision.utils import draw_bounding_boxes
 import urllib.request
 
-model = lightly_train.load_model("dinov3/convnext-tiny-ltdetr-coco")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 img = "http://images.cocodataset.org/val2017/000000577932.jpg"
 results = model.predict(img)
 
@@ -600,6 +596,7 @@ Both tiers share the same hybrid encoder + RT-DETRv2/D-FINE decoder.
 
 #### LTDETRv2 Models (compact tier)
 
+- `ltdetrv2-s-coco` (pretrained on COCO)
 - `ltdetrv2-s`
 - `ltdetrv2-m`
 - `ltdetrv2-l`

@@ -98,17 +98,17 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
-    default_batch_size: ClassVar[int] = 16
+    default_batch_size: ClassVar[int] = 32
     default_steps: ClassVar[int] = (
-        100_000 // 16 * 72
-    )  # TODO (Lionel, 10/25): Adjust default steps.
+        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
+    )
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
     patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
-    decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
+    decoder_name: Literal["rtdetrv2", "dfine"] = "dfine"
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -135,7 +135,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     # Optimizer configuration
     lr: float = Field(
-        default=1e-4,
+        default=5e-4,
         validation_alias=AliasChoices("lr", "optimizer_lr"),
     )
     weight_decay: float = Field(
@@ -145,13 +145,13 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
     # Per-parameter-group overrides
-    backbone_lr_factor: float = 1e-2
+    backbone_lr_factor: float = 0.05
 
     # Scheduler configuration
-    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
+    scheduler_name: Literal["linear", "flat-cosine"] = "flat-cosine"
     scheduler_start_factor: float = 0.01
-    lr_warmup_steps: int = Field(
-        default=2000,
+    lr_warmup_steps: int | Literal["auto"] = Field(
+        default="auto",
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
     scheduler_flat_steps: int | Literal["auto"] = "auto"
@@ -207,12 +207,36 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                             "Unable to resolve patch_size='auto' for model "
                             f"{model_name!r}. Please provide a concrete patch_size."
                         )
-        if self.scheduler_flat_steps == "auto" or self.scheduler_no_aug_steps == "auto":
+        # Resolve ``decoder_name`` against the checkpoint architecture when
+        # the user did not explicitly set it. This preserves backward
+        # compatibility for hosted/local checkpoints trained with the previous
+        # RTDETRv2 default: loading those checkpoints builds a D-FINE model by
+        # default and would otherwise leave the decoder partially initialized.
+        # TODO(TRN-2243): Replace this compatibility shim with separate
+        # LTDETRv2/LTDETRv3 train-args classes once the config split lands.
+        checkpoint_decoder_name = model_init_args.get("decoder_name")
+        if checkpoint_decoder_name is not None:
+            if "decoder_name" not in self.model_fields_set:
+                self.decoder_name = checkpoint_decoder_name
+            elif self.decoder_name != checkpoint_decoder_name:
+                logger.warning(
+                    f"Requested decoder_name={self.decoder_name!r} differs from "
+                    f"the checkpoint's decoder_name={checkpoint_decoder_name!r}; "
+                    "the checkpoint decoder weights will not load cleanly."
+                )
+
+        if (
+            self.lr_warmup_steps == "auto"
+            or self.scheduler_flat_steps == "auto"
+            or self.scheduler_no_aug_steps == "auto"
+        ):
             scheduler_step_schedule = resolve_ltdetr_step_schedule(
                 total_steps=total_steps,
                 train_num_batches=train_num_batches,
                 gradient_accumulation_steps=gradient_accumulation_steps,
             )
+            if self.lr_warmup_steps == "auto":
+                self.lr_warmup_steps = scheduler_step_schedule.step_start
             if self.scheduler_flat_steps == "auto":
                 self.scheduler_flat_steps = scheduler_step_schedule.step_flat
             if self.scheduler_no_aug_steps == "auto":
@@ -644,23 +668,24 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
         scheduler: LRScheduler
         if self.model_args.scheduler_name == "linear":
-            if self.model_args.lr_warmup_steps > total_steps:
+            warmup_steps = no_auto(self.model_args.lr_warmup_steps)
+            if warmup_steps > total_steps:
                 logger.warning(
                     f"{self.model_args.scheduler_name} scheduler has "
-                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"lr_warmup_steps={warmup_steps} "
                     f"and total_steps={total_steps}; the schedule will not complete "
                     "as intended."
                 )
             scheduler = LinearLR(
                 optimizer=optim,
-                total_iters=self.model_args.lr_warmup_steps,
+                total_iters=warmup_steps,
                 start_factor=self.model_args.scheduler_start_factor,
             )
         elif self.model_args.scheduler_name == "flat-cosine":
             scheduler = FlatCosineLRScheduler(
                 optimizer=optim,
                 total_steps=total_steps,
-                warmup_steps=self.model_args.lr_warmup_steps,
+                warmup_steps=no_auto(self.model_args.lr_warmup_steps),
                 flat_steps=no_auto(self.model_args.scheduler_flat_steps),
                 no_aug_steps=no_auto(self.model_args.scheduler_no_aug_steps),
             )

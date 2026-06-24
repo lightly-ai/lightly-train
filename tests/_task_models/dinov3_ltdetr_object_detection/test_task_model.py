@@ -39,6 +39,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
 )
+from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
+    RTDETRTransformerv2,
+)
 
 
 def _is_module_frozen(m: nn.Module) -> bool:
@@ -228,6 +231,104 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     )
 
     assert model_args.patch_size == expected_patch_size
+
+
+def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
+    # Backwards compatibility: a checkpoint trained with the previous
+    # RTDETRv2 default must reconstruct with the RTDETRv2 architecture when
+    # the user does not explicitly set ``decoder_name``, even though the new
+    # default is dfine. This round-trip simulates loading such a checkpoint:
+    # we save the task model's ``init_args`` and ``state_dict`` (mirroring
+    # what ``lightly_train`` persists in the checkpoint file), build a fresh
+    # train model from defaults, feed it the saved ``init_args`` as the
+    # checkpoint payload, and verify the state dict loads cleanly into an
+    # RTDETRv2 decoder.
+    model_name = "dinov3/vitt16-notpretrained-ltdetr"
+
+    # Source: an old-style RTDETRv2 checkpoint.
+    source_args = DINOv3LTDETRObjectDetectionTrainArgs(
+        decoder_name="rtdetrv2",
+        use_ema_model=False,
+    )
+    source_train_model = _create_train_model(
+        source_args,
+        model_name=model_name,
+    )
+    checkpoint_model_init_args = source_train_model.get_task_model().init_args
+    assert checkpoint_model_init_args["decoder_name"] == "rtdetrv2"
+    checkpoint_state_dict = source_train_model.state_dict()
+
+    # Pick a stable decoder tensor to compare before/after the round trip.
+    decoder_keys = sorted(k for k in checkpoint_state_dict if "decoder" in k)
+    assert decoder_keys, "expected at least one decoder tensor in the state dict"
+    source_decoder_tensor = checkpoint_state_dict[decoder_keys[0]].clone()
+
+    # Target: a fresh train model built from the new defaults. The user does
+    # not explicitly set ``decoder_name``; ``model_init_args`` carries the
+    # checkpoint payload.
+    target_args = DINOv3LTDETRObjectDetectionTrainArgs(use_ema_model=False)
+    target_train_model = _create_train_model(
+        target_args,
+        model_name=model_name,
+        model_init_args=dict(checkpoint_model_init_args),
+    )
+
+    # Architecture was reconstructed as RTDETRv2 via the compatibility shim.
+    assert target_args.decoder_name == "rtdetrv2"
+    target_task_model = target_train_model.get_task_model()
+    assert isinstance(target_task_model.decoder, RTDETRTransformerv2)
+
+    # State dict loads cleanly into the reconstructed architecture.
+    incompatible = target_train_model.load_train_state_dict(checkpoint_state_dict)
+    assert incompatible.missing_keys == []
+    assert incompatible.unexpected_keys == []
+
+    # Decoder weights actually landed on the target.
+    loaded_decoder_tensor = target_train_model.state_dict()[decoder_keys[0]]
+    torch.testing.assert_close(loaded_decoder_tensor, source_decoder_tensor)
+
+
+def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
+    caplog: pytest.LogCaptureFixture,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(decoder_name="dfine")
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="lightly_train._task_models.dinov3_ltdetr_object_detection.train_model",
+    ):
+        model_args.resolve_auto(
+            total_steps=1000,
+            gradient_accumulation_steps=1,
+            train_num_batches=100,
+            model_name="dinov3/vitt16-ltdetr-coco",
+            model_init_args={"decoder_name": "rtdetrv2"},
+            data_args=dummy_yolo_detection_data_args,
+        )
+
+    assert model_args.decoder_name == "dfine"
+    assert "checkpoint's decoder_name='rtdetrv2'" in caplog.text
+
+
+def test_resolve_auto__auto_lr_warmup_steps_short_run(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # ``lr_warmup_steps`` defaults to ``"auto"`` so short default runs do not
+    # collapse the flat-cosine phase to zero (see P2 Codex review on PR #798).
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=100,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="ltdetrv2-s",
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert isinstance(model_args.lr_warmup_steps, int)
+    assert 0 <= model_args.lr_warmup_steps < 100
 
 
 def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
@@ -792,12 +893,17 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
         ECViTBackboneWrapper,
     )
 
-    # Disable the LR-warmup `start_factor` so the current lr in the
-    # optimizer's param groups equals the configured base lr (PyTorch's
-    # `_LRScheduler.__init__` calls `step()` once, which would otherwise
-    # scale every group by `scheduler_start_factor`).
+    # Pin the linear scheduler here: this test asserts optimizer param-group
+    # membership and LRs (the backbone/detector split), not the scheduler.
+    # The default `flat-cosine` would otherwise auto-resolve flat/no_aug steps
+    # from the test's `total_steps=1000` and collide with the default
+    # `lr_warmup_steps=2000`.
+    # `scheduler_start_factor=1.0` neutralizes LinearLR's init `step()` scaling.
     train_model = _create_train_model(
-        DINOv3LTDETRObjectDetectionTrainArgs(scheduler_start_factor=1.0),
+        DINOv3LTDETRObjectDetectionTrainArgs(
+            scheduler_name="linear",
+            scheduler_start_factor=1.0,
+        ),
         model_name=model_name,
         model_init_args={"patch_size": 16},
     )
@@ -812,7 +918,10 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     assert len(pretrained_param_ids) > 0
     assert len(projector_param_ids) > 0
 
-    optimizer, _ = train_model.get_optimizer(total_steps=1000, global_batch_size=16)
+    optimizer, _ = train_model.get_optimizer(
+        total_steps=1000,
+        global_batch_size=train_model.model_args.default_batch_size,
+    )
     by_name = {g["name"]: g for g in optimizer.param_groups}
 
     expected_backbone_lr = (
