@@ -230,6 +230,69 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     assert model_args.patch_size == expected_patch_size
 
 
+def test_resolve_auto__uses_checkpoint_decoder_when_not_explicit(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # Backwards compatibility: a checkpoint trained with the previous
+    # RTDETRv2 default must keep its architecture when the user does not
+    # explicitly set ``decoder_name``, even though the new default is dfine.
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="dinov3/vitt16-ltdetr-coco",
+        model_init_args={"decoder_name": "rtdetrv2"},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == "rtdetrv2"
+
+
+def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
+    caplog: pytest.LogCaptureFixture,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs(decoder_name="dfine")
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="lightly_train._task_models.dinov3_ltdetr_object_detection.train_model",
+    ):
+        model_args.resolve_auto(
+            total_steps=1000,
+            gradient_accumulation_steps=1,
+            train_num_batches=100,
+            model_name="dinov3/vitt16-ltdetr-coco",
+            model_init_args={"decoder_name": "rtdetrv2"},
+            data_args=dummy_yolo_detection_data_args,
+        )
+
+    assert model_args.decoder_name == "dfine"
+    assert "checkpoint's decoder_name='rtdetrv2'" in caplog.text
+
+
+def test_resolve_auto__auto_lr_warmup_steps_short_run(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # ``lr_warmup_steps`` defaults to ``"auto"`` so short default runs do not
+    # collapse the flat-cosine phase to zero (see P2 Codex review on PR #798).
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=100,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="ltdetrv2-s",
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert isinstance(model_args.lr_warmup_steps, int)
+    assert 0 <= model_args.lr_warmup_steps < 100
+
+
 def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
     model = DINOv3LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
