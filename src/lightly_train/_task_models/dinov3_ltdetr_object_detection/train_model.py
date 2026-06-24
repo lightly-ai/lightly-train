@@ -34,7 +34,6 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
 )
-from lightly_train._models import package_helpers
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
@@ -176,8 +175,19 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                 # (the ECViT-NN uses a ConvPyramidPatchEmbed that only supports
                 # patch_size=16). Resolve that here so the train/val transforms
                 # can pick the right image-size divisor and scale-jitter base.
+                #
+                # Use the task model's ``parse_model_name`` (not the lower-level
+                # ``package_helpers.parse_model_name``) because it also resolves
+                # short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) to their
+                # canonical ``edgecrafter/<preset>-ltdetr`` form, so they reach
+                # the ``package_name == "edgecrafter"`` branch below. This runs
+                # before the task-model constructor canonicalizes the name, so
+                # without it the aliases would raise
+                # ``Unable to resolve patch_size='auto'`` here.
                 try:
-                    package_name, _ = package_helpers.parse_model_name(model_name)
+                    package_name = DINOv3LTDETRObjectDetection.parse_model_name(
+                        model_name=model_name
+                    )["package_name"]
                 except ValueError:
                     package_name = ""
                 if package_name == "edgecrafter":

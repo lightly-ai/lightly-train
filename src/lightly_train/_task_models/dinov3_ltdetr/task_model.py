@@ -553,6 +553,25 @@ class _DINOv3LTDETRViTLConfig(_DINOv3LTDETRConfig):
     )
 
 
+# Short aliases for EdgeCrafter (ECViT) LT-DETR object-detection models.
+# ``ltdetrv2-{s,m,l,x}`` -> ``edgecrafter/<ecvit preset>-ltdetr``.
+# These are resolved by ``_resolve_ltdetr_alias`` at the entry of
+# ``_DINOv3LTDETRBase.parse_model_name`` so users can pass the short form
+# directly to ``train_object_detection(model=...)`` and ``load_model(...)``.
+# Order follows increasing backbone capacity (embed_dim / ffn).
+_LTDETR_V2_ALIASES: dict[str, str] = {
+    "ltdetrv2-s": "edgecrafter/ecvitt-ltdetr",
+    "ltdetrv2-m": "edgecrafter/ecvittplus-ltdetr",
+    "ltdetrv2-l": "edgecrafter/ecvits-ltdetr",
+    "ltdetrv2-x": "edgecrafter/ecvitsplus-ltdetr",
+}
+
+
+def _resolve_ltdetr_alias(model_name: str) -> str:
+    """Return the canonical LT-DETR model name for a short alias, or the input unchanged."""
+    return _LTDETR_V2_ALIASES.get(model_name, model_name)
+
+
 class _DINOv3LTDETRBase(TaskModel):
     model_suffix = "ltdetr"
 
@@ -763,11 +782,14 @@ class _DINOv3LTDETRBase(TaskModel):
     def list_model_names(cls) -> list[str]:
         # Concatenate the DINOv3 and EdgeCrafter (ECViT) backbone model names,
         # each suffixed with the LTDETR task suffix. Both packages share this
-        # task model.
+        # task model. Short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) are appended
+        # so they show up in error messages and discoverability listings.
         names: list[str] = []
         names.extend(DINOV3_PACKAGE.list_model_names())
         names.extend(EDGE_CRAFTER_PACKAGE.list_model_names())
-        return [f"{name}-{cls.model_suffix}" for name in names]
+        names = [f"{name}-{cls.model_suffix}" for name in names]
+        names.extend(_LTDETR_V2_ALIASES.keys())
+        return names
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
@@ -780,6 +802,12 @@ class _DINOv3LTDETRBase(TaskModel):
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        # Resolve short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) to their
+        # canonical ``edgecrafter/<preset>-ltdetr`` form before format
+        # validation. Done first so the error message below reports the
+        # resolved canonical name when applicable.
+        model_name = _resolve_ltdetr_alias(model_name)
+
         def raise_invalid_name() -> NoReturn:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "

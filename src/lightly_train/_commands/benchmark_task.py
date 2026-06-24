@@ -101,7 +101,9 @@ def benchmark_object_detection(
             Human-readable name for the dataset (e.g. ``"COCO 2017"``).
             Included in the benchmark report.
         data:
-            Dataset configuration dictionary (same format as train_object_detection).
+            The dataset configuration or path to a YAML file with the configuration
+            (same format as train_object_detection). See the documentation for more information:
+            https://docs.lightly.ai/train/stable/object_detection.html#data
         model:
             A loaded TaskModel instance or a path to an exported model file.
         batch_size:

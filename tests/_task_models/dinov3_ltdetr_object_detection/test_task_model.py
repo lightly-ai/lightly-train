@@ -158,6 +158,33 @@ def test_resolve_auto__uses_vit_model_name(
 
 
 @pytest.mark.parametrize(
+    "model_name",
+    ["ltdetrv2-s", "ltdetrv2-m", "ltdetrv2-l", "ltdetrv2-x"],
+)
+def test_resolve_auto__uses_ltdetrv2_alias(
+    model_name: str,
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    # Regression test for TRN-2187: ``resolve_auto`` runs before the task-model
+    # constructor canonicalizes short LT-DETRv2 aliases, so it must resolve
+    # them itself (via ``parse_model_name``) rather than raising
+    # ``Unable to resolve patch_size='auto'``. All aliases map to EdgeCrafter
+    # (ECViT) backbones with a fixed patch_size of 16.
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name=model_name,
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.patch_size == 16
+
+
+@pytest.mark.parametrize(
     ("model_name", "expected_patch_size"),
     [("dinov3/vitt16-ltdetr-coco", 36), ("dinov3/convnext-tiny-ltdetr-coco", 47)],
 )
@@ -604,6 +631,60 @@ def test_create_train_model__ecvit(
     assert not hasattr(task_model.backbone, "mask_token")
     # The wrapped ECViTModelWrapper itself must not have a mask_token either.
     assert not hasattr(task_model.backbone.backbone_model, "mask_token")
+
+
+# ---------------------------------------------------------------------------
+# Short LT-DETRv2 alias tests
+# ---------------------------------------------------------------------------
+#
+# ``ltdetrv2-{s,m,l,x}`` is a public alias that resolves to the canonical
+# EdgeCrafter (ECViT) LT-DETR object-detection model name. These tests verify
+# that the alias is accepted by ``is_supported_model`` and resolves to the
+# correct canonical name in ``parse_model_name`` (which is also what the
+# task model ``__init__`` stores as ``self.model_name``).
+
+LTDETR_V2_ALIAS_MODEL_NAMES = [
+    "ltdetrv2-s",
+    "ltdetrv2-m",
+    "ltdetrv2-l",
+    "ltdetrv2-x",
+]
+
+LTDETR_V2_ALIAS_TO_CANONICAL: dict[str, str] = {
+    "ltdetrv2-s": "edgecrafter/ecvitt-ltdetr",
+    "ltdetrv2-m": "edgecrafter/ecvittplus-ltdetr",
+    "ltdetrv2-l": "edgecrafter/ecvits-ltdetr",
+    "ltdetrv2-x": "edgecrafter/ecvitsplus-ltdetr",
+}
+
+
+@pytest.mark.parametrize("model_name", LTDETR_V2_ALIAS_MODEL_NAMES)
+def test_is_supported_model__ltdetrv2_alias(model_name: str) -> None:
+    assert DINOv3LTDETRObjectDetection.is_supported_model(model_name) is True
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"),
+    list(LTDETR_V2_ALIAS_TO_CANONICAL.items()),
+)
+def test_parse_model_name__ltdetrv2_alias(alias: str, canonical: str) -> None:
+    parsed = DINOv3LTDETRObjectDetection.parse_model_name(alias)
+    assert parsed["package_name"] == "edgecrafter"
+    assert parsed["model_name"] == canonical
+    # backbone_name must be the bare ECViT preset (no package prefix, no
+    # -ltdetr suffix) so the EdgeCrafter package can load the weights.
+    expected_backbone_name = canonical
+    if expected_backbone_name.startswith("edgecrafter/"):
+        expected_backbone_name = expected_backbone_name[len("edgecrafter/") :]
+    if expected_backbone_name.endswith("-ltdetr"):
+        expected_backbone_name = expected_backbone_name[: -len("-ltdetr")]
+    assert parsed["backbone_name"] == expected_backbone_name
+
+
+def test_list_model_names__includes_ltdetrv2_aliases() -> None:
+    names = DINOv3LTDETRObjectDetection.list_model_names()
+    for alias in LTDETR_V2_ALIAS_MODEL_NAMES:
+        assert alias in names, f"Expected alias {alias!r} in list_model_names()"
 
 
 @pytest.mark.parametrize("should_freeze", [True, False])
