@@ -78,12 +78,13 @@ class MaskAwareHungarianMatcher(HungarianMatcher):  # type: ignore[misc]
                 fixed ``num_points`` budget is used instead. Keep this equal to the
                 criterion's ``mask_point_sample_ratio`` (upstream couples them).
         """
-        super().__init__(  # type: ignore[no-untyped-call]
-            weight_dict=weight_dict,
-            use_focal_loss=True,
-            alpha=alpha,
-            gamma=gamma,
-        )
+        # Initialize ``nn.Module`` directly instead of going through
+        # ``HungarianMatcher.__init__``: the box-only superclass asserts that one
+        # of ``cost_class``/``cost_bbox``/``cost_giou`` is non-zero, which would
+        # reject valid mask/dice-only configurations before the extended
+        # five-cost assertion below can run.
+        torch.nn.Module.__init__(self)
+        self.use_focal_loss: bool = True
         self.cost_class: float = weight_dict["cost_class"]
         self.cost_bbox: float = weight_dict["cost_bbox"]
         self.cost_giou: float = weight_dict["cost_giou"]
