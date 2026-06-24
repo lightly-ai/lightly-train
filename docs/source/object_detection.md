@@ -13,28 +13,27 @@
 ## Benchmark Results
 
 Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and
-inference latency of the LT-DETR family, fine-tuned on the COCO
-dataset. You
-can check [here](object-detection-use-model-weights) for how to use these model
-checkpoints for further fine-tuning. The average latency values were measured using
-TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
+inference latency of the LT-DETR family, fine-tuned on the COCO dataset. You can check
+[here](object-detection-use-model-weights) for how to use these model checkpoints for
+further fine-tuning. The average latency values were measured using TensorRT version
+`10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ### COCO
 
-|               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
-| :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
-|          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
-|          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
-|         **ltdetrv2-s-coco (NEW)**         |        **50.7**         |    **5.4**    |    **9.9**     |  **640×640**   |
-|     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
-|   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
-|     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
-| dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |  640×640   |
-| dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
-| dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
-| dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |  640×640   |
+|               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
+| :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
+|          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
+|          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
+|     **ltdetrv2-s-coco (NEW)**     |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
+|     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
+|   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
+|     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
+| dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |   640×640   |
+| dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |   640×640   |
+| dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
+| dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
 \*Picodet models are in preview and we report preliminary results.
 
