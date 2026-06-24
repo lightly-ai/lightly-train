@@ -205,13 +205,13 @@ if __name__ == "__main__":
     model = YOLO("out/coco_minitrain_pretrain/exported_models/exported_last.pt")
 
     # Fine-tune with ultralytics.
-    model.train(data="VOC.yaml", epochs=30, project="logs/voc_yolo26s", name="from_pretrained")
+    model.train(data="VOC.yaml", epochs=50, project="logs/voc_yolo26s", name="from_pretrained")
 ```
 ````
 
 ````{tab} Command Line
 ```bash
-yolo detect train model="out/my_experiment/exported_models/exported_last.pt" data="VOC.yaml" epochs=30 project="logs/voc_yolo26s" name="from_pretrained"
+yolo detect train model="out/my_experiment/exported_models/exported_last.pt" data="VOC.yaml" epochs=50 project="logs/voc_yolo26s" name="from_pretrained"
 ```
 ````
 
