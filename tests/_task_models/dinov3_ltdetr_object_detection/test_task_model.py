@@ -39,6 +39,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
 )
+from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
+    RTDETRTransformerv2,
+)
 
 
 def _is_module_frozen(m: nn.Module) -> bool:
@@ -230,24 +233,59 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     assert model_args.patch_size == expected_patch_size
 
 
-def test_resolve_auto__uses_checkpoint_decoder_when_not_explicit(
-    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
-) -> None:
+def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
     # Backwards compatibility: a checkpoint trained with the previous
-    # RTDETRv2 default must keep its architecture when the user does not
-    # explicitly set ``decoder_name``, even though the new default is dfine.
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    # RTDETRv2 default must reconstruct with the RTDETRv2 architecture when
+    # the user does not explicitly set ``decoder_name``, even though the new
+    # default is dfine. This round-trip simulates loading such a checkpoint:
+    # we save the task model's ``init_args`` and ``state_dict`` (mirroring
+    # what ``lightly_train`` persists in the checkpoint file), build a fresh
+    # train model from defaults, feed it the saved ``init_args`` as the
+    # checkpoint payload, and verify the state dict loads cleanly into an
+    # RTDETRv2 decoder.
+    model_name = "dinov3/vitt16-notpretrained-ltdetr"
 
-    model_args.resolve_auto(
-        total_steps=1000,
-        gradient_accumulation_steps=1,
-        train_num_batches=100,
-        model_name="dinov3/vitt16-ltdetr-coco",
-        model_init_args={"decoder_name": "rtdetrv2"},
-        data_args=dummy_yolo_detection_data_args,
+    # Source: an old-style RTDETRv2 checkpoint.
+    source_args = DINOv3LTDETRObjectDetectionTrainArgs(
+        decoder_name="rtdetrv2",
+        use_ema_model=False,
+    )
+    source_train_model = _create_train_model(
+        source_args,
+        model_name=model_name,
+    )
+    checkpoint_model_init_args = source_train_model.get_task_model().init_args
+    assert checkpoint_model_init_args["decoder_name"] == "rtdetrv2"
+    checkpoint_state_dict = source_train_model.state_dict()
+
+    # Pick a stable decoder tensor to compare before/after the round trip.
+    decoder_keys = sorted(k for k in checkpoint_state_dict if "decoder" in k)
+    assert decoder_keys, "expected at least one decoder tensor in the state dict"
+    source_decoder_tensor = checkpoint_state_dict[decoder_keys[0]].clone()
+
+    # Target: a fresh train model built from the new defaults. The user does
+    # not explicitly set ``decoder_name``; ``model_init_args`` carries the
+    # checkpoint payload.
+    target_args = DINOv3LTDETRObjectDetectionTrainArgs(use_ema_model=False)
+    target_train_model = _create_train_model(
+        target_args,
+        model_name=model_name,
+        model_init_args=dict(checkpoint_model_init_args),
     )
 
-    assert model_args.decoder_name == "rtdetrv2"
+    # Architecture was reconstructed as RTDETRv2 via the compatibility shim.
+    assert target_args.decoder_name == "rtdetrv2"
+    target_task_model = target_train_model.get_task_model()
+    assert isinstance(target_task_model.decoder, RTDETRTransformerv2)
+
+    # State dict loads cleanly into the reconstructed architecture.
+    incompatible = target_train_model.load_train_state_dict(checkpoint_state_dict)
+    assert incompatible.missing_keys == []
+    assert incompatible.unexpected_keys == []
+
+    # Decoder weights actually landed on the target.
+    loaded_decoder_tensor = target_train_model.state_dict()[decoder_keys[0]]
+    torch.testing.assert_close(loaded_decoder_tensor, source_decoder_tensor)
 
 
 def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
