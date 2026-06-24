@@ -13,8 +13,8 @@
 ## Benchmark Results
 
 Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and
-inference latency of different DINOv3 and DINOv2-based models, fine-tuned on the COCO
-dataset. EdgeCrafter ECViT LTDETR models are also supported for custom fine-tuning. You
+inference latency of the LT-DETR family, fine-tuned on the COCO
+dataset. You
 can check [here](object-detection-use-model-weights) for how to use these model
 checkpoints for further fine-tuning. The average latency values were measured using
 TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
@@ -27,7 +27,7 @@ TensorRT version `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
 |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
 |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
-|         *ltdetrv2-s-coco*         |        **50.7**         |    *5.4*     |    9.9     |  640×640   |
+|         **ltdetrv2-s-coco (NEW)**         |        **50.7**         |    **5.4**    |    **9.9**     |  **640×640**   |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |

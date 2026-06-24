@@ -22,7 +22,7 @@ visualize your annotations and predictions.
 ## News
 
 - \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
-  2026-06-15: ⚡ **EdgeCrafter Object Detection:** Fine-tune compact EdgeCrafter ECViT
+  2026-06-24: ⚡ **Upgraded LTDETRv2 for object detection:**
   backbones with LTDETR for efficient
   [object detection](https://docs.lightly.ai/train/stable/object_detection.html). ⚡
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
@@ -79,7 +79,7 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
 |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
 |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
-|         *ltdetrv2-s-coco*         |        **50.7**         |    *5.4*     |    9.9     |  640×640   |
+|         **ltdetrv2-s-coco (NEW)**         |        **50.7**         |    **5.4**     |    **9.9**     |  **640×640**   |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
