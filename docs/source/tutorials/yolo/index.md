@@ -2,9 +2,10 @@
 
 # Self-Supervised Pretraining for YOLOv26
 
-This tutorial demonstrates how to pretrain a [YOLOv26](https://docs.ultralytics.com/models/yolo26#overview)
-model using LightlyTrain and then fine-tune it for object detection using the `ultralytics`
-framework. To this end, we will first pretrain on a
+This tutorial demonstrates how to pretrain a
+[YOLOv26](https://docs.ultralytics.com/models/yolo26#overview) model using LightlyTrain
+and then fine-tune it for object detection using the `ultralytics` framework. To this
+end, we will first pretrain on a
 [25k image subset](https://github.com/giddyyupp/coco-minitrain) of the
 [COCO dataset](https://cocodataset.org/#home) (only the images, no labels!), and
 subsequently finetune on the labeled
@@ -273,9 +274,11 @@ plt.show()
 ```
 
 ```{image} results_VOC.png
-:alt: Pretraining vs Scratch
-:width: 512px
-:align: center
+---
+alt: Pretraining vs Scratch
+width: 512px
+align: center
+---
 ```
 
 As clearly visible in the plot, the pretrained models converges much faster and achieves
@@ -290,8 +293,8 @@ exciting next steps:
   [Methods](#methods) for more exciting possibilities!
 - Try your hand at different YOLO flavors (`YOLOv5`, `YOLOv6`, `YOLOv8`, `YOLOv11`).
 - Skip pretraining entirely: LightlyTrain provides in-house models pretrained via
-  self-supervised learning, with COCO-finetuned variants also available.
-  See {ref}`Object Detection <object-detection>`.
+  self-supervised learning, with COCO-finetuned variants also available. See
+  {ref}`Object Detection <object-detection>`.
 - Take your pretrained model for a spin with {ref}`image embeddings <embed>` and
   similarity search.
 
