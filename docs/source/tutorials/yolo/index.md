@@ -1,6 +1,6 @@
 (tutorials-yolo)=
 
-# Pretraining YOLOv26 with LightlyTrain
+# Object Detection with Ultralytics' YOLOv26
 
 This tutorial demonstrates how to pretrain a
 [YOLOv26](https://docs.ultralytics.com/models/yolo26#overview) model using LightlyTrain
@@ -292,8 +292,8 @@ exciting next steps:
 - Go beyond distillation and explore other pretraining methods in LightlyTrain. Check
   [Methods](#methods) for more exciting possibilities!
 - Try your hand at different YOLO flavors (`YOLOv5`, `YOLOv6`, `YOLOv8`, `YOLOv11`).
-- Skip pretraining entirely: LightlyTrain provides in-house models pretrained via
-  self-supervised learning, with COCO-finetuned variants also available. See
+- Use LightlyTrain's in-house LTDETR: LightlyTrain offers its own DETR-based model for
+  object detection which gives SOTA performance. See
   {ref}`Object Detection <object-detection>`.
 - Take your pretrained model for a spin with {ref}`image embeddings <embed>` and
   similarity search.
