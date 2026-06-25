@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-🔥 LightlyTrain's **LTDETRv2** is out with great improvements from SOTA research! We achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
+🔥 LightlyTrain's **LTDETRv2** is out with great improvements from SOTA research! We achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP<sub>50:95</sub> from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
@@ -13,12 +13,10 @@
 ## Benchmark Results
 
 Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and
-inference latency of the LT-DETR family, fine-tuned on the COCO dataset. You can check
+inference latency of the LTDETR family, fine-tuned on the COCO dataset. You can check
 [here](object-detection-use-model-weights) for how to use these model checkpoints for
 further fine-tuning. The average latency values were measured using TensorRT version
 `10.13.3.9` and on a Nvidia T4 GPU with batch size 1.
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ### COCO
 
@@ -35,24 +33,23 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
 | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
-\*Picodet models are in preview and we report preliminary results.
+\*Picodet models are in beta and we report preliminary results.
 
 ## Object Detection with LTDETR
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
+LightlyTrain's LTDETR is a DETR-based detection family following the latest advancements
+in research. With the newest LTDETRv2, it supports ECViT backbones from
+[EdgeCrafter](https://arxiv.org/abs/2603.18739). The old LTDETR supports DINOv2 ViT,
+DINOv3 ViT and ConvNext backbones (also with EUPE weights). See
+[model](#object-detection-model) for details on what backbones are supported.
+
+### Train an LTDETR model
+
 Training an object detection model with LightlyTrain is straightforward and only
 requires a few lines of code. See [data](#object-detection-data) for details on how to
-prepare your dataset. LTDETR is a single DINOv3-based detection family built on the
-RT-DETR architecture. Choose a compact **LTDETRv2** model (`ltdetrv2-s/m/l/x`) for
-efficient detection, or a larger DINOv3 ViT/ConvNeXt model for maximum accuracy. DINOv2
-backbones are also supported (see the [Model](#object-detection-model) section).
-
-### Train an LTDETR Model
-
-Use a compact **LTDETRv2** model (`ltdetrv2-s/m/l/x`) for efficient detection, or a
-larger DINOv3 ViT/ConvNeXt model (e.g. `dinov3/vitt16-ltdetr`) for maximum accuracy.
-Both are members of the same DINOv3-based LTDETR family.
+prepare your dataset.
 
 ```python
 import lightly_train
@@ -78,7 +75,7 @@ if __name__ == "__main__":
             # Optional, skip images without label files. By default, these are included
             # as negative samples.
             # "skip_if_label_file_missing": True,
-        }
+        },
     )
 ```
 
@@ -105,56 +102,9 @@ if __name__ == "__main__":
 
 <!-- TODO (Lionel, 10/25) Add instructions for re-using classification head when it is supported. -->
 
-(object-detection-pretrain-finetune)=
-
-## Pretrain and Fine-tune an Object Detection Model
-
-The following workflow pretrains a **DINOv2** backbone with self-supervised learning and
-then fine-tunes it as a DINOv2 LTDETR detection model. LTDETRv2 and DINOv3 LTDETR (see
-[Model](#object-detection-model)) are the recommended paths for new projects; It is
-especially useful if your dataset is only partially labeled or if you have access to a
-large amount of unlabeled data.
-
-Check out the page on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2
-models on unlabeled data.
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    # Pretrain a DINOv2 model.
-    lightly_train.pretrain(
-        out="out/my_pretrain_experiment",
-        data="my_pretrain_data_dir",
-        model="dinov2/vits14-noreg",
-        method="dinov2",
-    )
-
-    # Fine-tune the DINOv2 model for object detection.
-    lightly_train.train_object_detection(
-        out="out/my_experiment",
-        model="dinov2/vits14-noreg-ltdetr",
-        model_args={
-            # Path to your pretrained DINOv2 model.
-            "backbone_weights": "out/my_pretrain_experiment/exported_models/exported_best.pt",
-        },
-        data={
-            "format": "yolo",
-            "path": "my_data_dir",
-            "train": "images/train2012",
-            "val": "images/val2012",
-            "names": {
-                0: "person",
-                1: "bicycle",
-                # ...
-            },
-        }
-    )
-```
-
 (object-detection-use-model-weights)=
 
-### Load the Trained Model from Checkpoint and Predict
+### Predict with model checkpoints
 
 After the training completes, you can load the best model checkpoints for inference like
 this:
@@ -194,11 +144,7 @@ from torchvision import io, utils
 import lightly_train
 
 model = lightly_train.load_model("ltdetrv2-s-coco")
-results = model.predict_sahi(image="image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results = model.predict("image.jpg")
 
 # Visualize predictions.
 image_with_boxes = utils.draw_bounding_boxes(
@@ -212,7 +158,7 @@ ax.imshow(image_with_boxes.permute(1, 2, 0))
 fig.savefig("predictions.png")
 ```
 
-The predicted boxes are in the absolute (x_min, y_min, x_max, y_max) format, i.e.
+The predicted boxes are in the absolute `(x_min, y_min, x_max, y_max)` format, i.e.
 represent the size of the dimension of the bounding boxes in pixels of the original
 image.
 
@@ -575,7 +521,7 @@ The following image formats are supported:
 - tif
 - tiff
 - webp
-- dcm (DICOM)
+- dcm (DICOM) (only for old LTDETR)
 
 For more details on LightlyTrain's support for data input, please check the
 [](data-input) page.
@@ -587,14 +533,12 @@ For more details on LightlyTrain's support for data input, please check the
 The `model` argument defines the model used for object detection training. The following
 models are available:
 
-### LTDETR Models (DINOv3-based)
+### LTDETRv2
 
-LTDETR is a single DINOv3-based detection family built on the RT-DETR architecture. The
-**LTDETRv2** models below are the compact, efficient tier (`ltdetrv2-s/m/l/x`, backed by
-ECViT backbones); the DINOv3 ViT/ConvNeXt models are the larger, high-accuracy tier.
-Both tiers share the same hybrid encoder + RT-DETRv2/D-FINE decoder.
-
-#### LTDETRv2 Models (compact tier)
+The LTDETRv2 ECViT backbones are initialized from
+[EdgeCrafter](https://arxiv.org/abs/2603.18739) weights and are under the
+[Apache 2.0 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/EDGECRAFTER_LICENSE).
+They currently support RGB images only.
 
 - `ltdetrv2-s-coco` (pretrained on COCO)
 - `ltdetrv2-s`
@@ -602,68 +546,68 @@ Both tiers share the same hybrid encoder + RT-DETRv2/D-FINE decoder.
 - `ltdetrv2-l`
 - `ltdetrv2-x`
 
-The LTDETRv2 backbones are initialized from EdgeCrafter weights and are under the
-[Apache 2.0 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/EDGECRAFTER_LICENSE).
-They currently support RGB images only.
+### LTDETR (legacy)
 
-#### DINOv3 ViT/ConvNeXt Models (high-accuracy tier)
+The old LTDETR weights are still supported with full compatibility.
 
+Unless noted otherwise, all
+[DINOv2](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models)
+and
+[DINOv3](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
+backbones are initialized from weights pretrained by Meta. The non-EUPE models with
+`vitt16` and `vitt16plus` backbones use Lightly-pretrained DINOv3 backbone weights
+instead.
+
+DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file).
+Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+
+```{dropdown} DINOv3 ViT backbones
 - `dinov3/vitt16-ltdetr-coco` (pretrained on COCO)
 - `dinov3/vitt16plus-ltdetr-coco` (pretrained on COCO)
 - `dinov3/vits16-ltdetr-coco` (pretrained on COCO)
+- `dinov3/vitt16-ltdetr`
+- `dinov3/vitt16plus-ltdetr`
+- `dinov3/vits16-ltdetr`
+- `dinov3/vitb16-ltdetr`
+- `dinov3/vitl16-ltdetr`
+```
+
+```{dropdown} DINOv3 ConvNext backbones
 - `dinov3/convnext-tiny-ltdetr-coco` (pretrained on COCO)
 - `dinov3/convnext-small-ltdetr-coco` (pretrained on COCO)
 - `dinov3/convnext-base-ltdetr-coco` (pretrained on COCO)
 - `dinov3/convnext-large-ltdetr-coco` (pretrained on COCO)
-- `dinov3/vitt16-ltdetr`
-- `dinov3/vitt16-eupe-ltdetr` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vitt16plus-ltdetr`
-- `dinov3/vits16-ltdetr`
-- `dinov3/vits16-eupe-ltdetr` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vitb16-ltdetr`
-- `dinov3/vitb16-eupe-ltdetr` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vitl16-ltdetr`
 - `dinov3/convnext-tiny-ltdetr`
-- `dinov3/convnext-tiny-eupe-ltdetr` -
-  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-small-ltdetr`
-- `dinov3/convnext-small-eupe-ltdetr` -
-  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-base-ltdetr`
-- `dinov3/convnext-base-eupe-ltdetr` -
-  [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/convnext-large-ltdetr`
+```
 
-Unless noted otherwise, all DINOv3 backbones are initialized from weights
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
-DINOv3 backbone weights instead. Models marked as EUPE use
-[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
-models are under the
-[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+```{dropdown} DINOv3 ViT backbones with EUPE weights
+- `dinov3/vitt16-eupe-ltdetr`
+- `dinov3/vits16-eupe-ltdetr`
+- `dinov3/vitb16-eupe-ltdetr`
+```
 
-```{dropdown} Legacy: DINOv2 LTDETR Models
+```{dropdown} DINOv3 ConvNext backbones with EUPE weights
+- `dinov3/convnext-tiny-eupe-ltdetr`
+- `dinov3/convnext-small-eupe-ltdetr`
+- `dinov3/convnext-base-eupe-ltdetr`
+```
 
-DINOv2-backed LTDETR models. Kept for backward compatibility; for new projects prefer
-an LTDETRv2 or DINOv3 LTDETR model above.
-
+```{dropdown} DINOv2 ViT backbones
 - `dinov2/vits14-ltdetr`
 - `dinov2/vitb14-ltdetr`
 - `dinov2/vitl14-ltdetr`
 - `dinov2/vitg14-ltdetr`
-
-All models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
 ```
 
-```{dropdown} Legacy: PicoDet Models
-
-Picodet models are in preview.
+### PicoDet (beta)
 
 - `picodet-s-coco` (pretrained on COCO)
 - `picodet-l-coco` (pretrained on COCO)
-```
 
 ## Training Settings
 

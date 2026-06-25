@@ -1,6 +1,6 @@
 (quick-start-object-detection)=
 
-# Quick Start - Object Detection
+# Quick Start - Object Detection with LTDETRv2 (NEW)
 
 ```{image} https://colab.research.google.com/assets/colab-badge.svg
 ---
@@ -10,9 +10,7 @@ target:
 ```
 
 This guide demonstrates how to use Lightly**Train** for object detection with our
-state-of-the-art LTDETR model built on
-[DINOv3](https://github.com/facebookresearch/dinov3). LTDETR also supports compact
-[EdgeCrafter ECViT](#models-edgecrafter) backbones for custom fine-tuning.
+state-of-the-art LTDETRv2 model.
 
 ## Installation
 
@@ -31,7 +29,7 @@ We are planning to support MPS for MacOS.
 Check the [installation instructions](installation.md#installation) for more details.
 ```
 
-## Prediction using Lightly**Train**'s model weights
+## Predict using Lightly**Train**'s LTDETR weights
 
 ### Download an example image
 
@@ -87,11 +85,11 @@ plt.show()
 ```{figure} /_static/images/object_detection/street.jpg
 ```
 
-## Train object detection model
+## Train an LTDETR model
 
-Training your own detection model is straightforward with Lightly**Train**.
+Training your own LTDETR model is straightforward with Lightly**Train**.
 
-### Download dataset
+### Download a dataset
 
 First download a dataset. The dataset must be in YOLO format, see the
 [documentation](object-detection-data) for more details. You can use
@@ -132,10 +130,10 @@ coco128_yolo
 
 ### Start training
 
-Start the training with the `train_object_detection` function. You only have to specify
-the output directory, model, and input data. Lightly**Train** automatically sets the
-remaining training parameters and applies image augmentations. Of course you can always
-customize these settings if needed:
+Next, start the training with the `train_object_detection` function. You only have to
+specify the output directory, model, and input data. Lightly**Train** automatically sets
+the remaining training parameters and applies image augmentations. Of course you can
+always customize these settings if needed:
 
 ```python
 import lightly_train
@@ -249,20 +247,31 @@ out/my_experiment
 └── train.log
 ```
 
-### Load trained model
-
 The best model checkpoint is saved to
-`out/my_experiment/exported_models/exported_best.pt`. You can load it for inference like
-this:
+`out/my_experiment/exported_models/exported_best.pt`.
+
+## Predict with your own LTDETR weights
+
+### Load the model weights
 
 ```python skip_ruff
-# Load the model for inference
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+```
 
-# Run inference
+### Predict the objects
+
+```python skip_ruff
 results = model.predict("image.jpg")
 
-# Plot results
+results["labels"]   # Class labels, tensor of shape (num_boxes,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+```
+
+### Visualize the results
+
+```python skip_ruff
 image = read_image("image.jpg")
 image_with_boxes = draw_bounding_boxes(
     image,
@@ -276,11 +285,124 @@ plt.show()
 ```{figure} /_static/images/object_detection/street.jpg
 ```
 
+## Benchmark your checkpoint
+
+You can use the `benchmark_object_detection` (in beta) command to measure the inference
+performance of an object detection model on a validation dataset.
+
+```python skip_ruff
+result = lightly_train.benchmark_object_detection(
+    out="out/my_benchmark",
+    dataset_name="coco128",  # Human-readable name shown in the report.
+    model="out/my_experiment/exported_models/exported_best.pt",
+    data={
+        "path": "coco128_yolo",
+        "train": "images/train2017",
+        "val": "images/val2017",
+        "names": {
+            0: "person",
+            1: "bicycle",
+            2: "car",
+            3: "motorcycle",
+            4: "airplane",
+            5: "bus",
+            6: "train",
+            7: "truck",
+            8: "boat",
+            9: "traffic light",
+            10: "fire hydrant",
+            11: "stop sign",
+            12: "parking meter",
+            13: "bench",
+            14: "bird",
+            15: "cat",
+            16: "dog",
+            17: "horse",
+            18: "sheep",
+            19: "cow",
+            20: "elephant",
+            21: "bear",
+            22: "zebra",
+            23: "giraffe",
+            24: "backpack",
+            25: "umbrella",
+            26: "handbag",
+            27: "tie",
+            28: "suitcase",
+            29: "frisbee",
+            30: "skis",
+            31: "snowboard",
+            32: "sports ball",
+            33: "kite",
+            34: "baseball bat",
+            35: "baseball glove",
+            36: "skateboard",
+            37: "surfboard",
+            38: "tennis racket",
+            39: "bottle",
+            40: "wine glass",
+            41: "cup",
+            42: "fork",
+            43: "knife",
+            44: "spoon",
+            45: "bowl",
+            46: "banana",
+            47: "apple",
+            48: "sandwich",
+            49: "orange",
+            50: "broccoli",
+            51: "carrot",
+            52: "hot dog",
+            53: "pizza",
+            54: "donut",
+            55: "cake",
+            56: "chair",
+            57: "couch",
+            58: "potted plant",
+            59: "bed",
+            60: "dining table",
+            61: "toilet",
+            62: "tv",
+            63: "laptop",
+            64: "mouse",
+            65: "remote",
+            66: "keyboard",
+            67: "cell phone",
+            68: "microwave",
+            69: "oven",
+            70: "toaster",
+            71: "sink",
+            72: "refrigerator",
+            73: "book",
+            74: "clock",
+            75: "vase",
+            76: "scissors",
+            77: "teddy bear",
+            78: "hair drier",
+            79: "toothbrush",
+        },
+    },
+)
+
+result.print()
+```
+
+The command returns a `BenchmarkResult` instance and writes two files to the out
+directory:
+
+```text
+out/my_benchmark
+├── benchmark_results.json
+└── benchmark_summary.md
+```
+
+- `benchmark_results.json`: the full result as JSON.
+- `benchmark_summary.md`: a human-readable Markdown report.
+
+The report (also available via `result.to_markdown()`) contains the run configuration,
+device info, performance metrics, and a throughput & latency table.
+
 ## Next Steps
 
 - [Object Detection Documentation](object-detection): If you want to learn more about
-  object detection with Lightly**Train**.
-- [Distillation Quick Start](quick-start-distillation): If you want to learn how to
-  pretrain/distill models with unlabeled data.
-- [DINOv2 Pretraining](methods-dinov2): If you want to learn how to pretrain foundation
-  models with unlabeled data.
+  object detection with LightlyTrain.

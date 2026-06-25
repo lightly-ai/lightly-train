@@ -9,14 +9,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add **LTDETRv2**, an improved object detection model that reaches 50.7
+  mAP<sub>50:95</sub> on the COCO 2017 validation set (+1 mAP<sub>50:95</sub> over the
+  previous LTDETR with a 55% shorter training schedule) and 5.4ms latency on an NVIDIA
+  T4 (TensorRT, FP16, batch size 1, 640x640). Use the compact `ltdetrv2-s/m/l/x` models,
+  which are built on [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECViT backbones.
 - Add depth estimation inference with Depth Anything V2 and V3 models, covering both
   relative and metric depth (`dinov2/dav2-relative-*`, `dinov2/dav2-metric-*`,
   `dinov2/dav3-relative-large`, `dinov2/dav3-metric-large`). Checkpoints are converted
   to the LightlyTrain format; the Apache-2.0 models are hosted for download, while the
   CC-BY-NC-4.0 Depth Anything V2 variants must be converted locally with
   `convert_checkpoint_dav2`.
+- Add the `benchmark_object_detection` command (**beta**) to measure inference
+  performance of an object detection model on a validation dataset. It reports detection
+  accuracy (mAP/mAR, including per-class mAP) and timing statistics (latency and
+  throughput), and writes a JSON result and a human-readable Markdown report. This is
+  useful to compare inference backends and precisions before deployment. See the
+  [benchmarking documentation](https://docs.lightly.ai/train/stable/object_detection.html#benchmarking)
+  for details.
 - Add Slicing Aided Hyper Inference (SAHI) for EoMT instance segmentation to improve
-  small instance recall at inference via `predict_sahi`.
+  small instance recall at inference via `model.predict_sahi()` method.
+
+### Changed
+
+- Update LTDETRv2 training defaults: the default `batch_size` is now `32` (was `16`),
+  the default training schedule is `266_112` steps (6x ECDet-S, ~72 epochs at batch size
+  32), `backbone_lr_factor` is now `0.05` (was `1e-2`), and `lr_warmup_steps` defaults
+  to `"auto"` so short runs no longer warm up for longer than they train.
 
 ## [0.15.1] - 2026-05-28
 
