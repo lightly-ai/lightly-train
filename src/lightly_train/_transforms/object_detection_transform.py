@@ -492,7 +492,7 @@ class ObjectDetectionTransform(TaskTransform):
         class_labels = input["class_labels"]
 
         if self._should_apply_mosaic():
-            image, bboxes, class_labels = self.mosaic(image, bboxes, class_labels)  # type: ignore[misc]
+            image, bboxes, class_labels, _ = self.mosaic(image, bboxes, class_labels)  # type: ignore[misc]
 
             # MosaicTransform clips boxes to the canvas but keeps degenerate boxes
             # (zero width/height). Filter them before passing to albumentations.
