@@ -54,7 +54,13 @@ def _make_train_model(gradient_clip_val: float) -> ImageClassificationTrain:
         val_transform_args=val_transform_args,
         load_weights=False,
         metric_args=MulticlassClassificationTaskMetricArgs(
-            accuracy=None, f1=None, precision=None, recall=None
+            accuracy=None,
+            f1=None,
+            precision=None,
+            recall=None,
+            # No quality metrics are available, so point the watch metric at the
+            # loss to avoid "watch_metric_name ... not found" errors.
+            watch_metric="val_loss",
         ),
         gradient_accumulation_steps=1,
     )
