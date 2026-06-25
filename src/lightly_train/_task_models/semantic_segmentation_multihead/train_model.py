@@ -324,14 +324,15 @@ class SemanticSegmentationMultiheadTrain(TrainModel):
         # backbone is always frozen for multihead training
         self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
-            fabric.clip_gradients(
-                module=self,
-                optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
-                error_if_nonfinite=False,
-            )
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = self.model_args.gradient_clip_val
+        max_norm = gradient_clip_val if gradient_clip_val > 0 else float("inf")
+        return fabric.clip_gradients(
+            module=self,
+            optimizer=optimizer,
+            max_norm=max_norm,
+            error_if_nonfinite=False,
+        )
 
 
 def _format_head_name(lr: float) -> str:

@@ -825,6 +825,7 @@ def log_step(
     global_batch_size: int,
     gradient_accumulation_steps: int = 1,
     learning_rate: float | None = None,
+    gradient_norm: float | None = None,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -849,6 +850,9 @@ def log_step(
 
     if learning_rate is not None:
         parts.append(f"lr: {learning_rate:2.8f}")
+
+    if gradient_norm is not None:
+        parts.append(f"grad_norm: {gradient_norm:4.4f}")
 
     # Add profiling information.
     profiling_parts = []

@@ -296,14 +296,15 @@ class ImageClassificationTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if no_auto(self.model_args.gradient_clip_val) > 0:
-            fabric.clip_gradients(
-                module=self,
-                optimizer=optimizer,
-                max_norm=no_auto(self.model_args.gradient_clip_val),
-                error_if_nonfinite=False,
-            )
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = no_auto(self.model_args.gradient_clip_val)
+        max_norm = gradient_clip_val if gradient_clip_val > 0 else float("inf")
+        return fabric.clip_gradients(
+            module=self,
+            optimizer=optimizer,
+            max_norm=max_norm,
+            error_if_nonfinite=False,
+        )
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:
