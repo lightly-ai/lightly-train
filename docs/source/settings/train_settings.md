@@ -601,7 +601,7 @@ training steps, at the cadence set by [`log_every_num_steps`](#log_every_num_ste
 
 - `gradient_norm`: Total gradient norm computed after backpropagation, before the
   optimizer step. If gradient clipping is enabled (`gradient_clip_val > 0`) this is the
-pre-clipping norm; otherwise it is the total gradient norm computed without applying
+  pre-clipping norm; otherwise it is the total gradient norm computed without applying
   gradient clipping. Use it to spot exploding or vanishing gradients during training. It
   is also shown in the console progress line as `grad_norm`. See
   [Model Instability Debugging](../debugging/model_instability.md) for how to interpret

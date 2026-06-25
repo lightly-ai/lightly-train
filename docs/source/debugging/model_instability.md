@@ -6,8 +6,8 @@ Training instabilities — such as exploding or vanishing gradients, sudden loss
 or numerical collapse to `NaN`/`inf` — can derail a run silently or abruptly. This page
 collects the tools LightlyTrain provides to detect and diagnose these issues.
 
-> [!NOTE] This section is growing. More debugging tools will be documented here as they
-> are added. The first available tool is gradient norm logging.
+:::\{note} This section is growing. More debugging tools will be documented here as they
+are added. The first available tool is gradient norm logging. :::
 
 ## What Instability Looks Like
 
@@ -70,8 +70,6 @@ persistent upward or downward drift is the signal to act on.
   - Lower the learning rate with [`model_args.lr`](../settings/train_settings.md).
   - Switch to a more stable precision, e.g. `precision="bf16-mixed"` or
     `precision="32-true"` (see [](../settings/train_settings.md)).
-  - Resume from the last good checkpoint using
-    [`resume_interrupted`](../settings/train_settings.md) after changing settings.
 - **Vanishing gradients:**
   - Increase the learning rate, especially for small models (~10M parameters or fewer).
   - Check that the input normalization in `transform_args` matches your data
