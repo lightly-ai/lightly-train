@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
@@ -26,9 +26,16 @@ class DebugUnderflowOverflowArgs(PydanticConfig):
     """
 
     enabled: bool = False
-    max_frames_to_save: int = 21
+    max_frames_to_save: int = Field(default=21, ge=1)
     trace_batch_nums: list[int] = Field(default_factory=list)
-    abort_after_batch_num: int | None = None
+    abort_after_batch_num: int | None = Field(default=None, ge=0)
+
+    @field_validator("trace_batch_nums")
+    @classmethod
+    def _validate_trace_batch_nums(cls, v: list[int]) -> list[int]:
+        if any(x < 0 for x in v):
+            raise ValueError("trace_batch_nums entries must be non-negative integers.")
+        return v
 
 
 class DebugArgs(PydanticConfig):

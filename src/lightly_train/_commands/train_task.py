@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import atexit
 import logging
 from typing import Any, Literal, Union
 
@@ -56,7 +57,10 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._debug.debug_args import DebugArgs, get_debug_args
-from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
+from lightly_train._debug.underflow_overflow import (
+    UnderflowOverflowMonitor,
+    check_compile_conflict,
+)
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
@@ -1396,22 +1400,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             torch_compile_args=config.torch_compile_args,
         )
         config.debug_args = get_debug_args(debug_args=config.debug_args)
-        debug_enabled = config.debug_args.is_underflow_overflow_enabled()
         # torch.compile and DebugUnderflowOverflow are mutually exclusive. Forward
         # hooks and per-tensor reductions used for debugging do not interact well
         # with compiled graphs.
-        if debug_enabled:
-            if not config.torch_compile_args.disable:
-                raise ValueError(
-                    "torch.compile cannot be used together with underflow/overflow "
-                    "debugging. Set torch_compile_args.disable=True or disable "
-                    "underflow/overflow debugging (debug_args.underflow_overflow"
-                    ".enabled=False)."
-                )
-            logger.warning(
-                "torch.compile is disabled because underflow/overflow debugging "
-                "is enabled."
-            )
+        check_compile_conflict(
+            debug_args=config.debug_args,
+            compile_args=config.torch_compile_args,
+        )
 
         # Resolve transform args in a single pass now that we know the
         # dataloader length and gradient accumulation steps (required for
@@ -1509,9 +1504,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model, optimizer = train_model_optimizer
 
         # Attach underflow/overflow debugger after Fabric setup so that forward hooks
-        # are registered on the device-placed model. Disabled by default.
+        # are registered on the device-placed model. Disabled by default. We register
+        # the monitor's close() with atexit so the log file is closed and hooks are
+        # detached even when an exception (including the ValueError the monitor itself
+        # raises on overflow) propagates out of the training loop.
         underflow_overflow_monitor: UnderflowOverflowMonitor | None = None
-        if debug_enabled:
+        if config.debug_args.is_underflow_overflow_enabled():
             assert config.debug_args.underflow_overflow is not None
             underflow_overflow_monitor = UnderflowOverflowMonitor(
                 model=train_model,
@@ -1519,6 +1517,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 out_dir=out_dir,
                 global_rank=fabric.global_rank,
             )
+            atexit.register(underflow_overflow_monitor.close)
 
         logger.info(
             f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
@@ -1896,7 +1895,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         timer.stop()
         logger.info("Training completed.")
 
-        # Close the underflow/overflow debug log file if debugging was enabled.
+        # Close the underflow/overflow debug log file and detach hooks on the happy
+        # path. atexit (registered above) handles the exception path. close() is
+        # idempotent, so the atexit call is a no-op when we reach this point.
         if underflow_overflow_monitor is not None:
             underflow_overflow_monitor.close()
 
