@@ -24,9 +24,12 @@ visualize your annotations and predictions.
 
 ## News
 
-- 2026-06-15: ⚡ **EdgeCrafter Object Detection:** Fine-tune compact EdgeCrafter ECViT
-  backbones with LTDETR for efficient
-  [object detection](https://docs.lightly.ai/train/stable/object_detection.html). ⚡
+- \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
+  2026-06-24: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
+  LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural
+  improvements! It supports using ECViT backbones from
+  [EdgeCrafter](https://arxiv.org/abs/2603.18739) and ONNX/TensorRT export for faster
+  inference!
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
   2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
@@ -77,17 +80,18 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 
 #### COCO Results
 
-| Implementation |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
-| :------------: | :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
-|  LightlyTrain  |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
-|  LightlyTrain  |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
-|  LightlyTrain  |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
-|  LightlyTrain  |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
-|  LightlyTrain  |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |  640×640   |
+|               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
+| :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
+|          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
+|          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
+|     **ltdetrv2-s-coco (NEW)**     |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
+|     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
+|   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
+|     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
+| dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |   640×640   |
+| dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |   640×640   |
+| dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
+| dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
 \*Picodet models are in preview and we report preliminary results.
 
@@ -107,7 +111,7 @@ if __name__ == "__main__":
     # Train with our most recent LT-DETRv2 detector based on DINOv3 and EdgeCrafter.
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="ltdetrv2-s",
+        model="ltdetrv2-s-coco",
         data={
             "path": "my_data_dir",
             "train": "images/train",
@@ -124,7 +128,7 @@ if __name__ == "__main__":
     # Load model and run inference
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
     # Or use one of the models provided by LightlyTrain
-    # model = lightly_train.load_model("ltdetrv2-s")
+    # model = lightly_train.load_model("ltdetrv2-s-coco")
     results = model.predict("image.jpg")
     results["labels"]   # Class labels, tensor of shape (num_boxes,)
     results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
