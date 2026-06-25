@@ -50,12 +50,10 @@ After pretraining, the exported DINOv2 backbone can be loaded into downstream ta
 models via the `backbone_weights` argument. Refer to the following pages for fine-tuning
 instructions and example code:
 
-- [Object Detection](#object-detection-pretrain-finetune) — fine-tune a DINOv2-based
-  LTDETR model; supports loading custom pretrained backbone weights via
-  `backbone_weights`.
-- [Semantic Segmentation](#semantic-segmentation-pretrain-finetune) — fine-tune a
-  DINOv2-based EoMT model; supports loading custom pretrained backbone weights via
-  `backbone_weights`.
+- [Object Detection](#object-detection) — fine-tune a DINOv2-based LTDETR model;
+  supports loading custom pretrained backbone weights via `backbone_weights`.
+- [Semantic Segmentation](#semantic-segmentation) — fine-tune a DINOv2-based EoMT model;
+  supports loading custom pretrained backbone weights via `backbone_weights`.
 - [Instance Segmentation](#instance-segmentation) — fine-tune a DINOv2-based EoMT model.
 - [Panoptic Segmentation](#panoptic-segmentation) — fine-tune a DINOv2-based EoMT model.
 - [Image Classification](#image-classification) — fine-tune a DINOv2 backbone for
