@@ -310,8 +310,6 @@ class DepthAnythingDepthEstimation(TaskModel):
         self._preprocess: str = config["preprocess"]
         self._align_corners: bool = bool(config["align_corners"])
         self._scale_mode: str = config["scale_mode"]
-        if self._preprocess == "dav3":
-            self.process_res_method = _PROCESS_RES_METHOD_DAV3
 
         net_args = dict(config["model_args"])
         if model_args is not None:
