@@ -23,11 +23,8 @@ import torch
 from torch import Tensor
 
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.dinov2_dav3_metric_depth_estimation.task_model import (
-    DepthAnythingV3MetricDepthEstimation,
-)
-from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model import (
-    DepthAnythingV3RelativeDepthEstimation,
+from lightly_train._task_models.depth_estimation.task_model import (
+    DepthAnythingDepthEstimation,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,13 +41,9 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
     },
 }
 
-_MODEL_CLASSES: dict[
-    str,
-    type[DepthAnythingV3MetricDepthEstimation]
-    | type[DepthAnythingV3RelativeDepthEstimation],
-] = {
-    "dinov2/dav3-relative-large": DepthAnythingV3RelativeDepthEstimation,
-    "dinov2/dav3-metric-large": DepthAnythingV3MetricDepthEstimation,
+_MODEL_CLASSES: dict[str, type[DepthAnythingDepthEstimation]] = {
+    "dinov2/dav3-relative-large": DepthAnythingDepthEstimation,
+    "dinov2/dav3-metric-large": DepthAnythingDepthEstimation,
 }
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is
@@ -175,8 +168,7 @@ def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
 
 
 def _load_official_weights(
-    model: DepthAnythingV3MetricDepthEstimation
-    | DepthAnythingV3RelativeDepthEstimation,
+    model: DepthAnythingDepthEstimation,
     path: Path,
 ) -> None:
     state_dict = _load_state_dict_file(path)

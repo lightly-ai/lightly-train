@@ -13,8 +13,8 @@ import pytest
 import torch
 from PIL import Image
 
-from lightly_train._task_models.dinov2_depth_anything_depth_estimation import task_model
-from lightly_train._task_models.dinov2_depth_anything_depth_estimation.task_model import (
+from lightly_train._task_models.depth_estimation import task_model
+from lightly_train._task_models.depth_estimation.task_model import (
     DepthAnythingDepthEstimation,
 )
 
@@ -46,9 +46,9 @@ def _build(model_name: str, **overrides: Any) -> DepthAnythingDepthEstimation:
         model_args=model_args,
         load_weights=False,
     )
-    # Production fixes the inference size per model; override it here so inference runs
+    # Production fixes the image size per model; override it here so inference runs
     # at a tiny resolution and the tests stay fast.
-    model.inference_size = 56
+    model.image_size = 56
     return model
 
 
