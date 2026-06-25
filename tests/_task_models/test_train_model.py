@@ -94,12 +94,11 @@ def test_clip_gradients__returns_total_norm(gradient_clip_val: float) -> None:
     )
 
 
-def test_clip_gradients__returns_none_when_no_gradients() -> None:
-    """clip_gradients still returns a (zero) norm tensor when gradients are absent.
+def test_clip_gradients__returns_zero_norm_when_no_gradients() -> None:
+    """clip_gradients returns a zero-norm tensor when no parameter has a gradient.
 
-    Fabric's clip_gradients_norm delegates to torch.nn.utils.clip_grad_norm_, which
-    returns 0.0 for parameters without gradients. This confirms the method always
-    returns a tensor rather than None for task models.
+    Mirrors the behavior of torch.nn.utils.clip_grad_norm_ for parameter
+    lists where no gradient is present.
     """
     train_model = _make_train_model(gradient_clip_val=3.0)
     fabric = Fabric(accelerator="cpu", devices=1)
@@ -112,3 +111,45 @@ def test_clip_gradients__returns_none_when_no_gradients() -> None:
 
     assert returned_norm is not None
     assert float(returned_norm) == pytest.approx(0.0)
+
+
+def test_clip_gradients__disabled_does_not_mutate_gradients() -> None:
+    """Regression: when clipping is disabled, clip_gradients must not modify grads.
+
+    Previously clip_gradients called clip_grad_norm_(max_norm=inf) on every step
+    to obtain the norm for logging. With a non-finite gradient, the internal
+    clip coefficient became nan and was multiplied into every gradient, silently
+    corrupting the training state. The fix computes the total norm without
+    clipping or otherwise touching the gradients.
+    """
+    train_model = _make_train_model(gradient_clip_val=0.0)
+    fabric = Fabric(accelerator="cpu", devices=1)
+    train_model, optimizer = fabric.setup(
+        train_model, torch.optim.SGD(train_model.parameters(), lr=1e-3)
+    )
+
+    # Forward + backward to populate finite grads via autograd.
+    images = torch.randn(2, 3, 14, 14)
+    targets = torch.tensor([0, 1])
+    logits = train_model.forward(images)
+    loss = torch.nn.functional.cross_entropy(logits, targets)
+    fabric.backward(loss)
+
+    params_with_grad = [p for p in train_model.parameters() if p.grad is not None]
+    assert params_with_grad, "backward should have populated at least one grad"
+
+    # Inject a non-finite grad into one parameter (in-place, autograd-safe).
+    params_with_grad[0].grad.fill_(float("inf"))
+    grad_snapshots = [p.grad.detach().clone() for p in params_with_grad]
+
+    returned_norm = train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
+
+    assert returned_norm is not None
+    assert not torch.isfinite(returned_norm), (
+        f"Expected a non-finite returned norm for an inf grad, got "
+        f"{float(returned_norm)}"
+    )
+    for p, snapshot in zip(params_with_grad, grad_snapshots):
+        assert torch.equal(p.grad, snapshot), (
+            "clip_gradients must not mutate gradients when clipping is disabled"
+        )

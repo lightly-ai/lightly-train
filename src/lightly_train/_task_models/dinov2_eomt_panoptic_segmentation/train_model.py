@@ -652,13 +652,15 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
 
     def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
         gradient_clip_val = self.model_args.gradient_clip_val
-        max_norm = gradient_clip_val if gradient_clip_val > 0 else float("inf")
-        return fabric.clip_gradients(
-            module=self,
-            optimizer=optimizer,
-            max_norm=max_norm,
-            error_if_nonfinite=False,
-        )
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
+                module=self,
+                optimizer=optimizer,
+                max_norm=gradient_clip_val,
+                error_if_nonfinite=False,
+            )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return self._total_gradient_norm()
 
 
 def _mark_ignore_regions(

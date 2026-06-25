@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
+import torch
 from lightning_fabric import Fabric
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -119,6 +120,20 @@ class TrainModel(Module):
         # the norm-based clipping algorithm is used, otherwise None. Returning None
         # here means that the gradient norm is not logged for this model.
         return None
+
+    def _total_gradient_norm(self) -> Tensor:
+        # Total L2 gradient norm across all parameters with a grad, computed
+        # without clipping or otherwise mutating the gradients. Returns 0.0
+        # when no parameter currently has a gradient.
+        total_sq = torch.zeros(1)
+        found = False
+        for p in self.parameters():
+            if p.grad is not None:
+                total_sq = total_sq + p.grad.detach().pow(2).sum()
+                found = True
+        if not found:
+            return torch.tensor(0.0)
+        return total_sq.sqrt()
 
     def on_train_batch_end(self) -> None:
         pass

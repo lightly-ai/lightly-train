@@ -9,6 +9,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+<<<<<<< HEAD
+||||||| parent of feccfc0b (fix: address review comments on gradient norm logging)
+- Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
+  console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
+  Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
+  enabled and an unbounded norm otherwise.
+
+=======
+- Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
+  console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
+  Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
+  enabled and the total gradient norm computed without clipping otherwise.
+
+>>>>>>> feccfc0b (fix: address review comments on gradient norm logging)
 ### Changed
 
 ### Deprecated
