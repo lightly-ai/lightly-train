@@ -53,7 +53,9 @@ def _make_train_model(gradient_clip_val: float) -> ImageClassificationTrain:
         train_transform_args=train_transform_args,
         val_transform_args=val_transform_args,
         load_weights=False,
-        metric_args=MulticlassClassificationTaskMetricArgs(),
+        metric_args=MulticlassClassificationTaskMetricArgs(
+            accuracy=None, f1=None, precision=None, recall=None
+        ),
         gradient_accumulation_steps=1,
     )
 
