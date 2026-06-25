@@ -50,6 +50,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   the default training schedule is `266_112` steps (6x ECDet-S, ~72 epochs at batch size
   32), `backbone_lr_factor` is now `0.05` (was `1e-2`), and `lr_warmup_steps` defaults
   to `"auto"` so short runs no longer warm up for longer than they train.
+- Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
+  console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
+  Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
+  enabled and an unbounded norm otherwise.
 
 ## [0.15.1] - 2026-05-28
 
