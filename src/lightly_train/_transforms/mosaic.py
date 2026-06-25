@@ -101,7 +101,7 @@ class MosaicTransform:
         new_height, new_width = resized_img.shape[:2]
         resized_masks = (
             _resize_masks(binary_masks, new_height, new_width)
-            if binary_masks is not None
+            if with_masks
             else _empty_masks(new_height, new_width)
         )
 
