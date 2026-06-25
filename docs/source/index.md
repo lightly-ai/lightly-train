@@ -282,6 +282,7 @@ embed
 Settings <settings/train_settings>
 data/index
 performance/index
+Debugging <debugging/model_instability>
 docker
 tutorials/index
 python_api/index
