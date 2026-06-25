@@ -55,6 +55,8 @@ from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._debug.debug_args import DebugArgs, get_debug_args
+from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
@@ -98,6 +100,7 @@ def train_image_classification(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train an image classification model.
 
@@ -273,6 +276,7 @@ def train_image_classification_multihead(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train an image classification model with multiple classification heads.
 
@@ -417,6 +421,7 @@ def train_instance_segmentation(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train an instance segmentation model.
 
@@ -576,6 +581,7 @@ def train_object_detection(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train an object detection model.
 
@@ -735,6 +741,7 @@ def train_panoptic_segmentation(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train a panoptic segmentation model.
 
@@ -895,6 +902,7 @@ def train_semantic_segmentation(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train a semantic segmentation model.
 
@@ -1053,6 +1061,7 @@ def train_semantic_segmentation_multihead(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     """Train a multi-head semantic segmentation model.
 
@@ -1181,6 +1190,7 @@ def _train_task(
     save_checkpoint_args: dict[str, Any] | None = None,
     torch_compile_args: dict[str, Any] | None = None,
     gradient_accumulation_steps: int | Literal["auto"] = "auto",
+    debug_args: dict[str, Any] | None = None,
 ) -> None:
     kwargs = locals()
     kwargs.pop("config_cls")
@@ -1385,6 +1395,23 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_model_cls=train_model_cls,
             torch_compile_args=config.torch_compile_args,
         )
+        config.debug_args = get_debug_args(debug_args=config.debug_args)
+        debug_enabled = config.debug_args.is_underflow_overflow_enabled()
+        # torch.compile and DebugUnderflowOverflow are mutually exclusive. Forward
+        # hooks and per-tensor reductions used for debugging do not interact well
+        # with compiled graphs.
+        if debug_enabled:
+            if not config.torch_compile_args.disable:
+                raise ValueError(
+                    "torch.compile cannot be used together with underflow/overflow "
+                    "debugging. Set torch_compile_args.disable=True or disable "
+                    "underflow/overflow debugging (debug_args.underflow_overflow"
+                    ".enabled=False)."
+                )
+            logger.warning(
+                "torch.compile is disabled because underflow/overflow debugging "
+                "is enabled."
+            )
 
         # Resolve transform args in a single pass now that we know the
         # dataloader length and gradient accumulation steps (required for
@@ -1480,6 +1507,18 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_model, optimizer
         )
         train_model, optimizer = train_model_optimizer
+
+        # Attach underflow/overflow debugger after Fabric setup so that forward hooks
+        # are registered on the device-placed model. Disabled by default.
+        underflow_overflow_monitor: UnderflowOverflowMonitor | None = None
+        if debug_enabled:
+            assert config.debug_args.underflow_overflow is not None
+            underflow_overflow_monitor = UnderflowOverflowMonitor(
+                model=train_model,
+                debug_args=config.debug_args.underflow_overflow,
+                out_dir=out_dir,
+                global_rank=fabric.global_rank,
+            )
 
         logger.info(
             f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
@@ -1592,6 +1631,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             ) == 0
 
             timer.start_step("train_step")
+
+            # Advance the underflow/overflow debugger to the current step so that
+            # batch numbering, tracing, and abort logic are aligned with the
+            # LightlyTrain training step.
+            if underflow_overflow_monitor is not None:
+                underflow_overflow_monitor.set_step(step=step)
 
             train_transform.set_step(step)
             train_collate_fn.set_step(step)
@@ -1841,6 +1886,10 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         timer.stop()
         logger.info("Training completed.")
 
+        # Close the underflow/overflow debug log file if debugging was enabled.
+        if underflow_overflow_monitor is not None:
+            underflow_overflow_monitor.close()
+
 
 class TrainTaskConfig(PydanticConfig):
     out: PathLike
@@ -1877,6 +1926,7 @@ class TrainTaskConfig(PydanticConfig):
     save_checkpoint_args: dict[str, Any] | TaskSaveCheckpointArgs | None = None
     torch_compile_args: dict[str, Any] | TorchCompileArgs | None = None
     gradient_accumulation_steps: int | Literal["auto"] = "auto"
+    debug_args: dict[str, Any] | DebugArgs | None = None
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
