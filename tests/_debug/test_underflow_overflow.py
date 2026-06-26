@@ -176,7 +176,9 @@ class TestUnderflowOverflowMonitor:
         model = _FiniteToyModel()
         monitor = make_monitor(
             model=model,
-            debug_args=DebugUnderflowOverflowArgs(enabled=True, abort_after_batch_num=1),
+            debug_args=DebugUnderflowOverflowArgs(
+                enabled=True, abort_after_batch_num=1
+            ),
         )
         monitor.set_step(2)
 
