@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import inspect
 import logging
 import os
 import urllib.parse
@@ -39,14 +40,6 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     #### Object Detection
-    "dinov2/vits14-noreg-ltdetr-coco": (
-        "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt",
-        "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717",
-    ),
-    "dinov2/vits14-ltdetr-dsp-coco": (
-        "dinov2_vits14_ltdetr_dsp_coco_251218_fa435184.pt",
-        "fa435184c775205469056f46456941ea271266ee522c656642853d061317f8ae",
-    ),
     "dinov3/vitt16-ltdetr-coco": (
         "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt",
         "dfd34210a1a3375793d149a55d9b49e6e8b783458bdd4cd76fd28fa2d61dbb37",
@@ -325,6 +318,14 @@ def init_model_from_checkpoint(
     model_class = getattr(module, class_name)
     model_init_args = checkpoint["model_init_args"]
     model_init_args["load_weights"] = False
+
+    # Backward compat: checkpoints exported before decoder_name was introduced don't
+    # include it in model_init_args. If the class accepts decoder_name but the checkpoint
+    # omits it, default to "rtdetrv2" (the decoder used before "dfine" became the default).
+    if "decoder_name" not in model_init_args and "decoder_name" in inspect.signature(
+        model_class.__init__
+    ).parameters:
+        model_init_args["decoder_name"] = "rtdetrv2"
 
     # Create model instance
     model: TaskModel = model_class(**model_init_args)
