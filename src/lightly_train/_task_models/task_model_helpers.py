@@ -319,12 +319,14 @@ def init_model_from_checkpoint(
     model_init_args = checkpoint["model_init_args"]
     model_init_args["load_weights"] = False
 
-    # Backward compat: checkpoints exported before decoder_name was introduced don't
-    # include it in model_init_args. If the class accepts decoder_name but the checkpoint
-    # omits it, default to "rtdetrv2" (the decoder used before "dfine" became the default).
-    if "decoder_name" not in model_init_args and "decoder_name" in inspect.signature(
-        model_class.__init__
-    ).parameters:
+    # Backward compat: This is similar to the fix in dinov3_ltdetr_object_detection/train_model.py:210–226
+    # and should be fixed together
+    # TODO(TRN-2243): Replace this compatibility shim with separate
+    # LTDETRv2/LTDETRv3 taskmodel args classes once the config split lands.
+    if (
+        "decoder_name" not in model_init_args
+        and "decoder_name" in inspect.signature(model_class.__init__).parameters
+    ):
         model_init_args["decoder_name"] = "rtdetrv2"
 
     # Create model instance
