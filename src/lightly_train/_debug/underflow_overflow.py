@@ -64,7 +64,7 @@ class _LightlyDebugUnderflowOverflow(DebugUnderflowOverflow):
         # Sentinel used by ``forward_hook`` to detect a new batch; the upstream class
         # only ever sets it via the root-module hook, which never fires here.
         self._prev_batch_number = -1
-        super().__init__(
+        super().__init__(  # type: ignore[no-untyped-call]
             model=model,
             max_frames_to_save=max_frames_to_save,
             trace_batch_nums=trace_batch_nums,
