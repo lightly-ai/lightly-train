@@ -323,6 +323,17 @@ def get_scaling_info(
     return ScalingInfo(dataset_size=dataset_size, epochs=epochs)
 
 
+def get_num_epochs(
+    epochs: int | str,
+) -> int:
+    if epochs == "auto":
+        raise NotImplementedError("'auto' epochs is not implemented yet.")
+    if not isinstance(epochs, int) or epochs <= 0:
+        raise ValueError(
+            f"epochs must be a positive integer, got {epochs} of type {type(epochs)}."
+        )
+
+
 def get_method_args(
     method_cls: type[Method],
     method_args: dict[str, Any] | MethodArgs | None,
