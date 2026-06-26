@@ -25,14 +25,34 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
-from lightly_train._task_models.dinov3_ltdetr.task_model import (
-    _DINOv3LTDETRBase,
-    _DINOv3LTDETRConfig,
-    _LTDETRDecoderName,
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
+from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBase
+from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+    DINOv3ConvNextWrapper,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+    DINOv3STAs,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
     DFINETransformer,
+)
+from lightly_train._task_models.object_detection_components.hybrid_encoder import (
+    HybridEncoder,
 )
 from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
     RTDETRPostProcessor,
@@ -57,41 +77,54 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: _LTDETRDecoderName = "dfine",
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
 
         Args:
             model_name:
-                The model name. For example ``"vitt16-ltdetr"``.
+                The model name. For example ``"dinov3/vits16-ltdetr"``.
             classes:
                 A dict mapping class IDs to class names.
             image_size:
                 The input image size.
             patch_size:
-                Patch size used to initialize the DINOv3 backbone. This is stored in
-                ``init_args`` so exported checkpoints can be reconstructed with the
-                same backbone patch size.
+                Override for the backbone patch size used in ``resolve_auto``
+                (stride computation). If None, the value from the model config's
+                ``backbone_args`` is used.
             image_normalize:
                 A dict containing normalization statistics with the keys ``"mean"``
                 and ``"std"``.
             backbone_freeze:
                 Whether to freeze the backbone during training.
             backbone_weights:
-                Path to the DINOv3 backbone weights.
+                Path to the backbone weights.
             backbone_args:
-                Additional arguments to pass to the DINOv3 backbone.
+                Additional arguments merged into the backbone model args (override
+                config defaults).
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
-        super().__init__(init_args=locals(), ignore_args={"load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
+        # Bypass _DINOv3LTDETRBase.__init__ (old config system) and call
+        # TaskModel.__init__ directly to store init_args for checkpointing.
+        super(_DINOv3LTDETRBase, self).__init__(
+            init_args=locals(), ignore_args={"load_weights"}
+        )
 
+        config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+
+        parsed_name = self.parse_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.image_size = image_size
         self.classes = classes
         self.backbone_freeze = backbone_freeze
+
+        if backbone_freeze:
+            config.backbone_wrapper.finetune = False
+
+        # Use the config's baked-in patch_size unless the caller overrides it.
+        patch_size = patch_size or config.backbone_args.get("patch_size")
+        config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -112,43 +145,17 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
 
         self.image_normalize = image_normalize
 
-        # Resolve the backbone's expected input channel count. For the DINOv3
-        # package we follow the same precedence as DINOV3_PACKAGE.get_model:
-        # backbone_args["in_chans"] overrides image_normalize, which overrides
-        # the DINOv3 default of 3. The EdgeCrafter (ECViT) package does not
-        # support multi-channel input, so we always force 3 there.
-        package_name = parsed_name["package_name"]
-        if package_name == EDGE_CRAFTER_PACKAGE.name:
-            self._expected_input_channels: int = 3
-            # ECViT only supports patch_size=16 (the ECViT-NN uses a
-            # ConvPyramidPatchEmbed that raises NotImplementedError otherwise).
-            # We hard-code it here so the decoder's `config.resolve_auto`
-            # below resolves to the correct `[8, 16, 32]` strides regardless
-            # of whether the caller passed `patch_size=16` explicitly or
-            # relied on the default `None`. The `backbone_model_args` dict
-            # built next is discarded for EdgeCrafter (we pass
-            # `model_args=None` to EDGE_CRAFTER_PACKAGE.get_model), so this
-            # only affects the decoder strides.
-            if patch_size is not None and patch_size != 16:
-                raise ValueError(
-                    f"ECViT (EdgeCrafter) backbones only support "
-                    f"patch_size=16, but got patch_size={patch_size} for "
-                    f"model {model_name!r}. Remove the `patch_size` argument "
-                    "(or set it to 16) to use this model."
-                )
-            patch_size = 16
-        elif backbone_args is not None and "in_chans" in backbone_args:
-            self._expected_input_channels = backbone_args["in_chans"]
+        # Resolve the backbone's expected input channel count.
+        # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
+        if backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels: int = backbone_args["in_chans"]
         elif self.image_normalize is not None:
             self._expected_input_channels = len(self.image_normalize["mean"])
         else:
             self._expected_input_channels = 3
 
-        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
-        # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
-            "patch_size": patch_size,
-        }
+        # Build backbone model args: start from config defaults, then apply overrides.
+        backbone_model_args: dict[str, Any] = dict(config.backbone_args)
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
@@ -158,9 +165,9 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         if self.image_normalize is not None:
             get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
 
-        # Get the backbone. ECViT lives in its own package and is loaded via
-        # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
-        # and ignores `patch_size`/`weights` in model_args).
+        package_name = parsed_name["package_name"]
+
+        # ECViT lives in its own package and rejects model_args entirely.
         if package_name == EDGE_CRAFTER_PACKAGE.name:
             backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
                 EDGE_CRAFTER_PACKAGE.get_model(
@@ -180,61 +187,19 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
         )
 
-        # Map preset name -> (config_cls, config_name_strip_suffixes). For
-        # ECViT we strip no suffixes (the preset names are bare) and route
-        # through the DINOv3 ViT-shaped configs that match the wrapper's
-        # `proj_dim` (the per-level channel count the wrapper actually emits).
-        config_mapping = {
-            "vitt16": _DINOv3LTDETRViTTConfig,
-            "vitt16plus": _DINOv3LTDETRViTTPlusConfig,
-            "vits16": _DINOv3LTDETRViTSConfig,
-            "vitb16": _DINOv3LTDETRViTBConfig,
-            "vitl16": _DINOv3LTDETRViTLConfig,
-            "convnext-tiny": _DINOv3LTDETRTinyConfig,
-            "convnext-small": _DINOv3LTDETRSmallConfig,
-            "convnext-base": _DINOv3LTDETRBaseConfig,
-            "convnext-large": _DINOv3LTDETRLargeConfig,
-            # ECViT presets (EdgeCrafter). Reuse the DINOv3 ViT-shaped configs
-            # that match the wrapper's proj_dim:
-            #   ecvitt         -> proj_dim 192 -> ViTT
-            #   ecvittplus     -> proj_dim 256 -> ViTTPlus
-            #   ecvits         -> proj_dim 256 -> ViTTPlus (embed_dim=384 is
-            #                     projected down to 256 by ECViTModelWrapper)
-            #   ecvitsplus     -> proj_dim 256 -> ViTTPlus
-            "ecvitt": _DINOv3LTDETRViTTConfig,
-            "ecvittplus": _DINOv3LTDETRViTTPlusConfig,
-            "ecvits": _DINOv3LTDETRViTTPlusConfig,
-            "ecvitsplus": _DINOv3LTDETRViTTPlusConfig,
-        }
-        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
-        config_name = config_name.replace("-noreg", "")
-        config_name = config_name.replace("-eupe", "")
-        config_cls = config_mapping[config_name]
-        config = config_cls()
-        config.decoder_name = decoder_name
-
-        config.resolve_auto(patch_size=patch_size)
-
         self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
         if isinstance(backbone, ECViTModelWrapper):
-            # ECViT already fuses its own pyramid; no SpatialPriorModule
-            # (use_sta=False). The wrapper exposes (P3, P4, P5) with channel
-            # counts matching the encoder config's in_channels via `proj_dim`.
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
         elif isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
-
-            # ViT models.
             vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
             self.backbone = DINOv3STAs(
                 model_wrapper=vit_model_wrapper,
-                **config.backbone_wrapper.model_dump(),
+                **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
             )
-
         else:
-            # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
             convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
             self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
@@ -243,25 +208,25 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             **config.hybrid_encoder.model_dump()
         )
 
-        self.decoder = self.build_decoder(config=config)
-        self.postprocessor: Any = self.build_postprocessor(config=config)
+        transformer_cfg = config.transformer.model_dump()
+        transformer_cfg["num_classes"] = len(self.classes)
+        if config.transformer.decoder_name == "rtdetrv2":
+            self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(
+                **transformer_cfg, eval_spatial_size=self.image_size
+            )
+        else:
+            self.decoder = DFINETransformer(
+                **transformer_cfg, eval_spatial_size=self.image_size
+            )
+
+        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
+        postprocessor_cfg["num_classes"] = len(self.classes)
+        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
+            **postprocessor_cfg
+        )
 
         if self.backbone_freeze:
             self.freeze_backbone()
-    def build_decoder(
-        self, config: _DINOv3LTDETRConfig
-    ) -> RTDETRTransformerv2 | DFINETransformer:
-        return _build_decoder(
-            config=config,
-            decoder_name=config.decoder_name,
-            num_classes=len(self.classes),
-            image_size=self.image_size,
-        )
-
-    def build_postprocessor(self, config: _DINOv3LTDETRConfig) -> RTDETRPostProcessor:
-        postprocessor_config = config.rtdetr_postprocessor.model_dump()
-        postprocessor_config.update({"num_classes": len(self.classes)})
-        return RTDETRPostProcessor(**postprocessor_config)
 
     def get_export_output_names(self) -> list[str]:
         return ["labels", "boxes", "scores"]
@@ -778,28 +743,3 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             strongly_typed=True,
             verbose=verbose,
         )
-
-
-def _build_decoder(
-    *,
-    config: _DINOv3LTDETRConfig,
-    decoder_name: _LTDETRDecoderName,
-    num_classes: int,
-    image_size: tuple[int, int],
-) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder_name == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    elif decoder_name == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return DFINETransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")

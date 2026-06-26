@@ -18,7 +18,7 @@ from lightly_train._configs.model_registry import ModelRegistry
 logger = logging.getLogger(__name__)
 
 
-LTDETR_MODEL_REGISTRY: ModelRegistry[PydanticConfig] = ModelRegistry()
+LTDETR_MODEL_REGISTRY: ModelRegistry[DetectorConfig] = ModelRegistry()
 
 
 class HybridEncoderConfig(PydanticConfig):
@@ -616,6 +616,30 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTG
         )
 
+    class EdgeCrafterViTT(DetectorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.ViTT
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=RTDETRPostProcessorConfig
+        )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    class EdgeCrafterViTTPlus(DetectorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.ViTTPlus
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=RTDETRPostProcessorConfig
+        )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
 
 class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register(
@@ -667,7 +691,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTT
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-ltdetr-coco", "dinov3/vitt16plus-ltdetr"
@@ -676,7 +702,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTTPlus
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vits16-ltdetr-coco", "dinov3/vits16-ltdetr", "dinov3/vits16-eupe-ltdetr"
@@ -685,49 +713,63 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTS
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
     class DINOv3ViTB(LTDETRBaseConfig.ViTB):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTB
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTL(LTDETRBaseConfig.ViTL):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTL
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
     class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTS
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetr")
     class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTB
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetr")
     class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTL
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetr")
     class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTG
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
@@ -783,7 +825,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTT
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-ltdetrv2-coco",
@@ -793,7 +837,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTPlus
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vits16-ltdetrv2-coco",
@@ -804,7 +850,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTS
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitb16-ltdetrv2",
@@ -814,39 +862,75 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTB
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetrv2")
     class DINOv3ViTL(LTDETRBaseConfig.ViTL):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTL
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 16})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetrv2")
     class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTS
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetrv2")
     class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTB
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetrv2")
     class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTL
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetrv2")
     class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTG
         )
-        backbone_args: dict[str, Any] = Field(default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0})
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
+
+    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitt-ltdetr", "ltdetrv2-s")
+    class EdgeCrafterECViTT(LTDETRBaseConfig.EdgeCrafterViTT):
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTT
+        )
+
+    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvittplus-ltdetr", "ltdetrv2-m")
+    class EdgeCrafterECViTTPlus(LTDETRBaseConfig.EdgeCrafterViTTPlus):
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+        )
+
+    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr", "ltdetrv2-l")
+    class EdgeCrafterECViTS(LTDETRBaseConfig.EdgeCrafterViTTPlus):
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+        )
+
+    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-ltdetr", "ltdetrv2-x")
+    class EdgeCrafterECViTSPlus(LTDETRBaseConfig.EdgeCrafterViTTPlus):
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+        )
