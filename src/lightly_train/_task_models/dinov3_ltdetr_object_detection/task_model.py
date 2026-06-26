@@ -25,6 +25,15 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
+from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer,
+)
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _DINOv3LTDETRBase,
     _LTDETRDecoderName,
@@ -34,9 +43,21 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     DetectorConfig,
     RTDETRTransformerv2Config,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+    DINOv3ConvNextWrapper,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+    DINOv3STAs,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
+)
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
     DFINETransformer,
+)
+from lightly_train._task_models.object_detection_components.hybrid_encoder import (
+    HybridEncoder,
 )
 from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
     RTDETRPostProcessor,
@@ -44,25 +65,186 @@ from lightly_train._task_models.object_detection_components.rtdetr_postprocessor
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
+from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
-    def _get_detector_config(
+    def __init__(
         self,
-        canonical_model_name: str,
-        config_name: str,
-        decoder_name: _LTDETRDecoderName,
-        patch_size: int | None,
-    ) -> DetectorConfig:
-        registry_key = canonical_model_name
+        *,
+        model_name: str,
+        classes: dict[int, str],
+        image_size: tuple[int, int],
+        patch_size: int | None = None,
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
+        backbone_freeze: bool = False,
+        backbone_weights: PathLike | None = None,
+        backbone_args: dict[str, Any] | None = None,
+        decoder_name: _LTDETRDecoderName = "dfine",
+        load_weights: bool = True,
+    ) -> None:
+        """Create a DINOv3 LTDETR object detection model.
+
+        Args:
+            model_name:
+                The model name. For example ``"vitt16-ltdetr"``.
+            classes:
+                A dict mapping class IDs to class names.
+            image_size:
+                The input image size.
+            patch_size:
+                Patch size used to initialize the DINOv3 backbone. This is stored in
+                ``init_args`` so exported checkpoints can be reconstructed with the
+                same backbone patch size.
+            image_normalize:
+                A dict containing normalization statistics with the keys ``"mean"``
+                and ``"std"``.
+            backbone_freeze:
+                Whether to freeze the backbone during training.
+            backbone_weights:
+                Path to the DINOv3 backbone weights.
+            backbone_args:
+                Additional arguments to pass to the DINOv3 backbone.
+            load_weights:
+                If False, then no pretrained weights are loaded.
+        """
+        # Explicitly include __class__ in init_args because we call TaskModel.__init__
+        # directly (bypassing _DINOv3LTDETRBase.__init__), so Python doesn't create a
+        # __class__ cell variable that would normally appear in locals() via super().
+        TaskModel.__init__(
+            self,
+            init_args={**locals(), "__class__": DINOv3LTDETRObjectDetection},
+            ignore_args={"load_weights"},
+        )
+        parsed_name = self.parse_model_name(model_name=model_name)
+
+        self.model_name = parsed_name["model_name"]
+        self.image_size = image_size
+        self.classes = classes
+        self.backbone_freeze = backbone_freeze
+
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
+
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+
+        self.image_normalize = image_normalize
+
+        # Resolve the backbone's expected input channel count. For the DINOv3
+        # package we follow the same precedence as DINOV3_PACKAGE.get_model:
+        # backbone_args["in_chans"] overrides image_normalize, which overrides
+        # the DINOv3 default of 3. The EdgeCrafter (ECViT) package does not
+        # support multi-channel input, so we always force 3 there.
+        package_name = parsed_name["package_name"]
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            self._expected_input_channels: int = 3
+            # ECViT only supports patch_size=16 (the ECViT-NN uses a
+            # ConvPyramidPatchEmbed that raises NotImplementedError otherwise).
+            if patch_size is not None and patch_size != 16:
+                raise ValueError(
+                    f"ECViT (EdgeCrafter) backbones only support "
+                    f"patch_size=16, but got patch_size={patch_size} for "
+                    f"model {model_name!r}. Remove the `patch_size` argument "
+                    "(or set it to 16) to use this model."
+                )
+            patch_size = 16
+        elif backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels = backbone_args["in_chans"]
+        elif self.image_normalize is not None:
+            self._expected_input_channels = len(self.image_normalize["mean"])
+        else:
+            self._expected_input_channels = 3
+
+        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
+        # set by DINOv3.
+        backbone_model_args: dict[str, Any] = {
+            "patch_size": patch_size,
+        }
+        if backbone_args is not None:
+            backbone_model_args.update(backbone_args)
+        if backbone_weights is not None:
+            backbone_model_args["weights"] = str(backbone_weights)
+
+        get_model_kwargs = {}
+        if self.image_normalize is not None:
+            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+
+        # Get the backbone. ECViT lives in its own package and is loaded via
+        # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
+        # and ignores `patch_size`/`weights` in model_args).
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
+                EDGE_CRAFTER_PACKAGE.get_model(
+                    model_name=parsed_name["backbone_name"],
+                    model_args=None,
+                    load_weights=load_weights,
+                )
+            )
+        else:
+            backbone = DINOV3_PACKAGE.get_model(
+                model_name=parsed_name["backbone_name"],
+                model_args=backbone_model_args,
+                load_weights=load_weights,
+                **get_model_kwargs,
+            )
+        assert isinstance(
+            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+        )
+
+        # Look up the detector config from the model registry.
+        registry_key = parsed_name["model_name"]
         if decoder_name == "rtdetrv2":
-            registry_key = canonical_model_name + "-rtdetrv2"
+            registry_key = registry_key + "-rtdetrv2"
         config = DINOV3_LTDETR_MODEL_REGISTRY.get(registry_key)()
         config.resolve_auto(patch_size=patch_size)
-        return config
+
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+
+        if isinstance(backbone, ECViTModelWrapper):
+            # ECViT already fuses its own pyramid; no SpatialPriorModule
+            # (use_sta=False). The wrapper exposes (P3, P4, P5) with channel
+            # counts matching the encoder config's in_channels via `proj_dim`.
+            self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
+        elif isinstance(backbone, DinoVisionTransformer):
+            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+            backbone.mask_token.requires_grad = False  # type: ignore
+
+            # ViT models.
+            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
+            self.backbone = DINOv3STAs(
+                model_wrapper=vit_model_wrapper,
+                **config.backbone_wrapper.model_dump(),  # type: ignore[union-attr]
+            )
+        else:
+            # ConvNext models.
+            assert isinstance(backbone, ConvNeXt)
+            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
+
+        self.encoder: HybridEncoder = HybridEncoder(
+            **config.hybrid_encoder.model_dump()
+        )
+
+        self.decoder = self.build_decoder(config=config)
+        self.postprocessor: Any = self.build_postprocessor(config=config)
+
+        if self.backbone_freeze:
+            self.freeze_backbone()
 
     def build_decoder(
         self,
