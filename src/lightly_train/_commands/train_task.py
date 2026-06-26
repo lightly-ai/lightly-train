@@ -1634,7 +1634,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     )
 
             # Optimizer step and scheduler step.
-            train_model.clip_gradients(fabric=fabric, optimizer=optimizer)
+            # clip_gradients returns the total gradient norm before clipping. It is
+            # None for models that do not support gradient norm logging.
+            gradient_norm = train_model.clip_gradients(
+                fabric=fabric, optimizer=optimizer
+            )
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
@@ -1657,6 +1661,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     optimizer=optimizer, scheduler=scheduler
                 )
                 train_log_dict["learning_rate"] = current_lr
+                grad_norm_value = (
+                    float(gradient_norm.detach()) if gradient_norm is not None else None
+                )
+                if grad_norm_value is not None:
+                    train_log_dict["gradient_norm"] = grad_norm_value
 
                 helpers.log_step(
                     split="train",
@@ -1669,6 +1678,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     global_batch_size=effective_global_batch_size,
                     gradient_accumulation_steps=config.gradient_accumulation_steps,
                     learning_rate=current_lr,
+                    gradient_norm=grad_norm_value,
                 )
                 helpers.add_timer_logs(
                     timer_agg=timer_agg,
