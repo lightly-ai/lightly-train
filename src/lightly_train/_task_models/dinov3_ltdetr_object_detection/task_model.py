@@ -25,8 +25,8 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
+from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
-from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
@@ -113,8 +113,10 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
 
         config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
 
-        parsed_name = self.parse_model_name(model_name=model_name)
-        self.model_name = parsed_name["model_name"]
+        package_name, short_backbone = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        self.model_name = f"{config.backbone_name}-ltdetr"
         self.image_size = image_size
         self.classes = classes
         self.backbone_freeze = backbone_freeze
@@ -165,20 +167,20 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         if self.image_normalize is not None:
             get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
 
-        package_name = parsed_name["package_name"]
+        package = package_helpers.get_package(package_name)
 
         # ECViT lives in its own package and rejects model_args entirely.
         if package_name == EDGE_CRAFTER_PACKAGE.name:
             backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
-                EDGE_CRAFTER_PACKAGE.get_model(
-                    model_name=parsed_name["backbone_name"],
+                package.get_model(
+                    model_name=short_backbone,
                     model_args=None,
                     load_weights=load_weights,
                 )
             )
         else:
-            backbone = DINOV3_PACKAGE.get_model(
-                model_name=parsed_name["backbone_name"],
+            backbone = package.get_model(
+                model_name=short_backbone,
                 model_args=backbone_model_args,
                 load_weights=load_weights,
                 **get_model_kwargs,
