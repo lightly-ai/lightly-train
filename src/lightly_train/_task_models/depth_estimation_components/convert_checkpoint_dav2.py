@@ -69,19 +69,7 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
     },
 }
 
-# Task model class per (parsed) model name. The relative and metric models share the
-# official checkpoint layout and DPT shapes, so the same key remapping works for both.
-_MODEL_CLASSES: dict[str, type[DepthAnythingDepthEstimation]] = {
-    "dinov2/dav2-relative-small": DepthAnythingDepthEstimation,
-    "dinov2/dav2-relative-base": DepthAnythingDepthEstimation,
-    "dinov2/dav2-relative-large": DepthAnythingDepthEstimation,
-    "dinov2/dav2-metric-small-hypersim": DepthAnythingDepthEstimation,
-    "dinov2/dav2-metric-base-hypersim": DepthAnythingDepthEstimation,
-    "dinov2/dav2-metric-large-hypersim": DepthAnythingDepthEstimation,
-    "dinov2/dav2-metric-small-vkitti": DepthAnythingDepthEstimation,
-    "dinov2/dav2-metric-base-vkitti": DepthAnythingDepthEstimation,
-    "dinov2/dav2-metric-large-vkitti": DepthAnythingDepthEstimation,
-}
+_SUPPORTED_MODELS: frozenset[str] = frozenset(_HF_WEIGHTS)
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is never
 # read during depth inference. The official checkpoint stores it with shape (1, 1, C)
@@ -134,8 +122,7 @@ def convert_checkpoint(
             "complying with its license terms."
         )
 
-    model_cls = _MODEL_CLASSES[parsed_name]
-    model = model_cls(
+    model = DepthAnythingDepthEstimation(
         model_name=parsed_name,
         load_weights=False,
     )
@@ -216,11 +203,11 @@ def main() -> None:
 
 def _parse_model_name(model_name: str) -> str:
     key = model_name.lower()
-    if key in _MODEL_CLASSES:
+    if key in _SUPPORTED_MODELS:
         return key
     raise ValueError(
         f"Model name '{model_name}' is not supported. Available models are: "
-        f"{sorted(_MODEL_CLASSES)}."
+        f"{sorted(_SUPPORTED_MODELS)}."
     )
 
 

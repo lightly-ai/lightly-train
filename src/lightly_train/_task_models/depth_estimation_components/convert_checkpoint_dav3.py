@@ -41,10 +41,7 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
     },
 }
 
-_MODEL_CLASSES: dict[str, type[DepthAnythingDepthEstimation]] = {
-    "dinov2/dav3-relative-large": DepthAnythingDepthEstimation,
-    "dinov2/dav3-metric-large": DepthAnythingDepthEstimation,
-}
+_SUPPORTED_MODELS: frozenset[str] = frozenset(_HF_WEIGHTS)
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is
 # absent from the official inference checkpoints. It is never read during depth
@@ -72,8 +69,7 @@ def convert_checkpoint(
         The path to the exported checkpoint.
     """
     parsed_name = _parse_model_name(model_name)
-    model_cls = _MODEL_CLASSES[parsed_name]
-    model = model_cls(
+    model = DepthAnythingDepthEstimation(
         model_name=parsed_name,
         load_weights=False,
     )
@@ -147,11 +143,11 @@ def main() -> None:
 
 def _parse_model_name(model_name: str) -> str:
     key = model_name.lower()
-    if key in _MODEL_CLASSES:
+    if key in _SUPPORTED_MODELS:
         return key
     raise ValueError(
         f"Model name '{model_name}' is not supported. Available models are: "
-        f"{sorted(_MODEL_CLASSES)}."
+        f"{sorted(_SUPPORTED_MODELS)}."
     )
 
 
