@@ -531,9 +531,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTT
-        )
         backbone_args: dict[str, Any]
 
     class ViTTPlus(DetectorConfig):
@@ -542,9 +539,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
-        )
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTPlus
         )
         backbone_args: dict[str, Any]
 
@@ -555,9 +549,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTS
-        )
         backbone_args: dict[str, Any]
 
     class ViTB(DetectorConfig):
@@ -566,9 +557,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
-        )
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTB
         )
         backbone_args: dict[str, Any]
 
@@ -579,9 +567,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTL
-        )
         backbone_args: dict[str, Any]
 
     class ViTG(DetectorConfig):
@@ -591,54 +576,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTG
-        )
         backbone_args: dict[str, Any]
-
-    class DINOv2ViTS(ViTS):
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTS
-        )
-
-    class DINOv2ViTB(ViTB):
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTB
-        )
-
-    class DINOv2ViTL(ViTL):
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTL
-        )
-
-    class DINOv2ViTG(ViTG):
-        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTG
-        )
-
-    class EdgeCrafterViTT(DetectorConfig):
-        hybrid_encoder: HybridEncoderConfig = Field(
-            default_factory=LTDETRHybridEncoderConfig.ViTT
-        )
-        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
-        )
-        backbone_wrapper: CNNBackboneWrapperConfig = Field(
-            default_factory=CNNBackboneWrapperConfig
-        )
-        backbone_args: dict[str, Any] = Field(default_factory=dict)
-
-    class EdgeCrafterViTTPlus(DetectorConfig):
-        hybrid_encoder: HybridEncoderConfig = Field(
-            default_factory=LTDETRHybridEncoderConfig.ViTTPlus
-        )
-        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
-        )
-        backbone_wrapper: CNNBackboneWrapperConfig = Field(
-            default_factory=CNNBackboneWrapperConfig
-        )
-        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
 
 class LTDETRConfigRegistry(ConfigsNamespace):
@@ -691,6 +629,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTT
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTT
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
@@ -701,6 +642,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTTPlus
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTPlus
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
@@ -713,6 +657,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTS
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTS
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
@@ -721,6 +668,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTB(LTDETRBaseConfig.ViTB):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTB
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTB
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
@@ -731,41 +681,56 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTL
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTL
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
-    class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
+    class DINOv2ViTS(LTDETRBaseConfig.ViTS):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTS
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTS
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetr")
-    class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
+    class DINOv2ViTB(LTDETRBaseConfig.ViTB):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTB
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTB
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetr")
-    class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
+    class DINOv2ViTL(LTDETRBaseConfig.ViTL):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTL
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTL
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetr")
-    class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
+    class DINOv2ViTG(LTDETRBaseConfig.ViTG):
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTG
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTG
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
@@ -825,6 +790,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTT
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTT
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
@@ -836,6 +804,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
     class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTPlus
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
@@ -850,6 +821,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTS
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTS
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
@@ -862,6 +836,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTB
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTB
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
@@ -871,66 +848,97 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTL
         )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTL
+        )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetrv2")
-    class DINOv2ViTS(LTDETRBaseConfig.DINOv2ViTS):
+    class DINOv2ViTS(LTDETRBaseConfig.ViTS):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTS
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTS
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetrv2")
-    class DINOv2ViTB(LTDETRBaseConfig.DINOv2ViTB):
+    class DINOv2ViTB(LTDETRBaseConfig.ViTB):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTB
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTB
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetrv2")
-    class DINOv2ViTL(LTDETRBaseConfig.DINOv2ViTL):
+    class DINOv2ViTL(LTDETRBaseConfig.ViTL):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTL
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTL
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetrv2")
-    class DINOv2ViTG(LTDETRBaseConfig.DINOv2ViTG):
+    class DINOv2ViTG(LTDETRBaseConfig.ViTG):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTG
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTG
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitt-ltdetr", "ltdetrv2-s")
-    class EdgeCrafterECViTT(LTDETRBaseConfig.EdgeCrafterViTT):
+    class EdgeCrafterECViTT(LTDETRBaseConfig.ViTT):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTT
         )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvittplus-ltdetr", "ltdetrv2-m")
-    class EdgeCrafterECViTTPlus(LTDETRBaseConfig.EdgeCrafterViTTPlus):
+    class EdgeCrafterECViTTPlus(LTDETRBaseConfig.ViTTPlus):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTPlus
         )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr", "ltdetrv2-l")
-    class EdgeCrafterECViTS(LTDETRBaseConfig.EdgeCrafterViTTPlus):
+    class EdgeCrafterECViTS(LTDETRBaseConfig.ViTTPlus):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTPlus
         )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-ltdetr", "ltdetrv2-x")
-    class EdgeCrafterECViTSPlus(LTDETRBaseConfig.EdgeCrafterViTTPlus):
+    class EdgeCrafterECViTSPlus(LTDETRBaseConfig.ViTTPlus):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTPlus
         )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
