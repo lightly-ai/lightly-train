@@ -208,7 +208,10 @@ class DINOv3STAs(Module):
         **kwargs: Any,
     ) -> None:
         new_subprefix = prefix + "_model_wrapper._model."
-        for old_prefix_suffix, label in [("dinov3.", "DINOv3STAs"), ("dinov2.", "DINOv2")]:
+        for old_prefix_suffix, label in [
+            ("dinov3.", "DINOv3STAs"),
+            ("dinov2.", "DINOv2"),
+        ]:
             old_subprefix = prefix + old_prefix_suffix
             if any(k.startswith(old_subprefix) for k in state_dict):
                 logger.info(
@@ -218,7 +221,9 @@ class DINOv3STAs(Module):
                 for k in [
                     k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
                 ]:
-                    state_dict[new_subprefix + k[len(old_subprefix) :]] = state_dict.pop(k)
+                    state_dict[new_subprefix + k[len(old_subprefix) :]] = (
+                        state_dict.pop(k)
+                    )
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size

@@ -570,6 +570,29 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     assert result is postprocess_spy.spy_return
 
 
+def test_dinov2_backbone__uses_dinov3_ltdetr_wrapper() -> None:
+    from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+        DINOv3STAs,
+    )
+
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(224, 224),
+        load_weights=False,
+    )
+
+    assert isinstance(model.backbone, DINOv3STAs)
+    assert model.backbone.use_sta is False
+
+    model.eval()
+    with torch.no_grad():
+        outputs = model.forward_backend(torch.rand(1, 3, 224, 224))
+
+    assert outputs["pred_logits"].shape[0] == 1
+    assert outputs["pred_boxes"].shape[0] == 1
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

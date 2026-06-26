@@ -24,9 +24,6 @@ from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
-from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
-    DINOv2STAs,
-)
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
 )

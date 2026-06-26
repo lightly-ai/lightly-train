@@ -211,18 +211,22 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
                 vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
                 self.backbone = DINOv3STAs(
                     model_wrapper=vit_model_wrapper,
-                    **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
+                    **config.backbone_wrapper.model_dump(
+                        exclude={"conv_inplane_factor"}
+                    ),
                 )
             else:
                 assert isinstance(backbone, ConvNeXt)
                 convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-                self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
+                self.backbone = DINOv3ConvNextWrapper(
+                    model_wrapper=convnext_model_wrapper
+                )
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
         )
 
-        transformer_cfg = config.transformer.model_dump()
+        transformer_cfg = config.transformer.model_dump(exclude={"decoder_name"})
         transformer_cfg["num_classes"] = len(self.classes)
         if config.transformer.decoder_name == "rtdetrv2":
             self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
