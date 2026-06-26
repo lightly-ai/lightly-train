@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 import torch.nn as nn
+from torch.utils.hooks import RemovableHandle
 from transformers.debug_utils import DebugUnderflowOverflow
 
 from lightly_train._debug.debug_args import (
@@ -64,12 +65,46 @@ class _LightlyDebugUnderflowOverflow(DebugUnderflowOverflow):
         # Sentinel used by ``forward_hook`` to detect a new batch; the upstream class
         # only ever sets it via the root-module hook, which never fires here.
         self._prev_batch_number = -1
-        super().__init__(  # type: ignore[no-untyped-call]
-            model=model,
-            max_frames_to_save=max_frames_to_save,
-            trace_batch_nums=trace_batch_nums,
-            abort_after_batch_num=abort_after_batch_num,
-        )
+        # ``RemovableHandle``s returned by the per-module ``register_forward_hook``
+        # calls (issued via upstream ``register_forward_hook`` -> ``model.apply``)
+        # so :meth:`detach_hooks` removes only the hooks this monitor added,
+        # leaving any pre-existing forward hooks (user instrumentation, etc.)
+        # intact. Initialized before ``super().__init__`` because that triggers
+        # the registration.
+        self._handles: list[RemovableHandle] = []
+        try:
+            super().__init__(  # type: ignore[no-untyped-call]
+                model=model,
+                max_frames_to_save=max_frames_to_save,
+                trace_batch_nums=trace_batch_nums,
+                abort_after_batch_num=abort_after_batch_num,
+            )
+        except BaseException:
+            # ``super().__init__`` registers the hooks via ``model.apply`` and
+            # ``analyse_model`` can raise on malformed modules; if registration
+            # got partway, remove the handles we captured so far before letting
+            # the exception propagate.
+            self.detach_hooks()
+            raise
+
+    def _register_forward_hook(self, module: nn.Module) -> None:  # type: ignore[override]
+        # Override of upstream's per-module hook installer (called once per
+        # submodule by ``model.apply(self._register_forward_hook)`` inside
+        # :meth:`register_forward_hook`). Captures the returned handle instead
+        # of discarding it.
+        handle = module.register_forward_hook(self.forward_hook)  # type: ignore[no-untyped-call]
+        self._handles.append(handle)
+
+    def detach_hooks(self) -> None:
+        """Remove only the forward hooks registered by this monitor.
+
+        Iterates the captured :class:`RemovableHandle` list (see
+        :meth:`_register_forward_hook`). Safe to call when no hooks are
+        registered (empty list) or when called more than once.
+        """
+        for handle in self._handles:
+            handle.remove()
+        self._handles.clear()
 
     def forward_hook(self, module: Any, input: Any, output: Any) -> None:  # type: ignore[override]
         with contextlib.redirect_stdout(self._log_file):
@@ -170,9 +205,9 @@ class UnderflowOverflowMonitor:
                 abort_after_batch_num=debug_args.abort_after_batch_num,
             )
         except Exception:
-            # Hooks may have been registered before construction failed; clear them
-            # so the model is usable again, then close the log file.
-            self._detach_hooks(model)
+            # Hook cleanup is handled inside ``_LightlyDebugUnderflowOverflow``
+            # (its ``__init__`` self-cleans via ``detach_hooks``); here we only
+            # need to close the log file we opened.
             log_file.close()
             raise
 
@@ -205,13 +240,8 @@ class UnderflowOverflowMonitor:
         if self._closed:
             return
         self._closed = True
-        self._detach_hooks(self._hf.model)
+        self._hf.detach_hooks()
         self._log_file.close()
-
-    @staticmethod
-    def _detach_hooks(model: nn.Module) -> None:
-        for module in model.modules():
-            module._forward_hooks.clear()
 
 
 def check_compile_conflict(

@@ -194,3 +194,20 @@ class TestUnderflowOverflowMonitor:
         monitor.close()
 
         model(torch.randn(2, 4))
+
+    def test_close__preserves_preexisting_user_hooks(
+        self,
+        make_monitor: Callable[..., UnderflowOverflowMonitor],
+    ) -> None:
+        # Lock in Codex fix: monitor.close() must remove only the hooks it
+        # registered, leaving any pre-existing forward hooks (user
+        # instrumentation) attached and firing.
+        model = _FiniteToyModel()
+        seen: list[object] = []
+        model.lin.register_forward_hook(lambda _m, _i, o: seen.append(o))
+
+        monitor = make_monitor(model=model)
+        monitor.close()
+        model(torch.randn(2, 4))
+
+        assert len(seen) == 1

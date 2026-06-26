@@ -1508,6 +1508,13 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # the monitor's close() with atexit so the log file is closed and hooks are
         # detached even when an exception (including the ValueError the monitor itself
         # raises on overflow) propagates out of the training loop.
+        #
+        # Exception safety targets the CLI training path only: the ValueError must
+        # propagate to process exit so ``atexit`` runs and resources are released.
+        # Notebook/library callers that catch the monitor's ValueError around
+        # ``train_task(...)`` will leak the open log file and keep the forward
+        # hooks attached until interpreter shutdown; running fine-tuning with this
+        # debug tool in a notebook is not supported.
         underflow_overflow_monitor: UnderflowOverflowMonitor | None = None
         if config.debug_args.is_underflow_overflow_enabled():
             assert config.debug_args.underflow_overflow is not None
