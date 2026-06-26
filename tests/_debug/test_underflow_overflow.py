@@ -91,7 +91,7 @@ def make_monitor(
         monitor.close()
 
 
-def test_get_debug_args_parses_user_config() -> None:
+def test_get_debug_args__parses_user_config() -> None:
     assert get_debug_args(None).is_underflow_overflow_enabled() is False
 
     args = get_debug_args(
@@ -103,90 +103,92 @@ def test_get_debug_args_parses_user_config() -> None:
     assert args.underflow_overflow.max_frames_to_save == 5
 
 
-def test_get_debug_args_rejects_unknown_keys() -> None:
+def test_get_debug_args__rejects_unknown_keys() -> None:
     with pytest.raises(ConfigValidationError):
         get_debug_args({"underflow_overflow": {"nonexistent_key": 1}})
 
 
-def test_monitor_detects_overflow_and_writes_log(
-    tmp_path: Path,
-    make_monitor: Callable[..., UnderflowOverflowMonitor],
-) -> None:
-    model = _OverflowToyModel()
-    monitor = make_monitor(model=model, global_rank=3)
-    monitor.set_step(7)
-
-    with pytest.raises(ValueError, match="inf/nan detected"):
-        model(torch.randn(2, 4))
-
-    log = tmp_path / "debug" / "underflow_overflow_rank3.log"
-    assert log.exists()
-    text = log.read_text()
-    assert "Detected inf/nan" in text
-    assert "batch_number=7" in text
-    assert "lin2" in text
-
-
-def test_monitor_finite_model_does_not_abort(
-    make_monitor: Callable[..., UnderflowOverflowMonitor],
-) -> None:
-    model = _FiniteToyModel()
-    monitor = make_monitor(model=model)
-    monitor.set_step(0)
-
-    out = model(torch.randn(2, 4))
-
-    assert torch.isfinite(out).all()
-
-
-def test_monitor_trace_mode_writes_report_without_aborting(
-    tmp_path: Path,
-    make_monitor: Callable[..., UnderflowOverflowMonitor],
-) -> None:
-    model = _FiniteToyModel()
-    monitor = make_monitor(
-        model=model,
-        debug_args=DebugUnderflowOverflowArgs(enabled=True, trace_batch_nums=[2]),
-    )
-    monitor.set_step(2)
-
-    model(torch.randn(2, 4))
-
-    text = (tmp_path / "debug" / "underflow_overflow_rank0.log").read_text()
-    assert "abs min" in text
-    assert "lin" in text
-
-
-def test_monitor_abort_after_batch_num(
-    make_monitor: Callable[..., UnderflowOverflowMonitor],
-) -> None:
-    model = _FiniteToyModel()
-    monitor = make_monitor(
-        model=model,
-        debug_args=DebugUnderflowOverflowArgs(enabled=True, abort_after_batch_num=1),
-    )
-    monitor.set_step(2)
-
-    with pytest.raises(ValueError, match="aborting after batch"):
-        model(torch.randn(2, 4))
-
-
-def test_monitor_close_allows_later_forwards(
-    make_monitor: Callable[..., UnderflowOverflowMonitor],
-) -> None:
-    model = _FiniteToyModel()
-    monitor = make_monitor(model=model)
-    monitor.close()
-
-    model(torch.randn(2, 4))
-
-
-def test_compile_conflict_disabled_debug_allows_compile() -> None:
+def test_check_compile_conflict__disabled_debug_allows_compile() -> None:
     check_compile_conflict(DebugArgs(), TorchCompileArgs(disable=False))
 
 
-def test_compile_conflict_enabled_debug_with_compile_raises() -> None:
+def test_check_compile_conflict__enabled_debug_with_compile_raises() -> None:
     debug = DebugArgs(underflow_overflow=DebugUnderflowOverflowArgs(enabled=True))
 
     with pytest.raises(ValueError, match="torch.compile cannot be used"):
         check_compile_conflict(debug, TorchCompileArgs(disable=False))
+
+
+class TestUnderflowOverflowMonitor:
+    def test_detects_overflow_and_writes_log(
+        self,
+        tmp_path: Path,
+        make_monitor: Callable[..., UnderflowOverflowMonitor],
+    ) -> None:
+        model = _OverflowToyModel()
+        monitor = make_monitor(model=model, global_rank=3)
+        monitor.set_step(7)
+
+        with pytest.raises(ValueError, match="inf/nan detected"):
+            model(torch.randn(2, 4))
+
+        log = tmp_path / "debug" / "underflow_overflow_rank3.log"
+        assert log.exists()
+        text = log.read_text()
+        assert "Detected inf/nan" in text
+        assert "batch_number=7" in text
+        assert "lin2" in text
+
+    def test_finite_model_does_not_abort(
+        self,
+        make_monitor: Callable[..., UnderflowOverflowMonitor],
+    ) -> None:
+        model = _FiniteToyModel()
+        monitor = make_monitor(model=model)
+        monitor.set_step(0)
+
+        out = model(torch.randn(2, 4))
+
+        assert torch.isfinite(out).all()
+
+    def test_trace_mode_writes_report_without_aborting(
+        self,
+        tmp_path: Path,
+        make_monitor: Callable[..., UnderflowOverflowMonitor],
+    ) -> None:
+        model = _FiniteToyModel()
+        monitor = make_monitor(
+            model=model,
+            debug_args=DebugUnderflowOverflowArgs(enabled=True, trace_batch_nums=[2]),
+        )
+        monitor.set_step(2)
+
+        model(torch.randn(2, 4))
+
+        text = (tmp_path / "debug" / "underflow_overflow_rank0.log").read_text()
+        assert "abs min" in text
+        assert "lin" in text
+
+    def test_abort_after_batch_num(
+        self,
+        make_monitor: Callable[..., UnderflowOverflowMonitor],
+    ) -> None:
+        model = _FiniteToyModel()
+        monitor = make_monitor(
+            model=model,
+            debug_args=DebugUnderflowOverflowArgs(enabled=True, abort_after_batch_num=1),
+        )
+        monitor.set_step(2)
+
+        with pytest.raises(ValueError, match="aborting after batch"):
+            model(torch.randn(2, 4))
+
+    def test_close__allows_later_forwards(
+        self,
+        make_monitor: Callable[..., UnderflowOverflowMonitor],
+    ) -> None:
+        model = _FiniteToyModel()
+        monitor = make_monitor(model=model)
+        monitor.close()
+
+        model(torch.randn(2, 4))
