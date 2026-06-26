@@ -619,7 +619,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/vitt16-ltdetr-coco", "dinov3/vitt16-ltdetr", "dinov3/vitt16-eupe-ltdetr"
+        "dinov3/vitt16-ltdetr-coco",
+        "dinov3/vitt16-ltdetr",
+        "dinov3/vitt16-eupe-ltdetr",
+        "dinov3/vitt16-notpretrained-ltdetr",
     )
     class DINOv3ViTT(LTDETRBaseConfig.ViTT):
         backbone_name: str = "dinov3/vitt16"
