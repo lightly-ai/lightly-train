@@ -78,7 +78,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: Literal["rtdetrv2", "dfine"] = "dfine",
+        decoder_name: Literal["rtdetrv2", "dfine"] | None = None,
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
@@ -114,6 +114,12 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         )
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        transformer_config = config.transformer
+        if config.transformer.decoder_name != decoder_name:
+            # Use the decoder_name provided by the caller if it differs from the config's default.
+            transformer_config.decoder_name = (
+                decoder_name or config.transformer.decoder_name
+            )
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name
@@ -126,9 +132,19 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         if backbone_freeze:
             config.backbone_wrapper.finetune = False
 
-        # Use the config's baked-in patch_size unless the caller overrides it.
-        patch_size = patch_size or config.backbone_args.get("patch_size")
-        config.resolve_auto(patch_size=patch_size)
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            if patch_size is not None and patch_size != 16:
+                raise ValueError(
+                    f"ECViT (EdgeCrafter) backbones only support patch_size=16, "
+                    f"but got patch_size={patch_size} for model {model_name!r}."
+                )
+            patch_size = 16
+        else:
+            # Use the config's baked-in patch_size unless the caller overrides it.
+            patch_size = patch_size or config.backbone_args.get("patch_size")
+        config.backbone_wrapper.resolve_auto(patch_size=patch_size)
+        config.hybrid_encoder.resolve_auto(patch_size=patch_size)
+        transformer_config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -212,9 +228,9 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             **config.hybrid_encoder.model_dump()
         )
 
-        transformer_cfg = config.transformer.model_dump()
+        transformer_cfg = transformer_config.model_dump(exclude={"decoder_name"})
         transformer_cfg["num_classes"] = len(self.classes)
-        if config.transformer.decoder_name == "rtdetrv2":
+        if transformer_config.decoder_name == "rtdetrv2":
             self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
                 **transformer_cfg, eval_spatial_size=self.image_size
             )
