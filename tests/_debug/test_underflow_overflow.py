@@ -56,7 +56,7 @@ class _FiniteToyModel(nn.Module):
         self.lin = nn.Linear(4, 4)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.lin(x)
+        return self.lin(x)  # type: ignore[no-any-return]
 
 
 @pytest.fixture(autouse=True)
