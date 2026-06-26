@@ -26,6 +26,8 @@ from lightly_train._export.onnx_helpers import (
     remove_redundant_casts,
 )
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -171,14 +173,29 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
 
         package = package_helpers.get_package(package_name)
 
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+
         # ECViT lives in its own package and rejects model_args entirely.
         if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
-                package.get_model(
-                    model_name=short_backbone,
-                    model_args=None,
-                    load_weights=load_weights,
-                )
+            backbone = package.get_model(
+                model_name=short_backbone,
+                model_args=None,
+                load_weights=load_weights,
+            )
+            assert isinstance(backbone, ECViTModelWrapper)
+            self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
+        elif package_name == DINOV2_VIT_PACKAGE.name:
+            backbone = package.get_model(
+                model_name=short_backbone,
+                model_args=backbone_model_args,
+                load_weights=load_weights,
+                **get_model_kwargs,
+            )
+            backbone.mask_token.requires_grad = False  # type: ignore
+            dinov2_wrapper = DINOv2ViTModelWrapper(backbone)
+            self.backbone = DINOv3STAs(
+                model_wrapper=dinov2_wrapper,
+                **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
             )
         else:
             backbone = package.get_model(
@@ -187,26 +204,19 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
                 load_weights=load_weights,
                 **get_model_kwargs,
             )
-        assert isinstance(
-            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
-        )
-
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
-
-        if isinstance(backbone, ECViTModelWrapper):
-            self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
-        elif isinstance(backbone, DinoVisionTransformer):
-            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
-            backbone.mask_token.requires_grad = False  # type: ignore
-            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
-            self.backbone = DINOv3STAs(
-                model_wrapper=vit_model_wrapper,
-                **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
-            )
-        else:
-            assert isinstance(backbone, ConvNeXt)
-            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
+            assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
+            if isinstance(backbone, DinoVisionTransformer):
+                # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+                backbone.mask_token.requires_grad = False  # type: ignore
+                vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
+                self.backbone = DINOv3STAs(
+                    model_wrapper=vit_model_wrapper,
+                    **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
+                )
+            else:
+                assert isinstance(backbone, ConvNeXt)
+                convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+                self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()
