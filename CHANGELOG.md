@@ -9,6 +9,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.0] - 2026-06-25
+
+### Added
+
 - Add **LTDETRv2**, an improved object detection model that reaches 50.7
   mAP<sub>50:95</sub> on the COCO 2017 validation set (+1 mAP<sub>50:95</sub> over the
   previous LTDETR with a 55% shorter training schedule) and 5.4ms latency on an NVIDIA
