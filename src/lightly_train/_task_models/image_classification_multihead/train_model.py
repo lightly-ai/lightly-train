@@ -45,6 +45,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
 from lightly_train.types import ImageClassificationBatch, PathLike
 
 
@@ -325,7 +326,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 error_if_nonfinite=False,
             )
         # Clipping disabled: return the total norm for logging without mutating grads.
-        return self._total_gradient_norm()
+        return total_gradient_norm(self.parameters())
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:

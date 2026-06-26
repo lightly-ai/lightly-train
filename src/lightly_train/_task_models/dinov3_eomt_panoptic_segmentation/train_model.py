@@ -50,6 +50,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
 from lightly_train._visualize import panoptic_segmentation
 from lightly_train.types import (
     MaskPanopticSegmentationBatch,
@@ -667,7 +668,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 error_if_nonfinite=False,
             )
         # Clipping disabled: return the total norm for logging without mutating grads.
-        return self._total_gradient_norm()
+        return total_gradient_norm(self.parameters())
 
 
 def _mark_ignore_regions(

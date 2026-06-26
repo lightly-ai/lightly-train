@@ -69,3 +69,69 @@ def test_update_ema_tensors() -> None:
     assert [tensor.data_ptr() for tensor in ema_tensors] == ema_tensor_ptrs
     assert torch.equal(ema_tensors[0], torch.tensor([3.0, 4.0], dtype=torch.float32))
     assert torch.equal(ema_tensors[1], torch.tensor([5.0, 6.0], dtype=torch.float64))
+
+
+def test_total_gradient_norm__returns_total_norm() -> None:
+    """total_gradient_norm returns the L2 norm of all parameter gradients.
+
+    Mirrors torch.nn.utils.clip_grad_norm_ in its treatment of missing grads:
+    parameters with `grad is None` are skipped, the rest contribute their sum
+    of squares to the total.
+    """
+    # Grad on p1 contributes ||[1, 0]||^2 = 1.
+    p1 = nn.Parameter(torch.tensor([3.0, 4.0]))
+    p1.grad = torch.tensor([1.0, 0.0])
+    # Grad on p2 contributes ||[0, 1]||^2 = 1.
+    p2 = nn.Parameter(torch.tensor([0.0, 12.0]))
+    p2.grad = torch.tensor([0.0, 1.0])
+    # p3 has no grad and must be skipped.
+    p3 = nn.Parameter(torch.tensor([5.0]))
+    # Grad on p4 contributes ||[3]||^2 = 9.
+    p4 = nn.Parameter(torch.tensor([5.0]))
+    p4.grad = torch.tensor([3.0])
+
+    grad_snapshots = [p.grad.detach().clone() for p in (p1, p2, p4)]
+
+    norm = _torch_helpers.total_gradient_norm([p1, p2, p3, p4])
+
+    # total ||grad|| = sqrt(1 + 1 + 9) = sqrt(11)
+    assert torch.allclose(norm, torch.tensor(11.0).sqrt())
+    # Function must not mutate any input gradient.
+    for p, snapshot in zip((p1, p2, p4), grad_snapshots):
+        assert torch.equal(p.grad, snapshot)
+
+
+def test_total_gradient_norm__returns_zero_when_no_grads() -> None:
+    """total_gradient_norm returns 0.0 when no parameter has a gradient."""
+    p = nn.Parameter(torch.tensor([1.0, 2.0]))
+    assert p.grad is None
+
+    norm = _torch_helpers.total_gradient_norm([p])
+
+    assert float(norm) == 0.0
+
+
+def test_total_gradient_norm__non_cpu_grad_device() -> None:
+    """Regression for mrpositron's review on PR #811.
+
+    Previously the helper initialized the accumulator as `torch.zeros(1)` on CPU
+    and added `p.grad.detach().pow(2).sum()` to it, which raises a device
+    mismatch on GPU / MPS / meta. The fix lazily initializes the accumulator
+    from the first parameter's grad so it lives on the same device as the
+    gradients. We use the `meta` device so this regression test runs on
+    CPU-only CI (no GPU required). Elementwise comparison is not possible on
+    meta tensors (no `.item()`), so we only assert the device matches and the
+    result is a scalar; correctness on CPU is covered by
+    `test_total_gradient_norm__returns_total_norm`.
+    """
+    p1 = nn.Parameter(torch.empty(2, device="meta"))
+    p1.grad = torch.zeros(2, device="meta")
+    p2 = nn.Parameter(torch.empty(3, device="meta"))
+    p2.grad = torch.ones(3, device="meta")
+    p3 = nn.Parameter(torch.empty(4, device="meta"))  # no grad, skipped
+
+    norm = _torch_helpers.total_gradient_norm([p1, p2, p3])
+
+    assert norm.device.type == "meta"
+    assert norm.shape == torch.Size([])
+    assert norm.dtype.is_floating_point
