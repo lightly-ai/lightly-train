@@ -9,6 +9,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.1] - 2026-06-26
+
+### Added
+
 - Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
   console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
   Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
