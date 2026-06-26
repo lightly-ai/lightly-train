@@ -243,6 +243,57 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "use_sky_head": True,
         },
     },
+    # Trainable Depth Anything V3 relative-depth student on a DINOv2 ViT-S backbone. There
+    # is no official small V3 checkpoint, so this variant is built without hosted weights
+    # (the DINOv2-pretrained backbone is loaded separately during fine-tuning) and is used
+    # to distill the V3 ViT-L teacher. The sky head is sigmoid-activated so the output is a
+    # [0, 1] confidence map for BCE distillation. DPT sizing mirrors `dav2-relative-small`.
+    "dinov2/dav3-relative-small": {
+        "canonical_name": "dinov2/dav3-relative-small",
+        "backbone_name": "vits14-noreg",
+        "image_size": 504,
+        "preprocess": "dav3",
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 64,
+            "out_channels": (48, 96, 192, 384),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    # Test-only V3 config: the real ViT-S backbone with a tiny DPT head and a small
+    # processing resolution to keep depth fine-tuning tests fast on CPU. (The 2-block
+    # `_vittest14` backbone cannot feed the DPT, which needs four distinct intermediate
+    # layers.)
+    "dinov2/_vittest14-dav3": {
+        "canonical_name": "dinov2/_vittest14-dav3",
+        "backbone_name": "vits14-noreg",
+        "image_size": 70,
+        "preprocess": "dav3",
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            # Backbone img_size matches the DINOv2 checkpoint (pos_embed is interpolated
+            # to the actual processing resolution at forward time).
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 16,
+            "out_channels": (8, 16, 32, 32),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
 }
 
 
@@ -323,6 +374,12 @@ class DepthAnythingDepthEstimation(TaskModel):
         # per-config value as the default to stay reconstructable from old checkpoints.
         activation = str(net_args.get("activation", config["activation"]))
         use_sky_head = bool(net_args.get("use_sky_head", config["use_sky_head"]))
+        # The official V3 sky head is ReLU-activated (the DPT default). Trainable configs
+        # override this to "sigmoid" so the sky output is a [0, 1] confidence map suitable
+        # for BCE distillation and the `sky < 0.3` threshold in postprocessing.
+        sky_activation = str(
+            net_args.get("sky_activation", config.get("sky_activation", "relu"))
+        )
         if self._scale_mode == "max_depth":
             # Fixed maximum depth in meters that the sigmoid head output is scaled by.
             self.max_depth = float(net_args["max_depth"])
@@ -343,6 +400,10 @@ class DepthAnythingDepthEstimation(TaskModel):
         }
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
+        # Store the backbone construction so fine-tuning can re-fetch the same backbone
+        # with DINOv2-pretrained weights and copy them in.
+        self.backbone_name: str = config["backbone_name"]
+        self.backbone_model_args: dict[str, Any] = backbone_model_args
         self.backbone = DINOV2_VIT_PACKAGE.get_model(
             model_name=config["backbone_name"],
             model_args=backbone_model_args,
@@ -356,6 +417,7 @@ class DepthAnythingDepthEstimation(TaskModel):
             out_channels=tuple(net_args["out_channels"]),
             activation=activation,
             use_sky_head=use_sky_head,
+            sky_activation=sky_activation,
         )
 
         if load_weights:
@@ -554,6 +616,20 @@ class DepthAnythingDepthEstimation(TaskModel):
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+        """Loads weights from a training-export or converted checkpoint.
+
+        Training exports the full ``DepthEstimationTrain`` module, so the task-model
+        weights are nested under a ``model.`` prefix alongside criterion and metric
+        buffers; converted checkpoints store the bare task-model keys. When any
+        ``model.``-prefixed key is present, the prefix is stripped and all other keys
+        (criterion, metrics) are dropped; otherwise the state dict is loaded as-is.
+        """
+        if any(name.startswith("model.") for name in state_dict):
+            state_dict = {
+                name[len("model.") :]: param
+                for name, param in state_dict.items()
+                if name.startswith("model.")
+            }
         self.load_state_dict(state_dict, strict=True)
 
     def _extract_features(self, x: Tensor) -> list[Tensor]:
@@ -577,6 +653,21 @@ class DepthAnythingDepthEstimation(TaskModel):
                 )
         elif intrinsics is not None:
             raise ValueError("This model does not accept intrinsics.")
+
+
+def get_model_image_size(model_name: str) -> int:
+    """Returns the fixed processing image size for a depth model.
+
+    Used to resolve the training transform image size from the model name without
+    instantiating the model.
+    """
+    key = model_name.lower()
+    if key not in _MODEL_CONFIGS:
+        raise ValueError(
+            f"Model name '{model_name}' is not supported. Available models are: "
+            f"{DepthAnythingDepthEstimation.list_model_names()}."
+        )
+    return int(_MODEL_CONFIGS[key]["image_size"])
 
 
 def _processed_focal_length(
