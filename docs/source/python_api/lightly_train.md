@@ -57,7 +57,19 @@ Documentation of the public API of the `lightly_train` package.
     :members: export_onnx, export_tensorrt, predict
     :exclude-members: __init__, __new__
 
-.. autoclass:: lightly_train._task_models.depth_estimation.task_model.DepthAnythingDepthEstimation
+.. autoclass:: lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model.DepthAnythingV2RelativeDepthEstimation
+    :members: predict, predict_batch
+    :exclude-members: __init__, __new__
+
+.. autoclass:: lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model.DepthAnythingV2MetricDepthEstimation
+    :members: predict, predict_batch
+    :exclude-members: __init__, __new__
+
+.. autoclass:: lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model.DepthAnythingV3RelativeDepthEstimation
+    :members: predict, predict_batch
+    :exclude-members: __init__, __new__
+
+.. autoclass:: lightly_train._task_models.dinov2_dav3_metric_depth_estimation.task_model.DepthAnythingV3MetricDepthEstimation
     :members: predict, predict_batch
     :exclude-members: __init__, __new__
 
