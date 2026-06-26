@@ -22,6 +22,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix checkpoint loading with `load_model` for legacy checkpoints of LT-DETR.
+
 ### Security
 
 ## [0.16.0] - 2026-06-25
