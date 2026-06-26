@@ -114,8 +114,11 @@ class TrainModel(Module):
         """Returns the state dict for exporting."""
         return self.state_dict()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        pass
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        # Clip the gradients. Returns the total gradient norm before clipping if
+        # the norm-based clipping algorithm is used, otherwise None. Returning None
+        # here means that the gradient norm is not logged for this model.
+        return None
 
     def on_train_batch_end(self) -> None:
         pass
