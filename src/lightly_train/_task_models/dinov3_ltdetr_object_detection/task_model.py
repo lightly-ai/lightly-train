@@ -37,6 +37,7 @@ from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBase
 from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
+    DetectorConfig,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -77,6 +78,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
+        decoder_name: Literal["rtdetrv2", "dfine"] = "dfine",
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
@@ -111,7 +113,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             init_args=locals(), ignore_args={"load_weights"}
         )
 
-        config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name
@@ -213,11 +215,11 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         transformer_cfg = config.transformer.model_dump()
         transformer_cfg["num_classes"] = len(self.classes)
         if config.transformer.decoder_name == "rtdetrv2":
-            self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(
+            self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
                 **transformer_cfg, eval_spatial_size=self.image_size
             )
         else:
-            self.decoder = DFINETransformer(
+            self.decoder = DFINETransformer(  # type: ignore[no-untyped-call]
                 **transformer_cfg, eval_spatial_size=self.image_size
             )
 

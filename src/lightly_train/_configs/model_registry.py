@@ -36,7 +36,7 @@ class ModelRegistry(Generic[ConfigT]):
         self,
         alias: str,
         default: Type[ConfigT] | None = None,
-    ) -> Type[ConfigT]:
+    ) -> Callable[[], ConfigT]:
         if alias not in self._registry:
             if default is not None:
                 return default

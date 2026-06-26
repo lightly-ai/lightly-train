@@ -645,7 +645,6 @@ def test_export_onnx__fp16(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
         image_size=(256, 256),
-        decoder_name=decoder_name,
         load_weights=False,
     )
 

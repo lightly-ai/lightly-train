@@ -469,6 +469,7 @@ class DetectorConfig(PydanticConfig):
     ]
     rtdetr_postprocessor: RTDETRPostProcessorConfig
     backbone_wrapper: RTDETRBackboneWrapperConfig | CNNBackboneWrapperConfig
+    backbone_args: dict[str, Any]
 
     def resolve_auto(self, patch_size: int | None) -> None:
         self.backbone_wrapper.resolve_auto(patch_size=patch_size)
@@ -487,7 +488,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any]
 
     class CNNBase(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -499,7 +499,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any]
 
     class CNNSmall(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -511,7 +510,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any]
 
     class CNNTiny(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -523,7 +521,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any]
 
     class ViTT(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -532,7 +529,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_args: dict[str, Any]
 
     class ViTTPlus(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -541,7 +537,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_args: dict[str, Any]
 
     class ViTS(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -550,7 +545,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_args: dict[str, Any]
 
     class ViTB(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -559,7 +553,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_args: dict[str, Any]
 
     class ViTL(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -568,7 +561,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_args: dict[str, Any]
 
     class ViTG(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -577,7 +569,6 @@ class LTDETRBaseConfig(ConfigsNamespace):
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
-        backbone_args: dict[str, Any]
 
 
 class LTDETRConfigRegistry(ConfigsNamespace):
