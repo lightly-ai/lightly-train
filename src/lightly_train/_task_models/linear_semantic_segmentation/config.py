@@ -7,66 +7,106 @@
 #
 from __future__ import annotations
 
-import logging
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
+from typing_extensions import Self
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import ModelRegistry
-
-logger = logging.getLogger(__name__)
 
 
 class LinearSemanticSegmentationConfig(PydanticConfig):
     backbone_name: str = ""  # full "package/backbone" string, e.g. "dinov2/vits14"
     backbone_args: dict[str, Any] = Field(default_factory=dict)
+    freeze_mask_token: bool = False
+
+    @model_validator(mode="after")
+    def _check_freeze_mask_token(self) -> Self:
+        if self.freeze_mask_token and not self.backbone_name.startswith("dinov2/"):
+            raise ValueError(
+                f"freeze_mask_token=True is only supported for DINOv2 backbones "
+                f"(backbone_name must start with 'dinov2/'), got '{self.backbone_name}'."
+            )
+        if self.backbone_name.startswith("dinov2/") and not self.freeze_mask_token:
+            raise ValueError(
+                f"DINOv2 backbones require freeze_mask_token=True, got freeze_mask_token={self.freeze_mask_token}."
+            )
+        return self
 
 
-LINEAR_SEG_MODEL_REGISTRY: ModelRegistry[LinearSemanticSegmentationConfig] = ModelRegistry()
+LINEAR_SEG_MODEL_REGISTRY: ModelRegistry[LinearSemanticSegmentationConfig] = (
+    ModelRegistry()
+)
 
 
 class LinearSegConfigRegistry(ConfigsNamespace):
-    # --- DINOv2 ---
-    @LINEAR_SEG_MODEL_REGISTRY.register(
-        "dinov2/vits14-linear",
-        "dinov2/vits14-notpretrained-linear",
-    )
+    # --- DINOv2 (pretrained) ---
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vits14-linear")
     class DINOv2ViTS14(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov2/vits14"
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
-    @LINEAR_SEG_MODEL_REGISTRY.register(
-        "dinov2/vitb14-linear",
-        "dinov2/vitb14-notpretrained-linear",
-    )
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitb14-linear")
     class DINOv2ViTB14(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov2/vitb14"
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
-    @LINEAR_SEG_MODEL_REGISTRY.register(
-        "dinov2/vitl14-linear",
-        "dinov2/vitl14-notpretrained-linear",
-    )
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitl14-linear")
     class DINOv2ViTL14(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov2/vitl14"
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
 
-    @LINEAR_SEG_MODEL_REGISTRY.register(
-        "dinov2/vitg14-linear",
-        "dinov2/vitg14-notpretrained-linear",
-    )
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitg14-linear")
     class DINOv2ViTG14(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov2/vitg14"
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"drop_path_rate": 0.0}
         )
+        freeze_mask_token: bool = True
+
+    # --- DINOv2 (not pretrained) ---
+    # Map to the "-notpretrained" backbones so no pretrained weights are loaded.
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vits14-notpretrained-linear")
+    class DINOv2ViTS14NotPretrained(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vits14-notpretrained"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitb14-notpretrained-linear")
+    class DINOv2ViTB14NotPretrained(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitb14-notpretrained"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitl14-notpretrained-linear")
+    class DINOv2ViTL14NotPretrained(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitl14-notpretrained"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitg14-notpretrained-linear")
+    class DINOv2ViTG14NotPretrained(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitg14-notpretrained"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
 
     # --- DINOv3 ViT variants ---
     @LINEAR_SEG_MODEL_REGISTRY.register(

@@ -38,6 +38,9 @@ from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -95,17 +98,17 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
-    default_batch_size: ClassVar[int] = 16
+    default_batch_size: ClassVar[int] = 32
     default_steps: ClassVar[int] = (
-        100_000 // 16 * 72
-    )  # TODO (Lionel, 10/25): Adjust default steps.
+        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
+    )
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
     patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
-    decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
+    decoder_name: Literal["rtdetrv2", "dfine"] = "dfine"
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -132,7 +135,7 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     # Optimizer configuration
     lr: float = Field(
-        default=1e-4,
+        default=5e-4,
         validation_alias=AliasChoices("lr", "optimizer_lr"),
     )
     weight_decay: float = Field(
@@ -142,13 +145,13 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
     # Per-parameter-group overrides
-    backbone_lr_factor: float = 1e-2
+    backbone_lr_factor: float = 0.05
 
     # Scheduler configuration
-    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
+    scheduler_name: Literal["linear", "flat-cosine"] = "flat-cosine"
     scheduler_start_factor: float = 0.01
-    lr_warmup_steps: int = Field(
-        default=2000,
+    lr_warmup_steps: int | Literal["auto"] = Field(
+        default="auto",
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
     scheduler_flat_steps: int | Literal["auto"] = "auto"
@@ -168,26 +171,72 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
             if patch_size is not None:
                 self.patch_size = int(patch_size)
             else:
-                match = re.match(
-                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
-                    model_name,
+                # EdgeCrafter (ECViT) backbones all use a fixed patch size of 16
+                # (the ECViT-NN uses a ConvPyramidPatchEmbed that only supports
+                # patch_size=16). Resolve that here so the train/val transforms
+                # can pick the right image-size divisor and scale-jitter base.
+                #
+                # Use the task model's ``parse_model_name`` (not the lower-level
+                # ``package_helpers.parse_model_name``) because it also resolves
+                # short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) to their
+                # canonical ``edgecrafter/<preset>-ltdetr`` form, so they reach
+                # the ``package_name == "edgecrafter"`` branch below. This runs
+                # before the task-model constructor canonicalizes the name, so
+                # without it the aliases would raise
+                # ``Unable to resolve patch_size='auto'`` here.
+                try:
+                    package_name = DINOv3LTDETRObjectDetection.parse_model_name(
+                        model_name=model_name
+                    )["package_name"]
+                except ValueError:
+                    package_name = ""
+                if package_name == "edgecrafter":
+                    self.patch_size = 16
+                else:
+                    match = re.match(
+                        r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
+                        model_name,
+                    )
+
+                    if match is not None:
+                        self.patch_size = int(match.group("patch_size"))
+                    elif re.match(r"dinov3/convnext.*", model_name) is not None:
+                        self.patch_size = None
+                    else:
+                        raise ValueError(
+                            "Unable to resolve patch_size='auto' for model "
+                            f"{model_name!r}. Please provide a concrete patch_size."
+                        )
+        # Resolve ``decoder_name`` against the checkpoint architecture when
+        # the user did not explicitly set it. This preserves backward
+        # compatibility for hosted/local checkpoints trained with the previous
+        # RTDETRv2 default: loading those checkpoints builds a D-FINE model by
+        # default and would otherwise leave the decoder partially initialized.
+        # TODO(TRN-2243): Replace this compatibility shim with separate
+        # LTDETRv2/LTDETRv3 train-args classes once the config split lands.
+        checkpoint_decoder_name = model_init_args.get("decoder_name")
+        if checkpoint_decoder_name is not None:
+            if "decoder_name" not in self.model_fields_set:
+                self.decoder_name = checkpoint_decoder_name
+            elif self.decoder_name != checkpoint_decoder_name:
+                logger.warning(
+                    f"Requested decoder_name={self.decoder_name!r} differs from "
+                    f"the checkpoint's decoder_name={checkpoint_decoder_name!r}; "
+                    "the checkpoint decoder weights will not load cleanly."
                 )
 
-                if match is not None:
-                    self.patch_size = int(match.group("patch_size"))
-                elif re.match(r"dinov3/convnext.*", model_name) is not None:
-                    self.patch_size = None
-                else:
-                    raise ValueError(
-                        "Unable to resolve patch_size='auto' for model "
-                        f"{model_name!r}. Please provide a concrete patch_size."
-                    )
-        if self.scheduler_flat_steps == "auto" or self.scheduler_no_aug_steps == "auto":
+        if (
+            self.lr_warmup_steps == "auto"
+            or self.scheduler_flat_steps == "auto"
+            or self.scheduler_no_aug_steps == "auto"
+        ):
             scheduler_step_schedule = resolve_ltdetr_step_schedule(
                 total_steps=total_steps,
                 train_num_batches=train_num_batches,
                 gradient_accumulation_steps=gradient_accumulation_steps,
             )
+            if self.lr_warmup_steps == "auto":
+                self.lr_warmup_steps = scheduler_step_schedule.step_start
             if self.scheduler_flat_steps == "auto":
                 self.scheduler_flat_steps = scheduler_step_schedule.step_flat
             if self.scheduler_no_aug_steps == "auto":
@@ -554,6 +603,16 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
             connector_params = [
                 p for p in backbone.parameters() if id(p) not in vit_params_ids
             ]
+        elif isinstance(backbone, ECViTBackboneWrapper):
+            # ECViTModelWrapper has two parts:
+            #   - self.backbone  (VisionTransformer) - loaded with pretrained
+            #     weights, so it gets the low backbone_lr_factor.
+            #   - self.projector (nn.ModuleList of ConvNormLayer) - freshly
+            #     initialized, so it is merged into the detector group to
+            #     train at the full LR (same split as the DINOv3 ViT branch).
+            ecvit_wrapper = backbone._model_wrapper  # type: ignore[attr-defined]
+            backbone_params = list(ecvit_wrapper.backbone.parameters())
+            connector_params = list(ecvit_wrapper.projector.parameters())
         else:
             backbone_params = list(backbone.parameters())
             connector_params = []
@@ -609,23 +668,24 @@ class DINOv3LTDETRObjectDetectionTrain(TrainModel):
         )
         scheduler: LRScheduler
         if self.model_args.scheduler_name == "linear":
-            if self.model_args.lr_warmup_steps > total_steps:
+            warmup_steps = no_auto(self.model_args.lr_warmup_steps)
+            if warmup_steps > total_steps:
                 logger.warning(
                     f"{self.model_args.scheduler_name} scheduler has "
-                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"lr_warmup_steps={warmup_steps} "
                     f"and total_steps={total_steps}; the schedule will not complete "
                     "as intended."
                 )
             scheduler = LinearLR(
                 optimizer=optim,
-                total_iters=self.model_args.lr_warmup_steps,
+                total_iters=warmup_steps,
                 start_factor=self.model_args.scheduler_start_factor,
             )
         elif self.model_args.scheduler_name == "flat-cosine":
             scheduler = FlatCosineLRScheduler(
                 optimizer=optim,
                 total_steps=total_steps,
-                warmup_steps=self.model_args.lr_warmup_steps,
+                warmup_steps=no_auto(self.model_args.lr_warmup_steps),
                 flat_steps=no_auto(self.model_args.scheduler_flat_steps),
                 no_aug_steps=no_auto(self.model_args.scheduler_no_aug_steps),
             )

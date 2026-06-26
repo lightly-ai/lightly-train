@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import os
 import re
 import shutil
@@ -46,6 +48,23 @@ def lightly_train_cache_dir(
         # directories created via tmp_path_factory at the end of the whole test
         # session.
         shutil.rmtree(cache_dir, ignore_errors=True)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "long_running_test: marks tests as long running (skipped on GitHub CI)",
+    )
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    if os.environ.get("GITHUB_ACTIONS"):
+        skip_long = pytest.mark.skip(reason="long running test, skipped on Github CI")
+        for item in items:
+            if "long_running_test" in item.keywords:
+                item.add_marker(skip_long)
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests

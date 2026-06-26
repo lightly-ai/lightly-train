@@ -10,6 +10,15 @@ This project incorporates the following third-party components:
     - Added errors for states that are considered invalid (i.e no cosine phase).
     - Refactored the code and logic to adheres to our standards.
 
+**EdgeCrafter**
+- Source: https://github.com/Intellindust-AI-Lab/EdgeCrafter
+- License: Apache License 2.0
+- License file: licences/EDGECRAFTER_LICENSE
+- Modifications:
+  - Ported the ECViT backbone adapter to LightlyTrain. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+  - Removed EdgeCrafter registry/distributed dependencies. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+  - Added typed LTDETR-compatible tuple output. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+
 **DINOv2**
 - Source: https://github.com/facebookresearch/dinov2
 - License: Apache License 2.0
@@ -85,6 +94,37 @@ This project incorporates the following third-party components:
 - Modifications:
   - Minor typing and docstrings modifications in ` from 
     `src/lightly_train/_models/dinov3/dinov3_src/layers/patch_embed.py`.
+
+**Depth Anything V2**
+- Source: https://github.com/DepthAnything/Depth-Anything-V2
+- License: Apache License 2.0
+- License file: licences/DEPTH_ANYTHING_2_LICENSE
+- Modifications:
+  - Ported the DAv2 relative and metric depth-estimation models to LightlyTrain as
+    `TaskModel`s that pair a DINOv2 backbone with the shared DPT head. Affected files:
+    `src/lightly_train/_task_models/dinov2_dav2_relative_depth_estimation/task_model.py`,
+    `src/lightly_train/_task_models/dinov2_dav2_metric_depth_estimation/task_model.py`.
+  - Reimplemented the DAv2 cubic image preprocessing. Affected file:
+    `src/lightly_train/_task_models/depth_estimation_components/image_utils.py`
+    (`process_image_dav2`).
+
+**Depth Anything V3**
+- Source: https://github.com/ByteDance-Seed/Depth-Anything-3
+- License: Apache License 2.0
+- License file: licences/DEPTH_ANYTHING_3_LICENSE
+- Modifications:
+  - Ported the DPT dense-prediction head and its head utilities, specialized to
+    monocular inference (no sequence/time chunking and no Gaussian-splatting `images`
+    branch). These are also reused by the DAv2 models above. Affected files:
+    `src/lightly_train/_task_models/depth_estimation_components/dpt.py`,
+    `src/lightly_train/_task_models/depth_estimation_components/head_utils.py`.
+  - Ported the DAv3 relative and metric depth-estimation models to LightlyTrain as
+    `TaskModel`s that pair a DINOv2 backbone with the DPT head. Affected files:
+    `src/lightly_train/_task_models/dinov2_dav3_relative_depth_estimation/task_model.py`,
+    `src/lightly_train/_task_models/dinov2_dav3_metric_depth_estimation/task_model.py`.
+  - Reimplemented the DAv3 boundary-resize image preprocessing. Affected file:
+    `src/lightly_train/_task_models/depth_estimation_components/image_utils.py`
+    (`process_image_dav3`).
 ---
 
 All third-party code is used in accordance with their respective licenses.

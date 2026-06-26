@@ -54,6 +54,17 @@ class MockSemanticSegmentationModel(TaskModel):
         self.model_name = model_name
 
 
+class MockDepthEstimationModel(TaskModel):
+    """Mock task model for testing depth estimation."""
+
+    model_suffix = "test"
+
+    def __init__(self, *, model_name: str = "depth-anything-v3/da3mono-large") -> None:
+        # Use locals() like real task models do.
+        super().__init__(init_args=locals())
+        self.model_name = model_name
+
+
 class MockUnknownModel(TaskModel):
     """Mock model with unknown task type for testing."""
 
@@ -84,6 +95,17 @@ def test_track_inference__semantic_segmentation(mock_events_enabled: None) -> No
     props = tracker._events[0]["properties"]
     assert props["task_type"] == "semantic_segmentation"
     assert props["model_name"] == "dinov3/vits16-eomt-ade20k"
+
+
+def test_track_inference__depth_estimation(mock_events_enabled: None) -> None:
+    """Test that _track_inference correctly identifies depth estimation models."""
+    model = MockDepthEstimationModel(model_name="depth-anything-v3/da3mono-large")
+    model._track_inference()
+
+    assert len(tracker._events) == 1
+    props = tracker._events[0]["properties"]
+    assert props["task_type"] == "depth_estimation"
+    assert props["model_name"] == "depth-anything-v3/da3mono-large"
 
 
 def test_track_inference__unknown_type(mock_events_enabled: None) -> None:

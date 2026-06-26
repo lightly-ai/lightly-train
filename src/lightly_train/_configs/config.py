@@ -10,6 +10,14 @@ from __future__ import annotations
 from typing import Any, Iterable, Self
 
 from pydantic import BaseModel, ConfigDict
+from typing_extensions import Self
+
+
+class ConfigsNamespace:
+    """Base class for inference config namespace containers. Not instantiable."""
+
+    def __new__(cls) -> Self:
+        raise TypeError(f"{cls.__name__} is a namespace and cannot be instantiated.")
 
 
 class ConfigsNamespace:

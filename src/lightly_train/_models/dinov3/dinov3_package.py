@@ -25,7 +25,7 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import ModelNameParser, MultiScaleFeaturePackage
+from lightly_train._models.package import MultiScaleFeaturePackage
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +217,7 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
 }
 
 
-class DINOv3Package(MultiScaleFeaturePackage, ModelNameParser):
+class DINOv3Package(MultiScaleFeaturePackage):
     name = "dinov3"
     # Matches:
     #   vits16, vits32-notpretrained, vitl14-sat493m, vit7b32_distillationv1, vitt16plus, ...

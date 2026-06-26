@@ -31,12 +31,12 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import ModelNameParser, MultiScaleFeaturePackage
+from lightly_train._models.package import MultiScaleFeaturePackage
 
 logger = logging.getLogger(__name__)
 
 
-class DINOv2ViTPackage(MultiScaleFeaturePackage, ModelNameParser):
+class DINOv2ViTPackage(MultiScaleFeaturePackage):
     name = "dinov2"
 
     @classmethod
