@@ -502,5 +502,5 @@ class LinearSemanticSegmentation(TaskModel):
         self.load_state_dict(new_state_dict, strict=True)
 
     def freeze_backbone(self) -> None:
-        self.backbone.eval()  # type: ignore[attr-defined]
-        self.backbone.requires_grad_(False)  # type: ignore[attr-defined]
+        self.backbone.eval()
+        self.backbone.requires_grad_(False)
