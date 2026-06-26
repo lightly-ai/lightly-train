@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import cast
 
 import torch
 from lightning_fabric import Fabric
-from torch import nn
+from torch import Tensor, nn
 
 from lightly_train import _torch_helpers
 
@@ -90,7 +91,7 @@ def test_total_gradient_norm__returns_total_norm() -> None:
     p4 = nn.Parameter(torch.tensor([5.0]))
     p4.grad = torch.tensor([3.0])
 
-    grad_snapshots = [p.grad.detach().clone() for p in (p1, p2, p4)]
+    grad_snapshots = [cast(Tensor, p.grad).detach().clone() for p in (p1, p2, p4)]
 
     norm = _torch_helpers.total_gradient_norm([p1, p2, p3, p4])
 
@@ -98,7 +99,7 @@ def test_total_gradient_norm__returns_total_norm() -> None:
     assert torch.allclose(norm, torch.tensor(11.0).sqrt())
     # Function must not mutate any input gradient.
     for p, snapshot in zip((p1, p2, p4), grad_snapshots):
-        assert torch.equal(p.grad, snapshot)
+        assert torch.equal(cast(Tensor, p.grad), snapshot)
 
 
 def test_total_gradient_norm__returns_zero_when_no_grads() -> None:
