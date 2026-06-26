@@ -27,8 +27,12 @@ from lightly_train._export.onnx_helpers import (
 )
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _DINOv3LTDETRBase,
-    _DINOv3LTDETRConfig,
     _LTDETRDecoderName,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+    DINOV3_LTDETR_MODEL_REGISTRY,
+    DetectorConfig,
+    RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -46,17 +50,42 @@ logger = logging.getLogger(__name__)
 
 
 class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
+    def _get_detector_config(
+        self,
+        canonical_model_name: str,
+        config_name: str,
+        decoder_name: _LTDETRDecoderName,
+        patch_size: int | None,
+    ) -> DetectorConfig:
+        registry_key = canonical_model_name
+        if decoder_name == "rtdetrv2":
+            registry_key = canonical_model_name + "-rtdetrv2"
+        config = DINOV3_LTDETR_MODEL_REGISTRY.get(registry_key)()
+        config.resolve_auto(patch_size=patch_size)
+        return config
+
     def build_decoder(
-        self, config: _DINOv3LTDETRConfig
+        self,
+        config: DetectorConfig,  # type: ignore[override]
     ) -> RTDETRTransformerv2 | DFINETransformer:
-        return _build_decoder(
-            config=config,
-            decoder_name=config.decoder_name,
-            num_classes=len(self.classes),
-            image_size=self.image_size,
+        if isinstance(config.transformer, RTDETRTransformerv2Config):
+            decoder_config = config.transformer.model_dump(exclude={"decoder_name"})
+            decoder_config["num_classes"] = len(self.classes)
+            return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+                **decoder_config,
+                eval_spatial_size=self.image_size,
+            )
+        decoder_config = config.transformer.model_dump(exclude={"decoder_name"})
+        decoder_config["num_classes"] = len(self.classes)
+        return DFINETransformer(  # type: ignore[no-untyped-call]
+            **decoder_config,
+            eval_spatial_size=self.image_size,
         )
 
-    def build_postprocessor(self, config: _DINOv3LTDETRConfig) -> RTDETRPostProcessor:
+    def build_postprocessor(
+        self,
+        config: DetectorConfig,  # type: ignore[override]
+    ) -> RTDETRPostProcessor:
         postprocessor_config = config.rtdetr_postprocessor.model_dump()
         postprocessor_config.update({"num_classes": len(self.classes)})
         return RTDETRPostProcessor(**postprocessor_config)
@@ -576,28 +605,3 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             strongly_typed=True,
             verbose=verbose,
         )
-
-
-def _build_decoder(
-    *,
-    config: _DINOv3LTDETRConfig,
-    decoder_name: _LTDETRDecoderName,
-    num_classes: int,
-    image_size: tuple[int, int],
-) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder_name == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    elif decoder_name == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return DFINETransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")

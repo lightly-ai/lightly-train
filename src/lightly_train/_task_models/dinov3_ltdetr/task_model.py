@@ -709,40 +709,15 @@ class _DINOv3LTDETRBase(TaskModel):
             backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
         )
 
-        # Map preset name -> (config_cls, config_name_strip_suffixes). For
-        # ECViT we strip no suffixes (the preset names are bare) and route
-        # through the DINOv3 ViT-shaped configs that match the wrapper's
-        # `proj_dim` (the per-level channel count the wrapper actually emits).
-        config_mapping = {
-            "vitt16": _DINOv3LTDETRViTTConfig,
-            "vitt16plus": _DINOv3LTDETRViTTPlusConfig,
-            "vits16": _DINOv3LTDETRViTSConfig,
-            "vitb16": _DINOv3LTDETRViTBConfig,
-            "vitl16": _DINOv3LTDETRViTLConfig,
-            "convnext-tiny": _DINOv3LTDETRTinyConfig,
-            "convnext-small": _DINOv3LTDETRSmallConfig,
-            "convnext-base": _DINOv3LTDETRBaseConfig,
-            "convnext-large": _DINOv3LTDETRLargeConfig,
-            # ECViT presets (EdgeCrafter). Reuse the DINOv3 ViT-shaped configs
-            # that match the wrapper's proj_dim:
-            #   ecvitt         -> proj_dim 192 -> ViTT
-            #   ecvittplus     -> proj_dim 256 -> ViTTPlus
-            #   ecvits         -> proj_dim 256 -> ViTTPlus (embed_dim=384 is
-            #                     projected down to 256 by ECViTModelWrapper)
-            #   ecvitsplus     -> proj_dim 256 -> ViTTPlus
-            "ecvitt": _DINOv3LTDETRViTTConfig,
-            "ecvittplus": _DINOv3LTDETRViTTPlusConfig,
-            "ecvits": _DINOv3LTDETRViTTPlusConfig,
-            "ecvitsplus": _DINOv3LTDETRViTTPlusConfig,
-        }
         config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
         config_name = config_name.replace("-noreg", "")
         config_name = config_name.replace("-eupe", "")
-        config_cls = config_mapping[config_name]
-        config = config_cls()
-        config.decoder_name = decoder_name
-
-        config.resolve_auto(patch_size=patch_size)
+        config = self._get_detector_config(
+            canonical_model_name=parsed_name["model_name"],
+            config_name=config_name,
+            decoder_name=decoder_name,
+            patch_size=patch_size,
+        )
 
         self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
@@ -857,6 +832,56 @@ class _DINOv3LTDETRBase(TaskModel):
             }
 
         raise_invalid_name()
+
+    def _get_detector_config(
+        self,
+        canonical_model_name: str,
+        config_name: str,
+        decoder_name: _LTDETRDecoderName,
+        patch_size: int | None,
+    ) -> Any:
+        """Return the detector config for the given model and decoder.
+
+        Subclasses may override this to use a ModelRegistry instead of the
+        default config_mapping dict.
+
+        Args:
+            canonical_model_name:
+                Full canonical model name, e.g. ``"dinov3/vits16-ltdetr"``.
+            config_name:
+                Backbone name with variant suffixes stripped, e.g. ``"vits16"``.
+            decoder_name:
+                Decoder variant to use.
+            patch_size:
+                Backbone patch size used to resolve ``"auto"`` stride values.
+        """
+        # Map stripped backbone name -> config class.
+        # ECViT presets reuse the DINOv3 ViT-shaped configs that match the
+        # wrapper's proj_dim (the per-level channel count the wrapper emits):
+        #   ecvitt         -> proj_dim 192 -> ViTT
+        #   ecvittplus     -> proj_dim 256 -> ViTTPlus
+        #   ecvits         -> proj_dim 256 -> ViTTPlus (embed_dim=384 projected)
+        #   ecvitsplus     -> proj_dim 256 -> ViTTPlus
+        config_mapping = {
+            "vitt16": _DINOv3LTDETRViTTConfig,
+            "vitt16plus": _DINOv3LTDETRViTTPlusConfig,
+            "vits16": _DINOv3LTDETRViTSConfig,
+            "vitb16": _DINOv3LTDETRViTBConfig,
+            "vitl16": _DINOv3LTDETRViTLConfig,
+            "convnext-tiny": _DINOv3LTDETRTinyConfig,
+            "convnext-small": _DINOv3LTDETRSmallConfig,
+            "convnext-base": _DINOv3LTDETRBaseConfig,
+            "convnext-large": _DINOv3LTDETRLargeConfig,
+            "ecvitt": _DINOv3LTDETRViTTConfig,
+            "ecvittplus": _DINOv3LTDETRViTTPlusConfig,
+            "ecvits": _DINOv3LTDETRViTTPlusConfig,
+            "ecvitsplus": _DINOv3LTDETRViTTPlusConfig,
+        }
+        config_cls = config_mapping[config_name]
+        config = config_cls()
+        config.decoder_name = decoder_name
+        config.resolve_auto(patch_size=patch_size)
+        return config
 
     def build_decoder(self, config: _DINOv3LTDETRConfig) -> nn.Module:
         raise NotImplementedError()
