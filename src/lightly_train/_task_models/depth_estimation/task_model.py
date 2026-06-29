@@ -8,16 +8,20 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torch.nn import Module
 
+from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
+from lightly_train._export import onnx_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.depth_estimation_components import image_utils
@@ -556,6 +560,195 @@ class DepthAnythingDepthEstimation(TaskModel):
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
         self.load_state_dict(state_dict, strict=True)
 
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        batch_size: int = 1,
+        dynamic_batch_size: bool = True,
+        height: int | None = None,
+        width: int | None = None,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (batch_size, 3, H, W). The spatial size
+        (H, W) is fixed in the ONNX graph: it defaults to the model's processing
+        resolution (``self.image_size`` on both sides) but can be overridden via
+        ``height``/``width`` (both must be multiples of the patch size, 14). If
+        ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch dimension.
+
+        The graph outputs the raw depth map at processing resolution, plus a sky map for
+        models with a sky head (Depth Anything V3). Postprocessing (sky filling, metric
+        scaling, and resizing back to the original resolution) is not part of the graph
+        and must be applied by the caller.
+
+        Optionally simplifies the exported model in-place using onnxslim and verifies
+        numerical closeness against a float32 CPU reference via ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
+            batch_size:
+                Batch size for the ONNX input.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension for the
+                input. If False, the batch dimension is fixed to `batch_size`.
+            height:
+                Height of the ONNX input. If None, will be taken from `self.image_size`.
+            width:
+                Width of the ONNX input. If None, will be taken from `self.image_size`.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out`.
+        """
+        from lightly_train._commands import _warnings
+
+        _logging.set_up_console_logging()
+        _warnings.filter_export_warnings()
+
+        self.eval()
+
+        first_parameter = next(self.parameters())
+        model_device = first_parameter.device
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
+
+        height = self.image_size if height is None else height
+        width = self.image_size if width is None else width
+        num_channels = 3
+
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
+        dummy_input = torch.randn(
+            batch_size,
+            num_channels,
+            height,
+            width,
+            requires_grad=False,
+            device=model_device,
+            dtype=dtype,
+        )
+
+        # The forward returns a dict, but ONNX outputs must be tensors, so we wrap the
+        # model in a module that returns a fixed-order tuple of (depth[, sky]).
+        export_model = _DepthExportWrapper(self)
+        output_names = ["depth", "sky"] if self.decoder.use_sky_head else ["depth"]
+
+        # Precalculate interpolated positional encoding for ONNX export.
+        with onnx_helpers.precalculate_for_onnx_export():
+            export_model(dummy_input)
+
+        input_names = ["images"]
+
+        torch.onnx.export(
+            export_model,
+            (dummy_input,),
+            str(out),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes=dynamic_axes,
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                model=str(out),
+                output_model=out,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = _DepthExportWrapper(
+                copy.deepcopy(self).cpu().to(torch.float32).eval()
+            )
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+
+                def msg(s: str) -> str:
+                    return f'ONNX validation failed for output "{output_name}": {s}'
+
+                if output_model.is_floating_point():
+                    # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                    # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                    torch.testing.assert_close(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                        equal_nan=True,
+                        check_device=False,
+                        check_dtype=False,
+                        check_layout=False,
+                        atol=5e-3,
+                        rtol=1e-1,
+                    )
+                else:
+                    _torch_testing.assert_most_equal(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                    )
+
+        logger.info(f"Successfully exported ONNX model to '{out}'")
+
     def _extract_features(self, x: Tensor) -> list[Tensor]:
         intermediate = self.backbone.get_intermediate_layers(
             x,
@@ -577,6 +770,25 @@ class DepthAnythingDepthEstimation(TaskModel):
                 )
         elif intrinsics is not None:
             raise ValueError("This model does not accept intrinsics.")
+
+
+class _DepthExportWrapper(Module):
+    """Wraps the depth model so its forward returns a tensor tuple for ONNX export.
+
+    The model's ``forward`` returns a dict, but ONNX graph outputs must be tensors. This
+    returns ``(depth,)`` for models without a sky head and ``(depth, sky)`` for models
+    with one (Depth Anything V3), matching the export's ``output_names``.
+    """
+
+    def __init__(self, model: DepthAnythingDepthEstimation) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, images: Tensor) -> tuple[Tensor, ...]:
+        out = self.model(images)
+        if self.model.decoder.use_sky_head:
+            return out["depth"], out["sky"]
+        return (out["depth"],)
 
 
 def _processed_focal_length(
