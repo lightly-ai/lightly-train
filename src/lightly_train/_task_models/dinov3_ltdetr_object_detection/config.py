@@ -101,7 +101,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         depth_mult: float = 1
         act: str = "silu"
 
-    class ViTT(HybridEncoderConfig):
+    class ViTTiny(HybridEncoderConfig):
         in_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
         use_encoder_idx: list[int] = [2]
@@ -114,7 +114,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         depth_mult: float = 0.67
         act: str = "silu"
 
-    class ViTTPlus(HybridEncoderConfig):
+    class ViTTinyPlus(HybridEncoderConfig):
         in_channels: list[int] = [256, 256, 256]
         hidden_dim: int = 256
         use_encoder_idx: list[int] = [2]
@@ -216,14 +216,14 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
     class CNNLarge(RTDETRTransformerv2Config):
         feat_channels: list[int] = [384, 384, 384]
 
-    class ViTT(RTDETRTransformerv2Config):
+    class ViTTiny(RTDETRTransformerv2Config):
         feat_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
         num_layers: int = 4
         num_points: list[int] = [3, 6, 3]
         dim_feedforward: int = 512
 
-    class ViTTPlus(RTDETRTransformerv2Config):
+    class ViTTinyPlus(RTDETRTransformerv2Config):
         feat_channels: list[int] = [256, 256, 256]
         hidden_dim: int = 256
         num_layers: int = 4
@@ -309,13 +309,13 @@ class LTDETRDFINETransformerConfig(ConfigsNamespace):
         num_layers: int = 6
         reg_scale: float = 8.0
 
-    class ViTT(DFINETransformerConfig):
+    class ViTTiny(DFINETransformerConfig):
         feat_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
         num_layers: int = 4
         dim_feedforward: int = 512
 
-    class ViTTPlus(DFINETransformerConfig):
+    class ViTTinyPlus(DFINETransformerConfig):
         feat_channels: list[int] = [256, 256, 256]
         hidden_dim: int = 256
         num_layers: int = 4
@@ -369,14 +369,14 @@ class RTDETRBackboneWrapperConfig(PydanticConfig):
 
 
 class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
-    class ViTT(RTDETRBackboneWrapperConfig):
+    class ViTTiny(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = True
         conv_inplane_factor: int = 1
         hidden_dim: int = 192
 
-    class ViTTPlus(RTDETRBackboneWrapperConfig):
+    class ViTTinyPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = True
@@ -413,14 +413,14 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
 
 
 class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
-    class ViTT(RTDETRBackboneWrapperConfig):
+    class ViTTiny(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = False
         conv_inplane_factor: int = 1
         hidden_dim: int = 192
 
-    class ViTTPlus(RTDETRBackboneWrapperConfig):
+    class ViTTinyPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = False
@@ -522,17 +522,17 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=CNNBackboneWrapperConfig
         )
 
-    class ViTT(DetectorConfig):
+    class ViTTiny(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
-            default_factory=LTDETRHybridEncoderConfig.ViTT
+            default_factory=LTDETRHybridEncoderConfig.ViTTiny
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
         )
 
-    class ViTTPlus(DetectorConfig):
+    class ViTTinyPlus(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
-            default_factory=LTDETRHybridEncoderConfig.ViTTPlus
+            default_factory=LTDETRHybridEncoderConfig.ViTTinyPlus
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -624,13 +624,13 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/vitt16-eupe-ltdetr",
         "dinov3/vitt16-notpretrained-ltdetr",
     )
-    class DINOv3ViTT(LTDETRBaseConfig.ViTT):
+    class DINOv3ViTTiny(LTDETRBaseConfig.ViTTiny):
         backbone_name: str = "dinov3/vitt16"
         transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTT
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTTiny
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTT
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTiny
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
@@ -639,13 +639,13 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-ltdetr-coco", "dinov3/vitt16plus-ltdetr"
     )
-    class DINOv3ViTTPlus(LTDETRBaseConfig.ViTTPlus):
+    class DINOv3ViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         backbone_name: str = "dinov3/vitt16plus"
         transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTTPlus
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTTinyPlus
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
-            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTPlus
+            default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTinyPlus
         )
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
@@ -747,10 +747,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitt-ltdetr", "ltdetrv2-s")
-    class EdgeCrafterECViTT(LTDETRBaseConfig.ViTT):
+    class EdgeCrafterECViTTiny(LTDETRBaseConfig.ViTTiny):
         backbone_name: str = "edgecrafter/ecvitt"
         transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTT
+            default_factory=LTDETRDFINETransformerConfig.ViTTiny
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -758,10 +758,10 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvittplus-ltdetr", "ltdetrv2-m")
-    class EdgeCrafterECViTTPlus(LTDETRBaseConfig.ViTTPlus):
+    class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         backbone_name: str = "edgecrafter/ecvittplus"
         transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+            default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -769,10 +769,10 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr", "ltdetrv2-l")
-    class EdgeCrafterECViTS(LTDETRBaseConfig.ViTTPlus):
+    class EdgeCrafterECViTS(LTDETRBaseConfig.ViTTinyPlus):
         backbone_name: str = "edgecrafter/ecvits"
         transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+            default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -780,10 +780,10 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-ltdetr", "ltdetrv2-x")
-    class EdgeCrafterECViTSPlus(LTDETRBaseConfig.ViTTPlus):
+    class EdgeCrafterECViTSPlus(LTDETRBaseConfig.ViTTinyPlus):
         backbone_name: str = "edgecrafter/ecvitsplus"
         transformer: DFINETransformerConfig = Field(
-            default_factory=LTDETRDFINETransformerConfig.ViTTPlus
+            default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
