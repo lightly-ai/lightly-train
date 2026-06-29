@@ -39,7 +39,12 @@ Also check out [LightlyStudio](https://github.com/lightly-ai/lightly-studio) to 
 visualize your annotations and predictions.
 
 ## News
-
+- \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
+  2026-06-25: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
+  LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural
+  and performance improvements! It supports using ECViT backbones from
+  [EdgeCrafter](https://arxiv.org/abs/2603.18739) and ONNX/TensorRT export for faster
+  inference!
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
   2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
