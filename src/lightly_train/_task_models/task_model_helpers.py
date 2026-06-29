@@ -352,26 +352,22 @@ def _raise_unknown_checkpoint_error(checkpoint: PathLike) -> NoReturn:
     a verbose message points to the local converter. Everything else raises the generic
     error.
     """
-    # Imported lazily: these modules import `task_model_helpers` at module level, so a
+    # Imported lazily: this module imports `task_model_helpers` at module level, so a
     # top-level import here would be circular. This runs only on the error path.
-    from lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model import (
-        DepthAnythingV2MetricDepthEstimation,
-    )
-    from lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model import (
-        DepthAnythingV2RelativeDepthEstimation,
+    from lightly_train._task_models.depth_estimation.task_model import (
+        DepthAnythingDepthEstimation,
     )
 
     ckpt_str = str(checkpoint)
-    # The DAv2 task models' own registry is the source of truth for known names. Hosted
+    # The depth task model's registry is the source of truth for known names. Hosted
     # DAv2 models are matched earlier against DOWNLOADABLE_MODEL_URL_AND_HASH, so a known
-    # name reaching here is a non-commercial variant that must be converted locally.
+    # DAv2 name reaching here is a non-commercial variant that must be converted locally.
+    # Filter to DAv2 names: the registry now also holds DAv3 names, which must not trigger
+    # the DAv2 non-commercial message.
     dav2_model_names = {
         name.lower()
-        for cls in (
-            DepthAnythingV2RelativeDepthEstimation,
-            DepthAnythingV2MetricDepthEstimation,
-        )
-        for name in cls.list_model_names()
+        for name in DepthAnythingDepthEstimation.list_model_names()
+        if "dav2" in name.lower()
     }
     if ckpt_str.lower() in dav2_model_names:
         raise ValueError(
