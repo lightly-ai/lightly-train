@@ -29,8 +29,8 @@ vanishing gradients. LightlyTrain logs it for every training step:
 
 - `gradient_norm`: Total gradient norm computed after backpropagation, before the
   optimizer step. If gradient clipping is enabled (`gradient_clip_val > 0`) this is the
-  pre-clipping norm; otherwise it is computed via an L2 norm. It is also
-  shown in the console progress line as `grad_norm`.
+  pre-clipping norm; otherwise it is computed via an L2 norm. It is also shown in the
+  console progress line as `grad_norm`.
 
 It is written to all configured loggers (`metrics.jsonl`, TensorBoard, MLflow, Weights &
 Biases) at the cadence set by
