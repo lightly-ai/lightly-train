@@ -169,8 +169,11 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
 
         # Resolve the backbone's expected input channel count.
         # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
-        if backbone_args is not None and "in_chans" in backbone_args:
-            self._expected_input_channels: int = backbone_args["in_chans"]
+        self._expected_input_channels: int
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            self._expected_input_channels = 3
+        elif backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels = backbone_args["in_chans"]
         elif self.image_normalize is not None:
             self._expected_input_channels = len(self.image_normalize["mean"])
         else:
