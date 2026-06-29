@@ -256,3 +256,112 @@ Converting the Apache-2.0 models (`dinov2/dav2-relative-small` and
 and downloaded automatically. For these, the converter can fetch the official weights
 from Hugging Face directly, so the `--weights` argument can be omitted.
 ```
+
+(depth-estimation-onnx)=
+
+## Exporting a Checkpoint to ONNX
+
+[Open Neural Network Exchange (ONNX)](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange)
+is a standard format for representing machine learning models in a framework independent
+manner. In particular, it is useful for deploying our models on edge devices where
+PyTorch is not available.
+
+```{note}
+The ONNX graph contains only the model forward pass. It outputs the raw depth map at the
+model's processing resolution (plus a sky map for Depth Anything V3 models, which have a
+sky head). Preprocessing the input image and postprocessing the output (sky filling,
+metric scaling, and resizing back to the original image resolution) are not part of the
+graph and must be applied by the caller.
+```
+
+### Requirements
+
+Exporting to ONNX requires some additional packages to be installed. Namely
+
+- [onnx](https://pypi.org/project/onnx/)
+- [onnxruntime](https://pypi.org/project/onnxruntime/) if `verify` is set to `True`.
+- [onnxslim](https://pypi.org/project/onnxslim/) if `simplify` is set to `True`.
+
+You can install them with:
+
+```bash
+pip install "lightly-train[onnx,onnxruntime,onnxslim]"
+```
+
+The following example shows how to export a model to ONNX.
+
+```python
+import lightly_train
+
+# Load a model.
+model = lightly_train.load_model("dinov2/dav3-relative-large")
+
+# Export to ONNX.
+model.export_onnx(
+    out="model.onnx",
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
+)
+```
+
+See {py:meth}`~.DepthAnythingDepthEstimation.export_onnx` for all available options when
+exporting to ONNX.
+
+(depth-estimation-tensorrt)=
+
+## Exporting a Checkpoint to TensorRT
+
+TensorRT engines are built from an ONNX representation of the model. The
+`export_tensorrt` method internally exports the model to ONNX (see the ONNX export
+section above) before building a [TensorRT](https://developer.nvidia.com/tensorrt)
+engine for fast GPU inference.
+
+### Requirements
+
+TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup. See
+the
+[TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html)
+for more details.
+
+On CUDA 12.x systems you can often install the Python package via:
+
+```bash
+pip install tensorrt-cu12
+```
+
+```python
+import lightly_train
+
+# Load a model.
+model = lightly_train.load_model("dinov2/dav3-relative-large")
+
+# Export to TensorRT from an ONNX file.
+model.export_tensorrt(
+    out="model.trt", # TensorRT engine destination.
+    # precision="fp16", # Export model with FP16 weights for smaller size and faster inference.
+)
+```
+
+See {py:meth}`~.DepthAnythingDepthEstimation.export_tensorrt` for all available options
+when exporting to TensorRT.
+
+### Combining Conversion and Export
+
+ONNX export and TensorRT engine building can be combined in a single call: building a
+TensorRT engine requires an ONNX model, and `export_tensorrt` exports it for you. You
+can fix the export resolution via `onnx_args` (`height` and `width`, both multiples of
+the patch size 14) and pick the precision at the same time:
+
+```python skip_ruff
+import lightly_train
+
+# A hosted model name, or a path to a converted DAv2 checkpoint.
+model = lightly_train.load_model("dinov2/dav3-relative-large")
+
+
+model.export_tensorrt(
+    out="model.trt",
+    onnx_args={"height": 504, "width": 504},
+    precision="fp16",
+)
+```
