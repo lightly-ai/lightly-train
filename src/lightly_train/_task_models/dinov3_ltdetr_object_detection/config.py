@@ -359,6 +359,17 @@ class CNNBackboneWrapperConfig(PydanticConfig):
             )
 
 
+class ECViTBackboneWrapperConfig(PydanticConfig):
+    finetune: bool = True
+
+    def resolve_auto(self, patch_size: int | None) -> None:
+        if patch_size is not None and patch_size != 16:
+            raise ValueError(
+                "ECViT (EdgeCrafter) backbones only support patch_size=16, "
+                f"but got patch_size={patch_size}."
+            )
+
+
 class RTDETRBackboneWrapperConfig(PydanticConfig):
     interaction_indexes: list[int]
     finetune: bool
@@ -473,7 +484,11 @@ class DetectorConfig(PydanticConfig):
         Field(discriminator="decoder_name"),
     ]
     rtdetr_postprocessor: RTDETRPostProcessorConfig
-    backbone_wrapper: RTDETRBackboneWrapperConfig | CNNBackboneWrapperConfig
+    backbone_wrapper: (
+        RTDETRBackboneWrapperConfig
+        | CNNBackboneWrapperConfig
+        | ECViTBackboneWrapperConfig
+    )
     backbone_args: dict[str, Any]
 
     def resolve_auto(self, patch_size: int | None) -> None:
@@ -757,8 +772,8 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTiny
         )
-        backbone_wrapper: CNNBackboneWrapperConfig = Field(
-            default_factory=CNNBackboneWrapperConfig
+        backbone_wrapper: ECViTBackboneWrapperConfig = Field(
+            default_factory=ECViTBackboneWrapperConfig
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -768,8 +783,8 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
-        backbone_wrapper: CNNBackboneWrapperConfig = Field(
-            default_factory=CNNBackboneWrapperConfig
+        backbone_wrapper: ECViTBackboneWrapperConfig = Field(
+            default_factory=ECViTBackboneWrapperConfig
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -779,8 +794,8 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
-        backbone_wrapper: CNNBackboneWrapperConfig = Field(
-            default_factory=CNNBackboneWrapperConfig
+        backbone_wrapper: ECViTBackboneWrapperConfig = Field(
+            default_factory=ECViTBackboneWrapperConfig
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -790,7 +805,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
-        backbone_wrapper: CNNBackboneWrapperConfig = Field(
-            default_factory=CNNBackboneWrapperConfig
+        backbone_wrapper: ECViTBackboneWrapperConfig = Field(
+            default_factory=ECViTBackboneWrapperConfig
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
