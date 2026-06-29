@@ -603,7 +603,9 @@ training steps, at the cadence set by [`log_every_num_steps`](#log_every_num_ste
   optimizer step. If gradient clipping is enabled (`gradient_clip_val > 0`) this is the
   pre-clipping norm; otherwise it is the total gradient norm computed without applying
   gradient clipping. Use it to spot exploding or vanishing gradients during training. It
-  is also shown in the console progress line as `grad_norm`.
+  is also shown in the console progress line as `grad_norm`. See
+  [Model Instability Debugging](../debugging/model_instability.md) for how to interpret
+  this value and diagnose unstable training.
 - `learning_rate`: Current learning rate after scheduler scaling.
 
 Both are written to all configured loggers (`metrics.jsonl`, TensorBoard, MLflow,
