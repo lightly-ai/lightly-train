@@ -68,7 +68,7 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model im
     DINOv3EoMTSemanticSegmentationTrain,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
@@ -126,7 +126,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
     SemanticSegmentationMultiheadTrain,
-    DINOv3LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrain,
     PicoDetObjectDetectionTrain,
 ]
 

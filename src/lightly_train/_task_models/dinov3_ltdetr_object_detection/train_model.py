@@ -45,10 +45,10 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import
     DINOv3LTDETRObjectDetection,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
-    DINOv3LTDETRObjectDetectionTrainTransform,
-    DINOv3LTDETRObjectDetectionTrainTransformArgs,
-    DINOv3LTDETRObjectDetectionValTransform,
-    DINOv3LTDETRObjectDetectionValTransformArgs,
+    LTDETRObjectDetectionTrainTransform,
+    LTDETRObjectDetectionTrainTransformArgs,
+    LTDETRObjectDetectionValTransform,
+    LTDETRObjectDetectionValTransformArgs,
 )
 from lightly_train._task_models.object_detection_components.dfine_criterion import (
     DFINECriterion,
@@ -98,7 +98,7 @@ _DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT
 logger = logging.getLogger(__name__)
 
 
-class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
+class LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     default_batch_size: ClassVar[int] = 32
     default_steps: ClassVar[int] = (
         266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
@@ -263,23 +263,23 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         return list(self.losses)
 
 
-class DINOv3LTDETRObjectDetectionTrain(TrainModel):
+class LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
-    train_model_args_cls = DINOv3LTDETRObjectDetectionTrainArgs
+    train_model_args_cls = LTDETRObjectDetectionTrainArgs
     task_metric_args_cls = ObjectDetectionTaskMetricArgs
     task_model_cls = DINOv3LTDETRObjectDetection
-    train_transform_cls = DINOv3LTDETRObjectDetectionTrainTransform
-    val_transform_cls = DINOv3LTDETRObjectDetectionValTransform
+    train_transform_cls = LTDETRObjectDetectionTrainTransform
+    val_transform_cls = LTDETRObjectDetectionValTransform
     torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv3LTDETRObjectDetectionTrainArgs,
+        model_args: LTDETRObjectDetectionTrainArgs,
         data_args: YOLOObjectDetectionDataArgs,
-        train_transform_args: DINOv3LTDETRObjectDetectionTrainTransformArgs,
-        val_transform_args: DINOv3LTDETRObjectDetectionValTransformArgs,
+        train_transform_args: LTDETRObjectDetectionTrainTransformArgs,
+        val_transform_args: LTDETRObjectDetectionValTransformArgs,
         load_weights: bool,
         metric_args: ObjectDetectionTaskMetricArgs,
         gradient_accumulation_steps: int,
