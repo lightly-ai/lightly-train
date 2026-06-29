@@ -350,8 +350,13 @@ class CNNBackboneWrapperConfig(PydanticConfig):
     finetune: bool = True
 
     def resolve_auto(self, patch_size: int | None) -> None:
-        """No-op since CNNs don't have a patch size."""
-        pass
+        """CNNs don't have a patch size, so this will fail."""
+        if patch_size is not None:
+            raise ValueError(
+                "CNNBackboneWrapperConfig does not support patch_size, "
+                "but a patch_size was provided. Patch sizes are only "
+                "relevant for ViT backbones."
+            )
 
 
 class RTDETRBackboneWrapperConfig(PydanticConfig):
