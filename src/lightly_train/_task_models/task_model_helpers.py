@@ -200,24 +200,24 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
     #### Depth Estimation
     "dinov2/dav3-relative-large": (
-        "dinov2_dav3_relative_large_260618_84f8e30b.pt",
-        "84f8e30b691dfd5ebb94a013bb6cd661c022ebba4f22e173d3087ced9ce8a0e6",
+        "dinov2_dav3_relative_large_260629_9c2e9320.pt",
+        "9c2e932085843bbd960e16bc80917b6591e99fc6fd3907ded7bda68d35368e49",
     ),
     "dinov2/dav3-metric-large": (
-        "dinov2_dav3_metric_large_260618_55bed860.pt",
-        "55bed8604eb6a3a19664e5e7a4e3aecc67a02369135da8665b43871e9becc6a7",
+        "dinov2_dav3_metric_large_260629_6fd208f2.pt",
+        "6fd208f22eaccf9007e9e67fb9cad95cc47016c8d00bc74c7fe69ec34185c06b",
     ),
     # Only the Apache-2.0 Depth Anything V2 models are hosted. The CC-BY-NC-4.0 models
     # (relative base/large and the non-small metric variants) are not redistributed:
     # convert them locally with convert_checkpoint_dav2 and pass the result via
     # `weights=`.
     "dinov2/dav2-relative-small": (
-        "dinov2_dav2_relative_small_260619_9575be90.pt",
-        "9575be9008699ff5c607e1210db67827df84bf7a7a8769e67e81fda363089acf",
+        "dinov2_dav2_relative_small_260629_bb09402a.pt",
+        "bb09402aca18dab407707254967b7a1b3cec3dc3707777697ce6101db15d6172",
     ),
     "dinov2/dav2-metric-small-hypersim": (
-        "dinov2_dav2_metric_small_hypersim_260619_3b1d5649.pt",
-        "3b1d56491e491b664f002df95cccf90eb53ea30f80f78066201fb2377f5f7cb0",
+        "dinov2_dav2_metric_small_hypersim_260629_d5957701.pt",
+        "d59577016e01635c285fac76f44685d7a0878545e0b8d560da45c0cf4d058548",
     ),
 }
 
@@ -352,26 +352,22 @@ def _raise_unknown_checkpoint_error(checkpoint: PathLike) -> NoReturn:
     a verbose message points to the local converter. Everything else raises the generic
     error.
     """
-    # Imported lazily: these modules import `task_model_helpers` at module level, so a
+    # Imported lazily: this module imports `task_model_helpers` at module level, so a
     # top-level import here would be circular. This runs only on the error path.
-    from lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model import (
-        DepthAnythingV2MetricDepthEstimation,
-    )
-    from lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model import (
-        DepthAnythingV2RelativeDepthEstimation,
+    from lightly_train._task_models.depth_estimation.task_model import (
+        DepthAnythingDepthEstimation,
     )
 
     ckpt_str = str(checkpoint)
-    # The DAv2 task models' own registry is the source of truth for known names. Hosted
+    # The depth task model's registry is the source of truth for known names. Hosted
     # DAv2 models are matched earlier against DOWNLOADABLE_MODEL_URL_AND_HASH, so a known
-    # name reaching here is a non-commercial variant that must be converted locally.
+    # DAv2 name reaching here is a non-commercial variant that must be converted locally.
+    # Filter to DAv2 names: the registry now also holds DAv3 names, which must not trigger
+    # the DAv2 non-commercial message.
     dav2_model_names = {
         name.lower()
-        for cls in (
-            DepthAnythingV2RelativeDepthEstimation,
-            DepthAnythingV2MetricDepthEstimation,
-        )
-        for name in cls.list_model_names()
+        for name in DepthAnythingDepthEstimation.list_model_names()
+        if "dav2" in name.lower()
     }
     if ckpt_str.lower() in dav2_model_names:
         raise ValueError(
