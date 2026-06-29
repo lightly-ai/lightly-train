@@ -39,6 +39,7 @@ Also check out [LightlyStudio](https://github.com/lightly-ai/lightly-studio) to 
 visualize your annotations and predictions.
 
 ## News
+
 - \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
   2026-06-25: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
   LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural
