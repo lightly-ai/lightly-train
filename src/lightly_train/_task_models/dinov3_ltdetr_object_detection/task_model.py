@@ -38,6 +38,10 @@ from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBas
 from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
+    DFINETransformerConfig,
+    LTDETRDFINETransformerConfig,
+    LTDETRRTDETRTransformerv2Config,
+    RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -65,6 +69,29 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+_LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
+
+
+def _resolve_transformer_config(
+    config: DetectorConfig, decoder_name: _LTDETRDecoderName | None
+) -> RTDETRTransformerv2Config | DFINETransformerConfig:
+    """Make backwards-compatible transformer config resolution for LTDETR task models."""
+    resolved_decoder_name = decoder_name or config.transformer.decoder_name
+    if resolved_decoder_name == config.transformer.decoder_name:
+        return config.transformer
+
+    config_name = type(config.transformer).__name__
+    if resolved_decoder_name == "rtdetrv2":
+        config_cls = getattr(LTDETRRTDETRTransformerv2Config, config_name)
+    elif resolved_decoder_name == "dfine":
+        config_cls = getattr(LTDETRDFINETransformerConfig, config_name)
+    else:
+        raise ValueError(
+            f"Unsupported decoder_name={decoder_name!r}. "
+            "Expected one of 'rtdetrv2' or 'dfine'."
+        )
+    return config_cls()
+
 
 class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
     def __init__(
@@ -78,7 +105,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: Literal["rtdetrv2", "dfine"] | None = None,
+        decoder_name: _LTDETRDecoderName | None = None,
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
@@ -114,12 +141,9 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         )
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-        transformer_config = config.transformer
-        if config.transformer.decoder_name != decoder_name:
-            # Use the decoder_name provided by the caller if it differs from the config's default.
-            transformer_config.decoder_name = (
-                decoder_name or config.transformer.decoder_name
-            )
+        transformer_config = _resolve_transformer_config(
+            config=config, decoder_name=decoder_name
+        )
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name
