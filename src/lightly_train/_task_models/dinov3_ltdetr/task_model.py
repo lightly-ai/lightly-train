@@ -21,9 +21,6 @@ from typing_extensions import Self
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
-    DinoVisionTransformer as DINOv2DinoVisionTransformer,
-)
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
@@ -694,15 +691,12 @@ class _DINOv3LTDETRBase(TaskModel):
         # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
         # and ignores `patch_size`/`weights` in model_args).
         if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone: (
-                ConvNeXt
-                | DINOv3DinoVisionTransformer
-                | DINOv2DinoVisionTransformer
-                | ECViTModelWrapper
-            ) = EDGE_CRAFTER_PACKAGE.get_model(
-                model_name=parsed_name["backbone_name"],
-                model_args=None,
-                load_weights=load_weights,
+            backbone: ConvNeXt | DINOv3DinoVisionTransformer | ECViTModelWrapper = (
+                EDGE_CRAFTER_PACKAGE.get_model(
+                    model_name=parsed_name["backbone_name"],
+                    model_args=None,
+                    load_weights=load_weights,
+                )
             )
         else:
             backbone = DINOV3_PACKAGE.get_model(
@@ -716,7 +710,6 @@ class _DINOv3LTDETRBase(TaskModel):
             (
                 ConvNeXt,
                 DINOv3DinoVisionTransformer,
-                DINOv2DinoVisionTransformer,
                 ECViTModelWrapper,
             ),
         )
@@ -773,8 +766,6 @@ class _DINOv3LTDETRBase(TaskModel):
                 model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
-        elif isinstance(backbone, DINOv2DinoVisionTransformer):
-            raise NotImplementedError("TBD")
         else:
             # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
