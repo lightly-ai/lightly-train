@@ -38,6 +38,7 @@ from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBas
 from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
+    resolve_transformer_config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -114,12 +115,9 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         )
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-        transformer_config = config.transformer
-        if config.transformer.decoder_name != decoder_name:
-            # Use the decoder_name provided by the caller if it differs from the config's default.
-            transformer_config.decoder_name = (
-                decoder_name or config.transformer.decoder_name
-            )
+        transformer_config = resolve_transformer_config(
+            config=config, decoder_name=decoder_name
+        )
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name

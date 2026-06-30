@@ -41,6 +41,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrappe
 from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
 )
@@ -204,10 +207,19 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                     elif re.match(r"dinov3/convnext.*", model_name) is not None:
                         self.patch_size = None
                     else:
-                        raise ValueError(
-                            "Unable to resolve patch_size='auto' for model "
-                            f"{model_name!r}. Please provide a concrete patch_size."
-                        )
+                        try:
+                            patch_size = LTDETR_MODEL_REGISTRY.get(
+                                alias=model_name
+                            )().backbone_args.get("patch_size")
+                        except KeyError:
+                            patch_size = None
+                        if patch_size is not None:
+                            self.patch_size = int(patch_size)
+                        else:
+                            raise ValueError(
+                                "Unable to resolve patch_size='auto' for model "
+                                f"{model_name!r}. Please provide a concrete patch_size."
+                            )
         # Resolve ``decoder_name`` against the checkpoint architecture when
         # the user did not explicitly set it. This preserves backward
         # compatibility for hosted/local checkpoints trained with the previous
@@ -225,6 +237,13 @@ class DINOv3LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                     f"the checkpoint's decoder_name={checkpoint_decoder_name!r}; "
                     "the checkpoint decoder weights will not load cleanly."
                 )
+        elif "decoder_name" not in self.model_fields_set:
+            if model_init_args:
+                self.decoder_name = "rtdetrv2"
+            else:
+                self.decoder_name = LTDETR_MODEL_REGISTRY.get(
+                    alias=model_name
+                )().transformer.decoder_name
 
         if (
             self.lr_warmup_steps == "auto"

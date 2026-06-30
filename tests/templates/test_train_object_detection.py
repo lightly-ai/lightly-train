@@ -167,6 +167,7 @@ def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
         # Override model, steps, batch_size, num_workers, and devices to keep the test fast.
         model="dinov3/vitt16-notpretrained-ltdetr",
         model_args={
+            "decoder_name": "rtdetrv2",
             "scheduler_name": "linear",
         },
         steps=2,
@@ -205,6 +206,7 @@ def test_rendered_template_runs_training_with_all_params(tmp_path: Path) -> None
         num_workers=2,
         model="dinov3/vitt16-notpretrained-ltdetr",
         model_args={
+            "decoder_name": "rtdetrv2",
             "scheduler_name": "linear",
         },
         steps=2,

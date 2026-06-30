@@ -15,6 +15,7 @@ from typing_extensions import Annotated
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import ModelRegistry
+from lightly_train._models import package_helpers
 
 logger = logging.getLogger(__name__)
 
@@ -498,6 +499,52 @@ class DetectorConfig(PydanticConfig):
         self.transformer.resolve_auto(patch_size=patch_size)
 
 
+def resolve_transformer_config(
+    *, config: DetectorConfig, decoder_name: Literal["rtdetrv2", "dfine"] | None
+) -> RTDETRTransformerv2Config | DFINETransformerConfig:
+    """Resolve the transformer config for fresh and legacy checkpoints."""
+    resolved_decoder_name = decoder_name or config.transformer.decoder_name
+    if resolved_decoder_name == config.transformer.decoder_name:
+        return config.transformer
+
+    package_name, backbone_name = package_helpers.parse_model_name(config.backbone_name)
+    if package_name == "dinov2" and resolved_decoder_name == "dfine":
+        raise ValueError(
+            f"decoder_name='dfine' is not supported for model {config.backbone_name!r}."
+        )
+
+    if resolved_decoder_name == "rtdetrv2":
+        config_namespace = LTDETRRTDETRTransformerv2Config
+    else:
+        config_namespace = LTDETRDFINETransformerConfig
+
+    transformer_config_cls = {
+        "convnext-tiny": config_namespace.CNNTiny,
+        "convnext-small": config_namespace.CNNSmall,
+        "convnext-base": config_namespace.CNNBase,
+        "convnext-large": config_namespace.CNNLarge,
+        "vitt16": config_namespace.ViTTiny,
+        "vitt16plus": config_namespace.ViTTinyPlus,
+        "vits16": config_namespace.ViTSmall,
+        "vitb16": config_namespace.ViTBase,
+        "vitl16": config_namespace.ViTLarge,
+        "vits14": config_namespace.ViTSmall,
+        "vitb14": config_namespace.ViTBase,
+        "vitl14": config_namespace.ViTLarge,
+        "vitg14": config_namespace.ViTGiant,
+        "ecvitt": config_namespace.ViTTiny,
+        "ecvittplus": config_namespace.ViTTinyPlus,
+        "ecvits": config_namespace.ViTTinyPlus,
+        "ecvitsplus": config_namespace.ViTTinyPlus,
+    }.get(backbone_name)
+    if transformer_config_cls is None:
+        raise ValueError(
+            f"decoder_name={resolved_decoder_name!r} is not supported for model "
+            f"{config.backbone_name!r}."
+        )
+    return transformer_config_cls()
+
+
 class LTDETRBaseConfig(ConfigsNamespace):
     class CNNLarge(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
@@ -600,8 +647,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
         backbone_name: str = "dinov3/convnext-tiny"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNTiny
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNTiny
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -612,8 +659,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
         backbone_name: str = "dinov3/convnext-small"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNSmall
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNSmall
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -624,8 +671,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
         backbone_name: str = "dinov3/convnext-base"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNBase
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNBase
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -634,8 +681,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
         backbone_name: str = "dinov3/convnext-large"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.CNNLarge
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.CNNLarge
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -647,8 +694,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ViTTiny(LTDETRBaseConfig.ViTTiny):
         backbone_name: str = "dinov3/vitt16"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTTiny
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTiny
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTiny
@@ -662,8 +709,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         backbone_name: str = "dinov3/vitt16plus"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTTinyPlus
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTTinyPlus
@@ -677,8 +724,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     )
     class DINOv3ViTSmall(LTDETRBaseConfig.ViTSmall):
         backbone_name: str = "dinov3/vits16"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTSmall
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTSmall
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTSmall
@@ -690,8 +737,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
     class DINOv3ViTBase(LTDETRBaseConfig.ViTBase):
         backbone_name: str = "dinov3/vitb16"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTBase
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTBase
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTBase
@@ -703,8 +750,8 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTLarge(LTDETRBaseConfig.ViTLarge):
         backbone_name: str = "dinov3/vitl16"
-        transformer: RTDETRTransformerv2Config = Field(
-            default_factory=LTDETRRTDETRTransformerv2Config.ViTLarge
+        transformer: DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTLarge
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
             default_factory=LTDETRRTDETRBackboneWrapperConfig.ViTLarge

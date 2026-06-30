@@ -36,6 +36,9 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
     DINOv3LTDETRObjectDetectionValTransformArgs,
 )
+from lightly_train._task_models.object_detection_components.dfine_decoder import (
+    DFINETransformer,
+)
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
 )
@@ -231,6 +234,68 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     )
 
     assert model_args.patch_size == expected_patch_size
+
+
+def test_task_model__default_decoder_is_dfine() -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        load_weights=False,
+    )
+
+    assert isinstance(model.decoder, DFINETransformer)
+
+
+def test_task_model__explicit_rtdetrv2_decoder() -> None:
+    model = DINOv3LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        decoder_name="rtdetrv2",
+        load_weights=False,
+    )
+
+    assert isinstance(model.decoder, RTDETRTransformerv2)
+
+
+def test_resolve_auto__dinov2_default_decoder_is_rtdetrv2(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="dinov2/vits14-ltdetr",
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == "rtdetrv2"
+
+
+def test_resolve_auto__legacy_checkpoint_without_decoder_uses_rtdetrv2(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_init_args={
+            "model_name": "dinov3/vitt16-notpretrained-ltdetr",
+            "classes": {0: "class_0", 1: "class_1"},
+            "image_size": (640, 640),
+            "patch_size": 16,
+        },
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == "rtdetrv2"
 
 
 def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
