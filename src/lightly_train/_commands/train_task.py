@@ -1776,7 +1776,9 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     )
                     train_log_dict["learning_rate"] = current_lr
                     grad_norm_value = (
-                        float(gradient_norm.detach()) if gradient_norm is not None else None
+                        float(gradient_norm.detach())
+                        if gradient_norm is not None
+                        else None
                     )
                     if grad_norm_value is not None:
                         train_log_dict["gradient_norm"] = grad_norm_value
