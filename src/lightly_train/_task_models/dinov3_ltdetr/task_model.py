@@ -30,13 +30,13 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOSTAs,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (

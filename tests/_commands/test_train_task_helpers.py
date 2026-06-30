@@ -24,11 +24,11 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
+from lightly_train._task_models.ltdetr_object_detection.train_model import (
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
+from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransformArgs,
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics

@@ -11,7 +11,7 @@ import pytest
 import torch
 from torch.nn import Module
 
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
 

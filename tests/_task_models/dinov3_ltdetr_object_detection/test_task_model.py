@@ -25,20 +25,20 @@ from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetr
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DFINETransformerConfig,
     RTDETRTransformerv2Config,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
+from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
     _resolve_transformer_config,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
+from lightly_train._task_models.ltdetr_object_detection.train_model import (
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
+from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransformArgs,
 )
@@ -730,7 +730,7 @@ def test_create_train_model__ecvit(
     model_name: str,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
         ECViTBackboneWrapper,
     )
 
@@ -914,7 +914,7 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     # at the full detector LR. Otherwise the connector never converges
     # during fine-tuning.
     from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
-    from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
         ECViTBackboneWrapper,
     )
 

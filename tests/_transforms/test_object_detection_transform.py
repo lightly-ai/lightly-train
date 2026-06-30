@@ -16,7 +16,7 @@ from albumentations import BboxParams
 from numpy.typing import NDArray
 from torch import Tensor
 
-from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
+from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionCopyBlendArgs,
     LTDETRObjectDetectionMixUpArgs,
     LTDETRObjectDetectionScaleJitterArgs,
