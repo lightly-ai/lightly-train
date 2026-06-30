@@ -803,6 +803,9 @@ class DepthAnythingDepthEstimation(TaskModel):
         """
         model_dtype = next(self.parameters()).dtype
 
+        onnx_args = dict(onnx_args) if onnx_args is not None else {}
+        onnx_args.setdefault("precision", precision)
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,

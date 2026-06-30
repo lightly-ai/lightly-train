@@ -306,6 +306,9 @@ model.export_onnx(
 See {py:meth}`~.DepthAnythingDepthEstimation.export_onnx` for all available options when
 exporting to ONNX.
 
+The following notebook shows how to export a model to ONNX in Colab:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/depth_estimation_export.ipynb)
+
 (depth-estimation-tensorrt)=
 
 ## Exporting a Checkpoint to TensorRT
