@@ -6,28 +6,28 @@ This page covers the settings available for training tasks like object detection
 segmentation in LightlyTrain. For settings related to pretraining and distillation,
 please refer to the [](pretrain-settings) page.
 
-| Name                                            | Type                          | Default        | Description                                                                                                                                                         |
-| ----------------------------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`out`](#out)                                   | `str`<br>`Path`               | —              | Output directory where checkpoints, logs, and exported models are written.                                                                                          |
-| [`data`](#data)                                 | `dict`<br>`str`               | —              | Dataset configuration dict, or path to a YAML file containing the dataset configuration.                                                                            |
-| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"ltdetrv2-s-coco"`) or path to a local checkpoint to fine-tune from.                                                                        |
-| [`model_args`](#model_args)                     | `dict`                        | `None`         | Task/model-specific training hyperparameters.                                                                                                                       |
-| [`steps`](#steps)                               | `int`                         | `"auto"`       | Number of training steps. `"auto"` selects a model-dependent default.                                                                                               |
-| [`precision`](#precision)                       | `str`                         | `"bf16-mixed"` | Numeric precision mode (e.g. `"16-true"`, `"32-true"`, `"bf16-mixed"`).                                                                                             |
-| [`batch_size`](#batch_size)                     | `int`                         | `"auto"`       | Global batch size across all devices.                                                                                                                               |
-| [`num_workers`](#num_workers)                   | `int`                         | `"auto"`       | DataLoader worker processes per device. `"auto"` chooses a value based on available CPU cores.                                                                      |
-| [`devices`](#devices)                           | `int`<br>`str`<br>`list[int]` | `"auto"`       | Devices to use for training. `"auto"` selects all available devices for the chosen `accelerator`.                                                                   |
-| [`num_nodes`](#num_nodes)                       | `int`                         | `1`            | Number of nodes for distributed training.                                                                                                                           |
-| [`resume_interrupted`](#resume_interrupted)     | `bool`                        | `False`        | Resume an interrupted/crashed run from the same `out` directory, including optimizer state and current step. Do not change any training parameters when using this. |
-| [`overwrite`](#overwrite)                       | `bool`                        | `False`        | If `True`, overwrite the `out` directory if it already exists.                                                                                                      |
-| [`accelerator`](#accelerator)                   | `str`                         | `"auto"`       | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.                                                                                |
-| [`strategy`](#strategy)                         | `str`                         | `"auto"`       | Distributed training strategy (e.g. `"ddp"`). `"auto"` selects a suitable default.                                                                                  |
-| [`seed`](#seed)                                 | `int`                         | `0`            | Random seed for reproducibility.                                                                                                                                    |
-| [`logger_args`](#logger_args)                   | `dict`                        | `None`         | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.                                                                      |
-| [`transform_args`](#transform_args)             | `dict`                        | `None`         | Data transform configuration (e.g. image size, normalization).                                                                                                      |
-| [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                      |
-| [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                              |
-| [`torch_compile_args`](#torch_compile_args)     | `dict`                        | `None`         | Torch compile configuration dict. `None` uses defaults; keys configure or disable torch.compile options.                                                            |
+| Name                                            | Type                          | Default        | Description                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`out`](#out)                                   | `str`<br>`Path`               | —              | Output directory where checkpoints, logs, and exported models are written.                                                                                                                                                                                                      |
+| [`data`](#data)                                 | `dict`<br>`str`               | —              | Dataset configuration dict, or path to a YAML file containing the dataset configuration.                                                                                                                                                                                        |
+| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"ltdetrv2-s-coco"`) or path to a local checkpoint to fine-tune from.                                                                                                                                                                                    |
+| [`model_args`](#model_args)                     | `dict`                        | `None`         | Task/model-specific training hyperparameters.                                                                                                                                                                                                                                   |
+| [`steps`](#steps)                               | `int`                         | `"auto"`       | Number of training steps. `"auto"` selects a model-dependent default.                                                                                                                                                                                                           |
+| [`precision`](#precision)                       | `str`                         | `"bf16-mixed"` | Numeric precision mode (e.g. `"16-true"`, `"32-true"`, `"bf16-mixed"`).                                                                                                                                                                                                         |
+| [`batch_size`](#batch_size)                     | `int`                         | `"auto"`       | Global batch size across all devices.                                                                                                                                                                                                                                           |
+| [`num_workers`](#num_workers)                   | `int`                         | `"auto"`       | DataLoader worker processes per device. `"auto"` chooses a value based on available CPU cores.                                                                                                                                                                                  |
+| [`devices`](#devices)                           | `int`<br>`str`<br>`list[int]` | `"auto"`       | Devices to use for training. `"auto"` selects all available devices for the chosen `accelerator`.                                                                                                                                                                               |
+| [`num_nodes`](#num_nodes)                       | `int`                         | `1`            | Number of nodes for distributed training.                                                                                                                                                                                                                                       |
+| [`resume_interrupted`](#resume_interrupted)     | `bool`                        | `False`        | Resume an interrupted/crashed run from the same `out` directory, including optimizer state and current step. Do not change any training parameters when using this.                                                                                                             |
+| [`overwrite`](#overwrite)                       | `bool`                        | `False`        | If `True`, overwrite the `out` directory if it already exists.                                                                                                                                                                                                                  |
+| [`accelerator`](#accelerator)                   | `str`                         | `"auto"`       | Hardware backend: `"cpu"`, `"gpu"`, `"mps"`, or `"auto"` to pick the best available.                                                                                                                                                                                            |
+| [`strategy`](#strategy)                         | `str`                         | `"auto"`       | Distributed training strategy (e.g. `"ddp"`). `"auto"` selects a suitable default.                                                                                                                                                                                              |
+| [`seed`](#seed)                                 | `int`                         | `0`            | Random seed for reproducibility.                                                                                                                                                                                                                                                |
+| [`logger_args`](#logger_args)                   | `dict`                        | `None`         | Logger configuration dict. `None` uses defaults; keys configure or disable individual loggers.                                                                                                                                                                                  |
+| [`transform_args`](#transform_args)             | `dict`                        | `None`         | Data transform configuration (e.g. image size, normalization).                                                                                                                                                                                                                  |
+| [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                                                                                                                                  |
+| [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                                                                                                                                          |
+| [`torch_compile_args`](#torch_compile_args)     | `dict`                        | `None`         | Torch compile configuration dict. `None` uses defaults; keys configure or disable torch.compile options.                                                                                                                                                                        |
 | [`debug_args`](#debug_args)                     | `dict`                        | `None`         | Debug configuration dict. `None` disables debugging; keys configure individual debug tools. The only supported key is [`underflow_overflow`](#debug-underflow-overflow), which enables inf/nan detection during forward passes. See [Debug](#train-settings-debug) for details. |
 
 ```{tip}
@@ -973,11 +973,10 @@ debugging. The only currently supported key is
 [`underflow_overflow`](#debug-underflow-overflow), which detects inf/nan values in
 activations and weights during forward passes.
 
-When enabled, the monitor logs the absolute min/max of every weight, input and
-output to per-rank log files under `out/debug/underflow_overflow_rank{rank}.log`.
-Inspect those files to identify the module where values first exploded. Enabling
-this significantly slows training — turn it off once you have collected enough
-information.
+When enabled, the monitor logs the absolute min/max of every weight, input and output to
+per-rank log files under `out/debug/underflow_overflow_rank{rank}.log`. Inspect those
+files to identify the module where values first exploded. Enabling this significantly
+slows training — turn it off once you have collected enough information.
 
 ```{warning}
 `debug_args={"underflow_overflow": {"enabled": True}}` cannot be combined with
@@ -985,8 +984,8 @@ information.
 startup if both are active.
 ```
 
-Example: enable inf/nan detection with a full trace every 10th step and stop
-training after step 500:
+Example: enable inf/nan detection with a full trace every 10th step and stop training
+after step 500:
 
 ```python
 import lightly_train
@@ -1007,12 +1006,12 @@ lightly_train.train_object_detection(
 
 #### `underflow_overflow`
 
-| Key                     | Type             | Default | Description                                                                                                                                                                                       |
-| ----------------------- | ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`               | `bool`           | `False` | Whether to enable underflow/overflow debugging. When `True`, registers forward hooks on all model modules to detect inf/nan values in activations and weights.                                 |
-| `max_frames_to_save`    | `int`            | `21`    | How many forward-pass frames to retain when dumping context after an inf/nan is detected. The most recent N frames are written to the debug log so the module where values first exploded can be identified. |
-| `trace_batch_nums`      | `list[int]`      | `[]`    | Training-step numbers (0-indexed, must be non-negative) at which to write a full absolute min/max trace of every weight, input and output. Detection is disabled on traced steps.              |
-| `abort_after_batch_num` | `int` `\|` `None`| `None`  | Optional training-step after which to abort. When set, training raises `ValueError` once the current step exceeds this threshold. Mainly useful in combination with `trace_batch_nums`.         |
+| Key                     | Type              | Default | Description                                                                                                                                                                                                  |
+| ----------------------- | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`               | `bool`            | `False` | Whether to enable underflow/overflow debugging. When `True`, registers forward hooks on all model modules to detect inf/nan values in activations and weights.                                               |
+| `max_frames_to_save`    | `int`             | `21`    | How many forward-pass frames to retain when dumping context after an inf/nan is detected. The most recent N frames are written to the debug log so the module where values first exploded can be identified. |
+| `trace_batch_nums`      | `list[int]`       | `[]`    | Training-step numbers (0-indexed, must be non-negative) at which to write a full absolute min/max trace of every weight, input and output. Detection is disabled on traced steps.                            |
+| `abort_after_batch_num` | `int` `\|` `None` | `None`  | Optional training-step after which to abort. When set, training raises `ValueError` once the current step exceeds this threshold. Mainly useful in combination with `trace_batch_nums`.                      |
 
 ```{toctree}
 ---
