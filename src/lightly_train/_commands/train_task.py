@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-import atexit
+import contextlib
 import logging
 from typing import Any, Literal, Union
 
@@ -1502,409 +1502,412 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         train_model, optimizer = train_model_optimizer
 
         # Attach underflow/overflow debugger after Fabric setup so that forward hooks
-        # are registered on the device-placed model. Disabled by default. We register
-        # the monitor's close() with atexit so the log file is closed and hooks are
-        # detached even when an exception (including the ValueError the monitor itself
-        # raises on overflow) propagates out of the training loop.
-        #
-        # Exception safety targets the CLI training path only: the ValueError must
-        # propagate to process exit so ``atexit`` runs and resources are released.
-        # Notebook/library callers that catch the monitor's ValueError around
-        # ``train_task(...)`` will leak the open log file and keep the forward
-        # hooks attached until interpreter shutdown; running fine-tuning with this
-        # debug tool in a notebook is not supported.
-        underflow_overflow_monitor: UnderflowOverflowMonitor | None = None
+        # are registered on the device-placed model. Disabled by default. We use the
+        # monitor as a context manager so the log file is closed and hooks are
+        # detached even when an exception (including the ValueError the monitor
+        # itself raises on overflow) is caught inside train_task(...). The previous
+        # atexit-based cleanup leaked the log file and forward hooks when callers
+        # caught the ValueError around the call site.
+        monitor_ctx: contextlib.AbstractContextManager[UnderflowOverflowMonitor | None]
         if config.debug_args.is_underflow_overflow_enabled():
             assert config.debug_args.underflow_overflow is not None
-            underflow_overflow_monitor = UnderflowOverflowMonitor(
+            monitor_ctx = UnderflowOverflowMonitor(
                 model=train_model,
                 debug_args=config.debug_args.underflow_overflow,
                 out_dir=out_dir,
                 global_rank=fabric.global_rank,
             )
-            atexit.register(underflow_overflow_monitor.close)
-
-        logger.info(
-            f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
-        )
-
-        hyperparams = helpers.pretty_format_args_dict(config.model_dump())
-        hyperparams.pop("resume_interrupted", None)
-        hyperparams.pop("overwrite", None)
-        logger_args = hyperparams.get("logger_args")
-        if isinstance(logger_args, dict):
-            mlflow_logger_args = logger_args.get("mlflow")
-            if isinstance(mlflow_logger_args, dict):
-                mlflow_logger_args.pop("run_id", None)
-        for logger_instance in fabric.loggers:
-            if config.resume_interrupted:
-                hyperparams["resume_interrupted"] = True
-            if config.overwrite:
-                hyperparams["overwrite"] = True
-            logger_instance.log_hyperparams(hyperparams)
-
-        LICENSE_INFO = (
-            "LightlyTrain License Notice\n"
-            "\n"
-            "Model training and inference in commercial settings require a valid Commercial License.\n"
-            "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
-            "please ensure your usage complies with the respective terms.\n"
-            "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
-            "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
-        )
-
-        # TODO(Guarin, 02/26): Add best metric to state?
-        best_agg_metric_values: BestAggregatedMetricValues | None = None
-
-        state = TrainTaskState(
-            train_model=train_model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            train_dataloader=train_dataloader,
-            step=-1,
-            model_class_path=train_model.get_task_model().class_path,
-            model_init_args=train_model.get_task_model().init_args,
-        )
-
-        if config.resume_interrupted and checkpoint_path is not None:
-            helpers.resume_from_checkpoint(
-                fabric=fabric,
-                state=state,
-                checkpoint_path=checkpoint_path,
-            )
-        elif checkpoint is not None:
-            helpers.finetune_from_checkpoint(
-                state=state,
-                checkpoint=checkpoint,
-            )
-
-        # Add license info after loading as it might be missing from the checkpoint.
-        state["license_info"] = LICENSE_INFO
-
-        # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
-        # reloading dataloader after every epoch? Is this preferred over persistent workers?
-        infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
-
-        cuda_utilization = CUDAUtilization(device=fabric.device)
-        timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
-
-        helpers.log_param_and_module_info(model=train_model, optimizer=optimizer)
-
-        start_step = state["step"] + 1
-        if start_step > 0:
-            logger.info(f"Resuming training from step {start_step}/{config.steps}...")
         else:
-            logger.info(f"Training for {config.steps} steps...")
-        logger.info(
-            f"Gradient accumulation steps: {config.gradient_accumulation_steps} "
-            f"(effective global batch size: {effective_global_batch_size})."
-        )
-        logger.info(f"Logging every {config.logger_args.log_every_num_steps} steps.")
-        logger.info(f"Validating every {config.logger_args.val_every_num_steps} steps.")
-        logger.info(
-            f"Saving checkpoints every {config.save_checkpoint_args.save_every_num_steps} steps."
-        )
+            monitor_ctx = contextlib.nullcontext(None)
 
-        fabric.barrier()
-        timer.reset_gpu_max_memory("train")
-        timer.start()
-
-        log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
-        val_every_num_steps = no_auto(config.logger_args.val_every_num_steps)
-        val_log_every_num_steps = no_auto(config.logger_args.val_log_every_num_steps)
-        train_num_batches = len(train_dataloader)
-        # Always log the first few steps and then log at a regular interval.
-        log_steps = {
-            step for step in [1, 2, 5, 10, 50, 100] if step < log_every_num_steps
-        }
-        val_log_steps = {
-            step for step in [1, 2, 5, 10, 50, 100] if step < val_log_every_num_steps
-        }
-        for step in range(start_step, config.steps):
-            state["step"] = step
-            current_epoch = helpers.get_training_epoch(
-                step=step,
-                train_num_batches=train_num_batches,
-                gradient_accumulation_steps=config.gradient_accumulation_steps,
+        with monitor_ctx as underflow_overflow_monitor:
+            logger.info(
+                f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
             )
-            is_last_step = step + 1 == config.steps
-            is_log_step = step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
-            is_val_step = (step + 1) % val_every_num_steps == 0
-            is_save_ckpt_step = (step + 1) % no_auto(
-                config.save_checkpoint_args.save_every_num_steps
-            ) == 0
 
-            timer.start_step("train_step")
+            hyperparams = helpers.pretty_format_args_dict(config.model_dump())
+            hyperparams.pop("resume_interrupted", None)
+            hyperparams.pop("overwrite", None)
+            logger_args = hyperparams.get("logger_args")
+            if isinstance(logger_args, dict):
+                mlflow_logger_args = logger_args.get("mlflow")
+                if isinstance(mlflow_logger_args, dict):
+                    mlflow_logger_args.pop("run_id", None)
+            for logger_instance in fabric.loggers:
+                if config.resume_interrupted:
+                    hyperparams["resume_interrupted"] = True
+                if config.overwrite:
+                    hyperparams["overwrite"] = True
+                logger_instance.log_hyperparams(hyperparams)
 
-            # Advance the underflow/overflow debugger to the current step so that
-            # batch numbering, tracing, and abort logic are aligned with the
-            # LightlyTrain training step.
-            if underflow_overflow_monitor is not None:
-                underflow_overflow_monitor.set_step(step=step)
-
-            train_transform.set_step(step)
-            train_collate_fn.set_step(step)
-
-            # We need to reinitiate the dataloader every time a step-aware transform changes its active status
-            needs_reinit = (
-                train_transform.requires_dataloader_reinitialization()
-                or train_collate_fn.requires_dataloader_reinitialization()
+            LICENSE_INFO = (
+                "LightlyTrain License Notice\n"
+                "\n"
+                "Model training and inference in commercial settings require a valid Commercial License.\n"
+                "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
+                "please ensure your usage complies with the respective terms.\n"
+                "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
+                "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
             )
-            if config.num_workers > 0 and needs_reinit:
-                infinite_train_dataloader.reset()
-                train_transform.mark_dataloader_as_reinitialized()
-                train_collate_fn.mark_dataloader_as_reinitialized()
 
-            # Training data loading, forward passes, and gradient accumulation.
-            for acc_step in range(config.gradient_accumulation_steps):
-                is_accumulating = acc_step < config.gradient_accumulation_steps - 1
+            # TODO(Guarin, 02/26): Add best metric to state?
+            best_agg_metric_values: BestAggregatedMetricValues | None = None
 
-                timer.start_step("train_dataload")
-                batch = next(infinite_train_dataloader)
-                timer.end_step("train_dataload")
-
-                # Type ignore is needed because `train_model` is not recognized as an
-                # instance of `_FabricModule`
-                with fabric.no_backward_sync(train_model, enabled=is_accumulating):  # type: ignore[arg-type]
-                    train_result = train_model.training_step(
-                        fabric=fabric, batch=batch, step=step
-                    )
-                    fabric.backward(
-                        train_result.loss / config.gradient_accumulation_steps
-                    )
-
-                # Save label grid from the first microbatch of the training step.
-                if acc_step == 0 and step < 3 and fabric.global_rank == 0:
-                    helpers.save_train_step_visualizations(
-                        result=train_result,
-                        out_dir=out_dir,
-                        step=step,
-                        loggers=fabric.loggers,
-                    )
-
-            # Optimizer step and scheduler step.
-            # clip_gradients returns the total gradient norm before clipping. It is
-            # None for models that do not support gradient norm logging.
-            gradient_norm = train_model.clip_gradients(
-                fabric=fabric, optimizer=optimizer
+            state = TrainTaskState(
+                train_model=train_model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                train_dataloader=train_dataloader,
+                step=-1,
+                model_class_path=train_model.get_task_model().class_path,
+                model_init_args=train_model.get_task_model().init_args,
             )
-            optimizer.step()
-            optimizer.zero_grad()
-            scheduler.step()
 
-            # Call the on_train_batch_end hook.
-            train_model.on_train_batch_end()
-
-            timer.end_step("train_step")
-            timer.record_gpu_stats("train")
-
-            if is_log_step or is_last_step:
-                train_log_dict = train_result.log_dict
-                train_agg_metric_values = (
-                    train_result.metrics.compute_aggregated_values()
-                )
-                train_result.metrics.reset()
-                timer_agg = timer.get_aggregated_metrics(fabric)
-
-                current_lr = helpers.get_current_learning_rate(
-                    optimizer=optimizer, scheduler=scheduler
-                )
-                train_log_dict["learning_rate"] = current_lr
-                grad_norm_value = (
-                    float(gradient_norm.detach()) if gradient_norm is not None else None
-                )
-                if grad_norm_value is not None:
-                    train_log_dict["gradient_norm"] = grad_norm_value
-
-                helpers.log_step(
-                    split="train",
-                    step=step,
-                    max_steps=config.steps,
-                    epoch=current_epoch,
-                    agg_metric_values=train_agg_metric_values,
-                    task=config.task,
-                    timer_agg=timer_agg,
-                    global_batch_size=effective_global_batch_size,
-                    gradient_accumulation_steps=config.gradient_accumulation_steps,
-                    learning_rate=current_lr,
-                    gradient_norm=grad_norm_value,
-                )
-                helpers.add_timer_logs(
-                    timer_agg=timer_agg,
-                    log_dict=train_log_dict,
-                    split="train",
-                    global_batch_size=effective_global_batch_size,
-                    gradient_accumulation_steps=config.gradient_accumulation_steps,
-                )
-                helpers.log_fabric(
+            if config.resume_interrupted and checkpoint_path is not None:
+                helpers.resume_from_checkpoint(
                     fabric=fabric,
-                    log_dict=train_log_dict,
-                    agg_metric_values=train_agg_metric_values,
+                    state=state,
+                    checkpoint_path=checkpoint_path,
+                )
+            elif checkpoint is not None:
+                helpers.finetune_from_checkpoint(
+                    state=state,
+                    checkpoint=checkpoint,
+                )
+
+            # Add license info after loading as it might be missing from the checkpoint.
+            state["license_info"] = LICENSE_INFO
+
+            # TODO(Guarin, 07/25): Replace with infinite batch sampler instead to avoid
+            # reloading dataloader after every epoch? Is this preferred over persistent workers?
+            infinite_train_dataloader = InfiniteCycleIterator(iterable=train_dataloader)
+
+            cuda_utilization = CUDAUtilization(device=fabric.device)
+            timer = TrainingStepTimer(cuda_utilization=cuda_utilization)
+
+            helpers.log_param_and_module_info(model=train_model, optimizer=optimizer)
+
+            start_step = state["step"] + 1
+            if start_step > 0:
+                logger.info(
+                    f"Resuming training from step {start_step}/{config.steps}..."
+                )
+            else:
+                logger.info(f"Training for {config.steps} steps...")
+            logger.info(
+                f"Gradient accumulation steps: {config.gradient_accumulation_steps} "
+                f"(effective global batch size: {effective_global_batch_size})."
+            )
+            logger.info(
+                f"Logging every {config.logger_args.log_every_num_steps} steps."
+            )
+            logger.info(
+                f"Validating every {config.logger_args.val_every_num_steps} steps."
+            )
+            logger.info(
+                f"Saving checkpoints every {config.save_checkpoint_args.save_every_num_steps} steps."
+            )
+
+            fabric.barrier()
+            timer.reset_gpu_max_memory("train")
+            timer.start()
+
+            log_every_num_steps = no_auto(config.logger_args.log_every_num_steps)
+            val_every_num_steps = no_auto(config.logger_args.val_every_num_steps)
+            val_log_every_num_steps = no_auto(
+                config.logger_args.val_log_every_num_steps
+            )
+            train_num_batches = len(train_dataloader)
+            # Always log the first few steps and then log at a regular interval.
+            log_steps = {
+                step for step in [1, 2, 5, 10, 50, 100] if step < log_every_num_steps
+            }
+            val_log_steps = {
+                step
+                for step in [1, 2, 5, 10, 50, 100]
+                if step < val_log_every_num_steps
+            }
+            for step in range(start_step, config.steps):
+                state["step"] = step
+                current_epoch = helpers.get_training_epoch(
                     step=step,
-                    epoch=current_epoch,
+                    train_num_batches=train_num_batches,
+                    gradient_accumulation_steps=config.gradient_accumulation_steps,
                 )
-
-            if config.save_checkpoint_args.save_last and (
-                is_save_ckpt_step or is_last_step
-            ):
-                # Checkpoint saving and export.
-                helpers.save_checkpoint(
-                    fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
+                is_last_step = step + 1 == config.steps
+                is_log_step = (
+                    step + 1 in log_steps or (step + 1) % log_every_num_steps == 0
                 )
+                is_val_step = (step + 1) % val_every_num_steps == 0
+                is_save_ckpt_step = (step + 1) % no_auto(
+                    config.save_checkpoint_args.save_every_num_steps
+                ) == 0
 
-                model_dict = {
-                    "model_class_path": state["model_class_path"],
-                    "model_init_args": state["model_init_args"],
-                    "train_model": train_model.get_export_state_dict(),
-                    "license_info": state.get("license_info", ""),
-                }
+                timer.start_step("train_step")
 
-                helpers.export_model(
-                    out_dir=out_dir, model_dict=model_dict, best_or_last="last"
+                # Advance the underflow/overflow debugger to the current step so that
+                # batch numbering, tracing, and abort logic are aligned with the
+                # LightlyTrain training step.
+                if underflow_overflow_monitor is not None:
+                    underflow_overflow_monitor.set_step(step=step)
+
+                train_transform.set_step(step)
+                train_collate_fn.set_step(step)
+
+                # We need to reinitiate the dataloader every time a step-aware transform changes its active status
+                needs_reinit = (
+                    train_transform.requires_dataloader_reinitialization()
+                    or train_collate_fn.requires_dataloader_reinitialization()
                 )
+                if config.num_workers > 0 and needs_reinit:
+                    infinite_train_dataloader.reset()
+                    train_transform.mark_dataloader_as_reinitialized()
+                    train_collate_fn.mark_dataloader_as_reinitialized()
 
-            if is_val_step or is_last_step:
-                fabric.barrier()
-                logger.info("Validating...")
-                train_model.eval()
+                # Training data loading, forward passes, and gradient accumulation.
+                for acc_step in range(config.gradient_accumulation_steps):
+                    is_accumulating = acc_step < config.gradient_accumulation_steps - 1
 
-                val_agg_metric_values: AggregatedMetricValues | None = None
+                    timer.start_step("train_dataload")
+                    batch = next(infinite_train_dataloader)
+                    timer.end_step("train_dataload")
 
-                # Reset GPU memory tracking before val phase.
-                timer.reset_gpu_max_memory("val")
-
-                val_dataloader_iter = iter(val_dataloader)
-                # TODO (Lionel, 02/26): Average metrics during validation instead of
-                # only singular metrics at the end of the epoch.
-                for val_step in range(len(val_dataloader)):
-                    is_last_val_step = val_step + 1 == len(val_dataloader)
-                    is_val_log_step = (
-                        val_step + 1 in val_log_steps
-                        or (val_step + 1) % val_log_every_num_steps == 0
-                    )
-
-                    timer.start_step("val_step")
-                    timer.start_step("val_dataload")
-                    val_batch = next(val_dataloader_iter)
-                    timer.end_step("val_dataload")
-
-                    # Validation forward pass.
-                    with torch.no_grad():
-                        val_result = train_model.validation_step(
-                            fabric=fabric,
-                            batch=val_batch,
-                            step=val_step,
+                    # Type ignore is needed because `train_model` is not recognized as an
+                    # instance of `_FabricModule`
+                    with fabric.no_backward_sync(train_model, enabled=is_accumulating):  # type: ignore[arg-type]
+                        train_result = train_model.training_step(
+                            fabric=fabric, batch=batch, step=step
+                        )
+                        fabric.backward(
+                            train_result.loss / config.gradient_accumulation_steps
                         )
 
-                    if val_step < 3 and fabric.global_rank == 0:
-                        helpers.save_val_step_visualizations(
-                            result=val_result,
+                    # Save label grid from the first microbatch of the training step.
+                    if acc_step == 0 and step < 3 and fabric.global_rank == 0:
+                        helpers.save_train_step_visualizations(
+                            result=train_result,
                             out_dir=out_dir,
-                            val_step=val_step,
-                            global_step=step,
+                            step=step,
                             loggers=fabric.loggers,
                         )
 
-                    timer.end_step("val_step")
-                    timer.record_gpu_stats("val")
+                # Optimizer step and scheduler step.
+                # clip_gradients returns the total gradient norm before clipping. It is
+                # None for models that do not support gradient norm logging.
+                gradient_norm = train_model.clip_gradients(
+                    fabric=fabric, optimizer=optimizer
+                )
+                optimizer.step()
+                optimizer.zero_grad()
+                scheduler.step()
 
-                    if is_last_val_step:
-                        val_agg_metric_values = (
-                            val_result.metrics.compute_aggregated_values()
-                        )
-                        val_result.metrics.reset()
-                        best_agg_metric_values = helpers.get_best_metrics(
-                            best_agg_metric_values=best_agg_metric_values,
-                            last_agg_metric_values=val_agg_metric_values,
-                            step=step,
-                            metric_args=config.metric_args,
+                # Call the on_train_batch_end hook.
+                train_model.on_train_batch_end()
+
+                timer.end_step("train_step")
+                timer.record_gpu_stats("train")
+
+                if is_log_step or is_last_step:
+                    train_log_dict = train_result.log_dict
+                    train_agg_metric_values = (
+                        train_result.metrics.compute_aggregated_values()
+                    )
+                    train_result.metrics.reset()
+                    timer_agg = timer.get_aggregated_metrics(fabric)
+
+                    current_lr = helpers.get_current_learning_rate(
+                        optimizer=optimizer, scheduler=scheduler
+                    )
+                    train_log_dict["learning_rate"] = current_lr
+                    grad_norm_value = (
+                        float(gradient_norm.detach()) if gradient_norm is not None else None
+                    )
+                    if grad_norm_value is not None:
+                        train_log_dict["gradient_norm"] = grad_norm_value
+
+                    helpers.log_step(
+                        split="train",
+                        step=step,
+                        max_steps=config.steps,
+                        epoch=current_epoch,
+                        agg_metric_values=train_agg_metric_values,
+                        task=config.task,
+                        timer_agg=timer_agg,
+                        global_batch_size=effective_global_batch_size,
+                        gradient_accumulation_steps=config.gradient_accumulation_steps,
+                        learning_rate=current_lr,
+                        gradient_norm=grad_norm_value,
+                    )
+                    helpers.add_timer_logs(
+                        timer_agg=timer_agg,
+                        log_dict=train_log_dict,
+                        split="train",
+                        global_batch_size=effective_global_batch_size,
+                        gradient_accumulation_steps=config.gradient_accumulation_steps,
+                    )
+                    helpers.log_fabric(
+                        fabric=fabric,
+                        log_dict=train_log_dict,
+                        agg_metric_values=train_agg_metric_values,
+                        step=step,
+                        epoch=current_epoch,
+                    )
+
+                if config.save_checkpoint_args.save_last and (
+                    is_save_ckpt_step or is_last_step
+                ):
+                    # Checkpoint saving and export.
+                    helpers.save_checkpoint(
+                        fabric=fabric, out_dir=out_dir, state=state, best_or_last="last"
+                    )
+
+                    model_dict = {
+                        "model_class_path": state["model_class_path"],
+                        "model_init_args": state["model_init_args"],
+                        "train_model": train_model.get_export_state_dict(),
+                        "license_info": state.get("license_info", ""),
+                    }
+
+                    helpers.export_model(
+                        out_dir=out_dir, model_dict=model_dict, best_or_last="last"
+                    )
+
+                if is_val_step or is_last_step:
+                    fabric.barrier()
+                    logger.info("Validating...")
+                    train_model.eval()
+
+                    val_agg_metric_values: AggregatedMetricValues | None = None
+
+                    # Reset GPU memory tracking before val phase.
+                    timer.reset_gpu_max_memory("val")
+
+                    val_dataloader_iter = iter(val_dataloader)
+                    # TODO (Lionel, 02/26): Average metrics during validation instead of
+                    # only singular metrics at the end of the epoch.
+                    for val_step in range(len(val_dataloader)):
+                        is_last_val_step = val_step + 1 == len(val_dataloader)
+                        is_val_log_step = (
+                            val_step + 1 in val_log_steps
+                            or (val_step + 1) % val_log_every_num_steps == 0
                         )
 
-                        timer_agg = timer.get_aggregated_metrics(fabric)
+                        timer.start_step("val_step")
+                        timer.start_step("val_dataload")
+                        val_batch = next(val_dataloader_iter)
+                        timer.end_step("val_dataload")
 
-                        helpers.log_step(
-                            split="val",
-                            step=val_step,
-                            max_steps=len(val_dataloader),
-                            epoch=current_epoch,
-                            agg_metric_values=val_agg_metric_values,
-                            task=config.task,
-                            timer_agg=timer_agg,
-                            global_batch_size=config.batch_size,
-                        )
-                        helpers.add_timer_logs(
-                            timer_agg=timer_agg,
-                            log_dict=val_result.log_dict,
-                            split="val",
-                            global_batch_size=config.batch_size,
-                            gradient_accumulation_steps=config.gradient_accumulation_steps,
-                        )
-                        helpers.log_fabric(
-                            fabric=fabric,
-                            log_dict=val_result.log_dict,
-                            agg_metric_values=val_agg_metric_values,
-                            step=step,
-                            epoch=current_epoch,
-                        )
-
-                        if (
-                            config.save_checkpoint_args.save_best
-                            and best_agg_metric_values.step == step
-                        ):
-                            helpers.save_checkpoint(
+                        # Validation forward pass.
+                        with torch.no_grad():
+                            val_result = train_model.validation_step(
                                 fabric=fabric,
-                                out_dir=out_dir,
-                                state=state,
-                                best_or_last="best",
-                            )
-                            model_dict = {
-                                "model_class_path": state["model_class_path"],
-                                "model_init_args": state["model_init_args"],
-                                "train_model": train_model.get_export_state_dict(),
-                                "license_info": state.get("license_info", ""),
-                            }
-                            helpers.export_model(
-                                out_dir=out_dir,
-                                model_dict=model_dict,
-                                best_or_last="best",
+                                batch=val_batch,
+                                step=val_step,
                             )
 
-                        # Log training summary after validation.
-                        timer_agg = timer.get_aggregated_metrics(fabric)
-                        helpers.log_training_summary(
-                            timer_agg=timer_agg,
-                            fabric=fabric,
-                            last_val_agg_metric_values=val_agg_metric_values,
-                            best_val_agg_metric_values=best_agg_metric_values,
-                            step=step,
-                            global_batch_size=config.batch_size,
-                            gradient_accumulation_steps=config.gradient_accumulation_steps,
-                        )
+                        if val_step < 3 and fabric.global_rank == 0:
+                            helpers.save_val_step_visualizations(
+                                result=val_result,
+                                out_dir=out_dir,
+                                val_step=val_step,
+                                global_step=step,
+                                loggers=fabric.loggers,
+                            )
 
-                    elif is_val_log_step:
-                        # Show that we are making progress. Metrics are only calculated
-                        # at the end of the validation loop.
-                        timer_agg = timer.get_aggregated_metrics(fabric)
-                        helpers.log_step(
-                            split="val",
-                            step=val_step,
-                            max_steps=len(val_dataloader),
-                            epoch=current_epoch,
-                            agg_metric_values=None,
-                            task=config.task,
-                            timer_agg=timer_agg,
-                            global_batch_size=config.batch_size,
-                        )
-                train_model.set_train_mode()
-                fabric.barrier()
-        timer.stop()
-        logger.info("Training completed.")
+                        timer.end_step("val_step")
+                        timer.record_gpu_stats("val")
 
-        # Close the underflow/overflow debug log file and detach hooks on the happy
-        # path. atexit (registered above) handles the exception path. close() is
-        # idempotent, so the atexit call is a no-op when we reach this point.
-        if underflow_overflow_monitor is not None:
-            underflow_overflow_monitor.close()
+                        if is_last_val_step:
+                            val_agg_metric_values = (
+                                val_result.metrics.compute_aggregated_values()
+                            )
+                            val_result.metrics.reset()
+                            best_agg_metric_values = helpers.get_best_metrics(
+                                best_agg_metric_values=best_agg_metric_values,
+                                last_agg_metric_values=val_agg_metric_values,
+                                step=step,
+                                metric_args=config.metric_args,
+                            )
+
+                            timer_agg = timer.get_aggregated_metrics(fabric)
+
+                            helpers.log_step(
+                                split="val",
+                                step=val_step,
+                                max_steps=len(val_dataloader),
+                                epoch=current_epoch,
+                                agg_metric_values=val_agg_metric_values,
+                                task=config.task,
+                                timer_agg=timer_agg,
+                                global_batch_size=config.batch_size,
+                            )
+                            helpers.add_timer_logs(
+                                timer_agg=timer_agg,
+                                log_dict=val_result.log_dict,
+                                split="val",
+                                global_batch_size=config.batch_size,
+                                gradient_accumulation_steps=config.gradient_accumulation_steps,
+                            )
+                            helpers.log_fabric(
+                                fabric=fabric,
+                                log_dict=val_result.log_dict,
+                                agg_metric_values=val_agg_metric_values,
+                                step=step,
+                                epoch=current_epoch,
+                            )
+
+                            if (
+                                config.save_checkpoint_args.save_best
+                                and best_agg_metric_values.step == step
+                            ):
+                                helpers.save_checkpoint(
+                                    fabric=fabric,
+                                    out_dir=out_dir,
+                                    state=state,
+                                    best_or_last="best",
+                                )
+                                model_dict = {
+                                    "model_class_path": state["model_class_path"],
+                                    "model_init_args": state["model_init_args"],
+                                    "train_model": train_model.get_export_state_dict(),
+                                    "license_info": state.get("license_info", ""),
+                                }
+                                helpers.export_model(
+                                    out_dir=out_dir,
+                                    model_dict=model_dict,
+                                    best_or_last="best",
+                                )
+
+                            # Log training summary after validation.
+                            timer_agg = timer.get_aggregated_metrics(fabric)
+                            helpers.log_training_summary(
+                                timer_agg=timer_agg,
+                                fabric=fabric,
+                                last_val_agg_metric_values=val_agg_metric_values,
+                                best_val_agg_metric_values=best_agg_metric_values,
+                                step=step,
+                                global_batch_size=config.batch_size,
+                                gradient_accumulation_steps=config.gradient_accumulation_steps,
+                            )
+
+                        elif is_val_log_step:
+                            # Show that we are making progress. Metrics are only calculated
+                            # at the end of the validation loop.
+                            timer_agg = timer.get_aggregated_metrics(fabric)
+                            helpers.log_step(
+                                split="val",
+                                step=val_step,
+                                max_steps=len(val_dataloader),
+                                epoch=current_epoch,
+                                agg_metric_values=None,
+                                task=config.task,
+                                timer_agg=timer_agg,
+                                global_batch_size=config.batch_size,
+                            )
+                    train_model.set_train_mode()
+                    fabric.barrier()
+            timer.stop()
+            logger.info("Training completed.")
 
 
 class TrainTaskConfig(PydanticConfig):
