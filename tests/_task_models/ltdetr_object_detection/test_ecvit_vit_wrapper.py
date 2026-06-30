@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
-from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
 

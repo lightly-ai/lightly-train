@@ -49,6 +49,7 @@ from torch.nn import (
 )
 
 from lightly_train import _torch_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 
 logger = logging.getLogger(__name__)
@@ -121,10 +122,10 @@ class SpatialPriorModulev2(Module):
         return c2, c3, c4
 
 
-class DINOv3STAs(Module):
+class DINOSTAs(Module):
     def __init__(
         self,
-        model_wrapper: DINOv3ViTModelWrapper,
+        model_wrapper: DINOv2ViTModelWrapper | DINOv3ViTModelWrapper,
         interaction_indexes: list[int] = [5, 8, 11],
         finetune: bool = True,
         use_sta: bool = True,
@@ -145,7 +146,7 @@ class DINOv3STAs(Module):
             model_wrapper.requires_grad_(False)
 
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, DINOv3STAs._remap_legacy_keys
+            self, DINOSTAs._remap_legacy_keys
         )
 
         # init the feature pyramid
@@ -206,17 +207,23 @@ class DINOv3STAs(Module):
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        old_subprefix = prefix + "dinov3."
         new_subprefix = prefix + "_model_wrapper._model."
-        if any(k.startswith(old_subprefix) for k in state_dict):
-            logger.info(
-                "Detected old DINOv3STAs checkpoint format "
-                "(dinov3. → _model_wrapper._model.). Remapping keys."
-            )
-            for k in [
-                k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
-            ]:
-                state_dict[new_subprefix + k[len(old_subprefix) :]] = state_dict.pop(k)
+        for old_prefix_suffix, label in [
+            ("dinov3.", "DINOv3STAs"),
+            ("dinov2.", "DINOv2STAs"),
+        ]:
+            old_subprefix = prefix + old_prefix_suffix
+            if any(k.startswith(old_subprefix) for k in state_dict):
+                logger.info(
+                    f"Detected old {label} checkpoint format "
+                    f"({old_prefix_suffix} → _model_wrapper._model.). Remapping keys."
+                )
+                for k in [
+                    k for k in list(state_dict.keys()) if k.startswith(old_subprefix)
+                ]:
+                    state_dict[new_subprefix + k[len(old_subprefix) :]] = (
+                        state_dict.pop(k)
+                    )
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         H_c, W_c = x.shape[2] // self.patch_size, x.shape[3] // self.patch_size

@@ -25,18 +25,18 @@ from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWra
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
-    DinoVisionTransformer,
+    DinoVisionTransformer as DINOv3DinoVisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
+    DINOSTAs,
+)
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
-)
-from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
@@ -691,7 +691,7 @@ class _DINOv3LTDETRBase(TaskModel):
         # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
         # and ignores `patch_size`/`weights` in model_args).
         if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
+            backbone: ConvNeXt | DINOv3DinoVisionTransformer | ECViTModelWrapper = (
                 EDGE_CRAFTER_PACKAGE.get_model(
                     model_name=parsed_name["backbone_name"],
                     model_args=None,
@@ -706,7 +706,12 @@ class _DINOv3LTDETRBase(TaskModel):
                 **get_model_kwargs,
             )
         assert isinstance(
-            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+            backbone,
+            (
+                ConvNeXt,
+                DINOv3DinoVisionTransformer,
+                ECViTModelWrapper,
+            ),
         )
 
         # Map preset name -> (config_cls, config_name_strip_suffixes). For
@@ -744,24 +749,23 @@ class _DINOv3LTDETRBase(TaskModel):
 
         config.resolve_auto(patch_size=patch_size)
 
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+        self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
         if isinstance(backbone, ECViTModelWrapper):
             # ECViT already fuses its own pyramid; no SpatialPriorModule
             # (use_sta=False). The wrapper exposes (P3, P4, P5) with channel
             # counts matching the encoder config's in_channels via `proj_dim`.
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
-        elif isinstance(backbone, DinoVisionTransformer):
+        elif isinstance(backbone, DINOv3DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
             vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
-            self.backbone = DINOv3STAs(
+            self.backbone = DINOSTAs(
                 model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
-
         else:
             # ConvNext models.
             assert isinstance(backbone, ConvNeXt)

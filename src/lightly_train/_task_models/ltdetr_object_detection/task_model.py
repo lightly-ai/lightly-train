@@ -35,7 +35,7 @@ from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBase
-from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
     DFINETransformerConfig,
@@ -43,13 +43,13 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     LTDETRRTDETRTransformerv2Config,
     RTDETRTransformerv2Config,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
+    DINOSTAs,
+)
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
-)
-from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
@@ -101,7 +101,7 @@ def _resolve_transformer_config(
     return config_factory()
 
 
-class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
+class LTDETRObjectDetection(_DINOv3LTDETRBase):
     def __init__(
         self,
         *,
@@ -227,7 +227,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
         )
 
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+        self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
         if isinstance(backbone, ECViTModelWrapper):
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
@@ -235,7 +235,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
             vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
-            self.backbone = DINOv3STAs(
+            self.backbone = DINOSTAs(
                 model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
             )
