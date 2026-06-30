@@ -34,7 +34,9 @@ def _make_dataset(tmp_path: Path, *, height: int, width: int) -> DepthEstimation
         image_dir / "a.png"
     )
     np.save(depth_dir / "a.npy", np.random.rand(height, width).astype(np.float32) + 0.5)
-    np.save(sky_dir / "a.npy", np.random.rand(height, width).astype(np.float32))
+    Image.fromarray(
+        (np.random.rand(height, width) > 0.5).astype(np.uint8) * 255, mode="L"
+    ).save(sky_dir / "a.png")
 
     data_args = DepthEstimationDataArgs(
         train=SplitArgs(images=image_dir, depth=depth_dir, sky=sky_dir),
@@ -84,7 +86,9 @@ class TestDepthEstimationDataArgs:
         for name in ("a.png", "b.png"):
             Image.fromarray(np.zeros((8, 8, 3), dtype=np.uint8)).save(image_dir / name)
         np.save(depth_dir / "a.npy", np.ones((8, 8), dtype=np.float32))
-        np.save(sky_dir / "a.npy", np.zeros((8, 8), dtype=np.float32))
+        Image.fromarray(np.zeros((8, 8), dtype=np.uint8), mode="L").save(
+            sky_dir / "a.png"
+        )
 
         data_args = DepthEstimationDataArgs(
             train=SplitArgs(images=image_dir, depth=depth_dir, sky=sky_dir),
@@ -110,7 +114,9 @@ def test_depth_estimation_dataset___getitem___shape_mismatch(
     depth_shape = (8, 8) if missing == "depth" else (16, 16)
     sky_shape = (8, 8) if missing == "sky" else (16, 16)
     np.save(depth_dir / "a.npy", np.ones(depth_shape, dtype=np.float32))
-    np.save(sky_dir / "a.npy", np.zeros(sky_shape, dtype=np.float32))
+    Image.fromarray(np.zeros(sky_shape, dtype=np.uint8), mode="L").save(
+        sky_dir / "a.png"
+    )
 
     data_args = DepthEstimationDataArgs(
         train=SplitArgs(images=image_dir, depth=depth_dir, sky=sky_dir),

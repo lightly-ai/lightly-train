@@ -283,9 +283,10 @@ def create_depth_pseudo_labels(
     height: int = 128,
     width: int = 128,
 ) -> None:
-    """Creates ``.npy`` depth and sky pseudo-labels matching ``create_images`` stems.
+    """Creates depth and sky pseudo-labels matching ``create_images`` stems.
 
-    Depth values are strictly positive floats; sky values are in ``[0, 1]``.
+    Depth is stored as a strictly positive float ``.npy``; sky is stored as a binary
+    ``{0, 255}`` 8-bit grayscale ``.png`` mask (white = sky).
     """
     depth_dir.mkdir(parents=True, exist_ok=True)
     sky_dir.mkdir(parents=True, exist_ok=True)
@@ -294,9 +295,9 @@ def create_depth_pseudo_labels(
     for filename in files:
         stem = Path(filename).stem
         depth = np.random.rand(height, width).astype(np.float32) + 0.5
-        sky = np.random.rand(height, width).astype(np.float32)
+        sky = (np.random.rand(height, width) > 0.5).astype(np.uint8) * 255
         np.save(depth_dir / f"{stem}.npy", depth)
-        np.save(sky_dir / f"{stem}.npy", sky)
+        Image.fromarray(sky, mode="L").save(sky_dir / f"{stem}.png")
 
 
 def create_semantic_segmentation_mask(

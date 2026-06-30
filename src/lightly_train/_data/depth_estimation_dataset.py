@@ -58,7 +58,7 @@ class DepthEstimationDataset(TaskDataset):
             image_path=Path(image_path), mode=ImageMode.RGB
         )
         depth = _load_npy(Path(depth_path))
-        sky = _load_npy(Path(sky_path))
+        sky = _load_sky_png(Path(sky_path))
 
         if image.shape[:2] != depth.shape[:2] or image.shape[:2] != sky.shape[:2]:
             raise ValueError(
@@ -88,7 +88,7 @@ class DepthEstimationDatasetArgs(TaskDatasetArgs):
             image_filepath = self.image_dir / image_filename
             stem = Path(image_filename).stem
             depth_filepath = (self.depth_dir / stem).with_suffix(".npy")
-            sky_filepath = (self.sky_dir / stem).with_suffix(".npy")
+            sky_filepath = (self.sky_dir / stem).with_suffix(".png")
             if depth_filepath.exists() and sky_filepath.exists():
                 yield {
                     "image_filepaths": str(image_filepath),
@@ -150,11 +150,32 @@ class DepthEstimationDataArgs(TaskDataArgs):
 
 
 def _load_npy(path: Path) -> NDArrayDepth:
-    """Loads a (H, W) float depth or sky pseudo-label from a ``.npy`` file."""
+    """Loads a (H, W) float depth pseudo-label from a ``.npy`` file."""
     array = np.load(path)
     if array.ndim != 2:
         raise ValueError(
             f"Expected a 2D (height, width) array in '{path}', got shape {array.shape}."
         )
     result: NDArrayDepth = array.astype(np.float32)
+    return result
+
+
+def _load_sky_png(path: Path) -> NDArrayDepth:
+    """Loads a (H, W) sky pseudo-label from an 8-bit grayscale ``.png`` mask.
+
+    The mask is stored as a single-channel ``{0, 255}`` image (white = sky) and is
+    scaled to a ``{0.0, 1.0}`` float probability map for the BCE sky-distillation loss.
+    """
+    array = file_helpers.open_image_numpy(
+        image_path=path, mode=ImageMode.UNCHANGED
+    )
+    # An 8-bit grayscale PNG decodes to (H, W) or (H, W, 1); drop a singleton channel.
+    if array.ndim == 3 and array.shape[-1] == 1:
+        array = array[..., 0]
+    if array.ndim != 2:
+        raise ValueError(
+            f"Expected a 2D (height, width) sky mask in '{path}', got shape "
+            f"{array.shape}."
+        )
+    result: NDArrayDepth = array.astype(np.float32) / 255.0
     return result
