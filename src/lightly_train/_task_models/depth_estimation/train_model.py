@@ -28,6 +28,7 @@ from lightly_train._metrics.depth_estimation.task_metric import (
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.depth_estimation.criterion import (
+    GlobalLocalLoss,
     GradientMatchingLoss,
     SILogLoss,
     SkyDistillLoss,
@@ -52,7 +53,7 @@ from lightly_train._visualize.depth_estimation import (
 )
 from lightly_train.types import DepthEstimationBatch, PathLike
 
-_LOSS_NAMES = ["loss", "silog_loss", "grad_loss", "sky_loss"]
+_LOSS_NAMES = ["loss", "gl_loss", "silog_loss", "grad_loss", "sky_loss"]
 
 
 class DepthEstimationTrainArgs(TrainModelArgs):
@@ -78,7 +79,13 @@ class DepthEstimationTrainArgs(TrainModelArgs):
     weight_decay: float | Literal["auto"] = "auto"
     lr_warmup_steps: int | Literal["auto"] = "auto"
 
-    # Loss.
+    # Loss. The objective follows DepthAnything V3 (arXiv:2511.10647, Eq. 7):
+    # ``L = L_gl + α·L_grad + L_sky`` with ``α = 0.5``. The global-local loss ``L_gl`` is
+    # the depth term; the scale-invariant log loss is kept wired but disabled
+    # (``silog_loss_weight = 0.0``) so it can be re-enabled for ablations.
+    gl_loss_weight: float = 1.0
+    gl_loss_trunc: float = 1.0
+    silog_loss_weight: float = 0.0
     silog_lambda: float = 0.5
     grad_loss_weight: float = 0.5
     grad_loss_scales: int = 4
@@ -138,6 +145,7 @@ class DepthEstimationTrain(TrainModel):
                 model=self.model, backbone_weights=model_args.backbone_weights
             )
 
+        self.gl_criterion = GlobalLocalLoss(trunc=model_args.gl_loss_trunc)
         self.silog_criterion = SILogLoss(lambd=model_args.silog_lambda)
         self.grad_criterion = GradientMatchingLoss(scales=model_args.grad_loss_scales)
         self.sky_criterion = SkyDistillLoss()
@@ -271,11 +279,13 @@ class DepthEstimationTrain(TrainModel):
         # exclude it from the depth losses. The sky head still trains on the full sky
         # map below.
         depth_mask = (depth > 0) & (sky < 0.5)
+        gl_loss = self.gl_criterion(out["depth"], depth, depth_mask)
         silog_loss = self.silog_criterion(out["depth"], depth, depth_mask)
         grad_loss = self.grad_criterion(out["depth"], depth, depth_mask)
         sky_loss = self.sky_criterion(out["sky"], sky)
         loss = (
-            silog_loss
+            self.model_args.gl_loss_weight * gl_loss
+            + self.model_args.silog_loss_weight * silog_loss
             + self.model_args.grad_loss_weight * grad_loss
             + self.model_args.sky_loss_weight * sky_loss
         )
@@ -283,6 +293,7 @@ class DepthEstimationTrain(TrainModel):
         metrics.update_with_losses(
             {
                 "loss": loss.detach(),
+                "gl_loss": gl_loss.detach(),
                 "silog_loss": silog_loss.detach(),
                 "grad_loss": grad_loss.detach(),
                 "sky_loss": sky_loss.detach(),

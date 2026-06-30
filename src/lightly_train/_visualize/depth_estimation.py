@@ -68,14 +68,14 @@ def plot_depth_labels(
     images = _as_tensor(batch["image"])
     depth = _as_tensor(batch["depth"])
     # The ground-truth depth in sky regions is garbage (the teacher has no valid depth
-    # there), so treat sky pixels as invalid when colorizing the labels.
+    # there), so exclude sky pixels from the colorization and fill them as distant.
     sky = _as_tensor(batch["sky"])
     n = min(max_images, images.shape[0])
 
     pil_images: list[PILImage] = []
     for i in range(n):
         rgb = _image_to_pil(image=images[i], image_normalize=image_normalize)
-        depth_img = _depth_to_pil(depth=depth[i], invalid=sky[i] >= 0.5)
+        depth_img = _depth_to_pil(depth=depth[i], sky=sky[i] >= 0.5)
         pil_images.append(_concat_horizontal(left=rgb, right=depth_img))
 
     return utils._render_grid(pil_images)
@@ -134,7 +134,7 @@ def _image_to_pil(
     return pil_image
 
 
-def _depth_to_pil(depth: Tensor, invalid: Tensor | None = None) -> PILImage:
+def _depth_to_pil(depth: Tensor, sky: Tensor | None = None) -> PILImage:
     """Colorizes a (1, H, W) depth map with a colormap, ignoring invalid pixels.
 
     Depth is min-max normalized over the valid (positive) pixels of the sample so the
@@ -142,24 +142,29 @@ def _depth_to_pil(depth: Tensor, invalid: Tensor | None = None) -> PILImage:
 
     Args:
         depth: Depth map of shape ``(1, H, W)``.
-        invalid: Optional boolean mask of shape ``(1, H, W)`` marking pixels to exclude
-            (e.g. sky); they are dropped from the normalization and rendered as the
-            colormap's far value, in addition to the non-positive pixels.
+        sky: Optional boolean sky mask of shape ``(1, H, W)``. The ground-truth depth in
+            sky regions is garbage, so sky pixels are excluded from the normalization
+            and then filled with the 99th percentile of the non-sky depth, rendering
+            them as distant scenery (matching the ``predict`` postprocessing) instead of
+            as the colormap's far value.
     """
     depth = depth.squeeze(0)
     valid = depth > 0
-    if invalid is not None:
-        valid = valid & ~invalid.squeeze(0).bool()
+    if sky is not None:
+        valid = valid & ~sky.squeeze(0).bool()
     if bool(valid.any()):
         finite = depth[valid]
         d_min = finite.min()
         d_max = finite.max()
+        # Replace sky pixels with the 99th percentile of the valid depth so they are
+        # colorized as the most distant scenery rather than collapsing to black.
+        depth = torch.where(valid, depth, torch.quantile(finite, 0.99))
         normalized = (depth - d_min) / (d_max - d_min + 1e-6)
     else:
         normalized = torch.zeros_like(depth)
     normalized = torch.clamp(normalized, 0.0, 1.0)
-    # Invalid pixels are rendered as the colormap's far (zero) value.
-    normalized = torch.where(valid, normalized, torch.zeros_like(normalized))
+    # Non-positive (genuinely invalid) pixels are rendered as the colormap's far value.
+    normalized = torch.where(depth > 0, normalized, torch.zeros_like(normalized))
 
     colormap = matplotlib.colormaps[_DEPTH_COLORMAP]
     colored = colormap(normalized.numpy())[..., :3]  # Drop alpha, keep RGB.

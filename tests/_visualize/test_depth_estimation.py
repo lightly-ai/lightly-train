@@ -14,8 +14,8 @@ from torch import Tensor
 from lightly_train._visualize import depth_estimation
 from lightly_train.types import DepthEstimationBatch
 
-# The magma colormap renders depth==0 (the colormap's far value) as a near-black pixel;
-# this is what an invalid/sky pixel collapses to.
+# The magma colormap renders the normalized far value (0.0) as a near-black pixel; this
+# is what a genuinely invalid (non-positive depth) pixel collapses to.
 _FAR_PIXEL: tuple[int, int, int] = (0, 0, 3)
 
 
@@ -55,29 +55,33 @@ def test_plot_depth_labels__sky_does_not_affect_non_sky_colors() -> None:
     assert ImageChops.difference(image, image_other).getbbox() is None
 
 
-def test_plot_depth_labels__sky_rendered_as_far_value() -> None:
-    # Sky pixels are excluded from the colorization and rendered as the colormap's far
-    # value, while the valid non-sky region is colorized normally.
+def test_plot_depth_labels__sky_filled_as_distant_not_black() -> None:
+    # Sky pixels are excluded from the normalization and then filled with the 99th
+    # percentile of the non-sky depth, so they render as distant scenery (not as the
+    # black far value) and take the same color as the farthest valid pixel.
     depth = torch.ones(1, 1, 32, 32)
     depth[:, :, :16, :] = 50.0  # Garbage in the top-half sky region.
     # A vertical gradient in the valid (bottom-half) region so its pixels span the
-    # colormap and are not all the far value.
+    # colormap; the largest valid depth is the 99th-percentile fill value used for sky.
     depth[:, :, 16:, :] = torch.arange(1, 17, dtype=torch.float32).reshape(1, 1, 16, 1)
     sky = torch.zeros(1, 1, 32, 32)
     sky[:, :, :16, :] = 1.0
 
-    image = depth_estimation.plot_depth_labels(
-        batch=_make_batch(depth=depth, sky=sky),
-        max_images=1,
-        image_normalize=None,
-    )
+    depth_panel = depth_estimation._depth_to_pil(depth=depth[0], sky=sky[0] >= 0.5)
 
-    # The label panel is the right half of the RGB|depth concatenation; probe the depth
-    # half directly via the helper to avoid the concat offset.
-    depth_panel = depth_estimation._depth_to_pil(depth=depth[0], invalid=sky[0] >= 0.5)
-    # A pixel in the sky region collapses to the far value.
+    # A sky pixel is not black; it matches the color of the farthest valid pixel
+    # (bottom row, the largest non-sky depth ~= the 99th percentile).
+    farthest_valid = depth_panel.getpixel((0, 31))
+    assert depth_panel.getpixel((0, 0)) != _FAR_PIXEL
+    assert depth_panel.getpixel((0, 0)) == farthest_valid
+
+
+def test_plot_depth_labels__nonpositive_depth_rendered_as_far_value() -> None:
+    # Genuinely invalid (non-positive) depth pixels still collapse to the far value.
+    depth = torch.full((1, 1, 32, 32), 5.0)
+    depth[:, :, :16, :] = 0.0  # Invalid top half.
+    sky = torch.zeros(1, 1, 32, 32)
+
+    depth_panel = depth_estimation._depth_to_pil(depth=depth[0], sky=sky[0] >= 0.5)
+
     assert depth_panel.getpixel((0, 0)) == _FAR_PIXEL
-    # The farthest valid pixel (largest depth) is colorized to a non-far color.
-    assert depth_panel.getpixel((0, 31)) != _FAR_PIXEL
-    # Sanity: the label panel matches the right half of the rendered grid.
-    assert image.size[0] == 2 * depth_panel.size[0]
