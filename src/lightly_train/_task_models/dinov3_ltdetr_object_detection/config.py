@@ -478,7 +478,7 @@ class RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class DetectorConfig(PydanticConfig):
-    backbone_name: str = ""  # full "package/backbone" string, e.g. "dinov3/vits16"
+    backbone_name: str  # full "package/backbone" string, e.g. "dinov3/vits16"
     hybrid_encoder: HybridEncoderConfig
     transformer: Annotated[
         RTDETRTransformerv2Config | DFINETransformerConfig,
