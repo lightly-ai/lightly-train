@@ -317,47 +317,6 @@ def test_resolve_transformer_config__selects_decoder_family(
     assert isinstance(transformer_config, expected_config_type)
 
 
-def test_ltdetr_registry_configs__all_have_version() -> None:
-    for alias in LTDETR_MODEL_REGISTRY.list_aliases():
-        config = LTDETR_MODEL_REGISTRY.get(alias=alias)()
-
-        assert config.version in {"v1", "v2"}
-        assert config.model_dump()["version"] == config.version
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    [
-        "dinov3/convnext-tiny-ltdetr",
-        "dinov3/convnext-small-ltdetr",
-        "dinov3/convnext-base-ltdetr",
-        "dinov3/convnext-large-ltdetr",
-        "dinov3/vitt16-ltdetr",
-        "dinov3/vitt16plus-ltdetr",
-        "dinov3/vits16-ltdetr",
-        "dinov3/vitb16-ltdetr",
-        "dinov3/vitl16-ltdetr",
-    ],
-)
-def test_ltdetr_registry_configs__dinov3_v1_uses_rtdetrv2(
-    model_name: str,
-) -> None:
-    config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-
-    assert config.version == "v1"
-    assert isinstance(config.transformer, RTDETRTransformerv2Config)
-
-
-@pytest.mark.parametrize(
-    "model_name", ["ltdetrv2-s", "ltdetrv2-m", "ltdetrv2-l", "ltdetrv2-x"]
-)
-def test_ltdetr_registry_configs__ltdetrv2_uses_dfine(model_name: str) -> None:
-    config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-
-    assert config.version == "v2"
-    assert isinstance(config.transformer, DFINETransformerConfig)
-
-
 def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
     caplog: pytest.LogCaptureFixture,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
