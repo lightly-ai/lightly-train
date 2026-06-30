@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Any, Literal, cast
+from typing import Any, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
@@ -70,7 +70,7 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
-_TransformerConfig = RTDETRTransformerv2Config | DFINETransformerConfig
+_TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
 _TransformerConfigFactory = Callable[[], _TransformerConfig]
 
 
