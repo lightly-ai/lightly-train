@@ -59,6 +59,15 @@ class TrainModel(Module):
     val_transform_cls: ClassVar[type[TaskTransform]]
     torch_compile_args_cls: ClassVar[type[TorchCompileArgs]]
 
+    @classmethod
+    def get_train_model_args_cls(cls, model_name: str) -> type[TrainModelArgs]:
+        """Return the TrainModelArgs class for the given model name.
+
+        Subclasses may override this to return different args classes
+        depending on the model.
+        """
+        return cls.train_model_args_cls
+
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
     # names that are called within a Fabric context will raise an error if they have

@@ -1300,7 +1300,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 "and make sure the path to the training data is correct."
             )
 
-        train_model_args_cls = train_model_cls.train_model_args_cls
+        train_model_args_cls = train_model_cls.get_train_model_args_cls(config.model)
 
         config.steps = helpers.get_steps(
             steps=config.steps, default_steps=train_model_args_cls.default_steps
