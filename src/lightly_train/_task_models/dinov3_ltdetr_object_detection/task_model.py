@@ -131,6 +131,8 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             backbone_args:
                 Additional arguments merged into the backbone model args (override
                 config defaults).
+            decoder_name:
+                Override the decoder from the model config.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -144,11 +146,11 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         transformer_config = _resolve_transformer_config(
             config=config, decoder_name=decoder_name
         )
+        config.transformer = transformer_config
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name
         )
-        self.model_name = f"{config.backbone_name}-ltdetr"
         self.image_size = image_size
         self.classes = classes
         self.backbone_freeze = backbone_freeze
@@ -157,10 +159,11 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             config.backbone_wrapper.finetune = False
 
         # Use the config's baked-in patch_size unless the caller overrides it.
-        patch_size = patch_size or config.backbone_args.get("patch_size")
-        config.backbone_wrapper.resolve_auto(patch_size=patch_size)
-        config.hybrid_encoder.resolve_auto(patch_size=patch_size)
-        transformer_config.resolve_auto(patch_size=patch_size)
+        if patch_size is None:
+            patch_size = config.backbone_args.get("patch_size")
+        else:
+            config.backbone_args["patch_size"] = patch_size
+        config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -206,22 +209,12 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
 
         package = package_helpers.get_package(package_name)
 
-        # ECViT lives in its own package and rejects model_args entirely.
-        if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
-                package.get_model(
-                    model_name=short_backbone,
-                    model_args=None,
-                    load_weights=load_weights,
-                )
-            )
-        else:
-            backbone = package.get_model(
-                model_name=short_backbone,
-                model_args=backbone_model_args,
-                load_weights=load_weights,
-                **get_model_kwargs,
-            )
+        backbone = package.get_model(
+            model_name=short_backbone,
+            model_args=backbone_model_args,
+            load_weights=load_weights,
+            **get_model_kwargs,
+        )
         assert isinstance(
             backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
         )

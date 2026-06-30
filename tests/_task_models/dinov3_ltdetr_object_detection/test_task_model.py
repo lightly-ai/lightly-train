@@ -810,8 +810,7 @@ def test_create_train_model__ecvit(
 # ``ltdetrv2-{s,m,l,x}`` is a public alias that resolves to the canonical
 # EdgeCrafter (ECViT) LT-DETR object-detection model name. These tests verify
 # that the alias is accepted by ``is_supported_model`` and resolves to the
-# correct canonical name in ``parse_model_name`` (which is also what the
-# task model ``__init__`` stores as ``self.model_name``).
+# correct canonical name in ``parse_model_name``.
 
 LTDETR_V2_ALIAS_MODEL_NAMES = [
     "ltdetrv2-s",
