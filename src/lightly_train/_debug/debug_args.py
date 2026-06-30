@@ -25,10 +25,42 @@ class DebugUnderflowOverflowArgs(PydanticConfig):
     identified. Training is aborted as soon as a NaN or inf is detected.
     """
 
-    enabled: bool = False
-    max_frames_to_save: int = Field(default=21, ge=1)
-    trace_batch_nums: list[int] = Field(default_factory=list)
-    abort_after_batch_num: int | None = Field(default=None, ge=0)
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether to enable underflow/overflow debugging. When True, registers "
+            "forward hooks on all model modules to detect inf/nan in activations and "
+            "weights. Increases training time significantly — disable after debugging."
+        ),
+    )
+    max_frames_to_save: int = Field(
+        default=21,
+        ge=1,
+        description=(
+            "How many forward-pass frames to retain when dumping context after an "
+            "inf/nan is detected. The most recent N frames are written to the debug "
+            "log so the module where values first exploded can be identified."
+        ),
+    )
+    trace_batch_nums: list[int] = Field(
+        default_factory=list,
+        description=(
+            "Training-step numbers at which to write a full absolute min/max trace "
+            "of every weight, input and output to the debug log. Detection is "
+            "disabled on traced steps (training does not abort). Useful for "
+            "fast-forwarding to a known-bad region. Step numbers are 0-indexed and "
+            "must be non-negative."
+        ),
+    )
+    abort_after_batch_num: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Optional training-step after which to abort. When set, training raises "
+            "ValueError once the current step exceeds this threshold. Mainly useful "
+            "in combination with `trace_batch_nums` to inspect a region and stop."
+        ),
+    )
 
     @field_validator("trace_batch_nums")
     @classmethod

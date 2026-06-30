@@ -225,6 +225,14 @@ def train_image_classification(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
@@ -371,6 +379,14 @@ def train_image_classification_multihead(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     kwargs = {**locals()}
     classification_task = kwargs.pop("classification_task")
@@ -544,6 +560,14 @@ def train_instance_segmentation(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
         task_type="instance_segmentation",
@@ -704,6 +728,14 @@ def train_object_detection(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
         task_type="object_detection",
@@ -865,6 +897,14 @@ def train_panoptic_segmentation(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
         task_type="panoptic_segmentation",
@@ -1025,6 +1065,14 @@ def train_semantic_segmentation(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
         task_type="semantic_segmentation",
@@ -1150,6 +1198,14 @@ def train_semantic_segmentation_multihead(
             batch size, using ``max(1, default_batch_size // batch_size)`` steps to
             keep the effective batch size and learning rate close to the model defaults.
             Set to 1 to explicitly disable gradient accumulation.
+        debug_args:
+            Debug configuration dict. `None` disables debugging; keys
+            configure individual debug tools. The currently supported key is
+            ``underflow_overflow``, which enables detection of inf/nan
+            activations and weights via forward hooks on all model modules.
+            Reports are written to per-rank log files in ``out/debug/``.
+            Cannot be combined with
+            ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
         task_type="semantic_segmentation_multihead",
