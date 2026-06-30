@@ -478,6 +478,7 @@ class RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class DetectorConfig(PydanticConfig):
+    version: Literal["v1", "v2"]
     backbone_name: str  # full "package/backbone" string, e.g. "dinov3/vits16"
     hybrid_encoder: HybridEncoderConfig
     transformer: Annotated[
@@ -599,6 +600,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-tiny-eupe-ltdetr",
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-tiny"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNTiny
@@ -611,6 +613,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-small-eupe-ltdetr",
     )
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-small"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNSmall
@@ -623,6 +626,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-base-eupe-ltdetr",
     )
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-base"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNBase
@@ -633,6 +637,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/convnext-large-ltdetr-coco", "dinov3/convnext-large-ltdetr"
     )
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-large"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNLarge
@@ -646,6 +651,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/vitt16-notpretrained-ltdetr",
     )
     class DINOv3ViTTiny(LTDETRBaseConfig.ViTTiny):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitt16"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTTiny
@@ -661,6 +667,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/vitt16plus-ltdetr-coco", "dinov3/vitt16plus-ltdetr"
     )
     class DINOv3ViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitt16plus"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTTinyPlus
@@ -676,6 +683,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         "dinov3/vits16-ltdetr-coco", "dinov3/vits16-ltdetr", "dinov3/vits16-eupe-ltdetr"
     )
     class DINOv3ViTSmall(LTDETRBaseConfig.ViTSmall):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vits16"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTSmall
@@ -689,6 +697,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
     class DINOv3ViTBase(LTDETRBaseConfig.ViTBase):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitb16"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTBase
@@ -702,6 +711,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTLarge(LTDETRBaseConfig.ViTLarge):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitl16"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTLarge
@@ -715,6 +725,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
     class DINOv2ViTSmall(LTDETRBaseConfig.ViTSmall):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vits14"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTSmall
@@ -728,6 +739,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetr")
     class DINOv2ViTBase(LTDETRBaseConfig.ViTBase):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitb14"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTBase
@@ -741,6 +753,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetr")
     class DINOv2ViTLarge(LTDETRBaseConfig.ViTLarge):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitl14"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTLarge
@@ -754,6 +767,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetr")
     class DINOv2ViTGiant(LTDETRBaseConfig.ViTGiant):
+        version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitg14"
         transformer: RTDETRTransformerv2Config = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTGiant
@@ -769,6 +783,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitt-ltdetr", "ltdetrv2-s")
     class EdgeCrafterECViTTiny(LTDETRBaseConfig.ViTTiny):
+        version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvitt"
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTiny
@@ -780,6 +795,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvittplus-ltdetr", "ltdetrv2-m")
     class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
+        version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvittplus"
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
@@ -791,6 +807,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr", "ltdetrv2-l")
     class EdgeCrafterECViTSmall(LTDETRBaseConfig.ViTTinyPlus):
+        version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvits"
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
@@ -802,6 +819,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-ltdetr", "ltdetrv2-x")
     class EdgeCrafterECViTSmallPlus(LTDETRBaseConfig.ViTTinyPlus):
+        version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvitsplus"
         transformer: DFINETransformerConfig = Field(
             default_factory=LTDETRDFINETransformerConfig.ViTTinyPlus
