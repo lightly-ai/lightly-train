@@ -348,7 +348,9 @@ def test_ltdetr_registry_configs__dinov3_v1_uses_rtdetrv2(
     assert isinstance(config.transformer, RTDETRTransformerv2Config)
 
 
-@pytest.mark.parametrize("model_name", ["ltdetrv2-s", "ltdetrv2-m", "ltdetrv2-l", "ltdetrv2-x"])
+@pytest.mark.parametrize(
+    "model_name", ["ltdetrv2-s", "ltdetrv2-m", "ltdetrv2-l", "ltdetrv2-x"]
+)
 def test_ltdetr_registry_configs__ltdetrv2_uses_dfine(model_name: str) -> None:
     config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
 
