@@ -122,7 +122,7 @@ class SpatialPriorModulev2(Module):
         return c2, c3, c4
 
 
-class DINOv3STAs(Module):
+class DINOSTAs(Module):
     def __init__(
         self,
         model_wrapper: DINOv2ViTModelWrapper | DINOv3ViTModelWrapper,
@@ -146,7 +146,7 @@ class DINOv3STAs(Module):
             model_wrapper.requires_grad_(False)
 
         _torch_helpers.register_load_state_dict_pre_hook(
-            self, DINOv3STAs._remap_legacy_keys
+            self, DINOSTAs._remap_legacy_keys
         )
 
         # init the feature pyramid
@@ -210,7 +210,7 @@ class DINOv3STAs(Module):
         new_subprefix = prefix + "_model_wrapper._model."
         for old_prefix_suffix, label in [
             ("dinov3.", "DINOv3STAs"),
-            ("dinov2.", "DINOv2"),
+            ("dinov2.", "DINOv2STAs"),
         ]:
             old_subprefix = prefix + old_prefix_suffix
             if any(k.startswith(old_subprefix) for k in state_dict):
