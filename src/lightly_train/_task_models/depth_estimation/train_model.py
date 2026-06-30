@@ -47,6 +47,9 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._visualize.depth_estimation import (
+    DepthEstimationTaskStepVisualization,
+)
 from lightly_train.types import DepthEstimationBatch, PathLike
 
 _LOSS_NAMES = ["loss", "silog_loss", "grad_loss", "sky_loss"]
@@ -146,6 +149,14 @@ class DepthEstimationTrain(TrainModel):
             loss_names=_LOSS_NAMES,
             train_loss_running_mean_window=gradient_accumulation_steps,
         )
+
+        # Visualization: denormalize the logged images with the same mean/std as the
+        # transform so the RGB tiles look natural next to the colorized depth maps.
+        normalize = no_auto(train_transform_args.normalize)
+        self.image_normalize = {"mean": normalize.mean, "std": normalize.std}
+        # TODO(Nauryz, 06/2026): This visualization limit is hardcoded, matching the
+        # other tasks; it may become configurable via logger_args in the future.
+        self.viz_max_images = 4
 
     def get_task_model(self) -> DepthAnythingDepthEstimation:
         return self.model
@@ -254,7 +265,12 @@ class DepthEstimationTrain(TrainModel):
             loss=loss,
             log_dict={},
             metrics=metrics,
-            visualization=None,
+            visualization=DepthEstimationTaskStepVisualization(
+                batch=batch,
+                image_normalize=self.image_normalize,
+                max_images=self.viz_max_images,
+                pred_depth=out["depth"],
+            ),
         )
 
 

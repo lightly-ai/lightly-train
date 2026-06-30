@@ -166,9 +166,7 @@ def _load_sky_png(path: Path) -> NDArrayDepth:
     The mask is stored as a single-channel ``{0, 255}`` image (white = sky) and is
     scaled to a ``{0.0, 1.0}`` float probability map for the BCE sky-distillation loss.
     """
-    array = file_helpers.open_image_numpy(
-        image_path=path, mode=ImageMode.UNCHANGED
-    )
+    array = file_helpers.open_image_numpy(image_path=path, mode=ImageMode.UNCHANGED)
     # An 8-bit grayscale PNG decodes to (H, W) or (H, W, 1); drop a singleton channel.
     if array.ndim == 3 and array.shape[-1] == 1:
         array = array[..., 0]
