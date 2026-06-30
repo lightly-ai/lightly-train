@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import torch
 from PIL.Image import Image as PILImage
@@ -70,11 +70,13 @@ from lightly_train.types import PathLike
 logger = logging.getLogger(__name__)
 
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
+_TransformerConfig = RTDETRTransformerv2Config | DFINETransformerConfig
+_TransformerConfigFactory = Callable[[], _TransformerConfig]
 
 
 def _resolve_transformer_config(
     config: DetectorConfig, decoder_name: _LTDETRDecoderName | None
-) -> RTDETRTransformerv2Config | DFINETransformerConfig:
+) -> _TransformerConfig:
     """Make backwards-compatible transformer config resolution for LTDETR task models."""
     resolved_decoder_name = decoder_name or config.transformer.decoder_name
     if resolved_decoder_name == config.transformer.decoder_name:
@@ -82,15 +84,21 @@ def _resolve_transformer_config(
 
     config_name = type(config.transformer).__name__
     if resolved_decoder_name == "rtdetrv2":
-        config_cls = getattr(LTDETRRTDETRTransformerv2Config, config_name)
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRRTDETRTransformerv2Config, config_name),
+        )
     elif resolved_decoder_name == "dfine":
-        config_cls = getattr(LTDETRDFINETransformerConfig, config_name)
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRDFINETransformerConfig, config_name),
+        )
     else:
         raise ValueError(
             f"Unsupported decoder_name={decoder_name!r}. "
             "Expected one of 'rtdetrv2' or 'dfine'."
         )
-    return config_cls()
+    return config_factory()
 
 
 class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
