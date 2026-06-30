@@ -156,16 +156,8 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         if backbone_freeze:
             config.backbone_wrapper.finetune = False
 
-        if package_name == EDGE_CRAFTER_PACKAGE.name:
-            if patch_size is not None and patch_size != 16:
-                raise ValueError(
-                    f"ECViT (EdgeCrafter) backbones only support patch_size=16, "
-                    f"but got patch_size={patch_size} for model {model_name!r}."
-                )
-            patch_size = 16
-        else:
-            # Use the config's baked-in patch_size unless the caller overrides it.
-            patch_size = patch_size or config.backbone_args.get("patch_size")
+        # Use the config's baked-in patch_size unless the caller overrides it.
+        patch_size = patch_size or config.backbone_args.get("patch_size")
         config.backbone_wrapper.resolve_auto(patch_size=patch_size)
         config.hybrid_encoder.resolve_auto(patch_size=patch_size)
         transformer_config.resolve_auto(patch_size=patch_size)

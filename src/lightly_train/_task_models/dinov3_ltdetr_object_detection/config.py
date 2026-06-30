@@ -791,7 +791,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_wrapper: ECViTBackboneWrapperConfig = Field(
             default_factory=ECViTBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any] = Field(default_factory=dict)
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvittplus-ltdetr", "ltdetrv2-m")
     class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
@@ -803,7 +805,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_wrapper: ECViTBackboneWrapperConfig = Field(
             default_factory=ECViTBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any] = Field(default_factory=dict)
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr", "ltdetrv2-l")
     class EdgeCrafterECViTSmall(LTDETRBaseConfig.ViTTinyPlus):
@@ -815,7 +819,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_wrapper: ECViTBackboneWrapperConfig = Field(
             default_factory=ECViTBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any] = Field(default_factory=dict)
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
 
     @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-ltdetr", "ltdetrv2-x")
     class EdgeCrafterECViTSmallPlus(LTDETRBaseConfig.ViTTinyPlus):
@@ -827,4 +833,6 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_wrapper: ECViTBackboneWrapperConfig = Field(
             default_factory=ECViTBackboneWrapperConfig
         )
-        backbone_args: dict[str, Any] = Field(default_factory=dict)
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
