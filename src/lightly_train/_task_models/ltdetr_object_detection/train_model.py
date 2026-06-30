@@ -35,7 +35,7 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.ltdetr_object_detection.dinov3_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
     DINOSTAs,
 )
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
