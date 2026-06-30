@@ -101,8 +101,6 @@ class EdgeCrafterPackage(Package):
         Multi-channel input is intentionally not supported: ``num_input_channels``
         must be 3. ECViT also does not accept ``model_args`` overrides.
         """
-        if model_args is not None:
-            raise ValueError("ECViT backbones do not support model_args overrides.")
         if num_input_channels != 3:
             raise ValueError(
                 "ECViT backbones only support 3 input channels, got "
@@ -123,7 +121,9 @@ class EdgeCrafterPackage(Package):
                 preset_name=preset_name, model_info=MODEL_NAME_TO_INFO[preset_name]
             )
 
-        return ECViTModelWrapper(name=preset_name, weights_path=weights_path)
+        return ECViTModelWrapper(
+            name=preset_name, weights_path=weights_path, **(model_args or {})
+        )
 
     @classmethod
     def get_model_wrapper(cls, model: ECViTModelWrapper) -> ECViTModelWrapper:

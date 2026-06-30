@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Callable, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
@@ -26,8 +26,6 @@ from lightly_train._export.onnx_helpers import (
     remove_redundant_casts,
 )
 from lightly_train._models import package_helpers
-from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
-from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -40,6 +38,10 @@ from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBas
 from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
+    DFINETransformerConfig,
+    LTDETRDFINETransformerConfig,
+    LTDETRRTDETRTransformerv2Config,
+    RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
@@ -67,6 +69,37 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+_LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
+_TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
+_TransformerConfigFactory = Callable[[], _TransformerConfig]
+
+
+def _resolve_transformer_config(
+    config: DetectorConfig, decoder_name: _LTDETRDecoderName | None
+) -> _TransformerConfig:
+    """Make backwards-compatible transformer config resolution for LTDETR task models."""
+    resolved_decoder_name = decoder_name or config.transformer.decoder_name
+    if resolved_decoder_name == config.transformer.decoder_name:
+        return config.transformer
+
+    config_name = type(config.transformer).__name__
+    if resolved_decoder_name == "rtdetrv2":
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRRTDETRTransformerv2Config, config_name),
+        )
+    elif resolved_decoder_name == "dfine":
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRDFINETransformerConfig, config_name),
+        )
+    else:
+        raise ValueError(
+            f"Unsupported decoder_name={decoder_name!r}. "
+            "Expected one of 'rtdetrv2' or 'dfine'."
+        )
+    return config_factory()
+
 
 class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
     def __init__(
@@ -80,7 +113,7 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: Literal["rtdetrv2", "dfine"] | None = None,
+        decoder_name: _LTDETRDecoderName | None = None,
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
@@ -106,6 +139,8 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             backbone_args:
                 Additional arguments merged into the backbone model args (override
                 config defaults).
+            decoder_name:
+                Override the decoder from the model config.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -116,17 +151,14 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         )
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-        transformer_config = config.transformer
-        if config.transformer.decoder_name != decoder_name:
-            # Use the decoder_name provided by the caller if it differs from the config's default.
-            transformer_config.decoder_name = (
-                decoder_name or config.transformer.decoder_name
-            )
+        transformer_config = _resolve_transformer_config(
+            config=config, decoder_name=decoder_name
+        )
+        config.transformer = transformer_config
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name
         )
-        self.model_name = f"{config.backbone_name}-ltdetr"
         self.image_size = image_size
         self.classes = classes
         self.backbone_freeze = backbone_freeze
@@ -134,19 +166,12 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
         if backbone_freeze:
             config.backbone_wrapper.finetune = False
 
-        if package_name == EDGE_CRAFTER_PACKAGE.name:
-            if patch_size is not None and patch_size != 16:
-                raise ValueError(
-                    f"ECViT (EdgeCrafter) backbones only support patch_size=16, "
-                    f"but got patch_size={patch_size} for model {model_name!r}."
-                )
-            patch_size = 16
+        # Use the config's baked-in patch_size unless the caller overrides it.
+        if patch_size is None:
+            patch_size = config.backbone_args.get("patch_size")
         else:
-            # Use the config's baked-in patch_size unless the caller overrides it.
-            patch_size = patch_size or config.backbone_args.get("patch_size")
-        config.backbone_wrapper.resolve_auto(patch_size=patch_size)
-        config.hybrid_encoder.resolve_auto(patch_size=patch_size)
-        transformer_config.resolve_auto(patch_size=patch_size)
+            config.backbone_args["patch_size"] = patch_size
+        config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -192,54 +217,32 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
 
         package = package_helpers.get_package(package_name)
 
+        backbone = package.get_model(
+            model_name=short_backbone,
+            model_args=backbone_model_args,
+            load_weights=load_weights,
+            **get_model_kwargs,
+        )
+        assert isinstance(
+            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+        )
+
         self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
-        # ECViT lives in its own package and rejects model_args entirely.
-        if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone = package.get_model(
-                model_name=short_backbone,
-                model_args=None,
-                load_weights=load_weights,
-            )
-            assert isinstance(backbone, ECViTModelWrapper)
+        if isinstance(backbone, ECViTModelWrapper):
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
-        elif package_name == DINOV2_VIT_PACKAGE.name:
-            backbone = package.get_model(
-                model_name=short_backbone,
-                model_args=backbone_model_args,
-                load_weights=load_weights,
-                **get_model_kwargs,
-            )
+        elif isinstance(backbone, DinoVisionTransformer):
+            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
-            dinov2_wrapper = DINOv2ViTModelWrapper(backbone)
+            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
             self.backbone = DINOv3STAs(
-                model_wrapper=dinov2_wrapper,
+                model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
             )
         else:
-            backbone = package.get_model(
-                model_name=short_backbone,
-                model_args=backbone_model_args,
-                load_weights=load_weights,
-                **get_model_kwargs,
-            )
-            assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
-            if isinstance(backbone, DinoVisionTransformer):
-                # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
-                backbone.mask_token.requires_grad = False  # type: ignore
-                vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
-                self.backbone = DINOv3STAs(
-                    model_wrapper=vit_model_wrapper,
-                    **config.backbone_wrapper.model_dump(
-                        exclude={"conv_inplane_factor"}
-                    ),
-                )
-            else:
-                assert isinstance(backbone, ConvNeXt)
-                convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
-                self.backbone = DINOv3ConvNextWrapper(
-                    model_wrapper=convnext_model_wrapper
-                )
+            assert isinstance(backbone, ConvNeXt)
+            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
 
         self.encoder: HybridEncoder = HybridEncoder(
             **config.hybrid_encoder.model_dump()

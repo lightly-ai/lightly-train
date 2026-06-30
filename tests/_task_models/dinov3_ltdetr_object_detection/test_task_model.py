@@ -25,8 +25,14 @@ from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetr
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
 )
+from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+    DFINETransformerConfig,
+    RTDETRTransformerv2Config,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
     DINOv3LTDETRObjectDetection,
+    _resolve_transformer_config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
     DINOv3LTDETRObjectDetectionTrain,
@@ -286,6 +292,29 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
     # Decoder weights actually landed on the target.
     loaded_decoder_tensor = target_train_model.state_dict()[decoder_keys[0]]
     torch.testing.assert_close(loaded_decoder_tensor, source_decoder_tensor)
+
+
+@pytest.mark.parametrize(
+    ("model_name", "decoder_name", "expected_config_type"),
+    [
+        ("dinov3/vitt16-notpretrained-ltdetr", None, RTDETRTransformerv2Config),
+        ("dinov3/vitt16-notpretrained-ltdetr", "dfine", DFINETransformerConfig),
+        ("ltdetrv2-s", None, DFINETransformerConfig),
+        ("ltdetrv2-s", "rtdetrv2", RTDETRTransformerv2Config),
+    ],
+)
+def test_resolve_transformer_config__selects_decoder_family(
+    model_name: str,
+    decoder_name: Literal["rtdetrv2", "dfine"] | None,
+    expected_config_type: type[RTDETRTransformerv2Config | DFINETransformerConfig],
+) -> None:
+    config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+
+    transformer_config = _resolve_transformer_config(
+        config=config, decoder_name=decoder_name
+    )
+
+    assert isinstance(transformer_config, expected_config_type)
 
 
 def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
@@ -763,8 +792,7 @@ def test_create_train_model__ecvit(
 # ``ltdetrv2-{s,m,l,x}`` is a public alias that resolves to the canonical
 # EdgeCrafter (ECViT) LT-DETR object-detection model name. These tests verify
 # that the alias is accepted by ``is_supported_model`` and resolves to the
-# correct canonical name in ``parse_model_name`` (which is also what the
-# task model ``__init__`` stores as ``self.model_name``).
+# correct canonical name in ``parse_model_name``.
 
 LTDETR_V2_ALIAS_MODEL_NAMES = [
     "ltdetrv2-s",
