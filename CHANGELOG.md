@@ -9,8 +9,68 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.1] - 2026-06-26
+
+### Added
+
+- Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
+  console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
+  Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
+  enabled and the total gradient norm computed without clipping otherwise.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix checkpoint loading with `load_model` for legacy checkpoints of LT-DETR.
+
+### Security
+
+## [0.16.0] - 2026-06-25
+
+### Added
+
+- Add **LTDETRv2**, an improved object detection model that reaches 50.7
+  mAP<sub>50:95</sub> on the COCO 2017 validation set (+1 mAP<sub>50:95</sub> over the
+  previous LTDETR with a 55% shorter training schedule) and 5.4ms latency on an NVIDIA
+  T4 (TensorRT, FP16, batch size 1, 640x640). Use the compact `ltdetrv2-s/m/l/x` models,
+  which are built on [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECViT backbones.
+- Add depth estimation inference with Depth Anything V2 and V3 models, covering both
+  relative and metric depth (`dinov2/dav2-relative-*`, `dinov2/dav2-metric-*`,
+  `dinov2/dav3-relative-large`, `dinov2/dav3-metric-large`). Checkpoints are converted
+  to the LightlyTrain format; the Apache-2.0 models are hosted for download, while the
+  CC-BY-NC-4.0 Depth Anything V2 variants must be converted locally with
+  `convert_checkpoint_dav2`.
+- Add the `benchmark_object_detection` command (**beta**) to measure inference
+  performance of an object detection model on a validation dataset. It reports detection
+  accuracy (mAP/mAR, including per-class mAP) and timing statistics (latency and
+  throughput), and writes a JSON result and a human-readable Markdown report. This is
+  useful to compare inference backends and precisions before deployment. See the
+  [benchmarking documentation](https://docs.lightly.ai/train/stable/object_detection.html#benchmarking)
+  for details.
 - Add Slicing Aided Hyper Inference (SAHI) for EoMT instance segmentation to improve
-  small instance recall at inference via `predict_sahi`.
+  small instance recall at inference via `model.predict_sahi()` method.
+
+### Changed
+
+- Update LTDETRv2 training defaults: the default `batch_size` is now `32` (was `16`),
+  the default training schedule is `266_112` steps (6x ECDet-S, ~72 epochs at batch size
+  32), `backbone_lr_factor` is now `0.05` (was `1e-2`), and `lr_warmup_steps` defaults
+  to `"auto"` so short runs no longer warm up for longer than they train.
 
 ## [0.15.1] - 2026-05-28
 
@@ -40,6 +100,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix PicoDet fine-tuning with mismatched `num_classes`.
 - Fix DINOv3 LT-DETR patch size precedence so `model_args.patch_size` overrides the
   backbone default.
+- Fix TensorRT export with LT-DETR ViT-S, which caused overflows due to non-enforcement
+  of "strongly-typed" option in the TensorRT exporter.
 
 ### Security
 

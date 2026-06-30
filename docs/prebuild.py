@@ -12,11 +12,11 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._methods import method_helpers
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
-    DINOv2LinearSemanticSegmentationTrain,
-)
 from lightly_train._task_models.image_classification_multihead.train_model import (
     ImageClassificationMultiheadTrain,
+)
+from lightly_train._task_models.linear_semantic_segmentation.train_model import (
+    LinearSemanticSegmentationTrain,
 )
 from lightly_train._task_models.semantic_segmentation_multihead.train_model import (
     SemanticSegmentationMultiheadTrain,
@@ -103,7 +103,7 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
         if train_model_cls in {
             SemanticSegmentationMultiheadTrain,
             ImageClassificationMultiheadTrain,
-            DINOv2LinearSemanticSegmentationTrain,
+            LinearSemanticSegmentationTrain,
         }:
             continue
         transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls

@@ -62,8 +62,7 @@ custom dataset, the exported backbone can also be loaded via the `backbone_weigh
 argument. Refer to the following pages for fine-tuning instructions and example code:
 
 - [Object Detection](#object-detection) — fine-tune a DINOv3-based LTDETR model;
-  supports loading custom pretrained backbone weights via `backbone_weights` (see
-  [Pretrain and Fine-tune](#object-detection-pretrain-finetune)).
+  supports loading custom pretrained backbone weights via `backbone_weights`.
 - [Semantic Segmentation](#semantic-segmentation) — fine-tune a DINOv3-based EoMT model;
   supports loading custom pretrained backbone weights via `backbone_weights` (see
   [Pretrain and Fine-tune](#semantic-segmentation-pretrain-finetune)).

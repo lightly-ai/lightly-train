@@ -10,7 +10,7 @@ please refer to the [](pretrain-settings) page.
 | ----------------------------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`out`](#out)                                   | `str`<br>`Path`               | —              | Output directory where checkpoints, logs, and exported models are written.                                                                                          |
 | [`data`](#data)                                 | `dict`<br>`str`               | —              | Dataset configuration dict, or path to a YAML file containing the dataset configuration.                                                                            |
-| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"dinov3/vitt16-ltdetr-coco"`) or path to a local checkpoint to fine-tune from.                                                              |
+| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"ltdetrv2-s-coco"`) or path to a local checkpoint to fine-tune from.                                                                        |
 | [`model_args`](#model_args)                     | `dict`                        | `None`         | Task/model-specific training hyperparameters.                                                                                                                       |
 | [`steps`](#steps)                               | `int`                         | `"auto"`       | Number of training steps. `"auto"` selects a model-dependent default.                                                                                               |
 | [`precision`](#precision)                       | `str`                         | `"bf16-mixed"` | Numeric precision mode (e.g. `"16-true"`, `"32-true"`, `"bf16-mixed"`).                                                                                             |
@@ -89,8 +89,8 @@ CPU cores.
 
 ### `model`
 
-Model identifier (for example `"dinov3/vitt16-ltdetr-coco"`) or the path to a checkpoint
-or exported model file. LightlyTrain automatically downloads weights if needed.
+Model identifier (for example `"ltdetrv2-s-coco"`) or the path to a checkpoint or
+exported model file. LightlyTrain automatically downloads weights if needed.
 
 To resume from a crashed or interrupted run, use the
 [`resume_interrupted`](#resume_interrupted) setting instead of pointing `model` to a
@@ -171,7 +171,7 @@ import lightly_train
 
 lightly_train.train_object_detection(
     ...,
-    model="dinov3/vitt16-ltdetr-coco",  # Loads built-in fine-tuned model.
+    model="ltdetrv2-s-coco",  # Loads built-in fine-tuned model.
     model_args={
         "backbone_weights": "/path/to/backbone_weights.ckpt",  # Ignored when loading built-in model.
     },
@@ -593,6 +593,21 @@ lightly_train.train_object_detection(
     },
 )
 ```
+
+#### Logged metrics
+
+In addition to task-specific metrics, LightlyTrain logs the following values for
+training steps, at the cadence set by [`log_every_num_steps`](#log_every_num_steps):
+
+- `gradient_norm`: Total gradient norm computed after backpropagation, before the
+  optimizer step. If gradient clipping is enabled (`gradient_clip_val > 0`) this is the
+  pre-clipping norm; otherwise it is the total gradient norm computed without applying
+  gradient clipping. Use it to spot exploding or vanishing gradients during training. It
+  is also shown in the console progress line as `grad_norm`.
+- `learning_rate`: Current learning rate after scheduler scaling.
+
+Both are written to all configured loggers (`metrics.jsonl`, TensorBoard, MLflow,
+Weights & Biases).
 
 (train-settings-transforms)=
 

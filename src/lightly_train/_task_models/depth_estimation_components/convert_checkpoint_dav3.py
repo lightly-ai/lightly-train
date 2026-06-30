@@ -8,6 +8,7 @@
 """Convert official Depth Anything V3 weights into a LightlyTrain checkpoint.
 Example:
 python -m lightly_train._task_models.depth_estimation_components.convert_checkpoint --out ckpt/dav3_relative_large.pt
+python -m lightly_train._task_models.depth_estimation_components.convert_checkpoint --out ckpt/dav3_metric_large.pt --model-name dinov2/dav3-metric-large
 """
 
 from __future__ import annotations
@@ -22,8 +23,8 @@ import torch
 from torch import Tensor
 
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model import (
-    DepthAnythingV3RelativeDepthEstimation,
+from lightly_train._task_models.depth_estimation.task_model import (
+    DepthAnythingDepthEstimation,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,13 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
         "repo_id": "depth-anything/DA3MONO-LARGE",
         "filename": "model.safetensors",
     },
+    "dinov2/dav3-metric-large": {
+        "repo_id": "depth-anything/DA3METRIC-LARGE",
+        "filename": "model.safetensors",
+    },
 }
+
+_SUPPORTED_MODELS: frozenset[str] = frozenset(_HF_WEIGHTS)
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is
 # absent from the official inference checkpoints. It is never read during depth
@@ -61,15 +68,13 @@ def convert_checkpoint(
     Returns:
         The path to the exported checkpoint.
     """
-    model = DepthAnythingV3RelativeDepthEstimation(
-        model_name=model_name,
+    parsed_name = _parse_model_name(model_name)
+    model = DepthAnythingDepthEstimation(
+        model_name=parsed_name,
         load_weights=False,
     )
 
     if weights is None:
-        parsed_name = DepthAnythingV3RelativeDepthEstimation.parse_model_name(
-            model_name
-        )
         hf_weights = _HF_WEIGHTS[parsed_name]
         logger.info(
             f"Downloading official weights from '{hf_weights['repo_id']}' "
@@ -136,6 +141,16 @@ def main() -> None:
     )
 
 
+def _parse_model_name(model_name: str) -> str:
+    key = model_name.lower()
+    if key in _SUPPORTED_MODELS:
+        return key
+    raise ValueError(
+        f"Model name '{model_name}' is not supported. Available models are: "
+        f"{sorted(_SUPPORTED_MODELS)}."
+    )
+
+
 def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
     try:
         from huggingface_hub import hf_hub_download
@@ -149,7 +164,8 @@ def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
 
 
 def _load_official_weights(
-    model: DepthAnythingV3RelativeDepthEstimation, path: Path
+    model: DepthAnythingDepthEstimation,
+    path: Path,
 ) -> None:
     state_dict = _load_state_dict_file(path)
     remapped = _remap_official_da3_keys(state_dict)

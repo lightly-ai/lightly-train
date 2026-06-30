@@ -18,6 +18,7 @@ from lightly_train._commands.train_task_helpers import (
     get_best_metrics,
     get_train_model_args,
     get_transform_args,
+    log_step,
 )
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -30,6 +31,7 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model impor
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
     DINOv3LTDETRObjectDetectionTrainTransformArgs,
 )
+from lightly_train._training_step_timer import TimerAggregateMetrics
 
 
 def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_jitter() -> (
@@ -269,3 +271,48 @@ def test_get_best_metrics__different_watch_metric_raises() -> None:
             step=1,
             metric_args=TaskMetricArgs(watch_metric="val_metric/acc"),
         )
+
+
+def _make_timer_agg() -> TimerAggregateMetrics:
+    return TimerAggregateMetrics(
+        step_total_times={"train_step": 1.0, "train_dataload": 0.2},
+        step_counts={"train_step": 1, "train_dataload": 1},
+        phase_gpu_utils={},
+        phase_gpu_max_mem={},
+    )
+
+
+def test_log_step__includes_gradient_norm(caplog: LogCaptureFixture) -> None:
+    with caplog.at_level("INFO"):
+        log_step(
+            split="train",
+            step=0,
+            max_steps=10,
+            epoch=0,
+            agg_metric_values=None,
+            task="image_classification",
+            timer_agg=_make_timer_agg(),
+            global_batch_size=4,
+            gradient_accumulation_steps=1,
+            learning_rate=1e-3,
+            gradient_norm=12.3456,
+        )
+    assert "grad_norm: 12.3456" in caplog.text
+
+
+def test_log_step__omits_gradient_norm_when_none(caplog: LogCaptureFixture) -> None:
+    with caplog.at_level("INFO"):
+        log_step(
+            split="train",
+            step=0,
+            max_steps=10,
+            epoch=0,
+            agg_metric_values=None,
+            task="image_classification",
+            timer_agg=_make_timer_agg(),
+            global_batch_size=4,
+            gradient_accumulation_steps=1,
+            learning_rate=1e-3,
+            gradient_norm=None,
+        )
+    assert "grad_norm" not in caplog.text

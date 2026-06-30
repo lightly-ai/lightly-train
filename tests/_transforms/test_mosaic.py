@@ -46,7 +46,7 @@ class TestMosaicTransform:
         labels = np.array([1], dtype=np.int64)
 
         transform = _make_transform()
-        out_image, out_bboxes, out_labels = transform(image, bboxes, labels)
+        out_image, out_bboxes, out_labels, out_masks = transform(image, bboxes, labels)
 
         assert isinstance(out_image, np.ndarray)
         assert out_image.dtype == np.uint8
@@ -61,6 +61,9 @@ class TestMosaicTransform:
 
         assert out_labels.dtype == np.int64
 
+        # No masks passed -> masks output is None (backward compatible).
+        assert out_masks is None
+
     def test__call__handles_empty_bboxes(self) -> None:
         np.random.seed(0)
         random.seed(0)
@@ -69,12 +72,13 @@ class TestMosaicTransform:
         labels = np.zeros((0,), dtype=np.int64)
 
         transform = _make_transform()
-        out_image, out_bboxes, out_labels = transform(image, bboxes, labels)
+        out_image, out_bboxes, out_labels, out_masks = transform(image, bboxes, labels)
 
         assert out_image.dtype == np.uint8
         assert out_image.ndim == 3 and out_image.shape[2] == 3
         assert out_bboxes.shape == (0, 4)
         assert out_labels.shape == (0,)
+        assert out_masks is None
 
     def test__call__float32_input(self) -> None:
         np.random.seed(0)
@@ -84,7 +88,7 @@ class TestMosaicTransform:
         labels = np.array([0], dtype=np.int64)
 
         transform = _make_transform()
-        out_image, out_bboxes, out_labels = transform(image, bboxes, labels)
+        out_image, out_bboxes, out_labels, _ = transform(image, bboxes, labels)
 
         assert out_image.dtype == np.float32
         assert out_image.ndim == 3 and out_image.shape[2] == 3
@@ -132,7 +136,7 @@ class TestMosaicTransform:
             translation_range=(0.0, 0.0),
             scaling_range=(1.0, 1.0),
         )
-        out_image, out_bboxes, out_labels = transform(image, bboxes, labels)
+        out_image, out_bboxes, out_labels, _ = transform(image, bboxes, labels)
 
         # The first call has an empty cache, so all four mosaic slots are filled
         # with copies of the single input sample (one bbox each).
@@ -144,3 +148,93 @@ class TestMosaicTransform:
         assert out_labels.dtype == np.int64
         assert np.all(out_labels == 7)
         assert out_image.dtype == np.uint8
+
+    def test__call__masks_output_shape_and_dtype(self) -> None:
+        np.random.seed(0)
+        random.seed(0)
+        image = np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8)
+        bboxes = np.array([[0.5, 0.5, 0.25, 0.25]], dtype=np.float64)
+        labels = np.array([1], dtype=np.int64)
+        masks = np.zeros((1, 64, 64), dtype=np.uint8)
+        masks[0, 24:40, 24:40] = 1
+
+        transform = _make_transform()
+        out_image, out_bboxes, out_labels, out_masks = transform(
+            image, bboxes, labels, masks
+        )
+
+        assert out_masks is not None
+        assert out_masks.dtype == np.uint8
+        assert out_masks.ndim == 3
+        # One mask per returned bbox.
+        assert out_masks.shape[0] == out_bboxes.shape[0]
+        # Masks share the output image's spatial size.
+        assert out_masks.shape[1:] == out_image.shape[:2]
+        # Masks remain binary.
+        assert set(np.unique(out_masks)).issubset({0, 1})
+
+    def test__call__identity_affine_preserves_masks(self) -> None:
+        np.random.seed(0)
+        random.seed(0)
+        # Use output_size == image size so resize is a no-op and offsets are exact.
+        image = np.random.randint(0, 256, (32, 32, 3), dtype=np.uint8)
+        bboxes = np.array([[0.5, 0.5, 0.25, 0.25]], dtype=np.float64)
+        labels = np.array([3], dtype=np.int64)
+        masks = np.zeros((1, 32, 32), dtype=np.uint8)
+        masks[0, 8:24, 8:24] = 1
+
+        transform = _make_transform(
+            output_size=32,
+            rotation_range=0.0,
+            translation_range=(0.0, 0.0),
+            scaling_range=(1.0, 1.0),
+        )
+        out_image, out_bboxes, out_labels, out_masks = transform(
+            image, bboxes, labels, masks
+        )
+
+        # Empty cache -> four copies of the single sample, one mask each.
+        assert out_masks is not None
+        assert out_masks.shape == (4, 64, 64)
+        # The four quadrant offsets are (0,0), (32,0), (0,32), (32,32). Each mask
+        # should appear at its quadrant offset (identity affine preserves it).
+        offsets = [(0, 0), (32, 0), (0, 32), (32, 32)]
+        for mask, (dx, dy) in zip(out_masks, offsets):
+            assert mask[dy + 8 : dy + 24, dx + 8 : dx + 24].all()
+            assert mask.sum() == 16 * 16
+
+    def test__call__handles_empty_masks(self) -> None:
+        np.random.seed(0)
+        random.seed(0)
+        image = np.random.randint(0, 256, (64, 64, 3), dtype=np.uint8)
+        bboxes = np.zeros((0, 4), dtype=np.float64)
+        labels = np.zeros((0,), dtype=np.int64)
+        masks = np.zeros((0, 64, 64), dtype=np.uint8)
+
+        transform = _make_transform()
+        out_image, out_bboxes, out_labels, out_masks = transform(
+            image, bboxes, labels, masks
+        )
+
+        assert out_masks is not None
+        assert out_masks.dtype == np.uint8
+        assert out_masks.shape == (0, *out_image.shape[:2])
+
+    def test__call__float32_image_with_masks(self) -> None:
+        np.random.seed(0)
+        random.seed(0)
+        image = np.random.rand(64, 64, 3).astype(np.float32)
+        bboxes = np.array([[0.5, 0.5, 0.25, 0.25]], dtype=np.float64)
+        labels = np.array([0], dtype=np.int64)
+        masks = np.zeros((1, 64, 64), dtype=np.uint8)
+        masks[0, 24:40, 24:40] = 1
+
+        transform = _make_transform()
+        out_image, out_bboxes, out_labels, out_masks = transform(
+            image, bboxes, labels, masks
+        )
+
+        assert out_image.dtype == np.float32
+        assert out_masks is not None
+        assert out_masks.dtype == np.uint8
+        assert out_masks.shape[0] == out_bboxes.shape[0]

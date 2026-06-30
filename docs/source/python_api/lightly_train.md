@@ -9,7 +9,7 @@ Documentation of the public API of the `lightly_train` package.
 ```{eval-rst}
 
 .. automodule:: lightly_train
-    :members: embed, export, export_onnx, list_methods, list_models, load_model, pretrain, train, train_image_classification, train_instance_segmentation, train_object_detection, train_panoptic_segmentation, train_semantic_segmentation
+    :members: benchmark_object_detection, embed, export, export_onnx, list_methods, list_models, load_model, pretrain, train, train_image_classification, train_instance_segmentation, train_object_detection, train_panoptic_segmentation, train_semantic_segmentation
 
 ```
 
@@ -55,6 +55,10 @@ Documentation of the public API of the `lightly_train` package.
 
 .. autoclass:: lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model.DINOv3EoMTSemanticSegmentation
     :members: export_onnx, export_tensorrt, predict
+    :exclude-members: __init__, __new__
+
+.. autoclass:: lightly_train._task_models.depth_estimation.task_model.DepthAnythingDepthEstimation
+    :members: predict, predict_batch
     :exclude-members: __init__, __new__
 
 ```

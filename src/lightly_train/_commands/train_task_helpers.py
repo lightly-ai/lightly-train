@@ -58,9 +58,6 @@ from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
-    DINOv2LinearSemanticSegmentationTrain,
-)
 from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrain,
 )
@@ -81,6 +78,9 @@ from lightly_train._task_models.image_classification.train_model import (
 )
 from lightly_train._task_models.image_classification_multihead.train_model import (
     ImageClassificationMultiheadTrain,
+)
+from lightly_train._task_models.linear_semantic_segmentation.train_model import (
+    LinearSemanticSegmentationTrain,
 )
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
@@ -126,7 +126,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv2LinearSemanticSegmentationTrain,
+    LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
     SemanticSegmentationMultiheadTrain,
     DINOv2LTDETRObjectDetectionTrain,
@@ -825,6 +825,7 @@ def log_step(
     global_batch_size: int,
     gradient_accumulation_steps: int = 1,
     learning_rate: float | None = None,
+    gradient_norm: float | None = None,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -849,6 +850,9 @@ def log_step(
 
     if learning_rate is not None:
         parts.append(f"lr: {learning_rate:2.8f}")
+
+    if gradient_norm is not None:
+        parts.append(f"grad_norm: {gradient_norm:4.4f}")
 
     # Add profiling information.
     profiling_parts = []

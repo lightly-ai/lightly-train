@@ -10,18 +10,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Callable, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
-from pydantic import Field
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
-from typing_extensions import Self
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
-from lightly_train._configs.config import PydanticConfig
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
@@ -30,17 +27,30 @@ from lightly_train._export.onnx_helpers import (
 )
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
-from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBase
+from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+    DetectorConfig,
+    DFINETransformerConfig,
+    LTDETRDFINETransformerConfig,
+    LTDETRRTDETRTransformerv2Config,
+    RTDETRTransformerv2Config,
+)
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
     DINOv3STAs,
+)
+from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -55,520 +65,43 @@ from lightly_train._task_models.object_detection_components.rtdetr_postprocessor
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
-from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
-
-
-class _HybridEncoderConfig(PydanticConfig):
-    in_channels: list[int]
-    feat_strides: list[int]
-    hidden_dim: int
-    use_encoder_idx: list[int]
-    num_encoder_layers: int
-    nhead: int
-    dim_feedforward: int
-    dropout: float
-    enc_act: str
-    expansion: float
-    depth_mult: float
-    act: str
-    upsample: bool = True
-
-
-class _HybridEncoderTinyConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [192, 384, 768]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 384
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 2048
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1
-    act: str = "silu"
-
-
-class _HybridEncoderSmallConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [192, 384, 768]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 384
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 2048
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1
-    act: str = "silu"
-
-
-class _HybridEncoderBaseConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [256, 512, 1024]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 384
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 2048
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1
-    act: str = "silu"
-
-
-class _HybridEncoderLargeConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [384, 768, 1536]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 384
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 2048
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1
-    act: str = "silu"
-
-
-class _HybridEncoderViTTConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [192, 192, 192]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 192
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 512
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 0.34
-    depth_mult: float = 0.67
-    act: str = "silu"
-
-
-class _HybridEncoderViTTPlusConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 256
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 512
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 0.67
-    depth_mult: float = 1.0
-    act: str = "silu"
-
-
-class _HybridEncoderViTSConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [224, 224, 224]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 224
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 896
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1.0
-    act: str = "silu"
-
-
-class _HybridEncoderViTBConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [768, 768, 768]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 768
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 3072
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1.0
-    act: str = "silu"
-
-
-class _HybridEncoderViTLConfig(_HybridEncoderConfig):
-    in_channels: list[int] = [1024, 1024, 1024]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 1024
-    use_encoder_idx: list[int] = [2]
-    num_encoder_layers: int = 1
-    nhead: int = 8
-    dim_feedforward: int = 4096
-    dropout: float = 0.0
-    enc_act: str = "gelu"
-    expansion: float = 1.0
-    depth_mult: float = 1.0
-    act: str = "silu"
-
-
-class _RTDETRTransformerv2Config(PydanticConfig):
-    feat_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] | Literal["auto"] = "auto"
-    hidden_dim: int = 256
-    num_levels: int = 3
-    num_layers: int = 6
-    num_queries: int = 300
-    num_denoising: int = 100
-    label_noise_ratio: float = 0.5
-    box_noise_scale: float = 1.0
-    eval_idx: int = -1
-    num_points: list[int] = [4, 4, 4]
-
-    def resolve_auto(self, patch_size: int | None) -> None:
-        patch_size = patch_size or 16
-        if self.feat_strides == "auto":
-            self.feat_strides = [
-                int(patch_size * (2 ** (i - 1))) for i in range(self.num_levels)
-            ]
-
-
-class _RTDETRTransformerv2TinyConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [384, 384, 384]
-
-
-class _RTDETRTransformerv2SmallConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [384, 384, 384]
-
-
-class _RTDETRTransformerv2BaseConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [384, 384, 384]
-
-
-class _RTDETRTransformerv2LargeConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [384, 384, 384]
-
-
-class _RTDETRTransformerv2ViTTConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [192, 192, 192]
-    hidden_dim: int = 192
-    num_layers: int = 4
-    num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 512
-
-
-class _RTDETRTransformerv2ViTTPlusConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [256, 256, 256]
-    hidden_dim: int = 256
-    num_layers: int = 4
-    num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 512
-
-
-class _RTDETRTransformerv2ViTSConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [224, 224, 224]
-    hidden_dim: int = 224
-    num_layers: int = 4
-    num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 1792
-
-
-class _RTDETRTransformerv2ViTBConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [768, 768, 768]
-    hidden_dim: int = 768
-    num_layers: int = 4
-    num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 6144
-
-
-class _RTDETRTransformerv2ViTLConfig(_RTDETRTransformerv2Config):
-    feat_channels: list[int] = [1024, 1024, 1024]
-    hidden_dim: int = 1024
-    num_layers: int = 4
-    num_points: list[int] = [3, 6, 3]
-    dim_feedforward: int = 8192
-
-
-class _DFINETransformerConfig(PydanticConfig):
-    feat_channels: list[int] = [256, 256, 256]
-    feat_strides: list[int] = [8, 16, 32]
-    hidden_dim: int = 256
-    num_levels: int = 3
-    num_layers: int = 6
-    num_queries: int = 300
-    num_denoising: int = 100
-    label_noise_ratio: float = 0.5
-    box_noise_scale: float = 1.0
-    eval_idx: int = -1
-    num_points: list[int] = [3, 6, 3]
-    query_select_method: str = "default"
-    cross_attn_method: str = "default"
-    dim_feedforward: int = 2048
-    reg_max: int = 32
-    reg_scale: float = 4.0
-    layer_scale: float = 1.0
-
-
-class _DFINETransformerConvNextConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [384, 384, 384]
-
-
-class _DFINETransformerConvNextTinyConfig(_DFINETransformerConvNextConfig):
-    num_layers: int = 3
-
-
-class _DFINETransformerConvNextSmallConfig(_DFINETransformerConvNextConfig):
-    num_layers: int = 3
-
-
-class _DFINETransformerConvNextBaseConfig(_DFINETransformerConvNextConfig):
-    num_layers: int = 4
-
-
-class _DFINETransformerConvNextLargeConfig(_DFINETransformerConvNextConfig):
-    reg_scale: float = 8.0
-
-
-class _DFINETransformerViTTConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [192, 192, 192]
-    hidden_dim: int = 192
-    num_layers: int = 4
-    dim_feedforward: int = 512
-
-
-class _DFINETransformerViTTPlusConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [256, 256, 256]
-    hidden_dim: int = 256
-    num_layers: int = 4
-    dim_feedforward: int = 512
-
-
-class _DFINETransformerViTSConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [224, 224, 224]
-    hidden_dim: int = 224
-    num_layers: int = 4
-    dim_feedforward: int = 1792
-
-
-class _DFINETransformerViTBConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [768, 768, 768]
-    hidden_dim: int = 768
-    num_layers: int = 4
-    dim_feedforward: int = 6144
-
-
-class _DFINETransformerViTLConfig(_DFINETransformerConfig):
-    feat_channels: list[int] = [1024, 1024, 1024]
-    hidden_dim: int = 1024
-    num_layers: int = 4
-    dim_feedforward: int = 8192
-
-
-class _RTDETRBackboneWrapperViTTConfig(PydanticConfig):
-    interaction_indexes: list[int] = [3, 7, 11]
-    finetune: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int = 192
-
-
-class _RTDETRBackboneWrapperViTTPlusConfig(PydanticConfig):
-    interaction_indexes: list[int] = [3, 7, 11]
-    finetune: bool = True
-    conv_inplane: int = 16
-    hidden_dim: int = 256
-
-
-class _RTDETRBackboneWrapperViTSConfig(PydanticConfig):
-    interaction_indexes: list[int] = [5, 8, 11]
-    finetune: bool = True
-    conv_inplane: int = 32
-    hidden_dim: int = 224
-
-
-class _RTDETRBackboneWrapperViTBConfig(PydanticConfig):
-    interaction_indexes: list[int] = [5, 8, 11]
-    finetune: bool = True
-    conv_inplane: int = 64
-    hidden_dim: int = 768
-
-
-class _RTDETRBackboneWrapperViTLConfig(PydanticConfig):
-    interaction_indexes: list[int] = [11, 17, 23]
-    finetune: bool = True
-    conv_inplane: int = 64
-    hidden_dim: int = 1024
-
-
-class _RTDETRPostProcessorConfig(PydanticConfig):
-    num_top_queries: int = 300
-
-
-class _DINOv3LTDETRObjectDetectionConfig(PydanticConfig):
-    decoder_name: _LTDETRDecoderName = "rtdetrv2"
-    hybrid_encoder: _HybridEncoderConfig
-    rtdetr_transformer: _RTDETRTransformerv2Config
-    dfine_transformer: _DFINETransformerConfig
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig
-
-    def resolve_auto(self, patch_size: int | None) -> None:
-        self.rtdetr_transformer.resolve_auto(patch_size=patch_size)
-
-
-class _DINOv3LTDETRObjectDetectionLargeConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderLargeConfig = Field(
-        default_factory=_HybridEncoderLargeConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2LargeConfig = Field(
-        default_factory=_RTDETRTransformerv2LargeConfig
-    )
-    dfine_transformer: _DFINETransformerConvNextLargeConfig = Field(
-        default_factory=_DFINETransformerConvNextLargeConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionBaseConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderBaseConfig = Field(
-        default_factory=_HybridEncoderBaseConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2BaseConfig = Field(
-        default_factory=_RTDETRTransformerv2BaseConfig
-    )
-    dfine_transformer: _DFINETransformerConvNextBaseConfig = Field(
-        default_factory=_DFINETransformerConvNextBaseConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionSmallConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderSmallConfig = Field(
-        default_factory=_HybridEncoderSmallConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2SmallConfig = Field(
-        default_factory=_RTDETRTransformerv2SmallConfig
-    )
-    dfine_transformer: _DFINETransformerConvNextSmallConfig = Field(
-        default_factory=_DFINETransformerConvNextSmallConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionTinyConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderTinyConfig = Field(
-        default_factory=_HybridEncoderTinyConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2TinyConfig = Field(
-        default_factory=_RTDETRTransformerv2TinyConfig
-    )
-    dfine_transformer: _DFINETransformerConvNextTinyConfig = Field(
-        default_factory=_DFINETransformerConvNextTinyConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionViTTConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTTConfig = Field(
-        default_factory=_HybridEncoderViTTConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2ViTTConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTTConfig
-    )
-    dfine_transformer: _DFINETransformerViTTConfig = Field(
-        default_factory=_DFINETransformerViTTConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-    backbone_wrapper: _RTDETRBackboneWrapperViTTConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTTConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionViTTPlusConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTTPlusConfig = Field(
-        default_factory=_HybridEncoderViTTPlusConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2ViTTPlusConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTTPlusConfig
-    )
-    dfine_transformer: _DFINETransformerViTTPlusConfig = Field(
-        default_factory=_DFINETransformerViTTPlusConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-    backbone_wrapper: _RTDETRBackboneWrapperViTTPlusConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTTPlusConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionViTSConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTSConfig = Field(
-        default_factory=_HybridEncoderViTSConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2ViTSConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTSConfig
-    )
-    dfine_transformer: _DFINETransformerViTSConfig = Field(
-        default_factory=_DFINETransformerViTSConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-    backbone_wrapper: _RTDETRBackboneWrapperViTSConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTSConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionViTBConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTBConfig = Field(
-        default_factory=_HybridEncoderViTBConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2ViTBConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTBConfig
-    )
-    dfine_transformer: _DFINETransformerViTBConfig = Field(
-        default_factory=_DFINETransformerViTBConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-    backbone_wrapper: _RTDETRBackboneWrapperViTBConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTBConfig
-    )
-
-
-class _DINOv3LTDETRObjectDetectionViTLConfig(_DINOv3LTDETRObjectDetectionConfig):
-    hybrid_encoder: _HybridEncoderViTLConfig = Field(
-        default_factory=_HybridEncoderViTLConfig
-    )
-    rtdetr_transformer: _RTDETRTransformerv2ViTLConfig = Field(
-        default_factory=_RTDETRTransformerv2ViTLConfig
-    )
-    dfine_transformer: _DFINETransformerViTLConfig = Field(
-        default_factory=_DFINETransformerViTLConfig
-    )
-    rtdetr_postprocessor: _RTDETRPostProcessorConfig = Field(
-        default_factory=_RTDETRPostProcessorConfig
-    )
-    backbone_wrapper: _RTDETRBackboneWrapperViTLConfig = Field(
-        default_factory=_RTDETRBackboneWrapperViTLConfig
-    )
-
-
-class DINOv3LTDETRObjectDetection(TaskModel):
-    model_suffix = "ltdetr"
-
+_TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
+_TransformerConfigFactory = Callable[[], _TransformerConfig]
+
+
+def _resolve_transformer_config(
+    config: DetectorConfig, decoder_name: _LTDETRDecoderName | None
+) -> _TransformerConfig:
+    """Make backwards-compatible transformer config resolution for LTDETR task models."""
+    resolved_decoder_name = decoder_name or config.transformer.decoder_name
+    if resolved_decoder_name == config.transformer.decoder_name:
+        return config.transformer
+
+    config_name = type(config.transformer).__name__
+    if resolved_decoder_name == "rtdetrv2":
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRRTDETRTransformerv2Config, config_name),
+        )
+    elif resolved_decoder_name == "dfine":
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRDFINETransformerConfig, config_name),
+        )
+    else:
+        raise ValueError(
+            f"Unsupported decoder_name={decoder_name!r}. "
+            "Expected one of 'rtdetrv2' or 'dfine'."
+        )
+    return config_factory()
+
+
+class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
     def __init__(
         self,
         *,
@@ -580,41 +113,65 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: _LTDETRDecoderName = "rtdetrv2",
+        decoder_name: _LTDETRDecoderName | None = None,
         load_weights: bool = True,
     ) -> None:
-        """Create a DINOv3 LTDETR object detection model.
+        """Create a DINOv3 LTDETR task model.
 
         Args:
             model_name:
-                The model name. For example ``"vitt16-ltdetr"``.
+                The model name. For example ``"dinov3/vits16-ltdetr"``.
             classes:
                 A dict mapping class IDs to class names.
             image_size:
                 The input image size.
             patch_size:
-                Patch size used to initialize the DINOv3 backbone. This is stored in
-                ``init_args`` so exported checkpoints can be reconstructed with the
-                same backbone patch size.
+                Override for the backbone patch size used in ``resolve_auto``
+                (stride computation). If None, the value from the model config's
+                ``backbone_args`` is used.
             image_normalize:
                 A dict containing normalization statistics with the keys ``"mean"``
                 and ``"std"``.
             backbone_freeze:
                 Whether to freeze the backbone during training.
             backbone_weights:
-                Path to the DINOv3 backbone weights.
+                Path to the backbone weights.
             backbone_args:
-                Additional arguments to pass to the DINOv3 backbone.
+                Additional arguments merged into the backbone model args (override
+                config defaults).
+            decoder_name:
+                Override the decoder from the model config.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
-        super().__init__(init_args=locals(), ignore_args={"load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
+        # Bypass _DINOv3LTDETRBase.__init__ (old config system) and call
+        # TaskModel.__init__ directly to store init_args for checkpointing.
+        super(_DINOv3LTDETRBase, self).__init__(
+            init_args=locals(), ignore_args={"load_weights"}
+        )
 
-        self.model_name = parsed_name["model_name"]
+        config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        transformer_config = _resolve_transformer_config(
+            config=config, decoder_name=decoder_name
+        )
+        config.transformer = transformer_config
+
+        package_name, short_backbone = package_helpers.parse_model_name(
+            config.backbone_name
+        )
         self.image_size = image_size
         self.classes = classes
         self.backbone_freeze = backbone_freeze
+
+        if backbone_freeze:
+            config.backbone_wrapper.finetune = False
+
+        # Use the config's baked-in patch_size unless the caller overrides it.
+        if patch_size is None:
+            patch_size = config.backbone_args.get("patch_size")
+        else:
+            config.backbone_args["patch_size"] = patch_size
+        config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
         # This list maps the internal class id to the class id in `classes`.
@@ -635,21 +192,20 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         self.image_normalize = image_normalize
 
-        # Resolve the backbone's expected input channel count using the same
-        # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
-        # overrides image_normalize, which overrides the DINOv3 default of 3.
-        if backbone_args is not None and "in_chans" in backbone_args:
-            self._expected_input_channels: int = backbone_args["in_chans"]
+        # Resolve the backbone's expected input channel count.
+        # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
+        self._expected_input_channels: int
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            self._expected_input_channels = 3
+        elif backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels = backbone_args["in_chans"]
         elif self.image_normalize is not None:
             self._expected_input_channels = len(self.image_normalize["mean"])
         else:
             self._expected_input_channels = 3
 
-        # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
-        # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {
-            "patch_size": patch_size,
-        }
+        # Build backbone model args: start from config defaults, then apply overrides.
+        backbone_model_args: dict[str, Any] = dict(config.backbone_args)
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_weights is not None:
@@ -659,50 +215,31 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         if self.image_normalize is not None:
             get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
 
-        # Get the backbone.
-        backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
+        package = package_helpers.get_package(package_name)
+
+        backbone = package.get_model(
+            model_name=short_backbone,
             model_args=backbone_model_args,
             load_weights=load_weights,
             **get_model_kwargs,
         )
-        assert isinstance(backbone, (ConvNeXt, DinoVisionTransformer))
+        assert isinstance(
+            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+        )
 
-        config_mapping = {
-            "vitt16": _DINOv3LTDETRObjectDetectionViTTConfig,
-            "vitt16plus": _DINOv3LTDETRObjectDetectionViTTPlusConfig,
-            "vits16": _DINOv3LTDETRObjectDetectionViTSConfig,
-            "vitb16": _DINOv3LTDETRObjectDetectionViTBConfig,
-            "vitl16": _DINOv3LTDETRObjectDetectionViTLConfig,
-            "convnext-tiny": _DINOv3LTDETRObjectDetectionTinyConfig,
-            "convnext-small": _DINOv3LTDETRObjectDetectionSmallConfig,
-            "convnext-base": _DINOv3LTDETRObjectDetectionBaseConfig,
-            "convnext-large": _DINOv3LTDETRObjectDetectionLargeConfig,
-        }
-        config_name = parsed_name["backbone_name"].replace("-notpretrained", "")
-        config_name = config_name.replace("-noreg", "")
-        config_name = config_name.replace("-eupe", "")
-        config_cls = config_mapping[config_name]
-        config = config_cls()
-        config.decoder_name = decoder_name
+        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
-        config.resolve_auto(patch_size=patch_size)
-
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper
-
-        if isinstance(backbone, DinoVisionTransformer):
+        if isinstance(backbone, ECViTModelWrapper):
+            self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
+        elif isinstance(backbone, DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
-
-            # ViT models.
             vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
             self.backbone = DINOv3STAs(
                 model_wrapper=vit_model_wrapper,
-                **config.backbone_wrapper.model_dump(),
+                **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
             )
-
         else:
-            # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
             convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
             self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
@@ -711,141 +248,66 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             **config.hybrid_encoder.model_dump()
         )
 
-        self.decoder = _build_decoder(
-            config=config,
-            decoder_name=config.decoder_name,
-            num_classes=len(self.classes),
-            image_size=self.image_size,
-        )
+        transformer_cfg = transformer_config.model_dump(exclude={"decoder_name"})
+        transformer_cfg["num_classes"] = len(self.classes)
+        if transformer_config.decoder_name == "rtdetrv2":
+            self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+                **transformer_cfg, eval_spatial_size=self.image_size
+            )
+        else:
+            self.decoder = DFINETransformer(  # type: ignore[no-untyped-call]
+                **transformer_cfg, eval_spatial_size=self.image_size
+            )
 
-        postprocessor_config = config.rtdetr_postprocessor.model_dump()
-        postprocessor_config.update({"num_classes": len(self.classes)})
+        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
+        postprocessor_cfg["num_classes"] = len(self.classes)
         self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **postprocessor_config
+            **postprocessor_cfg
         )
 
         if self.backbone_freeze:
             self.freeze_backbone()
 
-    @classmethod
-    def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
-        ]
-
-    @classmethod
-    def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}."
-            )
-
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
-        return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
-
-    def freeze_backbone(self) -> None:
-        self.backbone.eval()
-        self.backbone.requires_grad_(False)
-
-    def load_train_state_dict(
-        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
-    ) -> Any:
-        """Load the state dict from a training checkpoint.
-
-        Loads the EMA weights if available, otherwise falls back to the model weights.
-        """
-        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
-        has_model_weights = any(k.startswith("model.") for k in state_dict)
-        new_state_dict = {}
-        if has_ema_weights:
-            for name, param in state_dict.items():
-                if name.startswith("ema_model.model."):
-                    name = name[len("ema_model.model.") :]
-                    new_state_dict[name] = param
-        elif has_model_weights:
-            for name, param in state_dict.items():
-                if name.startswith("model."):
-                    name = name[len("model.") :]
-                    new_state_dict[name] = param
-        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
-
-    def deploy(self) -> Self:
-        self.eval()
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
-        for m in self.modules():
-            if hasattr(m, "convert_to_deploy"):
-                m.convert_to_deploy()  # type: ignore[operator]
-        return self
-
-    def preprocess_image(
-        self, image: PathLike | PILImage | Tensor
-    ) -> tuple[Tensor, dict[str, Any]]:
-        first_param = next(self.parameters())
-        device, dtype = first_param.device, first_param.dtype
-
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        # Expand grayscale to the expected channel count so images can be stacked.
-        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
-        # 1-channel expansion is a convenience inherited from RGB-only models.
-        expected_c = self._expected_input_channels
-        if x.shape[-3] == 1 and expected_c > 1:
-            x = x.expand(expected_c, -1, -1)
-        elif x.shape[-3] != expected_c:
-            raise ValueError(
-                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
-            )
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.resize(x, self.image_size)
-        return x, {"orig_h": image_h, "orig_w": image_w}
-
-    def preprocess_batch(self, batch: Tensor) -> Tensor:
-        if self.image_normalize is not None:
-            batch = transforms_functional.normalize(
-                batch,
-                mean=list(self.image_normalize["mean"]),
-                std=list(self.image_normalize["std"]),
-            )
-        return batch
+    def get_export_output_names(self) -> list[str]:
+        return ["labels", "boxes", "scores"]
 
     def forward_backend(self, x: Tensor) -> Any:
         x = self.backbone(x)
         x = self.encoder(x)
         return self.decoder(x)
+
+    def forward(
+        self, x: Tensor, orig_target_size: Tensor | None = None
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        # Function used for ONNX export
+        if orig_target_size is None:
+            h, w = x.shape[-2:]
+            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
+        else:
+            # Flip from (H, W) to (W, H).
+            orig_target_size = orig_target_size[:, [1, 0]]
+
+            # Move to device.
+            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
+
+        # Forward the image through the model.
+        x = self.forward_backend(x)
+
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
+        # Postprocessor must be in deploy mode at this point. It returns only tuples
+        # during deploy mode.
+        assert isinstance(result, tuple)
+        labels, boxes, scores = result
+        labels = self.internal_class_to_class[labels]
+        return (labels, boxes, scores)
+
+    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        x = self.decoder(feats=x, targets=targets)
+        return x
 
     def postprocess(  # type: ignore[override]
         self,
@@ -881,73 +343,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
                 }
             )
         return out
-
-    @torch.no_grad()
-    def predict_batch(
-        self,
-        images: Sequence[PathLike | PILImage | Tensor],
-        threshold: float = 0.6,
-    ) -> list[dict[str, Tensor]]:
-        """Run inference on a batch of images and return per-image detections.
-
-        Args:
-            images:
-                Sequence of input images. Each can be a path, a PIL image, or a
-                tensor of shape (C, H, W).
-            threshold:
-                Score threshold to filter low-confidence predictions. Predictions
-                with scores <= threshold are discarded.
-
-        Returns:
-            A list with one dict per input image. Each dict contains:
-                - "labels": Tensor of shape (N,) with predicted class indices.
-                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
-                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
-                  original image.
-                - "scores": Tensor of shape (N,) with confidence scores.
-        """
-        self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
-            self.deploy()
-        tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
-        for image in images:
-            x, meta = self.preprocess_image(image)
-            tensors.append(x)
-            metadata.append(meta)
-        batch = torch.stack(tensors, dim=0)
-        batch = self.preprocess_batch(batch)
-        raw = self.forward_backend(batch)
-        return self.postprocess(raw, metadata, threshold=threshold)
-
-    @torch.no_grad()
-    def predict(
-        self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
-    ) -> dict[str, Tensor]:
-        """Run inference on a single image and return detected boxes, labels and scores.
-
-        Args:
-            image:
-                Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
-            threshold:
-                Score threshold to filter low-confidence predictions. Predictions with
-                scores <= threshold are discarded.
-
-        Returns:
-            A dictionary with:
-                - "labels": Tensor of shape (N,) with predicted class indices.
-                - "bboxes": Tensor of shape (N, 4) with bounding boxes in
-                  (x_min, y_min, x_max, y_max) in absolute pixel coordinates of the
-                  original image.
-                - "scores": Tensor of shape (N,) with confidence scores for each prediction.
-        """
-        self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
-            self.deploy()
-        x, metadata = self.preprocess_image(image)
-        batch = self.preprocess_batch(x.unsqueeze(0))
-        raw = self.forward_backend(batch)
-        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
@@ -1070,41 +465,6 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             "scores": scores,
         }
 
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None = None
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Function used for ONNX export
-        if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
-        else:
-            # Flip from (H, W) to (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-
-            # Move to device.
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        # Forward the image through the model.
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(x)
-
-        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
-            self.postprocessor(x, orig_target_size_)
-        )
-        # Postprocessor must be in deploy mode at this point. It returns only tuples
-        # during deploy mode.
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]
-        return (labels, boxes, scores)
-
-    def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
-        x = self.backbone(x)
-        x = self.encoder(x)
-        x = self.decoder(feats=x, targets=targets)
-        return x
-
     @torch.no_grad()
     def export_onnx(
         self,
@@ -1124,8 +484,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
         The export uses a dummy input of shape (batch_size, C, H, W) where C is
         inferred from the first model parameter and (H, W) come from
         `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
-        have a dynamic batch dimension for the input. The graph produces three
-        outputs: labels, boxes, and scores.
+        have a dynamic batch dimension for the input. The graph output names are provided by the concrete task model.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -1221,7 +580,7 @@ class DINOv3LTDETRObjectDetection(TaskModel):
 
         # Set the input/output names.
         input_names = ["images"]
-        output_names = ["labels", "boxes", "scores"]
+        output_names = self.get_export_output_names()
 
         # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
         # expose orig_target_size as a second ONNX input to rescale boxes to original
@@ -1417,32 +776,10 @@ class DINOv3LTDETRObjectDetection(TaskModel):
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            # We convert the fp32 attention scores already during ONNX export
+            # We convert the fp32 attention scores already during ONNX export, so we
+            # build a strongly-typed engine: TensorRT then honors those fp32 Cast nodes
+            # instead of forcing the whole attention into FP16 (which overflows to NaN).
             fp32_attention_scores=False,
+            strongly_typed=True,
             verbose=verbose,
         )
-
-
-def _build_decoder(
-    *,
-    config: _DINOv3LTDETRObjectDetectionConfig,
-    decoder_name: _LTDETRDecoderName,
-    num_classes: int,
-    image_size: tuple[int, int],
-) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder_name == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    elif decoder_name == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return DFINETransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")

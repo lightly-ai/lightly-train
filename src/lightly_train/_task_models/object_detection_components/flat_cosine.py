@@ -105,6 +105,7 @@ class FlatCosineLRScheduler(LRScheduler):
                 f"flat_steps={self.flat_steps}, no_aug_steps={self.no_aug_steps}, "
                 f"cosine_start_step={self.cosine_start_step}, "
                 f"cosine_end_step={self.cosine_end_step}."
+                f"HINT: If you are debugging, or you don't need to use flat-cosine scheduling, you can use linear scheduling instead"
             )
 
         self.min_lrs = [

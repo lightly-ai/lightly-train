@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import inspect
 import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 import torch
 
@@ -39,14 +40,6 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     #### Object Detection
-    "dinov2/vits14-noreg-ltdetr-coco": (
-        "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt",
-        "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717",
-    ),
-    "dinov2/vits14-ltdetr-dsp-coco": (
-        "dinov2_vits14_ltdetr_dsp_coco_251218_fa435184.pt",
-        "fa435184c775205469056f46456941ea271266ee522c656642853d061317f8ae",
-    ),
     "dinov3/vitt16-ltdetr-coco": (
         "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt",
         "dfd34210a1a3375793d149a55d9b49e6e8b783458bdd4cd76fd28fa2d61dbb37",
@@ -74,6 +67,14 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov3/convnext-large-ltdetr-coco": (
         "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
+    ),
+    "edgecrafter/ecvitt-ltdetr-coco": (
+        "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt",
+        "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49",
+    ),
+    "ltdetrv2-s-coco": (
+        "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt",
+        "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49",
     ),
     "picodet-s-coco": (
         "picodet_s_coco_416_260303_23022a45.pt",
@@ -197,6 +198,27 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
+    #### Depth Estimation
+    "dinov2/dav3-relative-large": (
+        "dinov2_dav3_relative_large_260629_9c2e9320.pt",
+        "9c2e932085843bbd960e16bc80917b6591e99fc6fd3907ded7bda68d35368e49",
+    ),
+    "dinov2/dav3-metric-large": (
+        "dinov2_dav3_metric_large_260629_6fd208f2.pt",
+        "6fd208f22eaccf9007e9e67fb9cad95cc47016c8d00bc74c7fe69ec34185c06b",
+    ),
+    # Only the Apache-2.0 Depth Anything V2 models are hosted. The CC-BY-NC-4.0 models
+    # (relative base/large and the non-small metric variants) are not redistributed:
+    # convert them locally with convert_checkpoint_dav2 and pass the result via
+    # `weights=`.
+    "dinov2/dav2-relative-small": (
+        "dinov2_dav2_relative_small_260629_bb09402a.pt",
+        "bb09402aca18dab407707254967b7a1b3cec3dc3707777697ce6101db15d6172",
+    ),
+    "dinov2/dav2-metric-small-hypersim": (
+        "dinov2_dav2_metric_small_hypersim_260629_d5957701.pt",
+        "d59577016e01635c285fac76f44685d7a0878545e0b8d560da45c0cf4d058548",
+    ),
 }
 
 
@@ -282,7 +304,7 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
                 f"{checkpoint_hash(local_ckpt_path)}"
             )
     else:
-        raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
+        _raise_unknown_checkpoint_error(checkpoint=checkpoint)
     return local_ckpt_path
 
 
@@ -296,6 +318,16 @@ def init_model_from_checkpoint(
     model_class = getattr(module, class_name)
     model_init_args = checkpoint["model_init_args"]
     model_init_args["load_weights"] = False
+
+    # Backward compat: This is similar to the fix in dinov3_ltdetr_object_detection/train_model.py:210–226
+    # and should be fixed together
+    # TODO(TRN-2243): Replace this compatibility shim with separate
+    # LTDETRv2/LTDETRv3 taskmodel args classes once the config split lands.
+    if (
+        "decoder_name" not in model_init_args
+        and "decoder_name" in inspect.signature(model_class.__init__).parameters
+    ):
+        model_init_args["decoder_name"] = "rtdetrv2"
 
     # Create model instance
     model: TaskModel = model_class(**model_init_args)
@@ -311,6 +343,44 @@ def checkpoint_hash(path: Path) -> str:
         while block := f.read(4096):
             sha256_hash.update(block)
     return sha256_hash.hexdigest().lower()
+
+
+def _raise_unknown_checkpoint_error(checkpoint: PathLike) -> NoReturn:
+    """Raises a helpful error for an unknown model name or checkpoint path.
+
+    Non-hosted Depth Anything V2 models are recognized but not redistributed; for those
+    a verbose message points to the local converter. Everything else raises the generic
+    error.
+    """
+    # Imported lazily: this module imports `task_model_helpers` at module level, so a
+    # top-level import here would be circular. This runs only on the error path.
+    from lightly_train._task_models.depth_estimation.task_model import (
+        DepthAnythingDepthEstimation,
+    )
+
+    ckpt_str = str(checkpoint)
+    # The depth task model's registry is the source of truth for known names. Hosted
+    # DAv2 models are matched earlier against DOWNLOADABLE_MODEL_URL_AND_HASH, so a known
+    # DAv2 name reaching here is a non-commercial variant that must be converted locally.
+    # Filter to DAv2 names: the registry now also holds DAv3 names, which must not trigger
+    # the DAv2 non-commercial message.
+    dav2_model_names = {
+        name.lower()
+        for name in DepthAnythingDepthEstimation.list_model_names()
+        if "dav2" in name.lower()
+    }
+    if ckpt_str.lower() in dav2_model_names:
+        raise ValueError(
+            f"'{ckpt_str}' is a Depth Anything V2 model with a non-commercial license, "
+            "which LightlyTrain does not host. Make sure you understand its license "
+            "and how it applies to your use, then convert it locally and load the "
+            "checkpoint by its path:\n"
+            "  python -m lightly_train._task_models.depth_estimation_components"
+            f".convert_checkpoint_dav2 --model-name {ckpt_str} --out <converted.pt>\n"
+            "The converter reports the license and which official weights to download. "
+            'Then call lightly_train.load_model("<converted.pt>").'
+        )
+    raise ValueError(f"Unknown model name or checkpoint path: '{checkpoint}'")
 
 
 def _resolve_device(device: str | torch.device | None) -> torch.device:

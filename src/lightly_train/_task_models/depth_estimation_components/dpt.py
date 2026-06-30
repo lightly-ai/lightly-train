@@ -1,9 +1,17 @@
 #
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
+# Copyright (c) 2025 ByteDance Ltd. and/or its affiliates
 #
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 from __future__ import annotations
 
@@ -401,10 +409,18 @@ def _make_scratch(
     c3 = out_shape * (4 if expand else 1)
     c4 = out_shape * (8 if expand else 1)
 
-    scratch.layer1_rn = nn.Conv2d(in_shape[0], c1, 3, 1, 1, bias=False, groups=groups)
-    scratch.layer2_rn = nn.Conv2d(in_shape[1], c2, 3, 1, 1, bias=False, groups=groups)
-    scratch.layer3_rn = nn.Conv2d(in_shape[2], c3, 3, 1, 1, bias=False, groups=groups)
-    scratch.layer4_rn = nn.Conv2d(in_shape[3], c4, 3, 1, 1, bias=False, groups=groups)
+    scratch.layer1_rn = nn.Conv2d(
+        in_shape[0], c1, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
+    scratch.layer2_rn = nn.Conv2d(
+        in_shape[1], c2, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
+    scratch.layer3_rn = nn.Conv2d(
+        in_shape[2], c3, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
+    scratch.layer4_rn = nn.Conv2d(
+        in_shape[3], c4, kernel_size=3, stride=1, padding=1, bias=False, groups=groups
+    )
     return scratch
 
 

@@ -28,6 +28,12 @@ import os
 
 os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
 
+from lightly_train._commands.benchmark_task import benchmark_object_detection
+from lightly_train._commands.benchmark_types import (
+    BenchmarkResult,
+    BenchmarkStatistics,
+    DescriptiveStatistics,
+)
 from lightly_train._commands.common_helpers import ModelFormat, ModelPart
 from lightly_train._commands.embed import embed
 from lightly_train._commands.export import export
@@ -52,6 +58,10 @@ from lightly_train._task_models.task_model_helpers import (
 )
 
 __all__ = [
+    "benchmark_object_detection",
+    "BenchmarkResult",
+    "BenchmarkStatistics",
+    "DescriptiveStatistics",
     "embed",
     "EmbeddingFormat",
     "export_onnx",
@@ -74,4 +84,4 @@ __all__ = [
     "train",
 ]
 
-__version__ = "0.15.1"
+__version__ = "0.16.1"
