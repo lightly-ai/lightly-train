@@ -66,6 +66,10 @@ class DepthEstimationTrainArgs(TrainModelArgs):
     # Backbone args.
     backbone_freeze: bool = False
     backbone_weights: PathLike | None = None
+    # Multiplier on the backbone learning rate relative to the decoder. The backbone is
+    # pretrained while the DPT/sky heads are random, so the backbone is fine-tuned at a
+    # lower rate by default. Ignored when ``backbone_freeze`` is set.
+    backbone_lr_factor: float = 0.1
 
     gradient_clip_val: float | Literal["auto"] = "auto"
 
@@ -183,22 +187,46 @@ class DepthEstimationTrain(TrainModel):
         total_steps: int,
         global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
-        params_wd, params_no_wd = optimizer_helpers.get_weight_decay_parameters([self])
-        params_wd = [p for p in params_wd if p.requires_grad]
-        params_no_wd = [p for p in params_no_wd if p.requires_grad]
-        params: list[dict[str, Any]] = [
-            {"name": "params", "params": params_wd},
-            {
-                "name": "no_weight_decay",
-                "params": params_no_wd,
-                "weight_decay": 0.0,
-            },
-        ]
+        _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters([self])
+        params_no_wd = set(params_no_wd_list)
+
         lr = self.model_args.lr * math.sqrt(
             global_batch_size / self.model_args.default_batch_size
         )
+        backbone_lr = lr * self.model_args.backbone_lr_factor
+
+        # The backbone is pretrained and fine-tuned at the reduced backbone_lr; the DPT
+        # decoder (depth + sky heads) is randomly initialized and trains at the full lr.
+        backbone_params = set(self.model.backbone.parameters())
+        param_groups: list[dict[str, Any]] = []
+        for name, module_params, group_lr in (
+            ("backbone", backbone_params, backbone_lr),
+            (
+                "decoder",
+                set(self.model.decoder.parameters()),
+                lr,
+            ),
+        ):
+            params_wd = [
+                p for p in module_params if p.requires_grad and p not in params_no_wd
+            ]
+            params_no_wd_group = [
+                p for p in module_params if p.requires_grad and p in params_no_wd
+            ]
+            if params_wd:
+                param_groups.append({"name": name, "params": params_wd, "lr": group_lr})
+            if params_no_wd_group:
+                param_groups.append(
+                    {
+                        "name": f"{name}_no_weight_decay",
+                        "params": params_no_wd_group,
+                        "lr": group_lr,
+                        "weight_decay": 0.0,
+                    }
+                )
+
         optimizer = AdamW(
-            params=params,
+            params=param_groups,
             lr=lr,
             weight_decay=no_auto(self.model_args.weight_decay),
         )
