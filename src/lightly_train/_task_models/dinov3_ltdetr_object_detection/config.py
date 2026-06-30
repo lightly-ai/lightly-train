@@ -602,7 +602,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-tiny"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNTiny
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
@@ -615,7 +615,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-small"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNSmall
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
@@ -628,7 +628,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-base"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNBase
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
@@ -639,7 +639,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/convnext-large"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.CNNLarge
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
@@ -653,7 +653,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTTiny(LTDETRBaseConfig.ViTTiny):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitt16"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTTiny
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -669,7 +669,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitt16plus"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTTinyPlus
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -685,7 +685,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vits16"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTSmall
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -699,7 +699,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTBase(LTDETRBaseConfig.ViTBase):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitb16"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTBase
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -713,7 +713,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTLarge(LTDETRBaseConfig.ViTLarge):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitl16"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTLarge
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -727,7 +727,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vits14"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTSmall
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -741,7 +741,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTBase(LTDETRBaseConfig.ViTBase):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitb14"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTBase
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -755,7 +755,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTLarge(LTDETRBaseConfig.ViTLarge):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitl14"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTLarge
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
@@ -769,7 +769,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTGiant(LTDETRBaseConfig.ViTGiant):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitg14"
-        transformer: RTDETRTransformerv2Config = Field(
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
             default_factory=LTDETRRTDETRTransformerv2Config.ViTGiant
         )
         backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
