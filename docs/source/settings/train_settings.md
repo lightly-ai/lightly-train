@@ -28,6 +28,7 @@ please refer to the [](pretrain-settings) page.
 | [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                      |
 | [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                              |
 | [`torch_compile_args`](#torch_compile_args)     | `dict`                        | `None`         | Torch compile configuration dict. `None` uses defaults; keys configure or disable torch.compile options.                                                            |
+| [`debug_args`](#debug_args)                     | `dict`                        | `None`         | Debug configuration dict. `None` disables debugging; keys configure individual debug tools. The only supported key is [`underflow_overflow`](#debug-underflow-overflow), which enables inf/nan detection during forward passes. See [Debug](#train-settings-debug) for details. |
 
 ```{tip}
 LightlyTrain automatically selects suitable default values based on the chosen model,
@@ -945,6 +946,58 @@ compilation is disabled for most models.
 | Key       | Type   | Description                                                        |
 | --------- | ------ | ------------------------------------------------------------------ |
 | `disable` | `bool` | Disable model compilation. If `True`, `torch.compile` is not used. |
+
+(train-settings-debug)=
+
+## Debug
+
+### `debug_args`
+
+Dictionary that enables and configures debugging utilities. `None` disables all
+debugging. The only currently supported key is
+[`underflow_overflow`](#debug-underflow-overflow), which detects inf/nan values in
+activations and weights during forward passes.
+
+When enabled, the monitor logs the absolute min/max of every weight, input and
+output to per-rank log files under `out/debug/underflow_overflow_rank{rank}.log`.
+Inspect those files to identify the module where values first exploded. Enabling
+this significantly slows training — turn it off once you have collected enough
+information.
+
+```{warning}
+`debug_args={"underflow_overflow": {"enabled": True}}` cannot be combined with
+`torch_compile_args={"disable": False}`. LightlyTrain raises `ValueError` at
+startup if both are active.
+```
+
+Example: enable inf/nan detection with a full trace every 10th step and stop
+training after step 500:
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    debug_args={
+        "underflow_overflow": {
+            "enabled": True,
+            "trace_batch_nums": [10, 20, 30],
+            "abort_after_batch_num": 500,
+        },
+    },
+)
+```
+
+(debug-underflow-overflow)=
+
+#### `underflow_overflow`
+
+| Key                     | Type             | Default | Description                                                                                                                                                                                       |
+| ----------------------- | ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`               | `bool`           | `False` | Whether to enable underflow/overflow debugging. When `True`, registers forward hooks on all model modules to detect inf/nan values in activations and weights.                                 |
+| `max_frames_to_save`    | `int`            | `21`    | How many forward-pass frames to retain when dumping context after an inf/nan is detected. The most recent N frames are written to the debug log so the module where values first exploded can be identified. |
+| `trace_batch_nums`      | `list[int]`      | `[]`    | Training-step numbers (0-indexed, must be non-negative) at which to write a full absolute min/max trace of every weight, input and output. Detection is disabled on traced steps.              |
+| `abort_after_batch_num` | `int` `\|` `None`| `None`  | Optional training-step after which to abort. When set, training raises `ValueError` once the current step exceeds this threshold. Mainly useful in combination with `trace_batch_nums`.         |
 
 ```{toctree}
 ---
