@@ -43,11 +43,11 @@ from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETRRTDETRTransformerv2Config,
     RTDETRTransformerv2Config,
 )
-from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
-    DINOv3ConvNextWrapper,
-)
 from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
     DINOSTAs,
+)
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
+    DINOv3ConvNextWrapper,
 )
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
