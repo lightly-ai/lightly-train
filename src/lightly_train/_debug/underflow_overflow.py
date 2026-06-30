@@ -29,11 +29,12 @@ from __future__ import annotations
 import contextlib
 import logging
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
-import torch.nn as nn
+from torch.nn import Module
 from torch.utils.hooks import RemovableHandle
 from transformers.debug_utils import DebugUnderflowOverflow
+from typing_extensions import override
 
 from lightly_train._debug.debug_args import (
     DebugArgs,
@@ -55,8 +56,8 @@ class _LightlyDebugUnderflowOverflow(DebugUnderflowOverflow):
 
     def __init__(
         self,
-        model: nn.Module,
-        log_file: Any,
+        model: Module,
+        log_file: IO[str],
         max_frames_to_save: int,
         trace_batch_nums: list[int],
         abort_after_batch_num: int | None,
@@ -87,7 +88,8 @@ class _LightlyDebugUnderflowOverflow(DebugUnderflowOverflow):
             self.detach_hooks()
             raise
 
-    def _register_forward_hook(self, module: nn.Module) -> None:  # type: ignore[override]
+    @override
+    def _register_forward_hook(self, module: Module) -> None:
         # Override of upstream's per-module hook installer (called once per
         # submodule by ``model.apply(self._register_forward_hook)`` inside
         # :meth:`register_forward_hook`). Captures the returned handle instead
@@ -106,7 +108,8 @@ class _LightlyDebugUnderflowOverflow(DebugUnderflowOverflow):
             handle.remove()
         self._handles.clear()
 
-    def forward_hook(self, module: Any, input: Any, output: Any) -> None:  # type: ignore[override]
+    @override
+    def forward_hook(self, module: Module, input: Any, output: Any) -> None:
         with contextlib.redirect_stdout(self._log_file):
             try:
                 # Emit a batch header whenever the batch number advances. Upstream
@@ -185,7 +188,7 @@ class UnderflowOverflowMonitor:
 
     def __init__(
         self,
-        model: nn.Module,
+        model: Module,
         debug_args: DebugUnderflowOverflowArgs,
         out_dir: Path,
         global_rank: int,
