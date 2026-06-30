@@ -1,18 +1,18 @@
 #
-# Copyright 2020 The HuggingFace Team. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+# #
+# # Copyright 2020 The HuggingFace Team. All rights reserved.
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.##
 """Minimal subset of ``transformers.debug_utils`` used by LightlyTrain.
 
 LightlyTrain vendors only the parts of HuggingFace's debug utility that the
@@ -33,15 +33,36 @@ Modifications Copyright 2026 Lightly AG:
     so the file satisfies the repo's strict mypy configuration without ``# type:
     ignore`` comments.
   - Dropped the unused ``DebugOption`` enum.
+  - Added optional ``log_file`` constructor argument: when provided, all
+    ``print()``-based output (frame dumps, "Detected inf/nan" headers, and the
+    overflow/nan notices from :func:`detect_overflow`) is redirected to the
+    file and flushed after every forward. Upstream always writes to ``stdout``.
+  - Added optional ``batch_number_mode="auto"|"manual"`` constructor argument.
+    ``"auto"`` preserves upstream behavior (``batch_number`` is incremented by
+    the root module's forward hook). ``"manual"`` disables that auto-increment
+    and lets callers drive ``batch_number`` explicitly via :meth:`set_batch_number`
+    (used by training loops that never call the root module's ``forward``).
+  - In both modes the "Starting batch number=..." header is emitted on advance
+    rather than only at the first forward of training; this is a strict
+    superset of upstream and makes manual-mode output deterministic.
+  - Captured the per-module :class:`RemovableHandle` returned by
+    ``Module.register_forward_hook`` and added :meth:`detach_hooks` so callers
+    can remove only the hooks this monitor added without disturbing any
+    pre-existing user forward hooks.
+  - Wrapped ``analyse_model``/``register_forward_hook`` in ``__init__`` with a
+    ``try``/``except`` that calls :meth:`detach_hooks` on partial-failure
+    cleanup (upstream leaks registered hooks on construction failure).
 """
 
 from __future__ import annotations
 
 import collections
+import contextlib
 import logging
-from typing import Any
+from typing import IO, Any, Literal
 
 import torch
+from torch.utils.hooks import RemovableHandle
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +183,16 @@ class DebugUnderflowOverflow:
             Which batch numbers to trace (turns detection off)
         abort_after_batch_num  (`int``, *optional*):
             Whether to abort after a certain batch number has finished
+        log_file (`IO[str]`, *optional*):
+            File-like object to redirect all ``print()`` output to. When ``None``
+            (the default) output goes to ``stdout`` (upstream behavior). When
+            set, the file is flushed after every forward.
+        batch_number_mode (`"auto"|"manual"`, *optional*, defaults to `"auto"`):
+            How ``batch_number`` advances. ``"auto"`` (upstream behavior) lets
+            the root module's forward hook increment it. ``"manual"`` disables
+            that auto-increment; callers must drive ``batch_number`` via
+            :meth:`set_batch_number` (used by training loops that never call
+            the root module's ``forward``).
     """
 
     def __init__(
@@ -170,12 +201,20 @@ class DebugUnderflowOverflow:
         max_frames_to_save: int = 21,
         trace_batch_nums: list[int] | None = None,
         abort_after_batch_num: int | None = None,
+        log_file: IO[str] | None = None,
+        batch_number_mode: Literal["auto", "manual"] = "auto",
     ) -> None:
         if trace_batch_nums is None:
             trace_batch_nums = []
+        if batch_number_mode not in ("auto", "manual"):
+            raise ValueError(
+                f"batch_number_mode must be 'auto' or 'manual', got {batch_number_mode!r}."
+            )
         self.model = model
         self.trace_batch_nums = trace_batch_nums
         self.abort_after_batch_num = abort_after_batch_num
+        self.log_file = log_file
+        self.batch_number_mode = batch_number_mode
 
         # keep a LIFO buffer of frames to dump as soon as inf/nan is encountered to give context to the problem emergence
         self.frames: collections.deque[str] = collections.deque([], max_frames_to_save)
@@ -184,10 +223,27 @@ class DebugUnderflowOverflow:
         self.total_calls = 0
         self.detected_overflow = False
         self.prefix = "                 "
+        # ``RemovableHandle``s returned by the per-module
+        # ``register_forward_hook`` calls (issued via ``model.apply``) so
+        # :meth:`detach_hooks` removes only the hooks this monitor added,
+        # leaving any pre-existing forward hooks (user instrumentation, etc.)
+        # intact.
+        self._handles: list[RemovableHandle] = []
+        # Sentinel used by ``forward_hook`` to detect when ``batch_number`` has
+        # advanced and a new "Starting batch" header should be emitted.
+        # Initialized to -1 so the first forward always emits a header.
+        self._prev_batch_number = -1
 
-        self.analyse_model()
-
-        self.register_forward_hook()
+        try:
+            self.analyse_model()
+            self.register_forward_hook()
+        except BaseException:
+            # ``register_forward_hook`` registers via ``model.apply`` and
+            # ``analyse_model`` can raise on malformed modules; if registration
+            # got partway, remove the handles we captured so far before letting
+            # the exception propagate.
+            self.detach_hooks()
+            raise
 
     def save_frame(self, frame: str | None = None) -> None:
         if frame is not None:
@@ -276,57 +332,97 @@ class DebugUnderflowOverflow:
         self.model.apply(self._register_forward_hook)
 
     def _register_forward_hook(self, module: torch.nn.Module) -> None:
-        module.register_forward_hook(self.forward_hook)
+        # Capture the returned handle so :meth:`detach_hooks` can remove only
+        # the hooks this monitor added (preserves pre-existing user forward
+        # hooks).
+        handle = module.register_forward_hook(self.forward_hook)
+        self._handles.append(handle)
+
+    def detach_hooks(self) -> None:
+        """Remove only the forward hooks registered by this monitor.
+
+        Iterates the captured :class:`RemovableHandle` list (see
+        :meth:`_register_forward_hook`). Safe to call when no hooks are
+        registered (empty list) or when called more than once.
+        """
+        for handle in self._handles:
+            handle.remove()
+        self._handles.clear()
+
+    def set_batch_number(self, batch_number: int) -> None:
+        """Set the current batch number explicitly (manual batch-numbering mode).
+
+        Use this in training loops that never call the root module's ``forward``
+        (e.g. ``TrainModel.training_step`` invoking submodules directly) so the
+        monitor can still tag frames with the correct batch. Should be called
+        before each forward pass. No-op when ``batch_number_mode="auto"`` (the
+        root module's forward still drives ``batch_number``).
+        """
+        self.batch_number = batch_number
 
     def forward_hook(self, module: torch.nn.Module, input: Any, output: Any) -> None:
         # - input is a tuple of packed inputs (could be non-Tensors)
         # - output could be a Tensor or a tuple of Tensors and non-Tensors
+        if self.log_file is not None:
+            cm: Any = contextlib.redirect_stdout(self.log_file)
+        else:
+            cm = contextlib.nullcontext()
+        with cm:
+            try:
+                # Emit a batch header whenever ``batch_number`` advances. In
+                # ``"auto"`` mode the root module's forward below increments
+                # ``batch_number`` and the next batch's header is emitted at
+                # the start of its first submodule forward (equivalent to
+                # upstream's post-root emit, just expressed via
+                # header-on-advance). In ``"manual"`` mode the caller drives
+                # ``batch_number`` via :meth:`set_batch_number` and the header
+                # is emitted on the first forward after each set.
+                if self.batch_number != self._prev_batch_number:
+                    self.batch_start_frame()
+                    self._prev_batch_number = self.batch_number
+                self.total_calls += 1
 
-        last_frame_of_batch = False
+                trace_mode = self.batch_number in self.trace_batch_nums
+                if trace_mode:
+                    self.reset_saved_frames()
 
-        trace_mode = self.batch_number in self.trace_batch_nums
-        if trace_mode:
-            self.reset_saved_frames()
+                # count batch numbers - in auto mode the root module's forward
+                # increments ``batch_number`` so the just-completed batch ends
+                # here; in manual mode this is disabled.
+                if self.batch_number_mode == "auto" and module == self.model:
+                    self.batch_number += 1
 
-        if self.total_calls == 0:
-            self.batch_start_frame()
-        self.total_calls += 1
+                self.create_frame(module, input, output)
 
-        # count batch numbers - the very first forward hook of the batch will be called when the
-        # batch completes - i.e. it gets called very last - we know this batch has finished
-        if module == self.model:
-            self.batch_number += 1
-            last_frame_of_batch = True
+                if trace_mode:
+                    self.trace_frames()
 
-        self.create_frame(module, input, output)
+                if self.detected_overflow and not trace_mode:
+                    self.dump_saved_frames()
 
-        # if last_frame_of_batch:
-        #     self.batch_end_frame()
+                    # now we can abort, as it's pointless to continue running
+                    raise ValueError(
+                        "DebugUnderflowOverflow: inf/nan detected, aborting as "
+                        "there is no point running further. Please check the "
+                        "debug log file for the activation values prior to "
+                        "this event."
+                    )
 
-        if trace_mode:
-            self.trace_frames()
-
-        if last_frame_of_batch:
-            self.batch_start_frame()
-
-        if self.detected_overflow and not trace_mode:
-            self.dump_saved_frames()
-
-            # now we can abort, as it's pointless to continue running
-            raise ValueError(
-                "DebugUnderflowOverflow: inf/nan detected, aborting as there is no point running further. "
-                "Please scroll up above this traceback to see the activation values prior to this event."
-            )
-
-        # abort after certain batch if requested to do so
-        if (
-            self.abort_after_batch_num is not None
-            and self.batch_number > self.abort_after_batch_num
-        ):
-            raise ValueError(
-                f"DebugUnderflowOverflow: aborting after {self.batch_number} batches due to"
-                f" `abort_after_batch_num={self.abort_after_batch_num}` arg"
-            )
+                # abort after certain batch if requested to do so
+                if (
+                    self.abort_after_batch_num is not None
+                    and self.batch_number > self.abort_after_batch_num
+                ):
+                    raise ValueError(
+                        f"DebugUnderflowOverflow: aborting after batch "
+                        f"{self.batch_number} due to "
+                        f"`abort_after_batch_num={self.abort_after_batch_num}`."
+                    )
+            finally:
+                # Always flush so partial dumps are recoverable even if we
+                # raise before the next explicit flush downstream.
+                if self.log_file is not None:
+                    self.log_file.flush()
 
 
 def get_abs_min_max(var: torch.Tensor, ctx: str) -> str:

@@ -7,34 +7,21 @@
 #
 """Underflow/overflow debugging for task/fine-tuning training.
 
-Wraps the vendored ``DebugUnderflowOverflow`` class (see
-:mod:`lightly_train._debug.huggingface_debug_utils`). The upstream utility, originally
-from ``transformers.debug_utils``, is designed for HuggingFace's own training loop;
-this subclass adapts it to LightlyTrain's manual Fabric loop with two changes:
-
-1. Batch numbering is driven explicitly by the LightlyTrain training step. Upstream
-   increments the batch counter only when the *root* module's forward hook fires.
-   LightlyTrain calls ``TrainModel.training_step(...)`` which invokes submodules
-   directly and never calls the root module ``forward``, so upstream counting would
-   never advance. :meth:`UnderflowOverflowMonitor.set_step` sets the counter instead.
-   Diverges from upstream: a new "Starting batch" header is emitted whenever the
-   batch number advances (upstream emits the header exactly once).
-
-2. All output is redirected to a per-rank log file. Upstream uses ``print()`` to
-   ``stdout``; redirecting it keeps the per-module min/max dumps out of the main
-   ``train.log``.
+Thin wrapper around the vendored :class:`DebugUnderflowOverflow` (see
+:mod:`lightly_train._debug.huggingface_debug_utils`). The vendored class is
+configured in ``batch_number_mode="manual"`` so the LightlyTrain step drives
+``batch_number`` explicitly (LightlyTrain's manual Fabric loop never calls
+the root module's ``forward`` so the upstream auto-increment would never
+fire). Output is redirected to a per-rank log file via the ``log_file`` arg
+so per-module min/max dumps do not pollute the main ``train.log``.
 """
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from pathlib import Path
-from typing import IO, Any
 
 from torch.nn import Module
-from torch.utils.hooks import RemovableHandle
-from typing_extensions import override
 
 from lightly_train._debug.debug_args import (
     DebugArgs,
@@ -44,115 +31,6 @@ from lightly_train._debug.huggingface_debug_utils import DebugUnderflowOverflow
 from lightly_train._torch_compile import TorchCompileArgs
 
 logger = logging.getLogger(__name__)
-
-
-class _LightlyDebugUnderflowOverflow(DebugUnderflowOverflow):
-    """DebugUnderflowOverflow with LightlyTrain batch numbering and per-rank logging.
-
-    Inherits upstream's hook-registration, batch-numbering bookkeeping, and
-    tensor-analysis machinery; only overrides the hook entry point to (a) drive
-    the batch header explicitly and (b) redirect all upstream ``print()`` output
-    to a caller-supplied log file.
-    """
-
-    def __init__(
-        self,
-        model: Module,
-        log_file: IO[str],
-        max_frames_to_save: int,
-        trace_batch_nums: list[int],
-        abort_after_batch_num: int | None,
-    ) -> None:
-        self._log_file = log_file
-        # Sentinel used by ``forward_hook`` to detect a new batch; the upstream class
-        # only ever sets it via the root-module hook, which never fires here.
-        self._prev_batch_number = -1
-        # ``RemovableHandle``s returned by the per-module ``register_forward_hook``
-        # calls (issued via upstream ``register_forward_hook`` -> ``model.apply``)
-        # so :meth:`detach_hooks` removes only the hooks this monitor added,
-        # leaving any pre-existing forward hooks (user instrumentation, etc.)
-        # intact. Initialized before ``super().__init__`` because that triggers
-        # the registration.
-        self._handles: list[RemovableHandle] = []
-        try:
-            super().__init__(  # type: ignore[no-untyped-call]
-                model=model,
-                max_frames_to_save=max_frames_to_save,
-                trace_batch_nums=trace_batch_nums,
-                abort_after_batch_num=abort_after_batch_num,
-            )
-        except BaseException:
-            # ``super().__init__`` registers the hooks via ``model.apply`` and
-            # ``analyse_model`` can raise on malformed modules; if registration
-            # got partway, remove the handles we captured so far before letting
-            # the exception propagate.
-            self.detach_hooks()
-            raise
-
-    @override
-    def _register_forward_hook(self, module: Module) -> None:
-        # Override of upstream's per-module hook installer (called once per
-        # submodule by ``model.apply(self._register_forward_hook)`` inside
-        # :meth:`register_forward_hook`). Captures the returned handle instead
-        # of discarding it.
-        handle = module.register_forward_hook(self.forward_hook)  # type: ignore[no-untyped-call]
-        self._handles.append(handle)
-
-    def detach_hooks(self) -> None:
-        """Remove only the forward hooks registered by this monitor.
-
-        Iterates the captured :class:`RemovableHandle` list (see
-        :meth:`_register_forward_hook`). Safe to call when no hooks are
-        registered (empty list) or when called more than once.
-        """
-        for handle in self._handles:
-            handle.remove()
-        self._handles.clear()
-
-    @override
-    def forward_hook(self, module: Module, input: Any, output: Any) -> None:
-        with contextlib.redirect_stdout(self._log_file):
-            try:
-                # Emit a batch header whenever the batch number advances. Upstream
-                # relies on the root module forward firing to delimit batches; in
-                # LightlyTrain's manual loop that never happens, so we drive the
-                # batch number explicitly via UnderflowOverflowMonitor.set_step.
-                if self.batch_number != self._prev_batch_number:
-                    self.batch_start_frame()  # type: ignore[no-untyped-call]
-                    self._prev_batch_number = self.batch_number
-                self.total_calls += 1
-
-                trace_mode = self.batch_number in self.trace_batch_nums
-                if trace_mode:
-                    self.reset_saved_frames()  # type: ignore[no-untyped-call]
-
-                self.create_frame(module, input, output)  # type: ignore[no-untyped-call]
-
-                if trace_mode:
-                    self.trace_frames()  # type: ignore[no-untyped-call]
-
-                if self.detected_overflow and not trace_mode:
-                    self.dump_saved_frames()  # type: ignore[no-untyped-call]
-                    raise ValueError(
-                        "DebugUnderflowOverflow: inf/nan detected, aborting as "
-                        "there is no point running further. Please check the "
-                        "debug log file for the activation values prior to this "
-                        "event."
-                    )
-
-                if (
-                    self.abort_after_batch_num is not None
-                    and self.batch_number > self.abort_after_batch_num
-                ):
-                    raise ValueError(
-                        f"DebugUnderflowOverflow: aborting after batch "
-                        f"{self.batch_number} due to "
-                        f"`abort_after_batch_num={self.abort_after_batch_num}`."
-                    )
-            finally:
-                # Always flush so partial dumps are recoverable even if we raise
-                # before the next explicit flush downstream.
-                self._log_file.flush()
 
 
 class UnderflowOverflowMonitor:
@@ -201,17 +79,19 @@ class UnderflowOverflowMonitor:
         log_file = log_path.open("a")
 
         try:
-            self._hf = _LightlyDebugUnderflowOverflow(  # type: ignore[no-untyped-call]
+            self._hf = DebugUnderflowOverflow(
                 model=model,
-                log_file=log_file,
                 max_frames_to_save=debug_args.max_frames_to_save,
                 trace_batch_nums=list(debug_args.trace_batch_nums),
                 abort_after_batch_num=debug_args.abort_after_batch_num,
+                log_file=log_file,
+                batch_number_mode="manual",
             )
         except Exception:
-            # Hook cleanup is handled inside ``_LightlyDebugUnderflowOverflow``
-            # (its ``__init__`` self-cleans via ``detach_hooks``); here we only
-            # need to close the log file we opened.
+            # ``DebugUnderflowOverflow.__init__`` self-cleans via
+            # ``detach_hooks`` on partial-failure (e.g. ``model.apply`` raising
+            # mid-registration); here we only need to close the log file we
+            # opened.
             log_file.close()
             raise
 
@@ -234,10 +114,10 @@ class UnderflowOverflowMonitor:
         """Set the current training step used for batch numbering and trace/abort logic.
 
         Must be called before each forward pass (typically at the top of each
-        training step) so that the upstream batch counter is driven by the
+        training step) so the vendored monitor's batch counter is driven by the
         LightlyTrain step instead of the (never-firing) root module forward.
         """
-        self._hf.batch_number = step
+        self._hf.set_batch_number(step)
 
     def close(self) -> None:
         """Detach forward hooks and close the log file. Idempotent."""
