@@ -267,9 +267,12 @@ class DepthEstimationTrain(TrainModel):
         assert isinstance(sky, Tensor)
 
         out = self(images)
-        mask = depth > 0
-        silog_loss = self.silog_criterion(out["depth"], depth, mask)
-        grad_loss = self.grad_criterion(out["depth"], depth, mask)
+        # Sky has no valid depth: the teacher's depth in sky regions is garbage, so
+        # exclude it from the depth losses. The sky head still trains on the full sky
+        # map below.
+        depth_mask = (depth > 0) & (sky < 0.5)
+        silog_loss = self.silog_criterion(out["depth"], depth, depth_mask)
+        grad_loss = self.grad_criterion(out["depth"], depth, depth_mask)
         sky_loss = self.sky_criterion(out["sky"], sky)
         loss = (
             silog_loss
@@ -287,7 +290,10 @@ class DepthEstimationTrain(TrainModel):
             weight=images.shape[0],
         )
         if compute_metrics:
-            metrics.update_with_predictions(out["depth"].detach(), depth)
+            # Zero out sky pixels so update_with_predictions' `target > 0` filter ignores
+            # them, matching the sky exclusion applied to the loss.
+            metric_target = torch.where(sky < 0.5, depth, torch.zeros_like(depth))
+            metrics.update_with_predictions(out["depth"].detach(), metric_target)
 
         return TaskStepResult(
             loss=loss,

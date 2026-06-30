@@ -67,12 +67,15 @@ def plot_depth_labels(
     """
     images = _as_tensor(batch["image"])
     depth = _as_tensor(batch["depth"])
+    # The ground-truth depth in sky regions is garbage (the teacher has no valid depth
+    # there), so treat sky pixels as invalid when colorizing the labels.
+    sky = _as_tensor(batch["sky"])
     n = min(max_images, images.shape[0])
 
     pil_images: list[PILImage] = []
     for i in range(n):
         rgb = _image_to_pil(image=images[i], image_normalize=image_normalize)
-        depth_img = _depth_to_pil(depth=depth[i])
+        depth_img = _depth_to_pil(depth=depth[i], invalid=sky[i] >= 0.5)
         pil_images.append(_concat_horizontal(left=rgb, right=depth_img))
 
     return utils._render_grid(pil_images)
@@ -131,14 +134,22 @@ def _image_to_pil(
     return pil_image
 
 
-def _depth_to_pil(depth: Tensor) -> PILImage:
+def _depth_to_pil(depth: Tensor, invalid: Tensor | None = None) -> PILImage:
     """Colorizes a (1, H, W) depth map with a colormap, ignoring invalid pixels.
 
     Depth is min-max normalized over the valid (positive) pixels of the sample so the
     full colormap range is used regardless of the absolute depth scale.
+
+    Args:
+        depth: Depth map of shape ``(1, H, W)``.
+        invalid: Optional boolean mask of shape ``(1, H, W)`` marking pixels to exclude
+            (e.g. sky); they are dropped from the normalization and rendered as the
+            colormap's far value, in addition to the non-positive pixels.
     """
     depth = depth.squeeze(0)
     valid = depth > 0
+    if invalid is not None:
+        valid = valid & ~invalid.squeeze(0).bool()
     if bool(valid.any()):
         finite = depth[valid]
         d_min = finite.min()
