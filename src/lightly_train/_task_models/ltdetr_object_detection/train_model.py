@@ -299,10 +299,13 @@ class LTDETRObjectDetectionTrain(TrainModel):
         self,
         *,
         model_name: str,
-        model_args: LTDETRObjectDetectionTrainArgs | DINOv2LTDETRObjectDetectionTrainArgs,
+        model_args: LTDETRObjectDetectionTrainArgs
+        | DINOv2LTDETRObjectDetectionTrainArgs,
         data_args: YOLOObjectDetectionDataArgs,
-        train_transform_args: LTDETRObjectDetectionTrainTransformArgs | DINOv2LTDETRObjectDetectionTrainTransformArgs,
-        val_transform_args: LTDETRObjectDetectionValTransformArgs | DINOv2LTDETRObjectDetectionValTransformArgs,
+        train_transform_args: LTDETRObjectDetectionTrainTransformArgs
+        | DINOv2LTDETRObjectDetectionTrainTransformArgs,
+        val_transform_args: LTDETRObjectDetectionValTransformArgs
+        | DINOv2LTDETRObjectDetectionValTransformArgs,
         load_weights: bool,
         metric_args: ObjectDetectionTaskMetricArgs,
         gradient_accumulation_steps: int,
