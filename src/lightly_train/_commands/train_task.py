@@ -56,11 +56,9 @@ from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
-from lightly_train._debug.debug_args import DebugArgs, get_debug_args
-from lightly_train._debug.underflow_overflow import (
-    UnderflowOverflowMonitor,
-    check_compile_conflict,
-)
+from lightly_train._debug import debug_args, underflow_overflow
+from lightly_train._debug.debug_args import DebugArgs
+from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
@@ -1399,11 +1397,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             train_model_cls=train_model_cls,
             torch_compile_args=config.torch_compile_args,
         )
-        config.debug_args = get_debug_args(debug_args=config.debug_args)
+        config.debug_args = debug_args.get_debug_args(debug_args=config.debug_args)
         # torch.compile and DebugUnderflowOverflow are mutually exclusive. Forward
         # hooks and per-tensor reductions used for debugging do not interact well
         # with compiled graphs.
-        check_compile_conflict(
+        underflow_overflow.check_compile_conflict(
             debug_args=config.debug_args,
             compile_args=config.torch_compile_args,
         )
