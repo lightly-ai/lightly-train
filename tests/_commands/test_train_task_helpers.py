@@ -25,11 +25,11 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-    DINOv3LTDETRObjectDetectionTrainArgs,
+    LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrainArgs,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
-    DINOv3LTDETRObjectDetectionTrainTransformArgs,
+    LTDETRObjectDetectionTrainTransformArgs,
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
 
@@ -45,10 +45,10 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
     )
 
     train_model_args = cast(
-        DINOv3LTDETRObjectDetectionTrainArgs,
+        LTDETRObjectDetectionTrainArgs,
         get_train_model_args(
             model_args={"patch_size": 14},
-            model_args_cls=DINOv3LTDETRObjectDetectionTrainArgs,
+            model_args_cls=LTDETRObjectDetectionTrainArgs,
             total_steps=1000,
             gradient_accumulation_steps=1,
             train_num_batches=100,
@@ -63,7 +63,7 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
         resolved_model_init_args["patch_size"] = train_model_args.patch_size
 
     train_transform_args, _ = get_transform_args(
-        train_model_cls=DINOv3LTDETRObjectDetectionTrain,
+        train_model_cls=LTDETRObjectDetectionTrain,
         transform_args=None,
         ignore_index=None,
         model_init_args=resolved_model_init_args,
@@ -73,7 +73,7 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
     )
 
     train_transform_args = cast(
-        DINOv3LTDETRObjectDetectionTrainTransformArgs, train_transform_args
+        LTDETRObjectDetectionTrainTransformArgs, train_transform_args
     )
 
     assert train_model_args.patch_size == 14

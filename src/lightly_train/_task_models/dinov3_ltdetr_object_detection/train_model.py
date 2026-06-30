@@ -36,13 +36,13 @@ from lightly_train._metrics.detection.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
+    DINOSTAs,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
-    DINOv3LTDETRObjectDetection,
+    LTDETRObjectDetection,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransform,
@@ -186,7 +186,7 @@ class LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                 # without it the aliases would raise
                 # ``Unable to resolve patch_size='auto'`` here.
                 try:
-                    package_name = DINOv3LTDETRObjectDetection.parse_model_name(
+                    package_name = LTDETRObjectDetection.parse_model_name(
                         model_name=model_name
                     )["package_name"]
                 except ValueError:
@@ -267,7 +267,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = LTDETRObjectDetectionTrainArgs
     task_metric_args_cls = ObjectDetectionTaskMetricArgs
-    task_model_cls = DINOv3LTDETRObjectDetection
+    task_model_cls = LTDETRObjectDetection
     train_transform_cls = LTDETRObjectDetectionTrainTransform
     val_transform_cls = LTDETRObjectDetectionValTransform
     torch_compile_args_cls = TorchCompileArgs
@@ -304,7 +304,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
         else:
             normalize_dict = normalize.model_dump()
 
-        self.model = DINOv3LTDETRObjectDetection(
+        self.model = LTDETRObjectDetection(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),
             classes=data_args.included_classes,
@@ -595,7 +595,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
         backbone_lr = lr * self.model_args.backbone_lr_factor
 
         backbone = self.model.backbone
-        if isinstance(backbone, DINOv3STAs):
+        if isinstance(backbone, DINOSTAs):
             # Only the pretrained ViT gets the low backbone LR.
             backbone_params = list(backbone.backbone_model.parameters())
             # The connector modules (sta, convs, norms) are randomly initialized and

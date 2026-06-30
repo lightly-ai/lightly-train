@@ -12,7 +12,7 @@ import torch
 from torch.nn import Module
 
 from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
+    DINOSTAs,
 )
 
 from ...helpers import dummy_dinov3_vit_model
@@ -34,33 +34,33 @@ def _remap_to_old_format(
 
 
 @pytest.fixture
-def wrapper() -> DINOv3STAs:
+def wrapper() -> DINOSTAs:
     model_wrapper = dummy_dinov3_vit_model()
-    return DINOv3STAs(model_wrapper=model_wrapper)
+    return DINOSTAs(model_wrapper=model_wrapper)
 
 
 @pytest.fixture
-def fresh_wrapper() -> DINOv3STAs:
+def fresh_wrapper() -> DINOSTAs:
     model_wrapper = dummy_dinov3_vit_model()
-    return DINOv3STAs(model_wrapper=model_wrapper)
+    return DINOSTAs(model_wrapper=model_wrapper)
 
 
-class TestDINOv3STAs:
+class TestDINOSTAs:
     def test_load_state_dict__new_format_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOSTAs, fresh_wrapper: DINOSTAs
     ) -> None:
         state_dict = wrapper.state_dict()
         fresh_wrapper.load_state_dict(state_dict)
 
     def test_load_state_dict__old_format_remaps_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOSTAs, fresh_wrapper: DINOSTAs
     ) -> None:
         state_dict = wrapper.state_dict()
         old_state_dict = _remap_to_old_format(state_dict)
         fresh_wrapper.load_state_dict(old_state_dict)
 
     def test_load_state_dict__old_format_strict_false_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOSTAs, fresh_wrapper: DINOSTAs
     ) -> None:
         state_dict = wrapper.state_dict()
         old_state_dict = _remap_to_old_format(state_dict)
@@ -70,19 +70,19 @@ class TestDINOv3STAs:
             assert torch.equal(fresh_wrapper.state_dict()[key], val)
 
     def test_load_state_dict__unrecognizable_format_raises(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOSTAs, fresh_wrapper: DINOSTAs
     ) -> None:
         fake_state_dict = {f"fake.{k}": v for k, v in wrapper.state_dict().items()}
         with pytest.raises(RuntimeError):
             fresh_wrapper.load_state_dict(fake_state_dict)
 
     def test_load_state_dict__old_format_via_parent_module_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOSTAs, fresh_wrapper: DINOSTAs
     ) -> None:
         """Pre-hook must fire even when load_state_dict is called on a parent module."""
 
         class _Container(Module):
-            def __init__(self, backbone: DINOv3STAs) -> None:
+            def __init__(self, backbone: DINOSTAs) -> None:
                 super().__init__()
                 self.backbone = backbone
 

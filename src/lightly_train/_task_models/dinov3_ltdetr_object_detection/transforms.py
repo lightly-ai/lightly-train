@@ -425,5 +425,5 @@ class LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionTrainTransformArgs
 
 
-class DINOv3LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
+class LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionValTransformArgs

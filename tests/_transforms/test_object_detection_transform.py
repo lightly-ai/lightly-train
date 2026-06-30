@@ -17,10 +17,10 @@ from numpy.typing import NDArray
 from torch import Tensor
 
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
-    DINOv3LTDETRObjectDetectionCopyBlendArgs,
-    DINOv3LTDETRObjectDetectionMixUpArgs,
-    DINOv3LTDETRObjectDetectionScaleJitterArgs,
-    DINOv3LTDETRObjectDetectionTrainTransformArgs,
+    LTDETRObjectDetectionCopyBlendArgs,
+    LTDETRObjectDetectionMixUpArgs,
+    LTDETRObjectDetectionScaleJitterArgs,
+    LTDETRObjectDetectionTrainTransformArgs,
 )
 from lightly_train._transforms.object_detection_transform import (
     ObjectDetectionCollateFunction,
@@ -123,8 +123,8 @@ def _get_resize_args() -> ResizeArgs:
 def _get_scale_jitter_args(
     *,
     step_stop: int | None = None,
-) -> DINOv3LTDETRObjectDetectionScaleJitterArgs:
-    return DINOv3LTDETRObjectDetectionScaleJitterArgs(
+) -> LTDETRObjectDetectionScaleJitterArgs:
+    return LTDETRObjectDetectionScaleJitterArgs(
         sizes=None,
         min_scale=0.76,
         max_scale=1.27,
@@ -163,8 +163,8 @@ def _get_mixup_args(
     *,
     step_start: int,
     step_stop: int,
-) -> DINOv3LTDETRObjectDetectionMixUpArgs:
-    return DINOv3LTDETRObjectDetectionMixUpArgs(
+) -> LTDETRObjectDetectionMixUpArgs:
+    return LTDETRObjectDetectionMixUpArgs(
         prob=1.0,
         step_start=step_start,
         step_stop=step_stop,
@@ -175,8 +175,8 @@ def _get_copyblend_args(
     *,
     step_start: int,
     step_stop: int,
-) -> DINOv3LTDETRObjectDetectionCopyBlendArgs:
-    return DINOv3LTDETRObjectDetectionCopyBlendArgs(
+) -> LTDETRObjectDetectionCopyBlendArgs:
+    return LTDETRObjectDetectionCopyBlendArgs(
         prob=1.0,
         step_start=step_start,
         step_stop=step_stop,
@@ -199,8 +199,8 @@ def _get_bbox_params() -> BboxParams:
     )
 
 
-def _get_ltdetr_train_transform_args() -> DINOv3LTDETRObjectDetectionTrainTransformArgs:
-    return DINOv3LTDETRObjectDetectionTrainTransformArgs(
+def _get_ltdetr_train_transform_args() -> LTDETRObjectDetectionTrainTransformArgs:
+    return LTDETRObjectDetectionTrainTransformArgs(
         image_size=_get_image_size(),
         bbox_params=_get_bbox_params(),
     )
@@ -504,7 +504,7 @@ class TestObjectDetectionCollateFunction:
         assert out["original_size"] == [(128, 128), (64, 64)]
 
     def test_requires_dataloader_reinitialization(self) -> None:
-        transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs(
+        transform_args = LTDETRObjectDetectionTrainTransformArgs(
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
             mixup=_get_mixup_args(

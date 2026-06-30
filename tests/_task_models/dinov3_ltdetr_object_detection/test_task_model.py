@@ -31,16 +31,16 @@ from lightly_train._task_models.dinov3_ltdetr_object_detection.config import (
     RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.task_model import (
-    DINOv3LTDETRObjectDetection,
+    LTDETRObjectDetection,
     _resolve_transformer_config,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-    DINOv3LTDETRObjectDetectionTrainArgs,
+    LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrainArgs,
 )
 from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
-    DINOv3LTDETRObjectDetectionTrainTransformArgs,
-    DINOv3LTDETRObjectDetectionValTransformArgs,
+    LTDETRObjectDetectionTrainTransformArgs,
+    LTDETRObjectDetectionValTransformArgs,
 )
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -55,11 +55,11 @@ def _is_module_frozen(m: nn.Module) -> bool:
 
 
 def _create_train_model(
-    train_model_args: DINOv3LTDETRObjectDetectionTrainArgs,
+    train_model_args: LTDETRObjectDetectionTrainArgs,
     *,
     model_name: str = "dinov3/vitt16-notpretrained-ltdetr",
     model_init_args: dict[str, Any] | None = None,
-) -> DINOv3LTDETRObjectDetectionTrain:
+) -> LTDETRObjectDetectionTrain:
     data_args = YOLOObjectDetectionDataArgs(
         path=Path("/tmp/data"),
         train=Path("train") / "images",
@@ -74,12 +74,12 @@ def _create_train_model(
         model_init_args={} if model_init_args is None else model_init_args,
         data_args=data_args,
     )
-    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args = LTDETRObjectDetectionTrainTransformArgs()
     train_transform_args.resolve_auto(model_init_args={})
-    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
+    val_transform_args = LTDETRObjectDetectionValTransformArgs()
     val_transform_args.resolve_auto(model_init_args={})
 
-    train_model = DINOv3LTDETRObjectDetectionTrain(
+    train_model = LTDETRObjectDetectionTrain(
         model_name=model_name,
         model_args=train_model_args,
         data_args=data_args,
@@ -104,7 +104,7 @@ def dummy_yolo_detection_data_args() -> YOLOObjectDetectionDataArgs:
 
 @pytest.mark.parametrize("use_ema_model", [True, False])
 def test_load_train_state_dict__from_exported(use_ema_model: bool) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(use_ema_model=use_ema_model)
+    model_args = LTDETRObjectDetectionTrainArgs(use_ema_model=use_ema_model)
     train_model = _create_train_model(model_args)
     task_model = train_model.model
     state_dict = train_model.get_export_state_dict()
@@ -112,7 +112,7 @@ def test_load_train_state_dict__from_exported(use_ema_model: bool) -> None:
 
 
 def test_load_train_state_dict__no_ema_weights() -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(use_ema_model=True)
+    model_args = LTDETRObjectDetectionTrainArgs(use_ema_model=True)
     train_model = _create_train_model(model_args)
     task_model = train_model.model
     state_dict = train_model.state_dict()
@@ -125,7 +125,7 @@ def test_load_train_state_dict__no_ema_weights() -> None:
 
 @pytest.mark.parametrize("should_freeze", [True, False])
 def test_freeze_backbone_on_set_train_mode(should_freeze: bool) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
+    model_args = LTDETRObjectDetectionTrainArgs(
         use_ema_model=True,
         backbone_freeze=should_freeze,
     )
@@ -152,7 +152,7 @@ def test_resolve_auto__uses_vit_model_name(
     expected_patch_size: int | str,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
 
     model_args.resolve_auto(
         total_steps=1000,
@@ -179,7 +179,7 @@ def test_resolve_auto__uses_ltdetrv2_alias(
     # them itself (via ``parse_model_name``) rather than raising
     # ``Unable to resolve patch_size='auto'``. All aliases map to EdgeCrafter
     # (ECViT) backbones with a fixed patch_size of 16.
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
 
     model_args.resolve_auto(
         total_steps=1000,
@@ -202,7 +202,7 @@ def test_resolve_auto__uses_model_init_args_patch_size(
     expected_patch_size: int,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
 
     model_args.resolve_auto(
         total_steps=1000,
@@ -225,7 +225,7 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     expected_patch_size: int,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(patch_size=expected_patch_size)
+    model_args = LTDETRObjectDetectionTrainArgs(patch_size=expected_patch_size)
 
     model_args.resolve_auto(
         total_steps=1000,
@@ -252,7 +252,7 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
     model_name = "dinov3/vitt16-notpretrained-ltdetr"
 
     # Source: an old-style RTDETRv2 checkpoint.
-    source_args = DINOv3LTDETRObjectDetectionTrainArgs(
+    source_args = LTDETRObjectDetectionTrainArgs(
         decoder_name="rtdetrv2",
         use_ema_model=False,
     )
@@ -272,7 +272,7 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
     # Target: a fresh train model built from the new defaults. The user does
     # not explicitly set ``decoder_name``; ``model_init_args`` carries the
     # checkpoint payload.
-    target_args = DINOv3LTDETRObjectDetectionTrainArgs(use_ema_model=False)
+    target_args = LTDETRObjectDetectionTrainArgs(use_ema_model=False)
     target_train_model = _create_train_model(
         target_args,
         model_name=model_name,
@@ -321,7 +321,7 @@ def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
     caplog: pytest.LogCaptureFixture,
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(decoder_name="dfine")
+    model_args = LTDETRObjectDetectionTrainArgs(decoder_name="dfine")
 
     with caplog.at_level(
         logging.WARNING,
@@ -345,7 +345,7 @@ def test_resolve_auto__auto_lr_warmup_steps_short_run(
 ) -> None:
     # ``lr_warmup_steps`` defaults to ``"auto"`` so short default runs do not
     # collapse the flat-cosine phase to zero (see P2 Codex review on PR #798).
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
 
     model_args.resolve_auto(
         total_steps=100,
@@ -361,7 +361,7 @@ def test_resolve_auto__auto_lr_warmup_steps_short_run(
 
 
 def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
         image_size=(640, 640),
@@ -375,7 +375,7 @@ def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
 
     assert model.init_args["patch_size"] == 14
 
-    roundtrip_model = DINOv3LTDETRObjectDetection(
+    roundtrip_model = LTDETRObjectDetection(
         **model.init_args,
         load_weights=False,
     )
@@ -396,7 +396,7 @@ def test_train_transform_args__resolve_auto__image_size_is_2x_patch_size_compati
     patch_size: int,
     expected_image_size: tuple[int, int],
 ) -> None:
-    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args = LTDETRObjectDetectionTrainTransformArgs()
     train_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
 
     assert train_transform_args.image_size == expected_image_size
@@ -406,7 +406,7 @@ def test_train_transform_args__resolve_auto__image_size_is_2x_patch_size_compati
 def test_train_transform_args__resolve_auto__scale_jitter_divisible_by_patch_size(
     patch_size: int,
 ) -> None:
-    train_transform_args = DINOv3LTDETRObjectDetectionTrainTransformArgs()
+    train_transform_args = LTDETRObjectDetectionTrainTransformArgs()
     train_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
 
     assert train_transform_args.scale_jitter is not None, (
@@ -429,7 +429,7 @@ def test_val_transform_args__resolve_auto__image_size_is_2x_patch_size_compatibl
     patch_size: int,
     expected_image_size: tuple[int, int],
 ) -> None:
-    val_transform_args = DINOv3LTDETRObjectDetectionValTransformArgs()
+    val_transform_args = LTDETRObjectDetectionValTransformArgs()
     val_transform_args.resolve_auto(model_init_args={"patch_size": patch_size})
 
     assert val_transform_args.image_size == expected_image_size
@@ -438,14 +438,13 @@ def test_val_transform_args__resolve_auto__image_size_is_2x_patch_size_compatibl
 @pytest.mark.parametrize(
     "transform_args_cls",
     [
-        DINOv3LTDETRObjectDetectionTrainTransformArgs,
-        DINOv3LTDETRObjectDetectionValTransformArgs,
+        LTDETRObjectDetectionTrainTransformArgs,
+        LTDETRObjectDetectionValTransformArgs,
     ],
 )
 def test_transform_args__resolve_auto__preserves_explicit_image_size(
     transform_args_cls: type[
-        DINOv3LTDETRObjectDetectionTrainTransformArgs
-        | DINOv3LTDETRObjectDetectionValTransformArgs
+        LTDETRObjectDetectionTrainTransformArgs | LTDETRObjectDetectionValTransformArgs
     ],
 ) -> None:
     transform_args = transform_args_cls()
@@ -459,14 +458,13 @@ def test_transform_args__resolve_auto__preserves_explicit_image_size(
 @pytest.mark.parametrize(
     "transform_args_cls",
     [
-        DINOv3LTDETRObjectDetectionTrainTransformArgs,
-        DINOv3LTDETRObjectDetectionValTransformArgs,
+        LTDETRObjectDetectionTrainTransformArgs,
+        LTDETRObjectDetectionValTransformArgs,
     ],
 )
 def test_transform_args__resolve_auto__rejects_incompatible_explicit_image_size(
     transform_args_cls: type[
-        DINOv3LTDETRObjectDetectionTrainTransformArgs
-        | DINOv3LTDETRObjectDetectionValTransformArgs
+        LTDETRObjectDetectionTrainTransformArgs | LTDETRObjectDetectionValTransformArgs
     ],
 ) -> None:
     transform_args = transform_args_cls()
@@ -489,7 +487,7 @@ def test_get_optimizer__scheduler_modes(
     scheduler_cls: type[LinearLR] | type[FlatCosineLRScheduler],
 ) -> None:
     train_model = _create_train_model(
-        DINOv3LTDETRObjectDetectionTrainArgs(
+        LTDETRObjectDetectionTrainArgs(
             scheduler_name=scheduler_name,
             lr_warmup_steps=500,
             scheduler_flat_steps=550,
@@ -510,7 +508,7 @@ def test_get_optimizer__scheduler_modes(
 
 def test_get_optimizer__flat_cosine_raises_when_cosine_phase_collapses() -> None:
     train_model = _create_train_model(
-        DINOv3LTDETRObjectDetectionTrainArgs(
+        LTDETRObjectDetectionTrainArgs(
             scheduler_name="flat-cosine",
             lr_warmup_steps=1000,
         )
@@ -524,7 +522,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     train_model = _create_train_model(
-        DINOv3LTDETRObjectDetectionTrainArgs(
+        LTDETRObjectDetectionTrainArgs(
             scheduler_name="linear",
             lr_warmup_steps=1001,
         )
@@ -561,7 +559,7 @@ def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
 
 
 def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
         image_size=(256, 256),
@@ -601,17 +599,17 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
 def test_dinov2_backbone__uses_dinov3_ltdetr_wrapper() -> None:
     from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-        DINOv3STAs,
+        DINOSTAs,
     )
 
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name="dinov2/vits14-ltdetr",
         classes={0: "class_0", 1: "class_1"},
         image_size=(224, 224),
         load_weights=False,
     )
 
-    assert isinstance(model.backbone, DINOv3STAs)
+    assert isinstance(model.backbone, DINOSTAs)
     assert model.backbone.use_sta is False
 
     model.eval()
@@ -631,7 +629,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import onnx
     import onnxruntime as ort
 
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
         image_size=(256, 256),
@@ -669,7 +667,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
         image_size=(256, 256),
@@ -693,7 +691,7 @@ def test_export_onnx__fp16(
 ) -> None:
     import onnx
 
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
         image_size=(256, 256),
@@ -732,12 +730,12 @@ ECVIT_LTDETR_MODEL_NAMES = [
 
 @pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
 def test_is_supported_model__ecvit(model_name: str) -> None:
-    assert DINOv3LTDETRObjectDetection.is_supported_model(model_name) is True
+    assert LTDETRObjectDetection.is_supported_model(model_name) is True
 
 
 @pytest.mark.parametrize("model_name", ECVIT_LTDETR_MODEL_NAMES)
 def test_parse_model_name__ecvit(model_name: str) -> None:
-    parsed = DINOv3LTDETRObjectDetection.parse_model_name(model_name)
+    parsed = LTDETRObjectDetection.parse_model_name(model_name)
     assert parsed["package_name"] == "edgecrafter"
     assert parsed["model_name"] == model_name
     # backbone_name is the bare ECViT preset (no package prefix, no -ltdetr
@@ -759,7 +757,7 @@ def test_create_train_model__ecvit(
         ECViTBackboneWrapper,
     )
 
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
     model_args.resolve_auto(
         total_steps=1000,
         gradient_accumulation_steps=1,
@@ -811,7 +809,7 @@ LTDETR_V2_ALIAS_TO_CANONICAL: dict[str, str] = {
 
 @pytest.mark.parametrize("model_name", LTDETR_V2_ALIAS_MODEL_NAMES)
 def test_is_supported_model__ltdetrv2_alias(model_name: str) -> None:
-    assert DINOv3LTDETRObjectDetection.is_supported_model(model_name) is True
+    assert LTDETRObjectDetection.is_supported_model(model_name) is True
 
 
 @pytest.mark.parametrize(
@@ -819,7 +817,7 @@ def test_is_supported_model__ltdetrv2_alias(model_name: str) -> None:
     list(LTDETR_V2_ALIAS_TO_CANONICAL.items()),
 )
 def test_parse_model_name__ltdetrv2_alias(alias: str, canonical: str) -> None:
-    parsed = DINOv3LTDETRObjectDetection.parse_model_name(alias)
+    parsed = LTDETRObjectDetection.parse_model_name(alias)
     assert parsed["package_name"] == "edgecrafter"
     assert parsed["model_name"] == canonical
     # backbone_name must be the bare ECViT preset (no package prefix, no
@@ -833,7 +831,7 @@ def test_parse_model_name__ltdetrv2_alias(alias: str, canonical: str) -> None:
 
 
 def test_list_model_names__includes_ltdetrv2_aliases() -> None:
-    names = DINOv3LTDETRObjectDetection.list_model_names()
+    names = LTDETRObjectDetection.list_model_names()
     for alias in LTDETR_V2_ALIAS_MODEL_NAMES:
         assert alias in names, f"Expected alias {alias!r} in list_model_names()"
 
@@ -844,7 +842,7 @@ def test_freeze_backbone_on_set_train_mode__ecvit(should_freeze: bool) -> None:
     # branch (which would call ``backbone.mask_token.requires_grad = False``)
     # must be skipped. This test exercises the full construction + set_train_mode
     # path to confirm there is no AttributeError on ``mask_token``.
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs(
+    model_args = LTDETRObjectDetectionTrainArgs(
         use_ema_model=True,
         backbone_freeze=should_freeze,
     )
@@ -867,7 +865,7 @@ def test_resolve_auto__ecvit_patch_size_is_16(
 ) -> None:
     # Belt-and-braces: the explicit resolve_auto test for the ECViT package
     # branch, separate from the parametrized _create_train_model test above.
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
     model_args.resolve_auto(
         total_steps=1000,
         gradient_accumulation_steps=1,
@@ -884,7 +882,7 @@ def test_resolve_auto__ecvit_model_init_args_patch_size_wins(
 ) -> None:
     # An explicit ``patch_size`` in ``model_init_args`` must override the
     # ECViT default of 16 (same precedence as the DINOv3 path).
-    model_args = DINOv3LTDETRObjectDetectionTrainArgs()
+    model_args = LTDETRObjectDetectionTrainArgs()
     model_args.resolve_auto(
         total_steps=1000,
         gradient_accumulation_steps=1,
@@ -903,7 +901,7 @@ def test_task_model__ecvit_rejects_non_16_patch_size(model_name: str) -> None:
     # constraint; otherwise the decoder's `config.resolve_auto` would build
     # strides at the wrong scale and anchors would be misaligned.
     with pytest.raises(ValueError, match=r"patch_size=16"):
-        DINOv3LTDETRObjectDetection(
+        LTDETRObjectDetection(
             model_name=model_name,
             classes={0: "class_0", 1: "class_1"},
             image_size=(640, 640),
@@ -920,7 +918,7 @@ def test_task_model__ecvit_accepts_patch_size_16_or_default(
     # Either an explicit patch_size=16 or the default None must construct
     # successfully, and the decoder strides must be `[8, 16, 32]` (matching
     # what the ECViTBackboneWrapper actually emits).
-    model = DINOv3LTDETRObjectDetection(
+    model = LTDETRObjectDetection(
         model_name=model_name,
         classes={0: "class_0", 1: "class_1"},
         image_size=(640, 640),
@@ -950,7 +948,7 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     # `lr_warmup_steps=2000`.
     # `scheduler_start_factor=1.0` neutralizes LinearLR's init `step()` scaling.
     train_model = _create_train_model(
-        DINOv3LTDETRObjectDetectionTrainArgs(
+        LTDETRObjectDetectionTrainArgs(
             scheduler_name="linear",
             scheduler_start_factor=1.0,
         ),
