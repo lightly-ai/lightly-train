@@ -11,19 +11,13 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
-from lightning_utilities.core.imports import RequirementCache
+import torch
+import torch.nn as nn
 
 from lightly_train._debug.debug_args import (
     DebugArgs,
     DebugUnderflowOverflowArgs,
 )
-
-if not RequirementCache("transformers"):
-    pytest.skip("Transformers not installed", allow_module_level=True)
-
-import torch
-import torch.nn as nn
-
 from lightly_train._debug.underflow_overflow import (
     UnderflowOverflowMonitor,
     check_compile_conflict,

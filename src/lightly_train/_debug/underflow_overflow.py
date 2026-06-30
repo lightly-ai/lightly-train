@@ -7,9 +7,10 @@
 #
 """Underflow/overflow debugging for task/fine-tuning training.
 
-Wraps HuggingFace ``transformers.debug_utils.DebugUnderflowOverflow``. The upstream
-utility is designed for HuggingFace's own training loop; this subclass adapts it to
-LightlyTrain's manual Fabric loop with two changes:
+Wraps the vendored ``DebugUnderflowOverflow`` class (see
+:mod:`lightly_train._debug.huggingface_debug_utils`). The upstream utility, originally
+from ``transformers.debug_utils``, is designed for HuggingFace's own training loop;
+this subclass adapts it to LightlyTrain's manual Fabric loop with two changes:
 
 1. Batch numbering is driven explicitly by the LightlyTrain training step. Upstream
    increments the batch counter only when the *root* module's forward hook fires.
@@ -33,13 +34,13 @@ from typing import IO, Any
 
 from torch.nn import Module
 from torch.utils.hooks import RemovableHandle
-from transformers.debug_utils import DebugUnderflowOverflow
 from typing_extensions import override
 
 from lightly_train._debug.debug_args import (
     DebugArgs,
     DebugUnderflowOverflowArgs,
 )
+from lightly_train._debug.huggingface_debug_utils import DebugUnderflowOverflow
 from lightly_train._torch_compile import TorchCompileArgs
 
 logger = logging.getLogger(__name__)
