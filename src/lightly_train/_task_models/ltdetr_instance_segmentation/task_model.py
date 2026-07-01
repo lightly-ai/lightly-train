@@ -27,10 +27,7 @@ from lightly_train._task_models.instance_segmentation_components.edgecrafter_pos
 from lightly_train.types import PathLike
 
 
-class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
-    """DINOv3/EdgeCrafter LTDETR model for instance segmentation."""
-
-    # TODO (Yutong 06/26): remove this after the default decoder is changed to `dfine` for LTDETRv2
+class LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
     def __init__(
         self,
         *,
@@ -45,17 +42,38 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
         decoder_name: Literal["dfine"] = "dfine",
         load_weights: bool = True,
     ) -> None:
-        super().__init__(
-            model_name=model_name,
-            classes=classes,
-            image_size=image_size,
-            patch_size=patch_size,
-            image_normalize=image_normalize,
-            backbone_freeze=backbone_freeze,
-            backbone_weights=backbone_weights,
-            backbone_args=backbone_args,
-            decoder_name=decoder_name,
-            load_weights=load_weights,
+        """Create a DINOv3 LTDETR task model.
+
+        Args:
+            model_name:
+                The model name. For example ``"dinov3/vits16-ltdetr"``.
+            classes:
+                A dict mapping class IDs to class names.
+            image_size:
+                The input image size.
+            patch_size:
+                Override for the backbone patch size used in ``resolve_auto``
+                (stride computation). If None, the value from the model config's
+                ``backbone_args`` is used.
+            image_normalize:
+                A dict containing normalization statistics with the keys ``"mean"``
+                and ``"std"``.
+            backbone_freeze:
+                Whether to freeze the backbone during training.
+            backbone_weights:
+                Path to the backbone weights.
+            backbone_args:
+                Additional arguments merged into the backbone model args (override
+                config defaults).
+            decoder_name:
+                Override the decoder from the model config.
+            load_weights:
+                If False, then no pretrained weights are loaded.
+        """
+        # Bypass _DINOv3LTDETRBase.__init__ (old config system) and call
+        # TaskModel.__init__ directly to store init_args for checkpointing.
+        super(_DINOv3LTDETRBase, self).__init__(
+            init_args=locals(), ignore_args={"load_weights"}
         )
 
     def build_decoder(
@@ -104,7 +122,9 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
 
         x = self.forward_backend(x)
 
-        result = self.postprocessor(x, orig_target_size_)
+        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor, Tensor] = (
+            self.postprocessor(x, orig_target_size_)
+        )
         # Postprocessor must be in deploy mode at this point. It returns only tuples
         # during deploy mode.
         assert isinstance(result, tuple) and len(result) == 4
@@ -137,17 +157,13 @@ class DINOv3LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
             dtype=torch.int64,
             device=device,
         )
-        postprocessor_out = self.postprocessor(raw_outputs, orig_target_size)
-        if not isinstance(postprocessor_out, tuple) or len(postprocessor_out) != 4:
-            raise ValueError(
-                "Expected deploy postprocessor output to be a 4-tuple "
-                "(labels, boxes, scores, masks)."
-            )
-
-        labels_batch, boxes_batch, scores_batch, masks_batch = postprocessor_out
-        labels_batch = self.internal_class_to_class[labels_batch]
-
+        postprocessor_out: tuple[Tensor, Tensor, Tensor, Tensor] = self.postprocessor(
+            raw_outputs, orig_target_size
+        )
         out: list[dict[str, Tensor]] = []
+        labels_batch, boxes_batch, scores_batch, masks_batch = postprocessor_out
+
+        labels_batch = self.internal_class_to_class[labels_batch]
         for i, meta in enumerate(metadata):
             keep = scores_batch[i] > threshold
             # The deploy postprocessor returns raw mask logits at the mask-head
