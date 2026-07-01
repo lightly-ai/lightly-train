@@ -898,7 +898,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvittplus-ltdetr",
-        ModelAlias(name="ltdetrv2-m"),
+        "ltdetrv2-m",
     )
     class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"
@@ -915,7 +915,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvits-ltdetr",
-        ModelAlias(name="ltdetrv2-l"),
+        "ltdetrv2-l",
     )
     class EdgeCrafterECViTSmall(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"
