@@ -40,34 +40,6 @@ LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     #### Object Detection
-    "dinov3/vitt16-ltdetr-coco": (
-        "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt",
-        "dfd34210a1a3375793d149a55d9b49e6e8b783458bdd4cd76fd28fa2d61dbb37",
-    ),
-    "dinov3/vitt16plus-ltdetr-coco": (
-        "dinov3_vitt16plus_ltdetr_coco_251218_af499c82.pt",
-        "af499c825436013098a77a028ff5cf08dbf31118f4d68b15eefa6fdd9635f5d2",
-    ),
-    "dinov3/vits16-ltdetr-coco": (
-        "dinov3_vits16_ltdetr_coco_251218_4812416b.pt",
-        "4812416b861a80f305889cf1408775044c8b05f1baf9be45cd4b1d0edd5d4532",
-    ),
-    "dinov3/convnext-tiny-ltdetr-coco": (
-        "dinov3_convnext_tiny_ltdetr_coco_251218_35bbc4fb.pt",
-        "35bbc4fbec3bb9fa113a33f1013abaab1952edf3335f98624b5914812d63d26c",
-    ),
-    "dinov3/convnext-small-ltdetr-coco": (
-        "dinov3_convnext_small_ltdetr_coco_251218_8f7109ab.pt",
-        "8f7109ab406aa92791e4e4ca6249ab9a863734795676c81b91dbd4cc4b1ef387",
-    ),
-    "dinov3/convnext-base-ltdetr-coco": (
-        "dinov3_convnext_base_ltdetr_coco_251218_836adb6b.pt",
-        "836adb6b5122665a24b6da3ee1720b9f3d0fc3c30cee44cfbd98dcb79fe0809a",
-    ),
-    "dinov3/convnext-large-ltdetr-coco": (
-        "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
-        "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
-    ),
     "picodet-s-coco": (
         "picodet_s_coco_416_260303_23022a45.pt",
         "23022a456b2583246288041762a1a66d8d59820d5e775912cb4eb366d3a0cd68",

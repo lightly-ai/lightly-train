@@ -30,6 +30,21 @@ LTDETR_MODEL_REGISTRY: ModelRegistry[DetectorConfig] = ModelRegistry()
 _ECVITT_COCO_URL = "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt"
 _ECVITT_COCO_SHA256 = "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
 
+_DINOV3_VITT16_COCO_URL = "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt"
+_DINOV3_VITT16_COCO_SHA256 = "dfd34210a1a3375793d149a55d9b49e6e8b783458bdd4cd76fd28fa2d61dbb37"
+_DINOV3_VITT16PLUS_COCO_URL = "dinov3_vitt16plus_ltdetr_coco_251218_af499c82.pt"
+_DINOV3_VITT16PLUS_COCO_SHA256 = "af499c825436013098a77a028ff5cf08dbf31118f4d68b15eefa6fdd9635f5d2"
+_DINOV3_VITS16_COCO_URL = "dinov3_vits16_ltdetr_coco_251218_4812416b.pt"
+_DINOV3_VITS16_COCO_SHA256 = "4812416b861a80f305889cf1408775044c8b05f1baf9be45cd4b1d0edd5d4532"
+_DINOV3_CONVNEXT_TINY_COCO_URL = "dinov3_convnext_tiny_ltdetr_coco_251218_35bbc4fb.pt"
+_DINOV3_CONVNEXT_TINY_COCO_SHA256 = "35bbc4fbec3bb9fa113a33f1013abaab1952edf3335f98624b5914812d63d26c"
+_DINOV3_CONVNEXT_SMALL_COCO_URL = "dinov3_convnext_small_ltdetr_coco_251218_8f7109ab.pt"
+_DINOV3_CONVNEXT_SMALL_COCO_SHA256 = "8f7109ab406aa92791e4e4ca6249ab9a863734795676c81b91dbd4cc4b1ef387"
+_DINOV3_CONVNEXT_BASE_COCO_URL = "dinov3_convnext_base_ltdetr_coco_251218_836adb6b.pt"
+_DINOV3_CONVNEXT_BASE_COCO_SHA256 = "836adb6b5122665a24b6da3ee1720b9f3d0fc3c30cee44cfbd98dcb79fe0809a"
+_DINOV3_CONVNEXT_LARGE_COCO_URL = "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt"
+_DINOV3_CONVNEXT_LARGE_COCO_SHA256 = "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0"
+
 
 class HybridEncoderConfig(PydanticConfig):
     in_channels: list[int]
@@ -604,7 +619,13 @@ class LTDETRBaseConfig(ConfigsNamespace):
 
 class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/convnext-tiny-ltdetr-coco",
+        ModelAlias(
+            name="dinov3/convnext-tiny-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_CONVNEXT_TINY_COCO_URL,
+                sha256=_DINOV3_CONVNEXT_TINY_COCO_SHA256,
+            ),
+        ),
         "dinov3/convnext-tiny-ltdetr",
         "dinov3/convnext-tiny-eupe-ltdetr",
     )
@@ -617,7 +638,13 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/convnext-small-ltdetr-coco",
+        ModelAlias(
+            name="dinov3/convnext-small-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_CONVNEXT_SMALL_COCO_URL,
+                sha256=_DINOV3_CONVNEXT_SMALL_COCO_SHA256,
+            ),
+        ),
         "dinov3/convnext-small-ltdetr",
         "dinov3/convnext-small-eupe-ltdetr",
     )
@@ -630,7 +657,13 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/convnext-base-ltdetr-coco",
+        ModelAlias(
+            name="dinov3/convnext-base-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_CONVNEXT_BASE_COCO_URL,
+                sha256=_DINOV3_CONVNEXT_BASE_COCO_SHA256,
+            ),
+        ),
         "dinov3/convnext-base-ltdetr",
         "dinov3/convnext-base-eupe-ltdetr",
     )
@@ -643,7 +676,14 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/convnext-large-ltdetr-coco", "dinov3/convnext-large-ltdetr"
+        ModelAlias(
+            name="dinov3/convnext-large-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_CONVNEXT_LARGE_COCO_URL,
+                sha256=_DINOV3_CONVNEXT_LARGE_COCO_SHA256,
+            ),
+        ),
+        "dinov3/convnext-large-ltdetr",
     )
     class DINOv3ConvNeXtLarge(LTDETRBaseConfig.CNNLarge):
         version: Literal["v1"] = "v1"
@@ -654,7 +694,13 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/vitt16-ltdetr-coco",
+        ModelAlias(
+            name="dinov3/vitt16-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_VITT16_COCO_URL,
+                sha256=_DINOV3_VITT16_COCO_SHA256,
+            ),
+        ),
         "dinov3/vitt16-ltdetr",
         "dinov3/vitt16-eupe-ltdetr",
         "dinov3/vitt16-notpretrained-ltdetr",
@@ -673,7 +719,14 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         )
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/vitt16plus-ltdetr-coco", "dinov3/vitt16plus-ltdetr"
+        ModelAlias(
+            name="dinov3/vitt16plus-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_VITT16PLUS_COCO_URL,
+                sha256=_DINOV3_VITT16PLUS_COCO_SHA256,
+            ),
+        ),
+        "dinov3/vitt16plus-ltdetr",
     )
     class DINOv3ViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v1"] = "v1"
@@ -689,7 +742,15 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         )
 
     @LTDETR_MODEL_REGISTRY.register(
-        "dinov3/vits16-ltdetr-coco", "dinov3/vits16-ltdetr", "dinov3/vits16-eupe-ltdetr"
+        ModelAlias(
+            name="dinov3/vits16-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV3_VITS16_COCO_URL,
+                sha256=_DINOV3_VITS16_COCO_SHA256,
+            ),
+        ),
+        "dinov3/vits16-ltdetr",
+        "dinov3/vits16-eupe-ltdetr",
     )
     class DINOv3ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
@@ -732,7 +793,7 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
+    @LTDETR_MODEL_REGISTRY.register("dinov2/_vittest14-ltdetr", "dinov2/vits14-ltdetr")
     class DINOv2ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vits14"
