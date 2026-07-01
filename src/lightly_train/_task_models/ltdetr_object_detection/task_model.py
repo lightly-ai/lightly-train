@@ -33,7 +33,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
-    DinoVisionTransformer,
+    DinoVisionTransformer as DINOv3VisionTransformer
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
@@ -238,14 +238,14 @@ class LTDETRObjectDetection(_DINOv3LTDETRBase):
         )
         assert isinstance(
             backbone,
-            (ConvNeXt, DinoVisionTransformer, DINOv2VisionTransformer, ECViTModelWrapper),
+            (ConvNeXt, DINOv3VisionTransformer, DINOv2VisionTransformer, ECViTModelWrapper),
         )
 
         self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
         if isinstance(backbone, ECViTModelWrapper):
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
-        elif isinstance(backbone, (DinoVisionTransformer, DINOv2VisionTransformer)):
+        elif isinstance(backbone, (DINOv3VisionTransformer, DINOv2VisionTransformer)):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
             vit_model_wrapper: DINOv2ViTModelWrapper | DINOv3ViTModelWrapper = (
