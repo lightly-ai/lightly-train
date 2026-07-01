@@ -10,95 +10,10 @@ from __future__ import annotations
 import torch
 
 from lightly_train._task_models.depth_estimation.criterion import (
-    GlobalLocalLoss,
     GradientMatchingLoss,
     SILogLoss,
     SkyDistillLoss,
 )
-
-
-class TestGlobalLocalLoss:
-    def test_forward__zero_when_pred_equals_target(self) -> None:
-        pred = torch.rand(2, 1, 64, 64) + 0.5
-        target = pred.clone()
-        mask = torch.ones_like(pred, dtype=torch.bool)
-
-        loss = GlobalLocalLoss()(pred, target, mask)
-
-        assert float(loss) < 1e-5
-
-    def test_forward__affine_invariant(self) -> None:
-        # The loss aligns prediction to target by scale and shift, so a prediction that
-        # is an affine transform of the target incurs (numerically) no loss.
-        target = torch.rand(2, 1, 64, 64) + 0.5
-        pred = 0.3 * target + 0.1
-        mask = torch.ones_like(target, dtype=torch.bool)
-
-        loss = GlobalLocalLoss()(pred, target, mask)
-
-        assert float(loss) < 1e-5
-
-    def test_forward__positive_for_mismatch(self) -> None:
-        torch.manual_seed(0)
-        pred = torch.rand(2, 1, 64, 64) + 0.5
-        target = torch.rand(2, 1, 64, 64) + 0.5
-        mask = torch.ones_like(pred, dtype=torch.bool)
-
-        loss = GlobalLocalLoss()(pred, target, mask)
-
-        assert float(loss) > 0.0
-
-    def test_forward__local_terms_add_to_global_term(self) -> None:
-        # The loss is the global term plus the per-level local terms, so enabling local
-        # levels strictly increases the loss whenever the prediction is not a perfect
-        # affine of the target within the windows.
-        torch.manual_seed(0)
-        target = torch.rand(1, 1, 64, 64) + 0.5
-        pred = torch.rand(1, 1, 64, 64) + 0.5
-        mask = torch.ones_like(target, dtype=torch.bool)
-
-        global_only = GlobalLocalLoss(local_levels=())(pred, target, mask)
-        with_local = GlobalLocalLoss(local_levels=(4, 16, 64))(pred, target, mask)
-
-        assert float(with_local) > float(global_only)
-
-    def test_forward__ignores_invalid_pixels(self) -> None:
-        # Garbage predictions in the invalid region must not change the loss.
-        torch.manual_seed(0)
-        target = torch.rand(1, 1, 32, 32) + 0.5
-        pred = target.clone()
-        mask = torch.ones_like(target, dtype=torch.bool)
-        mask[:, :, :16, :] = False  # Mark the top half invalid.
-        pred_garbage = pred.clone()
-        pred_garbage[:, :, :16, :] = 999.0
-
-        loss = GlobalLocalLoss()(pred_garbage, target, mask)
-        loss_clean = GlobalLocalLoss()(pred, target, mask)
-
-        assert float(loss) == float(loss_clean)
-
-    def test_forward__all_invalid_returns_finite_with_grad(self) -> None:
-        pred = (torch.rand(1, 1, 32, 32) + 0.5).requires_grad_()
-        target = torch.rand(1, 1, 32, 32) + 0.5
-        mask = torch.zeros_like(target, dtype=torch.bool)
-
-        loss = GlobalLocalLoss()(pred, target, mask)
-
-        assert torch.isfinite(loss)
-        assert loss.requires_grad
-        assert float(loss.detach()) == 0.0
-
-    def test_forward__gradient_flows(self) -> None:
-        torch.manual_seed(0)
-        pred = (torch.rand(2, 1, 64, 64) + 0.5).requires_grad_()
-        target = torch.rand(2, 1, 64, 64) + 0.5
-        mask = torch.ones_like(target, dtype=torch.bool)
-
-        GlobalLocalLoss()(pred, target, mask).backward()
-
-        assert pred.grad is not None
-        assert bool(torch.isfinite(pred.grad).all())
-        assert float(pred.grad.abs().sum()) > 0.0
 
 
 class TestSILogLoss:
