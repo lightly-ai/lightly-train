@@ -34,6 +34,20 @@ DOWNLOADABLE_MODEL_BASE_URL = (
 
 LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 
+
+def _get_ltdetr_downloadable_model_url_and_hashes() -> dict[str, tuple[str, str]]:
+    downloadable_model_url_and_hashes = {}
+    for alias in LTDETR_MODEL_REGISTRY.list_aliases():
+        try:
+            checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
+                alias=alias
+            ).downloadable_checkpoint
+        except KeyError:
+            continue
+        downloadable_model_url_and_hashes[alias] = (checkpoint.url, checkpoint.sha256)
+    return downloadable_model_url_and_hashes
+
+
 # How to add a new downloadable model:
 # 1. Get hash of exported model file with `sha256sum best.pt`
 # 2. Upload the exported model file to the S3 bucket and follow the naming scheme:
@@ -188,7 +202,7 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
 }
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
-    LTDETR_MODEL_REGISTRY.list_downloadable_model_url_and_hashes()
+    _get_ltdetr_downloadable_model_url_and_hashes()
 )
 
 

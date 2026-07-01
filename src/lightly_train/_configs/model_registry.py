@@ -72,12 +72,3 @@ class ModelRegistry(Generic[ConfigT]):
         if alias not in self._alias_metadata:
             raise KeyError(f"No metadata registered under the alias '{alias}'.")
         return self._alias_metadata[alias]
-
-    def list_downloadable_model_url_and_hashes(self) -> dict[str, tuple[str, str]]:
-        return {
-            alias: (
-                metadata.downloadable_checkpoint.url,
-                metadata.downloadable_checkpoint.sha256,
-            )
-            for alias, metadata in self._alias_metadata.items()
-        }
