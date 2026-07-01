@@ -18,7 +18,6 @@ from PIL import Image
 from lightly_train._task_models.depth_estimation import task_model
 from lightly_train._task_models.depth_estimation.task_model import (
     DepthAnythingDepthEstimation,
-    _DepthExportWrapper,
 )
 
 # Tiny per-variant model args so inference runs at a small resolution and tests stay
@@ -208,9 +207,9 @@ class TestDepthAnythingDepthEstimation:
 
         out = model(x)
 
-        # Depth Anything V2 has no sky head, so the forward output is depth only.
-        assert out["depth"].shape == (2, 1, 56, 70)
-        assert "sky" not in out
+        # Depth Anything V2 has no sky head, so the forward output is (depth,) only.
+        assert len(out) == 1
+        assert out[0].shape == (2, 1, 56, 70)
 
     @pytest.mark.parametrize("model_name", _SKY_NAMES)
     def test_forward__returns_depth_and_sky(self, model_name: str) -> None:
@@ -219,8 +218,10 @@ class TestDepthAnythingDepthEstimation:
 
         out = model(x)
 
-        assert out["depth"].shape == (2, 1, 56, 70)
-        assert out["sky"].shape == (2, 1, 56, 70)
+        # A model with a sky head (DAv3) returns (depth, sky) in that order.
+        depth, sky = out
+        assert depth.shape == (2, 1, 56, 70)
+        assert sky.shape == (2, 1, 56, 70)
 
     @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
     @pytest.mark.skipif(
@@ -271,9 +272,9 @@ class TestDepthAnythingDepthEstimation:
         session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
         onnx_outputs = session.run(None, {"images": inputs})
 
-        # The wrapper returns (depth, sky) in the same order as the ONNX outputs.
+        # `forward` returns (depth, sky) in the same order as the ONNX outputs.
         with torch.no_grad():
-            torch_outputs = _DepthExportWrapper(model)(torch.from_numpy(inputs))
+            torch_outputs = model(torch.from_numpy(inputs))
 
         assert len(onnx_outputs) == len(torch_outputs)
         for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):

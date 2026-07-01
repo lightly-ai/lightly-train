@@ -17,7 +17,6 @@ import torch
 import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import Module
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
@@ -507,23 +506,34 @@ class DepthAnythingDepthEstimation(TaskModel):
         stacked = image_utils.process_batch(batch)
         return stacked.to(dtype=next(self.parameters()).dtype)
 
-    def forward(self, x: Tensor) -> dict[str, Tensor]:
-        """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``."""
+    def forward(self, x: Tensor) -> tuple[Tensor, ...]:
+        """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``.
+
+        Returns a fixed-order tuple of ``(depth,)`` for models without a sky head and
+        ``(depth, sky)`` for models with one (Depth Anything V3). The tuple output makes
+        this method directly ONNX-exportable (ONNX graph outputs must be tensors), so the
+        exported graph and this eager forward are the exact same code path.
+        """
         if x.ndim != 4:
             raise ValueError(
                 f"Expected input shape (B, C, H, W), got {tuple(x.shape)}."
             )
         feats = self._extract_features(x)
         out: dict[str, Tensor] = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
-        return out
+        if self.decoder.use_sky_head:
+            return out["depth"], out["sky"]
+        return (out["depth"],)
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: dict[str, Tensor],
+        raw_outputs: tuple[Tensor, ...],
         metadata: Sequence[dict[str, Any]],
     ) -> list[Tensor]:
         """Maps raw forward outputs to one depth tensor per image, bilinearly resized to
         the original input size (``orig_h``, ``orig_w`` from the metadata).
+
+        ``raw_outputs`` is the tuple returned by ``forward``: ``(depth,)`` for models
+        without a sky head and ``(depth, sky)`` for models with one.
 
         For V3 models the sky pixels are filled at the processing resolution before any
         scaling. For metric models the depth is scaled before the resize: V2 metric
@@ -531,8 +541,8 @@ class DepthAnythingDepthEstimation(TaskModel):
         ``head(...) * max_depth`` order); V3 metric scales by ``focal / 300`` when the
         metadata carries a ``focal`` entry.
         """
-        depth_batch = raw_outputs["depth"]
-        sky_batch = raw_outputs.get("sky")
+        depth_batch = raw_outputs[0]
+        sky_batch = raw_outputs[1] if len(raw_outputs) > 1 else None
         out: list[Tensor] = []
         for i, meta in enumerate(metadata):
             depth = depth_batch[i, 0]
@@ -659,19 +669,18 @@ class DepthAnythingDepthEstimation(TaskModel):
             dtype=dtype,
         )
 
-        # The forward returns a dict, but ONNX outputs must be tensors, so we wrap the
-        # model in a module that returns a fixed-order tuple of (depth[, sky]).
-        export_model = _DepthExportWrapper(self)
+        # `forward` returns a fixed-order tuple of (depth[, sky]) matching these output
+        # names, so it is directly ONNX-exportable without a wrapper.
         output_names = ["depth", "sky"] if self.decoder.use_sky_head else ["depth"]
 
         # Precalculate interpolated positional encoding for ONNX export.
         with onnx_helpers.precalculate_for_onnx_export():
-            export_model(dummy_input)
+            self(dummy_input)
 
         input_names = ["images"]
 
         torch.onnx.export(
-            export_model,
+            self,
             (dummy_input,),
             str(out),
             input_names=input_names,
@@ -699,9 +708,7 @@ class DepthAnythingDepthEstimation(TaskModel):
             onnx.checker.check_model(out, full_check=True)
 
             # Always run the reference input in float32 and on cpu for consistency.
-            reference_model = _DepthExportWrapper(
-                copy.deepcopy(self).cpu().to(torch.float32).eval()
-            )
+            reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
             reference_outputs = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
@@ -842,25 +849,6 @@ class DepthAnythingDepthEstimation(TaskModel):
                 )
         elif intrinsics is not None:
             raise ValueError("This model does not accept intrinsics.")
-
-
-class _DepthExportWrapper(Module):
-    """Wraps the depth model so its forward returns a tensor tuple for ONNX export.
-
-    The model's ``forward`` returns a dict, but ONNX graph outputs must be tensors. This
-    returns ``(depth,)`` for models without a sky head and ``(depth, sky)`` for models
-    with one (Depth Anything V3), matching the export's ``output_names``.
-    """
-
-    def __init__(self, model: DepthAnythingDepthEstimation) -> None:
-        super().__init__()
-        self.model = model
-
-    def forward(self, images: Tensor) -> tuple[Tensor, ...]:
-        out = self.model(images)
-        if self.model.decoder.use_sky_head:
-            return out["depth"], out["sky"]
-        return (out["depth"],)
 
 
 def _processed_focal_length(
