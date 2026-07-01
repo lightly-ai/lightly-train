@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from lightly_train._debug.debug_args import get_debug_args
+from lightly_train._debug.debug_args import DebugArgs, NaNCaptureArgs, get_debug_args
 from lightly_train.errors import ConfigValidationError
 
 
@@ -33,3 +33,25 @@ def test_get_debug_args__rejects_unknown_keys() -> None:
 def test_get_debug_args__trace_batch_nums_rejects_negative() -> None:
     with pytest.raises(ConfigValidationError, match="non-negative"):
         get_debug_args({"underflow_overflow": {"trace_batch_nums": [-1]}})
+
+
+def test_nancapture_args__default_disabled() -> None:
+    args = NaNCaptureArgs()
+    assert args.enabled is False
+
+
+def test_debug_args__is_nancapture_enabled() -> None:
+    assert DebugArgs().is_nancapture_enabled() is False
+    assert DebugArgs(nancapture=NaNCaptureArgs()).is_nancapture_enabled() is False
+    assert (
+        DebugArgs(nancapture=NaNCaptureArgs(enabled=True)).is_nancapture_enabled()
+        is True
+    )
+
+
+def test_get_debug_args__parses_nancapture() -> None:
+    debug_args = get_debug_args({"nancapture": {"enabled": True}})
+    assert isinstance(debug_args, DebugArgs)
+    assert debug_args.nancapture is not None
+    assert debug_args.nancapture.enabled is True
+    assert debug_args.is_nancapture_enabled() is True

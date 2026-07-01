@@ -70,12 +70,41 @@ class DebugUnderflowOverflowArgs(PydanticConfig):
         return v
 
 
+class NaNCaptureArgs(PydanticConfig):
+    """Arguments for NaN/Inf capture debugging.
+
+    When enabled, the monitor scans parameter gradients for NaN/Inf after each
+    gradient-accumulation step (before ``clip_gradients``/``optimizer.step``).
+    On detection, it saves a self-contained capture to
+    ``out_dir/debug/nan_capture/rank{R}/nan_capture.pt`` holding the model
+    state, the step's microbatches, RNG state, and metadata — then raises
+    :class:`NaNDetectedError` to halt training. The capture is reproducibly
+    loadable via :func:`lightly_train._debug.nan_capture.load_nan_capture`
+    and ``.replay()``.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether to enable NaN/Inf capture debugging. When True, scans "
+            "parameter gradients after each accumulated training step and, on "
+            "first non-finite gradient, saves a replayable capture to "
+            "out_dir/debug/nan_capture/rank{R}/nan_capture.pt before aborting."
+        ),
+    )
+
+
 class DebugArgs(PydanticConfig):
     underflow_overflow: DebugUnderflowOverflowArgs | None = None
+    nancapture: NaNCaptureArgs | None = None
 
     def is_underflow_overflow_enabled(self) -> bool:
         """Returns True if underflow/overflow debugging is enabled."""
         return self.underflow_overflow is not None and self.underflow_overflow.enabled
+
+    def is_nancapture_enabled(self) -> bool:
+        """Returns True if NaN/Inf capture debugging is enabled."""
+        return self.nancapture is not None and self.nancapture.enabled
 
 
 def get_debug_args(debug_args: dict[str, Any] | DebugArgs | None) -> DebugArgs:

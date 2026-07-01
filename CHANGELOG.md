@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
+  gradients during training, save a self-contained capture (model state dict +
+  TrainModel class/init kwargs + the step's microbatches + RNG state) to
+  `out_dir/debug/nan_capture/rank{R}/nan_capture.pt` and halt training. Replay via
+  `lightly_train._debug.nan_capture.load_nan_capture(dir).replay()` to deterministically
+  reproduce the failure in a notebook/REPL. Enable with
+  `debug_args.nancapture.enabled=True`.
+
 ### Changed
 
 ### Deprecated
