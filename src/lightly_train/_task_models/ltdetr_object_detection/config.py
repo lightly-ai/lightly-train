@@ -14,7 +14,11 @@ from pydantic import Field
 from typing_extensions import Annotated
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
-from lightly_train._configs.model_registry import ModelRegistry
+from lightly_train._configs.model_registry import (
+    DownloadableCheckpoint,
+    ModelAlias,
+    ModelRegistry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -781,7 +785,20 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
-    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitt-ltdetr", "ltdetrv2-s")
+    @LTDETR_MODEL_REGISTRY.register(
+        "edgecrafter/ecvitt-ltdetr",
+        ModelAlias(
+            name="ltdetrv2-s",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                name="ltdetrv2-s-coco",
+                url="edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt",
+                sha256=(
+                    "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
+                ),
+                aliases=("edgecrafter/ecvitt-ltdetr-coco",),
+            ),
+        ),
+    )
     class EdgeCrafterECViTTiny(LTDETRBaseConfig.ViTTiny):
         version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvitt"
@@ -795,7 +812,10 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvittplus-ltdetr", "ltdetrv2-m")
+    @LTDETR_MODEL_REGISTRY.register(
+        "edgecrafter/ecvittplus-ltdetr",
+        ModelAlias(name="ltdetrv2-m"),
+    )
     class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvittplus"
@@ -809,7 +829,10 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr", "ltdetrv2-l")
+    @LTDETR_MODEL_REGISTRY.register(
+        "edgecrafter/ecvits-ltdetr",
+        ModelAlias(name="ltdetrv2-l"),
+    )
     class EdgeCrafterECViTSmall(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvits"
@@ -823,7 +846,10 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-ltdetr", "ltdetrv2-x")
+    @LTDETR_MODEL_REGISTRY.register(
+        "edgecrafter/ecvitsplus-ltdetr",
+        ModelAlias(name="ltdetrv2-x"),
+    )
     class EdgeCrafterECViTSmallPlus(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"
         backbone_name: str = "edgecrafter/ecvitsplus"

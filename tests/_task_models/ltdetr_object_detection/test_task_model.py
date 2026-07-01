@@ -175,8 +175,8 @@ def test_resolve_auto__uses_ltdetrv2_alias(
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
     # Regression test for TRN-2187: ``resolve_auto`` runs before the task-model
-    # constructor canonicalizes short LT-DETRv2 aliases, so it must resolve
-    # them itself (via ``parse_model_name``) rather than raising
+    # constructor, so it must expand short LTDETRv2 names itself (via
+    # ``parse_model_name``) rather than raising
     # ``Unable to resolve patch_size='auto'``. All aliases map to EdgeCrafter
     # (ECViT) backbones with a fixed patch_size of 16.
     model_args = LTDETRObjectDetectionTrainArgs()
@@ -764,10 +764,10 @@ def test_create_train_model__ecvit(
 # Short LT-DETRv2 alias tests
 # ---------------------------------------------------------------------------
 #
-# ``ltdetrv2-{s,m,l,x}`` is a public alias that resolves to the canonical
-# EdgeCrafter (ECViT) LT-DETR object-detection model name. These tests verify
-# that the alias is accepted by ``is_supported_model`` and resolves to the
-# correct canonical name in ``parse_model_name``.
+# ``ltdetrv2-{s,m,l,x}`` are public LTDETRv2 names registered next to their
+# EdgeCrafter (ECViT) names. These tests verify that both lookup names select
+# the same config class and that the old parser still receives a package-style
+# model name.
 
 LTDETR_V2_ALIAS_MODEL_NAMES = [
     "ltdetrv2-s",
@@ -776,7 +776,7 @@ LTDETR_V2_ALIAS_MODEL_NAMES = [
     "ltdetrv2-x",
 ]
 
-LTDETR_V2_ALIAS_TO_CANONICAL: dict[str, str] = {
+LTDETR_V2_ALIAS_TO_EDGECRAFTER_MODEL_NAME: dict[str, str] = {
     "ltdetrv2-s": "edgecrafter/ecvitt-ltdetr",
     "ltdetrv2-m": "edgecrafter/ecvittplus-ltdetr",
     "ltdetrv2-l": "edgecrafter/ecvits-ltdetr",
@@ -790,16 +790,30 @@ def test_is_supported_model__ltdetrv2_alias(model_name: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("alias", "canonical"),
-    list(LTDETR_V2_ALIAS_TO_CANONICAL.items()),
+    ("alias", "edgecrafter_model_name"),
+    list(LTDETR_V2_ALIAS_TO_EDGECRAFTER_MODEL_NAME.items()),
 )
-def test_parse_model_name__ltdetrv2_alias(alias: str, canonical: str) -> None:
+def test_ltdetrv2_alias__uses_same_config_class(
+    alias: str, edgecrafter_model_name: str
+) -> None:
+    assert LTDETR_MODEL_REGISTRY.get(alias=alias) is LTDETR_MODEL_REGISTRY.get(
+        alias=edgecrafter_model_name
+    )
+
+
+@pytest.mark.parametrize(
+    ("alias", "edgecrafter_model_name"),
+    list(LTDETR_V2_ALIAS_TO_EDGECRAFTER_MODEL_NAME.items()),
+)
+def test_parse_model_name__ltdetrv2_alias(
+    alias: str, edgecrafter_model_name: str
+) -> None:
     parsed = LTDETRObjectDetection.parse_model_name(alias)
     assert parsed["package_name"] == "edgecrafter"
-    assert parsed["model_name"] == canonical
+    assert parsed["model_name"] == edgecrafter_model_name
     # backbone_name must be the bare ECViT preset (no package prefix, no
     # -ltdetr suffix) so the EdgeCrafter package can load the weights.
-    expected_backbone_name = canonical
+    expected_backbone_name = edgecrafter_model_name
     if expected_backbone_name.startswith("edgecrafter/"):
         expected_backbone_name = expected_backbone_name[len("edgecrafter/") :]
     if expected_backbone_name.endswith("-ltdetr"):

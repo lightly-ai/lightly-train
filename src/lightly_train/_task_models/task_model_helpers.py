@@ -68,14 +68,6 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_convnext_large_ltdetr_coco_251218_03fe6750.pt",
         "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0",
     ),
-    "edgecrafter/ecvitt-ltdetr-coco": (
-        "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt",
-        "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49",
-    ),
-    "ltdetrv2-s-coco": (
-        "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt",
-        "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49",
-    ),
     "picodet-s-coco": (
         "picodet_s_coco_416_260303_23022a45.pt",
         "23022a456b2583246288041762a1a66d8d59820d5e775912cb4eb366d3a0cd68",
@@ -275,9 +267,13 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
     if ckpt_path.exists():
         # Local path
         local_ckpt_path = common_helpers.get_checkpoint_path(checkpoint=ckpt_path)
-    elif ckpt_str in DOWNLOADABLE_MODEL_URL_AND_HASH:
+    else:
+        model_url_and_hash = _get_downloadable_model_url_and_hash(name=ckpt_str)
+        if model_url_and_hash is None:
+            _raise_unknown_checkpoint_error(checkpoint=checkpoint)
+
         # Checkpoint name
-        model_url, model_hash = DOWNLOADABLE_MODEL_URL_AND_HASH[ckpt_str]
+        model_url, model_hash = model_url_and_hash
         model_url = urllib.parse.urljoin(DOWNLOADABLE_MODEL_BASE_URL, model_url)
         download_dir = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
         model_name = os.path.basename(urllib.parse.urlparse(model_url).path)
@@ -303,9 +299,22 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
                 f"Downloaded checkpoint to '{local_ckpt_path}'. Hash: "
                 f"{checkpoint_hash(local_ckpt_path)}"
             )
-    else:
-        _raise_unknown_checkpoint_error(checkpoint=checkpoint)
     return local_ckpt_path
+
+
+def _get_downloadable_model_url_and_hash(name: str) -> tuple[str, str] | None:
+    try:
+        from lightly_train._task_models.ltdetr_object_detection.config import (
+            LTDETR_MODEL_REGISTRY,
+        )
+
+        checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(name=name)
+    except KeyError:
+        pass
+    else:
+        return checkpoint.url, checkpoint.sha256
+
+    return DOWNLOADABLE_MODEL_URL_AND_HASH.get(name)
 
 
 def init_model_from_checkpoint(

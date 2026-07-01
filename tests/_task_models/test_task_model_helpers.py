@@ -20,6 +20,9 @@ from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
 )
+from lightly_train._task_models.ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+)
 
 
 @pytest.mark.skipif(
@@ -62,12 +65,55 @@ def test_load_model__download_invalid_model__fails() -> None:
 
 
 def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
-    # ``ltdetrv2-s-coco`` is the public name for the hosted ECViT-T LTDETR COCO
-    # checkpoint. It must resolve to the same (file, hash) as the canonical
-    # ``edgecrafter/ecvitt-ltdetr-coco`` entry so load_model/train downloads the
-    # identical file regardless of which name the user passes.
     d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
-    assert d["ltdetrv2-s-coco"] == d["edgecrafter/ecvitt-ltdetr-coco"]
+    assert "ltdetrv2-s-coco" not in d
+    assert "edgecrafter/ecvitt-ltdetr-coco" not in d
+
+    checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
+        name="ltdetrv2-s-coco"
+    )
+    legacy_checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
+        name="edgecrafter/ecvitt-ltdetr-coco"
+    )
+    assert checkpoint is legacy_checkpoint
+    assert checkpoint.url == "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt"
+    assert (
+        checkpoint.sha256
+        == "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
+    )
+
+
+def test_download_checkpoint__ltdetrv2_s_coco_uses_registry(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
+    checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
+        name="ltdetrv2-s-coco"
+    )
+    downloaded_urls: list[str] = []
+
+    def fake_download_url_to_file(url: str, dst: str) -> None:
+        downloaded_urls.append(url)
+        Path(dst).write_bytes(b"checkpoint")
+
+    monkeypatch.setattr(
+        task_model_helpers.torch.hub,
+        "download_url_to_file",
+        fake_download_url_to_file,
+    )
+    monkeypatch.setattr(
+        task_model_helpers,
+        "checkpoint_hash",
+        lambda path: checkpoint.sha256,
+    )
+
+    local_path = task_model_helpers.download_checkpoint("ltdetrv2-s-coco")
+
+    assert local_path == tmp_path / checkpoint.url
+    assert local_path.read_bytes() == b"checkpoint"
+    assert downloaded_urls == [
+        f"{task_model_helpers.DOWNLOADABLE_MODEL_BASE_URL}/{checkpoint.url}"
+    ]
 
 
 def test_download_checkpoint__non_hosted_dav2__raises_convert_guidance() -> None:

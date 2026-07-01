@@ -178,12 +178,11 @@ class LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                 # can pick the right image-size divisor and scale-jitter base.
                 #
                 # Use the task model's ``parse_model_name`` (not the lower-level
-                # ``package_helpers.parse_model_name``) because it also resolves
-                # short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) to their
-                # canonical ``edgecrafter/<preset>-ltdetr`` form, so they reach
-                # the ``package_name == "edgecrafter"`` branch below. This runs
-                # before the task-model constructor canonicalizes the name, so
-                # without it the aliases would raise
+                # ``package_helpers.parse_model_name``) because it also expands
+                # short LTDETRv2 names (e.g. ``ltdetrv2-s``) into the
+                # EdgeCrafter package/backbone shape used by the parser. This
+                # runs before the task-model constructor, so without it the
+                # aliases would raise
                 # ``Unable to resolve patch_size='auto'`` here.
                 try:
                     package_name = LTDETRObjectDetection.parse_model_name(
