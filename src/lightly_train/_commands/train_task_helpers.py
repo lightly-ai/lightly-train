@@ -58,6 +58,9 @@ from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrain,
+)
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
 )
@@ -126,6 +129,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
     SemanticSegmentationMultiheadTrain,
+    DINOv2LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrain,
     PicoDetObjectDetectionTrain,
 ]
@@ -1325,23 +1329,15 @@ def load_checkpoint(
     model_path: Path | None
     model_name = model
     model_name_from_checkpoint = False
-
-    def _download_model_checkpoint(model: str) -> Path:
+    try:
+        get_train_model_cls(model_name=model, task=task)
+    except ValueError:
         # Download checkpoint only from rank zero. Other ranks will load from cache.
         with fabric.rank_zero_first():
-            return task_model_helpers.download_checkpoint(checkpoint=model)
-
-    if task_model_helpers.is_downloadable_checkpoint(name=model):
-        model_path = _download_model_checkpoint(model=model)
+            model_path = task_model_helpers.download_checkpoint(checkpoint=model)
         model_name_from_checkpoint = True
     else:
-        try:
-            get_train_model_cls(model_name=model, task=task)
-        except ValueError:
-            model_path = _download_model_checkpoint(model=model)
-            model_name_from_checkpoint = True
-        else:
-            model_path = None
+        model_path = None
 
     ckpt_path: Path
     if resume_interrupted:
