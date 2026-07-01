@@ -31,6 +31,13 @@ This project incorporates the following third-party components:
 - License: MIT License
 - License file: licences/EOMT_LICENSE
 
+**HuggingFace Transformers**
+- Source: https://github.com/huggingface/transformers
+- License: Apache License 2.0
+- License file: licences/HUGGINGFACE_TRANSFORMERS_LICENSE
+- Modifications:
+  - Vendored the minimal subset of `transformers.debug_utils` (the `DebugUnderflowOverflow` class plus `get_abs_min_max`/`detect_overflow` helpers) used by the underflow/overflow debugger. The `transformers` package remains a runtime dependency for other code paths in LightlyTrain. Affected file: `src/lightly_train/_debug/huggingface_debug_utils.py`.
+
 **PyTorch Lightning**
 - Source: https://github.com/Lightning-AI/pytorch-lightning
 - License: Apache License 2.0
