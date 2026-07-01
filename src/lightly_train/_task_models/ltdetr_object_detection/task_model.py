@@ -10,12 +10,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Callable, Literal, Self, Union, cast, override
+from typing import Any, Callable, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import Self, override
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
