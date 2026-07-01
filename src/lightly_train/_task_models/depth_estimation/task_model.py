@@ -409,6 +409,15 @@ class DepthAnythingDepthEstimation(TaskModel):
             model_args=backbone_model_args,
             load_weights=False,
         )
+        try:
+            mask_token = self.backbone.mask_token  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+        else:
+            # Depth estimation does not use the mask token. We disable grads for it to
+            # avoid DDP errors from unused parameters (see image_classification's
+            # task_model.py for the same pattern).
+            mask_token.requires_grad = False
         self.decoder = DPT(
             dim_in=int(self.backbone.embed_dim),
             patch_size=patch_size,
