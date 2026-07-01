@@ -20,6 +20,9 @@ import torch
 
 from lightly_train._commands import common_helpers
 from lightly_train._env import Env
+from lightly_train._task_models.ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -184,6 +187,9 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "d59577016e01635c285fac76f44685d7a0878545e0b8d560da45c0cf4d058548",
     ),
 }
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    LTDETR_MODEL_REGISTRY.list_downloadable_model_url_and_hashes()
+)
 
 
 def load_model(
@@ -239,13 +245,9 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
     if ckpt_path.exists():
         # Local path
         local_ckpt_path = common_helpers.get_checkpoint_path(checkpoint=ckpt_path)
-    else:
-        model_url_and_hash = _get_downloadable_model_url_and_hash(name=ckpt_str)
-        if model_url_and_hash is None:
-            _raise_unknown_checkpoint_error(checkpoint=checkpoint)
-
+    elif ckpt_str in DOWNLOADABLE_MODEL_URL_AND_HASH:
         # Checkpoint name
-        model_url, model_hash = model_url_and_hash
+        model_url, model_hash = DOWNLOADABLE_MODEL_URL_AND_HASH[ckpt_str]
         model_url = urllib.parse.urljoin(DOWNLOADABLE_MODEL_BASE_URL, model_url)
         download_dir = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
         model_name = os.path.basename(urllib.parse.urlparse(model_url).path)
@@ -271,29 +273,9 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
                 f"Downloaded checkpoint to '{local_ckpt_path}'. Hash: "
                 f"{checkpoint_hash(local_ckpt_path)}"
             )
-    return local_ckpt_path
-
-
-def is_downloadable_checkpoint(name: str) -> bool:
-    return _get_downloadable_model_url_and_hash(name=name) is not None
-
-
-def _get_downloadable_model_url_and_hash(name: str) -> tuple[str, str] | None:
-    try:
-        from lightly_train._task_models.ltdetr_object_detection.config import (
-            LTDETR_MODEL_REGISTRY,
-        )
-
-        checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
-            alias=name
-        ).downloadable_checkpoint
-    except KeyError:
-        pass
     else:
-        if checkpoint is not None:
-            return checkpoint.url, checkpoint.sha256
-
-    return DOWNLOADABLE_MODEL_URL_AND_HASH.get(name)
+        _raise_unknown_checkpoint_error(checkpoint=checkpoint)
+    return local_ckpt_path
 
 
 def init_model_from_checkpoint(
