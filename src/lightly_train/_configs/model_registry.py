@@ -24,7 +24,7 @@ class DownloadableCheckpoint:
 @dataclass(frozen=True)
 class ModelAlias:
     name: str
-    downloadable_checkpoint: DownloadableCheckpoint | None = None
+    downloadable_checkpoint: DownloadableCheckpoint
 
 
 AliasT = str | ModelAlias
