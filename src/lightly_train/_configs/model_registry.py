@@ -7,27 +7,47 @@
 #
 from __future__ import annotations
 
-from typing import Callable, Generic, Type, TypeVar
+from dataclasses import dataclass
+from typing import Callable, Generic, Type, TypeVar, Union
 
 from lightly_train._configs.config import PydanticConfig
 
 ConfigT = TypeVar("ConfigT", bound=PydanticConfig)
 
 
+@dataclass(frozen=True)
+class DownloadableCheckpoint:
+    url: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class ModelAlias:
+    name: str
+    downloadable_checkpoint: DownloadableCheckpoint
+
+
+AliasT = Union[str, ModelAlias]
+
+
 class ModelRegistry(Generic[ConfigT]):
     def __init__(self) -> None:
         self._registry: dict[str, Type[ConfigT]] = {}
+        self._alias_metadata: dict[str, ModelAlias] = {}
 
-    def register(self, *aliases: str) -> Callable[[Type[ConfigT]], Type[ConfigT]]:
+    def register(self, *aliases: AliasT) -> Callable[[Type[ConfigT]], Type[ConfigT]]:
         def decorator(cls: Type[ConfigT]) -> Type[ConfigT]:
             for alias in aliases:
-                if alias in self._registry:
-                    existing_cls = self._registry[alias].__name__
+                alias_name = alias.name if isinstance(alias, ModelAlias) else alias
+                if alias_name in self._registry:
+                    existing_cls = self._registry[alias_name].__name__
                     raise ValueError(
-                        f"Conflict detected! The alias '{alias}' is already registered "
+                        f"Conflict detected! The alias '{alias_name}' is already registered "
                         f"to the class '{existing_cls}'."
                     )
-                self._registry[alias] = cls
+                self._registry[alias_name] = cls
+                if isinstance(alias, ModelAlias):
+                    self._alias_metadata[alias_name] = alias
             return cls
 
         return decorator
@@ -47,3 +67,8 @@ class ModelRegistry(Generic[ConfigT]):
 
     def list_aliases(self) -> dict[str, str]:
         return {alias: cls.__name__ for alias, cls in self._registry.items()}
+
+    def get_alias_metadata(self, alias: str) -> ModelAlias:
+        if alias not in self._alias_metadata:
+            raise KeyError(f"No metadata registered under the alias '{alias}'.")
+        return self._alias_metadata[alias]
