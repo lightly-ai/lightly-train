@@ -1561,9 +1561,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # are registered on the device-placed model. Disabled by default. We use the
         # monitor as a context manager so the log file is closed and hooks are
         # detached even when an exception (including the ValueError the monitor
-        # itself raises on overflow) is caught inside train_task(...). The previous
-        # atexit-based cleanup leaked the log file and forward hooks when callers
-        # caught the ValueError around the call site.
+        # itself raises on overflow) is caught inside train_task(...).
         monitor_ctx: contextlib.AbstractContextManager[UnderflowOverflowMonitor | None]
         if config.debug_args.is_underflow_overflow_enabled():
             assert config.debug_args.underflow_overflow is not None
