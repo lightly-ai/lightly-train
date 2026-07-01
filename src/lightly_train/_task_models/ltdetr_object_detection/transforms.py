@@ -427,3 +427,346 @@ class LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
 
 class LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionValTransformArgs
+
+
+# TODO (Lionel, 06/26): Remove these once the DINOv2 LT-DETR models are completely
+# migrated to the generic LTDETR pipeline. These are verbatim copies of
+# dinov2_ltdetr_object_detection/transforms.py, kept separate from the generic
+# classes above because their defaults (in particular the scale-jitter `sizes` list,
+# tuned for patch-14 models) must not silently drift when the generic classes change.
+class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgsV2(
+    RandomPhotometricDistortArgs
+):
+    prob: float = 0.5
+
+    brightness: tuple[float, float] = (0.875, 1.125)
+    contrast: tuple[float, float] = (0.5, 1.5)
+    saturation: tuple[float, float] = (0.5, 1.5)
+    hue: tuple[float, float] = (-0.05, 0.05)
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means photometric distort is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionRandomZoomOutArgsV2(RandomZoomOutArgs):
+    prob: float = 0.5
+
+    fill: float = 0.0
+    side_range: tuple[float, float] = (1.0, 4.0)
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means random zoom out is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionRandomIoUCropArgsV2(RandomIoUCropArgs):
+    prob: float = 0.8
+
+    min_scale: float = 0.3
+    max_scale: float = 1.0
+    min_aspect_ratio: float = 0.5
+    max_aspect_ratio: float = 2.0
+    sampler_options: Sequence[float] | None = None
+    crop_trials: int = 40
+    iou_trials: int = 1000
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means random IoU crop is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionRandomFlipArgsV2(RandomFlipArgs):
+    horizontal_prob: float = 0.5
+    vertical_prob: float = 0.0
+
+
+class DINOv2LTDETRObjectDetectionScaleJitterArgsV2(ScaleJitterArgs):
+    # Sizes must be multiples of patch size * 2
+    sizes: Sequence[tuple[int, int]] | None = [
+        (476, 476),
+        (504, 504),
+        (532, 532),
+        (560, 560),
+        (588, 588),
+        (616, 616),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (644, 644),
+        (672, 672),
+        (700, 700),
+        (728, 728),
+        (756, 756),
+        (784, 784),
+        (812, 812),
+    ]
+    min_scale: float | None = None
+    max_scale: float | None = None
+    num_scales: int | None = None
+    prob: float = 1.0
+    divisible_by: int | None = None
+
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means scale jitter is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionMixUpArgsV2(MixUpArgs):
+    prob: float = 0.5
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" uses a compressed short-run schedule for <= 12 epochs and
+    # transitions to the midpoint rule on longer runs.
+    # None means mixup is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionCopyBlendArgsV2(CopyBlendArgs):
+    prob: float = 0.5
+
+    area_threshold: int = 100
+    num_objects: int = 3
+    expand_ratios: tuple[float, float] = (0.1, 0.25)
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means copy blend is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionMosaicArgsV2(MosaicArgs):
+    prob: float = 0.5
+
+    output_size: int = 320
+    max_size: int | None = None
+    rotation_range: float = 10.0
+    translation_range: tuple[float, float] = (0.1, 0.1)
+    scaling_range: tuple[float, float] = (0.5, 1.5)
+    fill_value: int | float = 0
+    max_cached_images: int = 50
+    random_pop: bool = True
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" uses a compressed short-run schedule for <= 12 epochs and
+    # transitions to the midpoint rule on longer runs.
+    # None means mosaic is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class DINOv2LTDETRObjectDetectionResizeArgsV2(ResizeArgs):
+    height: int | Literal["auto"] = "auto"
+    width: int | Literal["auto"] = "auto"
+
+
+class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(ObjectDetectionTransformArgs):
+    channel_drop: None = None
+    num_channels: int | Literal["auto"] = "auto"
+    photometric_distort: (
+        DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgsV2 | None
+    ) = Field(default_factory=DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgsV2)
+    random_zoom_out: DINOv2LTDETRObjectDetectionRandomZoomOutArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionRandomZoomOutArgsV2
+    )
+    random_iou_crop: DINOv2LTDETRObjectDetectionRandomIoUCropArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionRandomIoUCropArgsV2
+    )
+    random_flip: DINOv2LTDETRObjectDetectionRandomFlipArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionRandomFlipArgsV2
+    )
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
+    resize: ResizeArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionResizeArgsV2
+    )
+    scale_jitter: DINOv2LTDETRObjectDetectionScaleJitterArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionScaleJitterArgsV2
+    )
+    mosaic: DINOv2LTDETRObjectDetectionMosaicArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionMosaicArgsV2
+    )
+    mixup: DINOv2LTDETRObjectDetectionMixUpArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionMixUpArgsV2
+    )
+    copyblend: DINOv2LTDETRObjectDetectionCopyBlendArgsV2 | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionCopyBlendArgsV2
+    )
+    # We use the YOLO format internally for now.
+    bbox_params: BboxParams = Field(
+        default_factory=lambda: BboxParams(
+            format="yolo",
+            label_fields=["class_labels"],
+            min_area=1.0,  # Bbox must have an area of at least 1 pixel.
+            min_width=0.0,
+            min_height=0.0,
+            **(
+                dict(filter_invalid_bboxes=True)
+                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+                else {}
+            ),
+            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+        ),
+    )
+    normalize: NormalizeArgs | Literal["auto"] | None = "auto"
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+
+        if self.image_size == "auto":
+            self.image_size = tuple(model_init_args.get("image_size", (644, 644)))
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
+
+        if self.normalize == "auto":
+            normalize = model_init_args.get("image_normalize", "none")
+            # Normalize is specifically set to None in model_init_args.
+            if normalize is None:
+                self.normalize = None
+            # Normalize is not set in model_init_args.
+            elif normalize == "none":
+                self.normalize = NormalizeArgs()
+            else:
+                assert isinstance(normalize, dict)
+                self.normalize = NormalizeArgs.from_dict(normalize)
+
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                if self.normalize is None:
+                    self.num_channels = 3
+                else:
+                    self.num_channels = len(self.normalize.mean)
+
+    def resolve_step_schedule(
+        self,
+        total_steps: int,
+        train_num_batches: int,
+        gradient_accumulation_steps: int,
+    ) -> None:
+        """Resolve ``"auto"`` step_start / step_stop values.
+
+        See :func:`resolve_ltdetr_step_schedule_for_augmentation`.
+        """
+        resolve_ltdetr_step_schedule_for_augmentation(
+            args=self,
+            total_steps=total_steps,
+            train_num_batches=train_num_batches,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+        )
+
+
+class DINOv2LTDETRObjectDetectionValTransformArgsV2(ObjectDetectionTransformArgs):
+    channel_drop: None = None
+    num_channels: int | Literal["auto"] = "auto"
+    photometric_distort: None = None
+    random_zoom_out: None = None
+    random_iou_crop: None = None
+    random_flip: None = None
+    random_rotate_90: RandomRotate90Args | None = None
+    random_rotate: RandomRotationArgs | None = None
+    image_size: ImageSizeTuple | Literal["auto"] = "auto"
+    resize: ResizeArgs | None = Field(
+        default_factory=DINOv2LTDETRObjectDetectionResizeArgsV2
+    )
+    scale_jitter: ScaleJitterArgs | None = None
+    mosaic: DINOv2LTDETRObjectDetectionMosaicArgsV2 | None = None
+    mixup: DINOv2LTDETRObjectDetectionMixUpArgsV2 | None = None
+    copyblend: DINOv2LTDETRObjectDetectionCopyBlendArgsV2 | None = None
+    bbox_params: BboxParams = Field(
+        default_factory=lambda: BboxParams(
+            format="yolo",
+            label_fields=["class_labels"],
+            min_width=0.0,
+            min_height=0.0,
+            **(
+                dict(filter_invalid_bboxes=True)
+                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
+                else {}
+            ),
+            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+        ),
+    )
+    normalize: NormalizeArgs | Literal["auto"] | None = "auto"
+
+    def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
+        super().resolve_auto(model_init_args=model_init_args)
+
+        if self.image_size == "auto":
+            self.image_size = tuple(model_init_args.get("image_size", (644, 644)))
+
+        height, width = self.image_size
+        for field_name in self.__class__.model_fields:
+            field = getattr(self, field_name)
+            if hasattr(field, "resolve_auto"):
+                field.resolve_auto(height=height, width=width)
+
+        if self.normalize == "auto":
+            normalize = model_init_args.get("image_normalize", "none")
+            # Normalize is specifically set to None in model_init_args.
+            if normalize is None:
+                self.normalize = None
+            # Normalize is not set in model_init_args.
+            elif normalize == "none":
+                self.normalize = NormalizeArgs()
+            else:
+                assert isinstance(normalize, dict)
+                self.normalize = NormalizeArgs.from_dict(normalize)
+
+        if self.num_channels == "auto":
+            if self.channel_drop is not None:
+                self.num_channels = self.channel_drop.num_channels_keep
+            else:
+                if self.normalize is None:
+                    self.num_channels = 3
+                else:
+                    self.num_channels = len(self.normalize.mean)
+
+
+class DINOv2LTDETRObjectDetectionTrainTransformV2(ObjectDetectionTransform):
+    transform_args_cls = DINOv2LTDETRObjectDetectionTrainTransformArgsV2
+
+
+class DINOv2LTDETRObjectDetectionValTransformV2(ObjectDetectionTransform):
+    transform_args_cls = DINOv2LTDETRObjectDetectionValTransformArgsV2

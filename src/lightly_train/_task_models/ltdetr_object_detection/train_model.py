@@ -45,6 +45,8 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
+    DINOv2LTDETRObjectDetectionTrainTransformV2,
+    DINOv2LTDETRObjectDetectionValTransformV2,
     LTDETRObjectDetectionTrainTransform,
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransform,
@@ -366,6 +368,27 @@ class LTDETRObjectDetectionTrain(TrainModel):
         if model_name.startswith(_DINOV2_PREFIX):
             return DINOv2LTDETRObjectDetectionTrainArgsV2
         return LTDETRObjectDetectionTrainArgs
+
+    @classmethod
+    def get_train_transform_cls(
+        cls, model_name: str
+    ) -> type[
+        LTDETRObjectDetectionTrainTransform
+        | DINOv2LTDETRObjectDetectionTrainTransformV2
+    ]:
+        if model_name.startswith(_DINOV2_PREFIX):
+            return DINOv2LTDETRObjectDetectionTrainTransformV2
+        return LTDETRObjectDetectionTrainTransform
+
+    @classmethod
+    def get_val_transform_cls(
+        cls, model_name: str
+    ) -> type[
+        LTDETRObjectDetectionValTransform | DINOv2LTDETRObjectDetectionValTransformV2
+    ]:
+        if model_name.startswith(_DINOV2_PREFIX):
+            return DINOv2LTDETRObjectDetectionValTransformV2
+        return LTDETRObjectDetectionValTransform
 
     def __init__(
         self,

@@ -34,7 +34,12 @@ from lightly_train._task_models.ltdetr_object_detection.train_model import (
     LTDETRObjectDetectionTrainArgs,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
+    DINOv2LTDETRObjectDetectionTrainTransformArgsV2,
+    DINOv2LTDETRObjectDetectionTrainTransformV2,
+    DINOv2LTDETRObjectDetectionValTransformV2,
+    LTDETRObjectDetectionTrainTransform,
     LTDETRObjectDetectionTrainTransformArgs,
+    LTDETRObjectDetectionValTransform,
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
 
@@ -69,6 +74,7 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
 
     train_transform_args, _ = get_transform_args(
         train_model_cls=LTDETRObjectDetectionTrain,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
         transform_args=None,
         ignore_index=None,
         model_init_args=resolved_model_init_args,
@@ -116,6 +122,7 @@ def test_get_train_model_args_and_transform_args__propagate_dinov2_patch_size_to
 
     train_transform_args, _ = get_transform_args(
         train_model_cls=LTDETRObjectDetectionTrain,
+        model_name="dinov2/vits14-ltdetr",
         transform_args=None,
         ignore_index=None,
         model_init_args=resolved_model_init_args,
@@ -124,19 +131,66 @@ def test_get_train_model_args_and_transform_args__propagate_dinov2_patch_size_to
         gradient_accumulation_steps=1,
     )
 
+    # "dinov2/..." model names dispatch to DINOv2LTDETRObjectDetectionTrainTransformArgsV2
+    # (a verbatim copy of the old dinov2_ltdetr_object_detection transform args), not
+    # the generic LTDETRObjectDetectionTrainTransformArgs. This carries the original
+    # patch-14-tuned scale-jitter sizes directly rather than deriving them from the
+    # generic patch-16-tuned list via rounding, which previously silently dropped the
+    # 560 and 784 sizes.
     train_transform_args = cast(
-        LTDETRObjectDetectionTrainTransformArgs, train_transform_args
+        DINOv2LTDETRObjectDetectionTrainTransformArgsV2, train_transform_args
     )
 
     assert train_model_args.patch_size == 14
     assert train_transform_args.scale_jitter is not None
-    assert train_transform_args.scale_jitter.divisible_by == 28
+    assert train_transform_args.scale_jitter.divisible_by is None
+    assert train_transform_args.scale_jitter.sizes == [
+        (476, 476),
+        (504, 504),
+        (532, 532),
+        (560, 560),
+        (588, 588),
+        (616, 616),
+        *([(644, 644)] * 20),
+        (672, 672),
+        (700, 700),
+        (728, 728),
+        (756, 756),
+        (784, 784),
+        (812, 812),
+    ]
 
 
 def test_get_train_model_cls__dinov2_ltdetr_routes_to_generic_pipeline() -> None:
     assert (
         get_train_model_cls(model_name="dinov2/vits14-ltdetr", task="object_detection")
         is LTDETRObjectDetectionTrain
+    )
+
+
+def test_get_train_transform_cls__dinov2_ltdetr_routes_to_dinov2_transform() -> None:
+    assert (
+        LTDETRObjectDetectionTrain.get_train_transform_cls("dinov2/vits14-ltdetr")
+        is DINOv2LTDETRObjectDetectionTrainTransformV2
+    )
+    assert (
+        LTDETRObjectDetectionTrain.get_val_transform_cls("dinov2/vits14-ltdetr")
+        is DINOv2LTDETRObjectDetectionValTransformV2
+    )
+
+
+def test_get_train_transform_cls__dinov3_ltdetr_routes_to_generic_transform() -> None:
+    assert (
+        LTDETRObjectDetectionTrain.get_train_transform_cls(
+            "dinov3/vitt16-notpretrained-ltdetr"
+        )
+        is LTDETRObjectDetectionTrainTransform
+    )
+    assert (
+        LTDETRObjectDetectionTrain.get_val_transform_cls(
+            "dinov3/vitt16-notpretrained-ltdetr"
+        )
+        is LTDETRObjectDetectionValTransform
     )
 
 

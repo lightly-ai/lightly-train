@@ -355,6 +355,7 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
 
 def get_transform_args(
     train_model_cls: type[TrainModel],
+    model_name: str,
     transform_args: dict[str, Any] | None,
     ignore_index: int | None,
     model_init_args: dict[str, Any],
@@ -382,8 +383,12 @@ def get_transform_args(
     # }
     val_args = transform_args.pop("val", {})
 
-    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
-    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
+    train_transform_args_cls = train_model_cls.get_train_transform_cls(
+        model_name
+    ).transform_args_cls
+    val_transform_args_cls = train_model_cls.get_val_transform_cls(
+        model_name
+    ).transform_args_cls
     train_transform_args: TaskTransformArgs
     val_transform_args: TaskTransformArgs
 
@@ -431,9 +436,12 @@ def get_transform_args(
 
 def get_train_transform(
     train_model_cls: type[TrainModel],
+    model_name: str,
     train_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return train_model_cls.train_transform_cls(transform_args=train_transform_args)
+    return train_model_cls.get_train_transform_cls(model_name)(
+        transform_args=train_transform_args
+    )
 
 
 def get_metric_args(
@@ -461,9 +469,12 @@ def get_metric_args(
 
 def get_val_transform(
     train_model_cls: type[TrainModel],
+    model_name: str,
     val_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return train_model_cls.val_transform_cls(transform_args=val_transform_args)
+    return train_model_cls.get_val_transform_cls(model_name)(
+        transform_args=val_transform_args
+    )
 
 
 def get_sha256(value: Any) -> str:

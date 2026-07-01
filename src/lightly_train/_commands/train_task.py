@@ -1391,6 +1391,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # step-scheduled augmentations like LTDETR).
         train_transform_args, val_transform_args = helpers.get_transform_args(
             train_model_cls=train_model_cls,
+            model_name=config.model,
             transform_args=config.transform_args,
             # TODO (Lionel, 10/25): Handle ignore_index properly for object detection.
             ignore_index=getattr(config.data, "ignore_index", None),
@@ -1404,10 +1405,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         # and install them explicitly — no hidden mutation via shared refs.
         train_transform = helpers.get_train_transform(
             train_model_cls=train_model_cls,
+            model_name=config.model,
             train_transform_args=train_transform_args,
         )
         val_transform = helpers.get_val_transform(
             train_model_cls=train_model_cls,
+            model_name=config.model,
             val_transform_args=val_transform_args,
         )
         train_collate_fn = train_dataset.batch_collate_fn_cls(

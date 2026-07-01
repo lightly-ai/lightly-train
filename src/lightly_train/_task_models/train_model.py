@@ -68,6 +68,24 @@ class TrainModel(Module):
         """
         return cls.train_model_args_cls
 
+    @classmethod
+    def get_train_transform_cls(cls, model_name: str) -> type[TaskTransform]:
+        """Return the train TaskTransform class for the given model name.
+
+        Subclasses may override this to return different transform classes
+        depending on the model.
+        """
+        return cls.train_transform_cls
+
+    @classmethod
+    def get_val_transform_cls(cls, model_name: str) -> type[TaskTransform]:
+        """Return the val TaskTransform class for the given model name.
+
+        Subclasses may override this to return different transform classes
+        depending on the model.
+        """
+        return cls.val_transform_cls
+
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
     # names that are called within a Fabric context will raise an error if they have
