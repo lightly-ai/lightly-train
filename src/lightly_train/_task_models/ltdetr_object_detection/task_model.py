@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Callable, Literal, Union, cast
+from typing import Any, Callable, Literal, Self, Union, cast, override
 
 import torch
 from PIL.Image import Image as PILImage
@@ -38,7 +38,6 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
-from lightly_train._task_models.dinov3_ltdetr.task_model import _DINOv3LTDETRBase
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
@@ -69,6 +68,7 @@ from lightly_train._task_models.object_detection_components.rtdetr_postprocessor
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
+from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -105,15 +105,8 @@ def _resolve_transformer_config(
     return config_factory()
 
 
-class LTDETRObjectDetection(_DINOv3LTDETRBase):
-    @classmethod
-    def is_supported_model(cls, model: str) -> bool:
-        # Every concrete LT-DETR variant (DINOv3, EdgeCrafter, DINOv2, ltdetrv2-*
-        # aliases) is registered individually in LTDETR_MODEL_REGISTRY, so membership
-        # there is a simpler and more accurate check than re-deriving support from
-        # backbone package names (which the inherited parse_model_name-based check
-        # does, and which doesn't guarantee the specific variant is registered).
-        return model in LTDETR_MODEL_REGISTRY.list_aliases()
+class LTDETRObjectDetection(TaskModel):
+    model_suffix = "ltdetr"
 
     def __init__(
         self,
@@ -157,11 +150,8 @@ class LTDETRObjectDetection(_DINOv3LTDETRBase):
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
-        # Bypass _DINOv3LTDETRBase.__init__ (old config system) and call
-        # TaskModel.__init__ directly to store init_args for checkpointing.
-        super(_DINOv3LTDETRBase, self).__init__(
-            init_args=locals(), ignore_args={"load_weights"}
-        )
+        # Store init_args for checkpointing.
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
         transformer_config = _resolve_transformer_config(
@@ -291,6 +281,34 @@ class LTDETRObjectDetection(_DINOv3LTDETRBase):
         if self.backbone_freeze:
             self.freeze_backbone()
 
+    @override
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        return model in LTDETR_MODEL_REGISTRY.list_aliases()
+
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        return list(LTDETR_MODEL_REGISTRY.list_aliases())
+
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        """Resolve a registered model alias into its package/backbone parts."""
+        try:
+            config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        except KeyError:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}."
+            )
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        return {
+            "package_name": package_name,
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
+            "backbone_name": backbone_name,
+        }
+
     def get_export_output_names(self) -> list[str]:
         return ["labels", "boxes", "scores"]
 
@@ -366,6 +384,130 @@ class LTDETRObjectDetection(_DINOv3LTDETRBase):
                 }
             )
         return out
+
+    def freeze_backbone(self) -> None:
+        self.backbone.eval()
+        self.backbone.requires_grad_(False)
+
+    def deploy(self) -> Self:
+        self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
+        for m in self.modules():
+            if hasattr(m, "convert_to_deploy"):
+                m.convert_to_deploy()  # type: ignore[operator]
+        return self
+
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Load the state dict from a training checkpoint.
+
+        Loads the EMA weights if available, otherwise falls back to the model weights.
+        """
+        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
+        has_model_weights = any(k.startswith("model.") for k in state_dict)
+        new_state_dict = {}
+        if has_ema_weights:
+            for name, param in state_dict.items():
+                if name.startswith("ema_model.model."):
+                    name = name[len("ema_model.model.") :]
+                    new_state_dict[name] = param
+        elif has_model_weights:
+            for name, param in state_dict.items():
+                if name.startswith("model."):
+                    name = name[len("model.") :]
+                    new_state_dict[name] = param
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        # Expand grayscale to the expected channel count so images can be stacked.
+        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
+        # 1-channel expansion is a convenience inherited from RGB-only models.
+        expected_c = self._expected_input_channels
+        if x.shape[-3] == 1 and expected_c > 1:
+            x = x.expand(expected_c, -1, -1)
+        elif x.shape[-3] != expected_c:
+            raise ValueError(
+                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
+            )
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        if self.image_normalize is not None:
+            batch = transforms_functional.normalize(
+                batch,
+                mean=list(self.image_normalize["mean"]),
+                std=list(self.image_normalize["std"]),
+            )
+        return batch
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image predictions.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions
+                with scores <= threshold are discarded.
+
+        Returns:
+            A list with one prediction dict per input image.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
+
+    @torch.no_grad()
+    def predict(
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
+    ) -> dict[str, Tensor]:
+        """Run inference on a single image and return task-specific predictions.
+
+        Args:
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions with
+                scores <= threshold are discarded.
+
+        Returns:
+            A task-specific prediction dictionary.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
