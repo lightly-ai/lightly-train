@@ -26,6 +26,10 @@ from lightly_train._export.onnx_helpers import (
     remove_redundant_casts,
 )
 from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer as DINOv2VisionTransformer,
+)
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -102,6 +106,15 @@ def _resolve_transformer_config(
 
 
 class LTDETRObjectDetection(_DINOv3LTDETRBase):
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        # Every concrete LT-DETR variant (DINOv3, EdgeCrafter, DINOv2, ltdetrv2-*
+        # aliases) is registered individually in LTDETR_MODEL_REGISTRY, so membership
+        # there is a simpler and more accurate check than re-deriving support from
+        # backbone package names (which the inherited parse_model_name-based check
+        # does, and which doesn't guarantee the specific variant is registered).
+        return model in LTDETR_MODEL_REGISTRY.list_aliases()
+
     def __init__(
         self,
         *,
@@ -224,17 +237,22 @@ class LTDETRObjectDetection(_DINOv3LTDETRBase):
             **get_model_kwargs,
         )
         assert isinstance(
-            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+            backbone,
+            (ConvNeXt, DinoVisionTransformer, DINOv2VisionTransformer, ECViTModelWrapper),
         )
 
         self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
         if isinstance(backbone, ECViTModelWrapper):
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
-        elif isinstance(backbone, DinoVisionTransformer):
+        elif isinstance(backbone, (DinoVisionTransformer, DINOv2VisionTransformer)):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
-            vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
+            vit_model_wrapper: DINOv2ViTModelWrapper | DINOv3ViTModelWrapper = (
+                DINOv2ViTModelWrapper(backbone)
+                if isinstance(backbone, DINOv2VisionTransformer)
+                else DINOv3ViTModelWrapper(backbone)
+            )
             self.backbone = DINOSTAs(
                 model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),

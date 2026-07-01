@@ -30,6 +30,9 @@ from lightly_train._task_models.ltdetr_object_detection.config import (
     DFINETransformerConfig,
     RTDETRTransformerv2Config,
 )
+from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
+    DINOSTAs,
+)
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
     _resolve_transformer_config,
@@ -381,6 +384,34 @@ def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
     )
     assert roundtrip_model.init_args == model.init_args
     assert roundtrip_model.init_args["patch_size"] == 14
+
+
+def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
+    """dinov2/*-ltdetr uses its own separately-vendored ViT class (DINOv2, not
+    DINOv3) and must be wrapped accordingly; regression test for a backbone-wrapper
+    dispatch bug where the isinstance/wrapper-selection logic only recognized the
+    DINOv3-vendored ViT class.
+    """
+    model = LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(224, 224),
+        image_normalize=None,
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        load_weights=False,
+    )
+    assert isinstance(model.backbone, DINOSTAs)
+    assert model.init_args["patch_size"] is None
+
+    model.eval()
+    model.deploy()
+    with torch.no_grad():
+        labels, boxes, scores = model(torch.randn(1, 3, 224, 224))
+    assert labels.shape == (1, 300)
+    assert boxes.shape == (1, 300, 4)
+    assert scores.shape == (1, 300)
 
 
 @pytest.mark.parametrize(

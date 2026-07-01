@@ -282,14 +282,6 @@ class LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
         super().resolve_auto(model_init_args=model_init_args)
 
         patch_size: int | None = model_init_args.get("patch_size")
-        if patch_size is None:
-            # DINOv2 models don't store patch_size in model_init_args because
-            # DINOv2LTDETRObjectDetection doesn't take it as an init parameter.
-            model_name_init = model_init_args.get("model_name", "")
-            if isinstance(model_name_init, str) and model_name_init.startswith(
-                "dinov2/"
-            ):
-                patch_size = 14
 
         if self.image_size == "auto":
             self.image_size = _resolve_image_size_for_patch_size(
@@ -393,12 +385,6 @@ class LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         super().resolve_auto(model_init_args=model_init_args)
 
         patch_size: int | None = model_init_args.get("patch_size")
-        if patch_size is None:
-            model_name_init = model_init_args.get("model_name", "")
-            if isinstance(model_name_init, str) and model_name_init.startswith(
-                "dinov2/"
-            ):
-                patch_size = 14
 
         if self.image_size == "auto":
             self.image_size = _resolve_image_size_for_patch_size(

@@ -35,16 +35,6 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
-    DINOv2STAs,
-)
-from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
-    DINOv2LTDETRObjectDetection,
-)
-from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import (
-    DINOv2LTDETRObjectDetectionTrainTransformArgs,
-    DINOv2LTDETRObjectDetectionValTransformArgs,
-)
 from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
     DINOSTAs,
 )
@@ -300,6 +290,10 @@ class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs)
 
     decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
 
+    # DINOv2 ViT backbones are always patch-14 (vits14/vitb14/vitl14/vitg14), matching
+    # LTDETR_MODEL_REGISTRY's dinov2 backbone_args.
+    patch_size: int = 14
+
     # Optimizer configuration
     lr: float = Field(
         default=1e-4,
@@ -380,10 +374,8 @@ class LTDETRObjectDetectionTrain(TrainModel):
         model_args: LTDETRObjectDetectionTrainArgs
         | DINOv2LTDETRObjectDetectionTrainArgsV2,
         data_args: YOLOObjectDetectionDataArgs,
-        train_transform_args: LTDETRObjectDetectionTrainTransformArgs
-        | DINOv2LTDETRObjectDetectionTrainTransformArgs,
-        val_transform_args: LTDETRObjectDetectionValTransformArgs
-        | DINOv2LTDETRObjectDetectionValTransformArgs,
+        train_transform_args: LTDETRObjectDetectionTrainTransformArgs,
+        val_transform_args: LTDETRObjectDetectionValTransformArgs,
         load_weights: bool,
         metric_args: ObjectDetectionTaskMetricArgs,
         gradient_accumulation_steps: int,
@@ -403,36 +395,21 @@ class LTDETRObjectDetectionTrain(TrainModel):
         else:
             normalize_dict = normalize.model_dump()
 
-        if isinstance(model_args, DINOv2LTDETRObjectDetectionTrainArgsV2):
-            self.model: LTDETRObjectDetection | DINOv2LTDETRObjectDetection = (
-                DINOv2LTDETRObjectDetection(
-                    model_name=model_name,
-                    image_size=no_auto(val_transform_args.image_size),
-                    classes=data_args.included_classes,
-                    image_normalize=normalize_dict,
-                    backbone_freeze=model_args.backbone_freeze,
-                    backbone_args=model_args.backbone_args,
-                    backbone_weights=model_args.backbone_weights,
-                    decoder_name=model_args.decoder_name,
-                    load_weights=load_weights,
-                )
-            )
-        else:
-            backbone_args: dict[str, Any] | None = model_args.backbone_args
-            if not backbone_args:
-                backbone_args = None
-            self.model = LTDETRObjectDetection(
-                model_name=model_name,
-                image_size=no_auto(val_transform_args.image_size),
-                classes=data_args.included_classes,
-                image_normalize=normalize_dict,
-                backbone_freeze=model_args.backbone_freeze,
-                backbone_args=backbone_args,
-                patch_size=no_auto(model_args.patch_size),
-                backbone_weights=model_args.backbone_weights,
-                decoder_name=model_args.decoder_name,
-                load_weights=load_weights,
-            )
+        backbone_args: dict[str, Any] | None = model_args.backbone_args
+        if not backbone_args:
+            backbone_args = None
+        self.model: LTDETRObjectDetection = LTDETRObjectDetection(
+            model_name=model_name,
+            image_size=no_auto(val_transform_args.image_size),
+            classes=data_args.included_classes,
+            image_normalize=normalize_dict,
+            backbone_freeze=model_args.backbone_freeze,
+            backbone_args=backbone_args,
+            patch_size=no_auto(model_args.patch_size),
+            backbone_weights=model_args.backbone_weights,
+            decoder_name=model_args.decoder_name,
+            load_weights=load_weights,
+        )
 
         self.ema_model_state_dict_key_prefix = "ema_model."
         self.ema_model: ModelEMA | None = None
@@ -712,7 +689,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
         backbone_lr = lr * self.model_args.backbone_lr_factor
 
         backbone = self.model.backbone
-        if isinstance(backbone, (DINOSTAs, DINOv2STAs)):
+        if isinstance(backbone, DINOSTAs):
             # Only the pretrained ViT gets the low backbone LR.
             backbone_params = list(backbone.backbone_model.parameters())
             # The connector modules (sta, convs, norms) are randomly initialized and
