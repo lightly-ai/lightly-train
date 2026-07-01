@@ -11,13 +11,13 @@ import pytest
 import torch
 from torch.nn import Module
 
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
+    DINOv3ConvNextWrapper,
 )
 
-from ...helpers import dummy_dinov3_vit_model
+from ...helpers import dummy_dinov3_convnext_model
 
-OLD_PREFIX = "dinov3."
+OLD_PREFIX = "backbone."
 NEW_PREFIX = "_model_wrapper._model."
 
 
@@ -34,33 +34,33 @@ def _remap_to_old_format(
 
 
 @pytest.fixture
-def wrapper() -> DINOv3STAs:
-    model_wrapper = dummy_dinov3_vit_model()
-    return DINOv3STAs(model_wrapper=model_wrapper)
+def wrapper() -> DINOv3ConvNextWrapper:
+    model_wrapper = dummy_dinov3_convnext_model()
+    return DINOv3ConvNextWrapper(model_wrapper=model_wrapper)
 
 
 @pytest.fixture
-def fresh_wrapper() -> DINOv3STAs:
-    model_wrapper = dummy_dinov3_vit_model()
-    return DINOv3STAs(model_wrapper=model_wrapper)
+def fresh_wrapper() -> DINOv3ConvNextWrapper:
+    model_wrapper = dummy_dinov3_convnext_model()
+    return DINOv3ConvNextWrapper(model_wrapper=model_wrapper)
 
 
-class TestDINOv3STAs:
+class TestDINOv3ConvNextWrapper:
     def test_load_state_dict__new_format_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOv3ConvNextWrapper, fresh_wrapper: DINOv3ConvNextWrapper
     ) -> None:
         state_dict = wrapper.state_dict()
         fresh_wrapper.load_state_dict(state_dict)
 
     def test_load_state_dict__old_format_remaps_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOv3ConvNextWrapper, fresh_wrapper: DINOv3ConvNextWrapper
     ) -> None:
         state_dict = wrapper.state_dict()
         old_state_dict = _remap_to_old_format(state_dict)
         fresh_wrapper.load_state_dict(old_state_dict)
 
     def test_load_state_dict__old_format_strict_false_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOv3ConvNextWrapper, fresh_wrapper: DINOv3ConvNextWrapper
     ) -> None:
         state_dict = wrapper.state_dict()
         old_state_dict = _remap_to_old_format(state_dict)
@@ -70,26 +70,26 @@ class TestDINOv3STAs:
             assert torch.equal(fresh_wrapper.state_dict()[key], val)
 
     def test_load_state_dict__unrecognizable_format_raises(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOv3ConvNextWrapper, fresh_wrapper: DINOv3ConvNextWrapper
     ) -> None:
         fake_state_dict = {f"fake.{k}": v for k, v in wrapper.state_dict().items()}
         with pytest.raises(RuntimeError):
             fresh_wrapper.load_state_dict(fake_state_dict)
 
     def test_load_state_dict__old_format_via_parent_module_succeeds(
-        self, wrapper: DINOv3STAs, fresh_wrapper: DINOv3STAs
+        self, wrapper: DINOv3ConvNextWrapper, fresh_wrapper: DINOv3ConvNextWrapper
     ) -> None:
         """Pre-hook must fire even when load_state_dict is called on a parent module."""
 
         class _Container(Module):
-            def __init__(self, backbone: DINOv3STAs) -> None:
+            def __init__(self, backbone: DINOv3ConvNextWrapper) -> None:
                 super().__init__()
                 self.backbone = backbone
 
         container = _Container(wrapper)
         fresh_container = _Container(fresh_wrapper)
 
-        # Build old-format full-model state dict: backbone.dinov3.* instead of
+        # Build old-format full-model state dict: backbone.backbone.* instead of
         # backbone._model_wrapper._model.*
         full_old = {}
         for k, v in container.state_dict().items():
