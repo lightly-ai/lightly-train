@@ -493,9 +493,7 @@ class LTDETRObjectDetection(TaskModel):
         x, metadata = self.preprocess_image(image)
         batch = self.preprocess_batch(x.unsqueeze(0))
         raw = self.forward_backend(batch)
-        return cast(
-            dict[str, Tensor], self.postprocess(raw, [metadata], threshold=threshold)[0]
-        )
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
