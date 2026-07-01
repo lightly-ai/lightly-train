@@ -291,7 +291,7 @@ class LTDETRObjectDetection(TaskModel):
         )
         return {
             "package_name": package_name,
-            "model_name": model_name,
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
 
