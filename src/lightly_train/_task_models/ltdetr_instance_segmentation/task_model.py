@@ -14,15 +14,26 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
+from lightly_train._models import package_helpers
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _DINOv3LTDETRBase,
-    _DINOv3LTDETRConfig,
 )
 from lightly_train._task_models.instance_segmentation_components.edgecrafter_decoder import (
     EdgeCrafterInstanceSegmentationTransformer,
 )
 from lightly_train._task_models.instance_segmentation_components.edgecrafter_postprocessor import (
     EdgeCrafterInstanceSegmentationPostProcessor,
+)
+from lightly_train._task_models.ltdetr_instance_segmentation.config import (
+    LTDETR_MODEL_REGISTRY,
+    SegmentorConfig,
+)
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
+)
+from lightly_train._task_models.object_detection_components.hybrid_encoder import (
+    HybridEncoder,
 )
 from lightly_train.types import PathLike
 
@@ -42,11 +53,12 @@ class LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
         decoder_name: Literal["dfine"] = "dfine",
         load_weights: bool = True,
     ) -> None:
-        """Create a DINOv3 LTDETR task model.
+        """Create an LTDETR instance segmentation task model.
 
         Args:
             model_name:
-                The model name. For example ``"dinov3/vits16-ltdetr"``.
+                The model name. For example ``"ltdetrv2-s"`` or
+                ``"edgecrafter/ecvitt-ltdetr"``.
             classes:
                 A dict mapping class IDs to class names.
             image_size:
@@ -76,22 +88,93 @@ class LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
             init_args=locals(), ignore_args={"load_weights"}
         )
 
-    def build_decoder(
-        self, config: _DINOv3LTDETRConfig
-    ) -> EdgeCrafterInstanceSegmentationTransformer:
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": len(self.classes)})
-        return EdgeCrafterInstanceSegmentationTransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=self.image_size,
+        config: SegmentorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+
+        package_name, short_backbone = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        self.image_size = image_size
+        self.classes = classes
+        self.backbone_freeze = backbone_freeze
+
+        if backbone_freeze:
+            config.backbone_wrapper.finetune = False
+
+        # Use the config's baked-in patch_size unless the caller overrides it.
+        if patch_size is None:
+            patch_size = config.backbone_args.get("patch_size")
+        else:
+            config.backbone_args["patch_size"] = patch_size
+        config.resolve_auto(patch_size=patch_size)
+
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
+
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+
+        self.image_normalize = image_normalize
+        self._expected_input_channels = 3
+
+        # Build backbone model args: start from config defaults, then apply overrides.
+        backbone_model_args: dict[str, Any] = dict(config.backbone_args)
+        if backbone_args is not None:
+            backbone_model_args.update(backbone_args)
+        if backbone_weights is not None:
+            backbone_model_args["weights"] = str(backbone_weights)
+
+        package = package_helpers.get_package(package_name)
+
+        backbone = package.get_model(
+            model_name=short_backbone,
+            model_args=backbone_model_args,
+            load_weights=load_weights,
+        )
+        assert isinstance(backbone, ECViTModelWrapper)
+        self.backbone: ECViTBackboneWrapper = ECViTBackboneWrapper(
+            model_wrapper=backbone
         )
 
-    def build_postprocessor(
-        self, config: _DINOv3LTDETRConfig
-    ) -> EdgeCrafterInstanceSegmentationPostProcessor:
-        postprocessor_config = config.rtdetr_postprocessor.model_dump()
-        postprocessor_config.update({"num_classes": len(self.classes)})
-        return EdgeCrafterInstanceSegmentationPostProcessor(**postprocessor_config)
+        self.encoder: HybridEncoder = HybridEncoder(
+            **config.hybrid_encoder.model_dump()
+        )
+
+        transformer_cfg = config.transformer.model_dump(exclude={"decoder_name"})
+        transformer_cfg["num_classes"] = len(self.classes)
+        self.decoder: EdgeCrafterInstanceSegmentationTransformer = (
+            EdgeCrafterInstanceSegmentationTransformer(  # type: ignore[no-untyped-call]
+                **transformer_cfg,
+                eval_spatial_size=self.image_size,
+            )
+        )
+
+        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
+        postprocessor_cfg["num_classes"] = len(self.classes)
+        self.postprocessor: EdgeCrafterInstanceSegmentationPostProcessor = (
+            EdgeCrafterInstanceSegmentationPostProcessor(**postprocessor_cfg)
+        )
+
+        if self.backbone_freeze:
+            self.freeze_backbone()
+    
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        return model in LTDETR_MODEL_REGISTRY.list_aliases()
+
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        return list(LTDETR_MODEL_REGISTRY.list_aliases())
 
     def get_export_output_names(self) -> list[str]:
         return ["labels", "boxes", "masks", "scores"]
