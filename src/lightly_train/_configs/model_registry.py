@@ -20,7 +20,6 @@ class DownloadableCheckpoint:
     name: str
     url: str
     sha256: str
-    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -89,11 +88,10 @@ class ModelRegistry(Generic[ConfigT]):
     def _register_downloadable_checkpoint(
         self, checkpoint: DownloadableCheckpoint
     ) -> None:
-        for name in (checkpoint.name, *checkpoint.aliases):
-            existing_checkpoint = self._downloadable_checkpoints.get(name)
-            if existing_checkpoint is not None:
-                raise ValueError(
-                    f"Conflict detected! The downloadable checkpoint '{name}' is "
-                    f"already registered to '{existing_checkpoint.name}'."
-                )
-            self._downloadable_checkpoints[name] = checkpoint
+        existing_checkpoint = self._downloadable_checkpoints.get(checkpoint.name)
+        if existing_checkpoint is not None:
+            raise ValueError(
+                f"Conflict detected! The downloadable checkpoint '{checkpoint.name}' "
+                f"is already registered to '{existing_checkpoint.name}'."
+            )
+        self._downloadable_checkpoints[checkpoint.name] = checkpoint

@@ -75,7 +75,10 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
     legacy_checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
         name="edgecrafter/ecvitt-ltdetr-coco"
     )
-    assert checkpoint is legacy_checkpoint
+    # The modern and legacy names are registered as separate aliases, each with
+    # its own DownloadableCheckpoint, but they point at the same weights.
+    assert checkpoint.url == legacy_checkpoint.url
+    assert checkpoint.sha256 == legacy_checkpoint.sha256
     assert checkpoint.url == "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt"
     assert (
         checkpoint.sha256
