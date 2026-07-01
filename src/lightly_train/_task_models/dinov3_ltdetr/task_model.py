@@ -553,29 +553,23 @@ class _DINOv3LTDETRViTLConfig(_DINOv3LTDETRConfig):
     )
 
 
-def _ltdetr_registry_alias_names() -> list[str]:
-    from lightly_train._task_models.ltdetr_object_detection.config import (
-        LTDETR_MODEL_REGISTRY,
-    )
+# Short aliases for EdgeCrafter (ECViT) LT-DETR object-detection models.
+# ``ltdetrv2-{s,m,l,x}`` -> ``edgecrafter/<ecvit preset>-ltdetr``.
+# These are resolved by ``_resolve_ltdetr_alias`` at the entry of
+# ``_DINOv3LTDETRBase.parse_model_name`` so users can pass the short form
+# directly to ``train_object_detection(model=...)`` and ``load_model(...)``.
+# Order follows increasing backbone capacity (embed_dim / ffn).
+_LTDETR_V2_ALIASES: dict[str, str] = {
+    "ltdetrv2-s": "edgecrafter/ecvitt-ltdetr",
+    "ltdetrv2-m": "edgecrafter/ecvittplus-ltdetr",
+    "ltdetrv2-l": "edgecrafter/ecvits-ltdetr",
+    "ltdetrv2-x": "edgecrafter/ecvitsplus-ltdetr",
+}
 
-    return [
-        alias
-        for alias in LTDETR_MODEL_REGISTRY.list_aliases()
-        if alias.startswith("ltdetrv2-")
-    ]
 
-
-def _resolve_ltdetr_alias_for_parser(model_name: str, model_suffix: str) -> str:
-    from lightly_train._task_models.ltdetr_object_detection.config import (
-        LTDETR_MODEL_REGISTRY,
-    )
-
-    try:
-        LTDETR_MODEL_REGISTRY.get_alias_metadata(alias=model_name)
-    except KeyError:
-        return model_name
-    config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-    return f"{config.backbone_name}-{model_suffix}"
+def _resolve_ltdetr_alias(model_name: str) -> str:
+    """Return the canonical LT-DETR model name for a short alias, or the input unchanged."""
+    return _LTDETR_V2_ALIASES.get(model_name, model_name)
 
 
 class _DINOv3LTDETRBase(TaskModel):
@@ -798,7 +792,7 @@ class _DINOv3LTDETRBase(TaskModel):
         names.extend(DINOV3_PACKAGE.list_model_names())
         names.extend(EDGE_CRAFTER_PACKAGE.list_model_names())
         names = [f"{name}-{cls.model_suffix}" for name in names]
-        names.extend(_ltdetr_registry_alias_names())
+        names.extend(_LTDETR_V2_ALIASES.keys())
         return names
 
     @classmethod
@@ -812,9 +806,11 @@ class _DINOv3LTDETRBase(TaskModel):
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        model_name = _resolve_ltdetr_alias_for_parser(
-            model_name=model_name, model_suffix=cls.model_suffix
-        )
+        # Resolve short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) to their
+        # canonical ``edgecrafter/<preset>-ltdetr`` form before format
+        # validation. Done first so the error message below reports the
+        # resolved canonical name when applicable.
+        model_name = _resolve_ltdetr_alias(model_name)
 
         def raise_invalid_name() -> NoReturn:
             raise ValueError(

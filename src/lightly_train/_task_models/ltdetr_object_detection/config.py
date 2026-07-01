@@ -29,9 +29,7 @@ LTDETR_MODEL_REGISTRY: ModelRegistry[DetectorConfig] = ModelRegistry()
 # aliases. Defined once so the two DownloadableCheckpoint entries (one per alias)
 # cannot drift apart.
 _ECVITT_COCO_URL = "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt"
-_ECVITT_COCO_SHA256 = (
-    "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
-)
+_ECVITT_COCO_SHA256 = "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
 
 
 class HybridEncoderConfig(PydanticConfig):
