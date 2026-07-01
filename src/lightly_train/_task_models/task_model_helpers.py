@@ -201,9 +201,7 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "d59577016e01635c285fac76f44685d7a0878545e0b8d560da45c0cf4d058548",
     ),
 }
-DOWNLOADABLE_MODEL_URL_AND_HASH.update(
-    _get_ltdetr_downloadable_model_url_and_hashes()
-)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(_get_ltdetr_downloadable_model_url_and_hashes())
 
 
 def load_model(
