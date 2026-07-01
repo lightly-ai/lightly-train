@@ -73,9 +73,7 @@ def _resolve_image_size_for_patch_size(
     )
 
 
-class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
-    RandomPhotometricDistortArgs
-):
+class LTDETRObjectDetectionRandomPhotometricDistortArgs(RandomPhotometricDistortArgs):
     prob: float = 0.5
 
     brightness: tuple[float, float] = (0.875, 1.125)
@@ -92,7 +90,7 @@ class DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs(
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
+class LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     prob: float = 0.5
 
     fill: float = 0.0
@@ -107,7 +105,7 @@ class DINOv3LTDETRObjectDetectionRandomZoomOutArgs(RandomZoomOutArgs):
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
+class LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     prob: float = 0.8
 
     min_scale: float = 0.3
@@ -127,12 +125,12 @@ class DINOv3LTDETRObjectDetectionRandomIoUCropArgs(RandomIoUCropArgs):
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
+class LTDETRObjectDetectionRandomFlipArgs(RandomFlipArgs):
     horizontal_prob: float = 0.5
     vertical_prob: float = 0.0
 
 
-class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
+class LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     sizes: Sequence[tuple[int, int]] | None = [
         (480, 480),
         (512, 512),
@@ -177,7 +175,7 @@ class DINOv3LTDETRObjectDetectionScaleJitterArgs(ScaleJitterArgs):
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionMixUpArgs(MixUpArgs):
+class LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     prob: float = 0.5
 
     # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
@@ -189,7 +187,7 @@ class DINOv3LTDETRObjectDetectionMixUpArgs(MixUpArgs):
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
+class LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
     prob: float = 0.5
 
     area_threshold: int = 100
@@ -205,7 +203,7 @@ class DINOv3LTDETRObjectDetectionCopyBlendArgs(CopyBlendArgs):
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionMosaicArgs(MosaicArgs):
+class LTDETRObjectDetectionMosaicArgs(MosaicArgs):
     prob: float = 0.5
 
     output_size: int = 320
@@ -226,43 +224,41 @@ class DINOv3LTDETRObjectDetectionMosaicArgs(MosaicArgs):
     step_stop: int | Literal["auto"] | None = "auto"
 
 
-class DINOv3LTDETRObjectDetectionResizeArgs(ResizeArgs):
+class LTDETRObjectDetectionResizeArgs(ResizeArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
 
 
-class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
+class LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    photometric_distort: (
-        DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs | None
-    ) = Field(default_factory=DINOv3LTDETRObjectDetectionRandomPhotometricDistortArgs)
-    random_zoom_out: DINOv3LTDETRObjectDetectionRandomZoomOutArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionRandomZoomOutArgs
+    photometric_distort: LTDETRObjectDetectionRandomPhotometricDistortArgs | None = (
+        Field(default_factory=LTDETRObjectDetectionRandomPhotometricDistortArgs)
     )
-    random_iou_crop: DINOv3LTDETRObjectDetectionRandomIoUCropArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionRandomIoUCropArgs
+    random_zoom_out: LTDETRObjectDetectionRandomZoomOutArgs | None = Field(
+        default_factory=LTDETRObjectDetectionRandomZoomOutArgs
     )
-    random_flip: DINOv3LTDETRObjectDetectionRandomFlipArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionRandomFlipArgs
+    random_iou_crop: LTDETRObjectDetectionRandomIoUCropArgs | None = Field(
+        default_factory=LTDETRObjectDetectionRandomIoUCropArgs
+    )
+    random_flip: LTDETRObjectDetectionRandomFlipArgs | None = Field(
+        default_factory=LTDETRObjectDetectionRandomFlipArgs
     )
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
-    resize: ResizeArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionResizeArgs
+    resize: ResizeArgs | None = Field(default_factory=LTDETRObjectDetectionResizeArgs)
+    scale_jitter: LTDETRObjectDetectionScaleJitterArgs | None = Field(
+        default_factory=LTDETRObjectDetectionScaleJitterArgs
     )
-    scale_jitter: DINOv3LTDETRObjectDetectionScaleJitterArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionScaleJitterArgs
+    mosaic: LTDETRObjectDetectionMosaicArgs | None = Field(
+        default_factory=LTDETRObjectDetectionMosaicArgs
     )
-    mosaic: DINOv3LTDETRObjectDetectionMosaicArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionMosaicArgs
+    mixup: LTDETRObjectDetectionMixUpArgs | None = Field(
+        default_factory=LTDETRObjectDetectionMixUpArgs
     )
-    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionMixUpArgs
-    )
-    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionCopyBlendArgs
+    copyblend: LTDETRObjectDetectionCopyBlendArgs | None = Field(
+        default_factory=LTDETRObjectDetectionCopyBlendArgs
     )
     # We use the YOLO format internally for now.
     bbox_params: BboxParams = Field(
@@ -354,7 +350,7 @@ class DINOv3LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         )
 
 
-class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
+class LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: None = None
@@ -364,13 +360,11 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
-    resize: ResizeArgs | None = Field(
-        default_factory=DINOv3LTDETRObjectDetectionResizeArgs
-    )
+    resize: ResizeArgs | None = Field(default_factory=LTDETRObjectDetectionResizeArgs)
     scale_jitter: ScaleJitterArgs | None = None
-    mosaic: DINOv3LTDETRObjectDetectionMosaicArgs | None = None
-    mixup: DINOv3LTDETRObjectDetectionMixUpArgs | None = None
-    copyblend: DINOv3LTDETRObjectDetectionCopyBlendArgs | None = None
+    mosaic: LTDETRObjectDetectionMosaicArgs | None = None
+    mixup: LTDETRObjectDetectionMixUpArgs | None = None
+    copyblend: LTDETRObjectDetectionCopyBlendArgs | None = None
     bbox_params: BboxParams = Field(
         default_factory=lambda: BboxParams(
             format="yolo",
@@ -427,9 +421,9 @@ class DINOv3LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
                     self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
-    transform_args_cls = DINOv3LTDETRObjectDetectionTrainTransformArgs
+class LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
+    transform_args_cls = LTDETRObjectDetectionTrainTransformArgs
 
 
-class DINOv3LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
-    transform_args_cls = DINOv3LTDETRObjectDetectionValTransformArgs
+class LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
+    transform_args_cls = LTDETRObjectDetectionValTransformArgs
