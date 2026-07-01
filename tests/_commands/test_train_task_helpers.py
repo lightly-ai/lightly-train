@@ -135,9 +135,7 @@ def test_get_train_model_args_and_transform_args__propagate_dinov2_patch_size_to
 
 def test_get_train_model_cls__dinov2_ltdetr_routes_to_generic_pipeline() -> None:
     assert (
-        get_train_model_cls(
-            model_name="dinov2/vits14-ltdetr", task="object_detection"
-        )
+        get_train_model_cls(model_name="dinov2/vits14-ltdetr", task="object_detection")
         is LTDETRObjectDetectionTrain
     )
 

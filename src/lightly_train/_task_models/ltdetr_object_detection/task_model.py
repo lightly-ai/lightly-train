@@ -33,7 +33,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
-    DinoVisionTransformer as DINOv3VisionTransformer
+    DinoVisionTransformer as DINOv3VisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
@@ -238,7 +238,12 @@ class LTDETRObjectDetection(_DINOv3LTDETRBase):
         )
         assert isinstance(
             backbone,
-            (ConvNeXt, DINOv3VisionTransformer, DINOv2VisionTransformer, ECViTModelWrapper),
+            (
+                ConvNeXt,
+                DINOv3VisionTransformer,
+                DINOv2VisionTransformer,
+                ECViTModelWrapper,
+            ),
         )
 
         self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
