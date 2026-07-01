@@ -143,8 +143,11 @@ class SkyDistillLoss(Module):
         Returns:
             Scalar BCE loss.
         """
-        pred = pred_sky.clamp(self.eps, 1.0 - self.eps)
-        target = target_sky.clamp(0.0, 1.0)
+        # binary_cross_entropy is unsafe to autocast under CUDA bf16/fp16 mixed
+        # precision, so it is computed in fp32 regardless of the surrounding autocast
+        # context.
+        pred = pred_sky.float().clamp(self.eps, 1.0 - self.eps)
+        target = target_sky.float().clamp(0.0, 1.0)
         return F.binary_cross_entropy(pred, target)
 
 
