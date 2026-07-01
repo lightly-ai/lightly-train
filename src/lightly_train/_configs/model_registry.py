@@ -72,14 +72,3 @@ class ModelRegistry(Generic[ConfigT]):
         if alias not in self._alias_metadata:
             raise KeyError(f"No metadata registered under the alias '{alias}'.")
         return self._alias_metadata[alias]
-
-    def get_downloadable_checkpoint(self, name: str) -> DownloadableCheckpoint:
-        alias_metadata = self._alias_metadata.get(name)
-        if (
-            alias_metadata is None
-            or alias_metadata.downloadable_checkpoint is None
-        ):
-            raise KeyError(
-                f"No downloadable checkpoint registered under the name '{name}'."
-            )
-        return alias_metadata.downloadable_checkpoint

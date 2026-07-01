@@ -312,11 +312,14 @@ def _get_downloadable_model_url_and_hash(name: str) -> tuple[str, str] | None:
             LTDETR_MODEL_REGISTRY,
         )
 
-        checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(name=name)
+        checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
+            alias=name
+        ).downloadable_checkpoint
     except KeyError:
         pass
     else:
-        return checkpoint.url, checkpoint.sha256
+        if checkpoint is not None:
+            return checkpoint.url, checkpoint.sha256
 
     return DOWNLOADABLE_MODEL_URL_AND_HASH.get(name)
 

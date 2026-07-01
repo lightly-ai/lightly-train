@@ -69,12 +69,14 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
     assert "ltdetrv2-s-coco" not in d
     assert "edgecrafter/ecvitt-ltdetr-coco" not in d
 
-    checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
-        name="ltdetrv2-s-coco"
-    )
-    legacy_checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
-        name="edgecrafter/ecvitt-ltdetr-coco"
-    )
+    checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
+        alias="ltdetrv2-s-coco"
+    ).downloadable_checkpoint
+    legacy_checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
+        alias="edgecrafter/ecvitt-ltdetr-coco"
+    ).downloadable_checkpoint
+    assert checkpoint is not None
+    assert legacy_checkpoint is not None
     # The modern and legacy names are registered as separate aliases, each with
     # its own DownloadableCheckpoint, but they point at the same weights.
     assert checkpoint.url == legacy_checkpoint.url
@@ -90,9 +92,10 @@ def test_download_checkpoint__ltdetrv2_s_coco_uses_registry(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
-    checkpoint = LTDETR_MODEL_REGISTRY.get_downloadable_checkpoint(
-        name="ltdetrv2-s-coco"
-    )
+    checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
+        alias="ltdetrv2-s-coco"
+    ).downloadable_checkpoint
+    assert checkpoint is not None
     downloaded_urls: list[str] = []
 
     def fake_download_url_to_file(url: str, dst: str) -> None:
