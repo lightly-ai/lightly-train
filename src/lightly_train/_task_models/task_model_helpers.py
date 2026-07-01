@@ -302,6 +302,10 @@ def download_checkpoint(checkpoint: PathLike) -> Path:
     return local_ckpt_path
 
 
+def is_downloadable_checkpoint(name: str) -> bool:
+    return _get_downloadable_model_url_and_hash(name=name) is not None
+
+
 def _get_downloadable_model_url_and_hash(name: str) -> tuple[str, str] | None:
     try:
         from lightly_train._task_models.ltdetr_object_detection.config import (

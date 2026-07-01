@@ -17,7 +17,6 @@ ConfigT = TypeVar("ConfigT", bound=PydanticConfig)
 
 @dataclass(frozen=True)
 class DownloadableCheckpoint:
-    name: str
     url: str
     sha256: str
 
@@ -52,7 +51,7 @@ class ModelRegistry(Generic[ConfigT]):
                     self._alias_metadata[alias_name] = alias
                     checkpoint = alias.downloadable_checkpoint
                     if checkpoint is not None:
-                        self._register_downloadable_checkpoint(checkpoint=checkpoint)
+                        self._downloadable_checkpoints[alias_name] = checkpoint
             return cls
 
         return decorator
@@ -84,14 +83,3 @@ class ModelRegistry(Generic[ConfigT]):
                 f"No downloadable checkpoint registered under the name '{name}'."
             )
         return self._downloadable_checkpoints[name]
-
-    def _register_downloadable_checkpoint(
-        self, checkpoint: DownloadableCheckpoint
-    ) -> None:
-        existing_checkpoint = self._downloadable_checkpoints.get(checkpoint.name)
-        if existing_checkpoint is not None:
-            raise ValueError(
-                f"Conflict detected! The downloadable checkpoint '{checkpoint.name}' "
-                f"is already registered to '{existing_checkpoint.name}'."
-            )
-        self._downloadable_checkpoints[checkpoint.name] = checkpoint

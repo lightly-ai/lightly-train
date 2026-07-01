@@ -25,9 +25,8 @@ logger = logging.getLogger(__name__)
 
 LTDETR_MODEL_REGISTRY: ModelRegistry[DetectorConfig] = ModelRegistry()
 
-# COCO-pretrained weights shared by the ltdetrv2-s / edgecrafter-ecvitt-ltdetr
-# aliases. Defined once so the two DownloadableCheckpoint entries (one per alias)
-# cannot drift apart.
+# COCO-pretrained weights shared by the ltdetrv2-s-coco /
+# edgecrafter-ecvitt-ltdetr-coco aliases.
 _ECVITT_COCO_URL = "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt"
 _ECVITT_COCO_SHA256 = "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
 
@@ -792,18 +791,18 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register(
+        "edgecrafter/ecvitt-ltdetr",
         ModelAlias(
-            name="edgecrafter/ecvitt-ltdetr",
+            name="edgecrafter/ecvitt-ltdetr-coco",
             downloadable_checkpoint=DownloadableCheckpoint(
-                name="edgecrafter/ecvitt-ltdetr-coco",
                 url=_ECVITT_COCO_URL,
                 sha256=_ECVITT_COCO_SHA256,
             ),
         ),
+        "ltdetrv2-s",
         ModelAlias(
-            name="ltdetrv2-s",
+            name="ltdetrv2-s-coco",
             downloadable_checkpoint=DownloadableCheckpoint(
-                name="ltdetrv2-s-coco",
                 url=_ECVITT_COCO_URL,
                 sha256=_ECVITT_COCO_SHA256,
             ),

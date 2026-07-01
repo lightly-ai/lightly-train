@@ -1329,15 +1329,23 @@ def load_checkpoint(
     model_path: Path | None
     model_name = model
     model_name_from_checkpoint = False
-    try:
-        get_train_model_cls(model_name=model, task=task)
-    except ValueError:
+
+    def _download_model_checkpoint(model: str) -> Path:
         # Download checkpoint only from rank zero. Other ranks will load from cache.
         with fabric.rank_zero_first():
-            model_path = task_model_helpers.download_checkpoint(checkpoint=model)
+            return task_model_helpers.download_checkpoint(checkpoint=model)
+
+    if task_model_helpers.is_downloadable_checkpoint(name=model):
+        model_path = _download_model_checkpoint(model=model)
         model_name_from_checkpoint = True
     else:
-        model_path = None
+        try:
+            get_train_model_cls(model_name=model, task=task)
+        except ValueError:
+            model_path = _download_model_checkpoint(model=model)
+            model_name_from_checkpoint = True
+        else:
+            model_path = None
 
     ckpt_path: Path
     if resume_interrupted:
