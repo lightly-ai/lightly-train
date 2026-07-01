@@ -13,24 +13,23 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import numpy as np
+from albumentations.pytorch import ToTensorV2
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from lightly_train._configs.validate import pydantic_model_validate
 from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._env import Env
-from lightly_train._task_models.task_model import TaskModel
-from lightly_train._transforms.predict_semantic_segmentation_transform import (
-    PredictSemanticSegmentationTransform,
+from lightly_train.types import (
+    DatasetItem,
+    NDArrayMask,
+    PathLike,
+    TransformInput,
+    TransformOutput,
 )
-from lightly_train._transforms.predict_transform import (
-    PredictTransform,
-)
-from lightly_train.types import DatasetItem, NDArrayMask, PathLike
 
 logger = logging.getLogger(__name__)
 
@@ -85,37 +84,21 @@ def get_out_dir(
     return out_dir
 
 
-def get_transform_cls(model_cls_name: str) -> type[PredictTransform]:
-    if "semanticsegmentation" in model_cls_name.lower():
-        return PredictSemanticSegmentationTransform
-    # TODO(Yutong, 10/25): add more task model classes here once implemented
-    raise ValueError(f"Unsupported model class '{model_cls_name}'.")
+_to_tensor = ToTensorV2()
 
 
-def get_transform(
-    model: TaskModel,
-) -> PredictTransform:
-    model_cls_name = model.class_path.split(".")[-1]
-    transform_cls = get_transform_cls(model_cls_name)
+def _predict_transform(input: TransformInput) -> TransformOutput:
+    """Minimal dataset transform: convert numpy image to tensor.
 
-    if "semanticsegmentation" in model_cls_name.lower():
-        # Validate that the model config has the required fields for the transform
-        transform_args_dict = {
-            "image_size": model.image_size,
-            "normalize": model.image_normalize,
-        }
-
-    transform_args = pydantic_model_validate(
-        model=transform_cls.transform_args_cls,
-        obj=transform_args_dict,
-    )
-
-    return transform_cls(transform_args=transform_args)
+    All task-specific preprocessing (resize, normalize, etc.) is handled inside
+    the model's predict() / preprocess_image() methods.
+    """
+    image = _to_tensor(image=input["image"])["image"]
+    return [{"image": image}]
 
 
 def get_dataset(
     data: PathLike | Sequence[PathLike] | ImageDataset,
-    transform: PredictTransform,
     num_channels: int,
 ) -> ImageDataset:
     # TODO(Yutong, 10/25): implement mmap file handling
@@ -138,7 +121,7 @@ def get_dataset(
             image_filenames=list(
                 filenames
             ),  # TODO(Yutong, 10/25): implement mmap file handling
-            transform=transform,
+            transform=_predict_transform,
             num_channels=num_channels,
         )
 
@@ -149,7 +132,7 @@ def get_dataset(
             image_filenames=list(
                 filenames
             ),  # TODO(Yutong, 10/25): implement mmap file handling
-            transform=transform,
+            transform=_predict_transform,
             num_channels=num_channels,
         )
     else:
