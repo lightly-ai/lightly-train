@@ -131,6 +131,8 @@ def _get_image_filenames(
         _supported_image_extensions() if image_extensions is None else image_extensions
     )
     for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
+        filenames.sort()
+
         # Make paths relative to image_dir. `dirpath` is absolute.
         parent = os.path.relpath(dirpath, start=image_dir)
         parent = "" if parent == "." else parent
