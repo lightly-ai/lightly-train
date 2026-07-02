@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -20,10 +20,10 @@ from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _DINOv3LTDETRBase,
 )
 from lightly_train._task_models.instance_segmentation_components.edgecrafter_decoder import (
-    EdgeCrafterInstanceSegmentationTransformer,
+    ECSegTransformer,
 )
 from lightly_train._task_models.instance_segmentation_components.edgecrafter_postprocessor import (
-    EdgeCrafterInstanceSegmentationPostProcessor,
+    ECSegPostProcessor,
 )
 from lightly_train._task_models.ltdetr_instance_segmentation.config import (
     LTDETR_MODEL_REGISTRY,
@@ -50,7 +50,6 @@ class LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: Literal["dfine"] = "dfine",
         load_weights: bool = True,
     ) -> None:
         """Create an LTDETR instance segmentation task model.
@@ -77,8 +76,6 @@ class LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
             backbone_args:
                 Additional arguments merged into the backbone model args (override
                 config defaults).
-            decoder_name:
-                Override the decoder from the model config.
             load_weights:
                 If False, then no pretrained weights are loaded.
         """
@@ -150,24 +147,20 @@ class LTDETRInstanceSegmentation(_DINOv3LTDETRBase):
             **config.hybrid_encoder.model_dump()
         )
 
-        transformer_cfg = config.transformer.model_dump(exclude={"decoder_name"})
+        transformer_cfg = config.transformer.model_dump()
         transformer_cfg["num_classes"] = len(self.classes)
-        self.decoder: EdgeCrafterInstanceSegmentationTransformer = (
-            EdgeCrafterInstanceSegmentationTransformer(  # type: ignore[no-untyped-call]
-                **transformer_cfg,
-                eval_spatial_size=self.image_size,
-            )
+        self.decoder: ECSegTransformer = ECSegTransformer(  # type: ignore[no-untyped-call]
+            **transformer_cfg,
+            eval_spatial_size=self.image_size,
         )
 
-        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
+        postprocessor_cfg = config.ecseg_postprocessor.model_dump()
         postprocessor_cfg["num_classes"] = len(self.classes)
-        self.postprocessor: EdgeCrafterInstanceSegmentationPostProcessor = (
-            EdgeCrafterInstanceSegmentationPostProcessor(**postprocessor_cfg)
-        )
+        self.postprocessor: ECSegPostProcessor = ECSegPostProcessor(**postprocessor_cfg)
 
         if self.backbone_freeze:
             self.freeze_backbone()
-    
+
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
         return model in LTDETR_MODEL_REGISTRY.list_aliases()
