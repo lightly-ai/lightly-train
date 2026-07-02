@@ -149,7 +149,6 @@ class SkyDistillLoss(Module):
             return F.binary_cross_entropy(pred, target)
 
 
-
 def _gradient_term(diff: Tensor, mask: Tensor) -> Tensor:
     """Returns the mean absolute horizontal and vertical gradient of ``diff``.
 
