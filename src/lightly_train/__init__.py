@@ -41,6 +41,7 @@ from lightly_train._commands.export_task import export_onnx
 from lightly_train._commands.predict_task import predict_semantic_segmentation
 from lightly_train._commands.train import pretrain, train
 from lightly_train._commands.train_task import (
+    train_depth_estimation,
     train_image_classification,
     train_image_classification_multihead,
     train_instance_segmentation,
@@ -74,6 +75,7 @@ __all__ = [
     "ModelPart",
     "predict_semantic_segmentation",
     "pretrain",
+    "train_depth_estimation",
     "train_image_classification",
     "train_image_classification_multihead",
     "train_instance_segmentation",
