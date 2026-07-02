@@ -157,7 +157,9 @@ class LTDETRBaseConfig(ConfigsNamespace):
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
-    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvitt-ltdetr-seg", "ltdetrv2-seg-s")
+    @LTDETR_SEG_MODEL_REGISTRY.register(
+        "edgecrafter/ecvitt-ltdetr-seg", "ltdetrv2-seg-s"
+    )
     class EdgeCrafterECViTTiny(LTDETRBaseConfig.ViTTiny):
         backbone_name: str = "edgecrafter/ecvitt"
         transformer: ECSegTransformerConfig = Field(
@@ -170,7 +172,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register(
+    @LTDETR_SEG_MODEL_REGISTRY.register(
         "edgecrafter/ecvittplus-ltdetr-seg", "ltdetrv2-seg-m"
     )
     class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
@@ -185,7 +187,9 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register("edgecrafter/ecvits-ltdetr-seg", "ltdetrv2-seg-l")
+    @LTDETR_SEG_MODEL_REGISTRY.register(
+        "edgecrafter/ecvits-ltdetr-seg", "ltdetrv2-seg-l"
+    )
     class EdgeCrafterECViTSmall(LTDETRBaseConfig.ViTTinyPlus):
         backbone_name: str = "edgecrafter/ecvits"
         transformer: ECSegTransformerConfig = Field(
@@ -198,7 +202,7 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register(
+    @LTDETR_SEG_MODEL_REGISTRY.register(
         "edgecrafter/ecvitsplus-ltdetr-seg", "ltdetrv2-seg-x"
     )
     class EdgeCrafterECViTSmallPlus(LTDETRBaseConfig.ViTTinyPlus):

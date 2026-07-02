@@ -28,7 +28,7 @@ from lightly_train._task_models.instance_segmentation_components.edgecrafter_pos
     ECSegPostProcessor,
 )
 from lightly_train._task_models.ltdetr_instance_segmentation.config import (
-    LTDETR_MODEL_REGISTRY,
+    LTDETR_SEG_MODEL_REGISTRY,
     SegmentorConfig,
 )
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
@@ -87,7 +87,7 @@ class LTDETRInstanceSegmentation(TaskModel):
         # Store init_args for checkpointing.
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
 
-        config: SegmentorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        config: SegmentorConfig = LTDETR_SEG_MODEL_REGISTRY.get(alias=model_name)()
 
         package_name, short_backbone = package_helpers.parse_model_name(
             config.backbone_name
@@ -167,17 +167,17 @@ class LTDETRInstanceSegmentation(TaskModel):
     @override
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        return model in LTDETR_MODEL_REGISTRY.list_aliases()
+        return model in LTDETR_SEG_MODEL_REGISTRY.list_aliases()
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return list(LTDETR_MODEL_REGISTRY.list_aliases())
+        return list(LTDETR_SEG_MODEL_REGISTRY.list_aliases())
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
         """Resolve a registered model alias into its package/backbone parts."""
         try:
-            config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+            config = LTDETR_SEG_MODEL_REGISTRY.get(alias=model_name)()
         except KeyError:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
