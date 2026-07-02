@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Generic, Type, TypeVar
+from typing import Callable, Generic, Type, TypeVar, Union
 
 from lightly_train._configs.config import PydanticConfig
 
@@ -27,7 +27,7 @@ class ModelAlias:
     downloadable_checkpoint: DownloadableCheckpoint
 
 
-AliasT = str | ModelAlias
+AliasT = Union[str, ModelAlias]
 
 
 class ModelRegistry(Generic[ConfigT]):

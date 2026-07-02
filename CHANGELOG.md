@@ -9,7 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
+  `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
+
 ### Changed
+
+- Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
+  single config-driven `DepthAnythingDepthEstimation` model.
 
 ### Deprecated
 
