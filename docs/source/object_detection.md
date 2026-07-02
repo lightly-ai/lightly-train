@@ -649,6 +649,17 @@ The following are the default image transform arguments. See
 ````
 `````
 
+`````{dropdown} DINOv2 LTDETR Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/dinov2ltdetrobjectdetectiontrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/dinov2ltdetrobjectdetectiontrain_val_transform_args.md
+```
+````
+`````
+
 `````{dropdown} PicoDet Default Transform Arguments
 ````{dropdown} Train
 ```{include} _auto/picodetobjectdetectiontrain_train_transform_args.md
