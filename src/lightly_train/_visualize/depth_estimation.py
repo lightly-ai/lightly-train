@@ -59,7 +59,7 @@ def plot_depth_labels(
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
 ) -> PILImage:
-    """Render a grid pairing each input image with its ground truth depth map.
+    """Render a grid pairing each input image with depth and sky targets.
 
     Args:
         batch: Depth estimation batch with images and depth maps.
@@ -69,7 +69,8 @@ def plot_depth_labels(
             unchanged.
 
     Returns:
-        A single PIL image with up to max_images image/depth pairs arranged in a grid.
+        A single PIL image with up to max_images RGB/depth/sky triplets arranged in a
+        grid.
     """
     images = _as_tensor(batch["image"])
     depth = _as_tensor(batch["depth"])
@@ -82,7 +83,8 @@ def plot_depth_labels(
     for i in range(n):
         rgb = _image_to_pil(image=images[i], image_normalize=image_normalize)
         depth_img = _depth_to_pil(depth=depth[i], sky=sky[i] >= 0.5)
-        pil_images.append(_concat_horizontal(left=rgb, right=depth_img))
+        sky_img = _sky_to_pil(sky=sky[i])
+        pil_images.append(_concat_horizontal([rgb, depth_img, sky_img]))
 
     return utils._render_grid(pil_images)
 
@@ -93,7 +95,7 @@ def plot_depth_predictions(
     max_images: int,
     image_normalize: dict[str, tuple[float, ...]] | None,
 ) -> PILImage:
-    """Render a grid pairing each input image with the predicted depth map.
+    """Render a grid pairing each input image with predicted depth and sky target.
 
     Args:
         batch: Depth estimation batch with images.
@@ -104,17 +106,20 @@ def plot_depth_predictions(
             unchanged.
 
     Returns:
-        A single PIL image with up to max_images image/prediction pairs in a grid.
+        A single PIL image with up to max_images RGB/predicted-depth/sky triplets in a
+        grid.
     """
     images = _as_tensor(batch["image"])
     pred = pred_depth.detach().to(device="cpu", dtype=torch.float32)
+    sky = _as_tensor(batch["sky"])
     n = min(max_images, images.shape[0])
 
     pil_images: list[PILImage] = []
     for i in range(n):
         rgb = _image_to_pil(image=images[i], image_normalize=image_normalize)
         depth_img = _depth_to_pil(depth=pred[i])
-        pil_images.append(_concat_horizontal(left=rgb, right=depth_img))
+        sky_img = _sky_to_pil(sky=sky[i])
+        pil_images.append(_concat_horizontal([rgb, depth_img, sky_img]))
 
     return utils._render_grid(pil_images)
 
@@ -182,11 +187,23 @@ def _apply_depth_visualization_curve(normalized: Tensor) -> Tensor:
     return torch.pow(normalized, _DEPTH_VISUALIZATION_GAMMA)
 
 
-def _concat_horizontal(left: PILImage, right: PILImage) -> PILImage:
-    """Pastes two equally sized images side by side into one."""
-    height = max(left.size[1], right.size[1])
-    width = left.size[0] + right.size[0]
+def _sky_to_pil(sky: Tensor) -> PILImage:
+    """Renders a (1, H, W) sky mask as a simple RGB panel."""
+    sky_mask = sky.squeeze(0) >= 0.5
+    colored = torch.zeros((*sky_mask.shape, 3), dtype=torch.uint8)
+    colored[sky_mask] = torch.tensor((135, 206, 235), dtype=torch.uint8)
+    return Image.fromarray(colored.numpy())
+
+
+def _concat_horizontal(images: list[PILImage]) -> PILImage:
+    """Pastes equally sized images side by side into one."""
+    if not images:
+        raise ValueError("images must not be empty.")
+    height = max(image.size[1] for image in images)
+    width = sum(image.size[0] for image in images)
     canvas = Image.new("RGB", (width, height))
-    canvas.paste(left, (0, 0))
-    canvas.paste(right, (left.size[0], 0))
+    x_offset = 0
+    for image in images:
+        canvas.paste(image, (x_offset, 0))
+        x_offset += image.size[0]
     return canvas

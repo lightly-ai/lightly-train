@@ -101,3 +101,38 @@ def test_apply_depth_visualization_curve__expands_close_range() -> None:
     assert torch.equal(curved[[0, -1]], normalized[[0, -1]])
     assert curved[1] > normalized[1]
     assert curved[2] > normalized[2]
+
+
+def test_plot_depth_labels__renders_rgb_depth_and_sky_triplet() -> None:
+    depth = torch.ones(1, 1, 32, 32)
+    sky = torch.zeros(1, 1, 32, 32)
+    sky[:, :, :16, :] = 1.0
+
+    panel = depth_estimation.plot_depth_labels(
+        batch=_make_batch(depth=depth, sky=sky),
+        max_images=1,
+        image_normalize=None,
+    )
+
+    assert panel.size == (96, 32)
+    assert panel.getpixel((80, 0)) == (135, 206, 235)
+    assert panel.getpixel((80, 31)) == (0, 0, 0)
+
+
+def test_plot_depth_predictions__renders_rgb_depth_and_sky_triplet() -> None:
+    sky = torch.zeros(1, 1, 32, 32)
+    sky[:, :, :16, :] = 1.0
+    batch = _make_batch(depth=torch.ones(1, 1, 32, 32), sky=sky)
+    pred_depth = torch.linspace(1.0, 16.0, 32, dtype=torch.float32).reshape(1, 1, 32, 1)
+    pred_depth = pred_depth.expand(1, 1, 32, 32)
+
+    panel = depth_estimation.plot_depth_predictions(
+        batch=batch,
+        pred_depth=pred_depth,
+        max_images=1,
+        image_normalize=None,
+    )
+
+    assert panel.size == (96, 32)
+    assert panel.getpixel((80, 0)) == (135, 206, 235)
+    assert panel.getpixel((80, 31)) == (0, 0, 0)
