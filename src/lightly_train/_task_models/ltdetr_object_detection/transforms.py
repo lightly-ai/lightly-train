@@ -429,11 +429,8 @@ class LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionValTransformArgs
 
 
-# TODO (Lionel, 06/26): Remove these once the DINOv2 LT-DETR models are completely
-# migrated to the generic LTDETR pipeline. These are verbatim copies of
-# dinov2_ltdetr_object_detection/transforms.py, kept separate from the generic
-# classes above because their defaults (in particular the scale-jitter `sizes` list,
-# tuned for patch-14 models) must not silently drift when the generic classes change.
+# TODO (Lionel, 06/26): Remove all the `v2` naming once the DINOv2 LT-DETR models are
+# completely migrated to the generic LTDETR pipeline.
 class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgsV2(
     RandomPhotometricDistortArgs
 ):

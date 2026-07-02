@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import re
-from typing import Any, ClassVar, Literal, override
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
@@ -23,6 +23,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LinearLR,
     LRScheduler,
 )
+from typing_extensions import override
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.task_data_args import TaskDataArgs
