@@ -23,6 +23,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LinearLR,
     LRScheduler,
 )
+from typing_extensions import override
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.task_data_args import TaskDataArgs
@@ -45,6 +46,8 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
+    DINOv2LTDETRObjectDetectionTrainTransformV2,
+    DINOv2LTDETRObjectDetectionValTransformV2,
     LTDETRObjectDetectionTrainTransform,
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransform,
@@ -97,19 +100,24 @@ _DFINE_EXTRA_LOSSES: list[str] = ["local"]
 _DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT_DICT]
 logger = logging.getLogger(__name__)
 
+_DINOV2_PREFIX = "dinov2/"
 
-class LTDETRObjectDetectionTrainArgs(TrainModelArgs):
-    default_batch_size: ClassVar[int] = 32
-    default_steps: ClassVar[int] = (
-        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
-    )
+
+class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
+    """Shared defaults for LTDETRObjectDetectionTrainArgs and
+    DINOv2LTDETRObjectDetectionTrainArgsV2.
+
+    Only holds fields whose defaults are identical across both subclasses.
+    Fields that differ (decoder_name, lr, backbone_lr_factor, scheduler_name,
+    lr_warmup_steps, patch_size) as well as default_batch_size/default_steps,
+    resolve_auto, and the effective_loss_weight_dict/effective_losses computed
+    fields are defined individually on each subclass.
+    """
 
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
-    patch_size: int | Literal["auto"] | None = "auto"
     backbone_freeze: bool = False
-    decoder_name: Literal["rtdetrv2", "dfine"] = "dfine"
 
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
@@ -135,28 +143,42 @@ class LTDETRObjectDetectionTrainArgs(TrainModelArgs):
     gradient_clip_val: float = 0.1
 
     # Optimizer configuration
-    lr: float = Field(
-        default=5e-4,
-        validation_alias=AliasChoices("lr", "optimizer_lr"),
-    )
     weight_decay: float = Field(
         default=1e-4,
         validation_alias=AliasChoices("weight_decay", "optimizer_weight_decay"),
     )
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
+    # Scheduler configuration
+    scheduler_start_factor: float = 0.01
+    scheduler_flat_steps: int | Literal["auto"] = "auto"
+    scheduler_no_aug_steps: int | Literal["auto"] = "auto"
+
+
+class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
+    default_batch_size: ClassVar[int] = 32
+    default_steps: ClassVar[int] = (
+        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
+    )
+
+    patch_size: int | Literal["auto"] | None = "auto"
+    decoder_name: Literal["rtdetrv2", "dfine"] = "dfine"
+
+    # Optimizer configuration
+    lr: float = Field(
+        default=5e-4,
+        validation_alias=AliasChoices("lr", "optimizer_lr"),
+    )
+
     # Per-parameter-group overrides
     backbone_lr_factor: float = 0.05
 
     # Scheduler configuration
     scheduler_name: Literal["linear", "flat-cosine"] = "flat-cosine"
-    scheduler_start_factor: float = 0.01
     lr_warmup_steps: int | Literal["auto"] = Field(
         default="auto",
         validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
     )
-    scheduler_flat_steps: int | Literal["auto"] = "auto"
-    scheduler_no_aug_steps: int | Literal["auto"] = "auto"
 
     def resolve_auto(
         self,
@@ -262,6 +284,74 @@ class LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         return list(self.losses)
 
 
+class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs):
+    default_batch_size: ClassVar[int] = 16
+    default_steps: ClassVar[int] = (
+        100_000 // 16 * 72
+    )  # TODO (Lionel, 10/25): Adjust default steps.
+
+    decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
+
+    # DINOv2 ViT backbones are always patch-14 (vits14/vitb14/vitl14/vitg14), matching
+    # LTDETR_MODEL_REGISTRY's dinov2 backbone_args.
+    patch_size: int = 14
+
+    # Optimizer configuration
+    lr: float = Field(
+        default=1e-4,
+        validation_alias=AliasChoices("lr", "optimizer_lr"),
+    )
+
+    # Per-parameter-group overrides
+    backbone_lr_factor: float = 1e-2
+
+    # Scheduler configuration
+    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
+    lr_warmup_steps: int = Field(
+        default=2000,
+        validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
+    )
+
+    def resolve_auto(
+        self,
+        total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
+    ) -> None:
+        if self.scheduler_flat_steps == "auto" or self.scheduler_no_aug_steps == "auto":
+            scheduler_step_schedule = resolve_ltdetr_step_schedule(
+                total_steps=total_steps,
+                train_num_batches=train_num_batches,
+                gradient_accumulation_steps=gradient_accumulation_steps,
+            )
+            if self.scheduler_flat_steps == "auto":
+                self.scheduler_flat_steps = scheduler_step_schedule.step_flat
+            if self.scheduler_no_aug_steps == "auto":
+                self.scheduler_no_aug_steps = (
+                    total_steps - scheduler_step_schedule.step_stop
+                )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_loss_weight_dict(self) -> dict[str, float]:
+        if self.decoder_name == "dfine":
+            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
+        return dict(self.loss_weight_dict)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_losses(self) -> list[str]:
+        if self.decoder_name == "dfine":
+            return [
+                *self.losses,
+                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
+            ]
+        return list(self.losses)
+
+
 class LTDETRObjectDetectionTrain(TrainModel):
     task = "object_detection"
     train_model_args_cls = LTDETRObjectDetectionTrainArgs
@@ -271,11 +361,44 @@ class LTDETRObjectDetectionTrain(TrainModel):
     val_transform_cls = LTDETRObjectDetectionValTransform
     torch_compile_args_cls = TorchCompileArgs
 
+    @override
+    @classmethod
+    def get_train_model_args_cls(
+        cls, model_name: str
+    ) -> type[LTDETRObjectDetectionTrainArgs | DINOv2LTDETRObjectDetectionTrainArgsV2]:
+        if model_name.startswith(_DINOV2_PREFIX):
+            return DINOv2LTDETRObjectDetectionTrainArgsV2
+        return LTDETRObjectDetectionTrainArgs
+
+    @override
+    @classmethod
+    def get_train_transform_cls(
+        cls, model_name: str
+    ) -> type[
+        LTDETRObjectDetectionTrainTransform
+        | DINOv2LTDETRObjectDetectionTrainTransformV2
+    ]:
+        if model_name.startswith(_DINOV2_PREFIX):
+            return DINOv2LTDETRObjectDetectionTrainTransformV2
+        return LTDETRObjectDetectionTrainTransform
+
+    @override
+    @classmethod
+    def get_val_transform_cls(
+        cls, model_name: str
+    ) -> type[
+        LTDETRObjectDetectionValTransform | DINOv2LTDETRObjectDetectionValTransformV2
+    ]:
+        if model_name.startswith(_DINOV2_PREFIX):
+            return DINOv2LTDETRObjectDetectionValTransformV2
+        return LTDETRObjectDetectionValTransform
+
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: LTDETRObjectDetectionTrainArgs,
+        model_args: LTDETRObjectDetectionTrainArgs
+        | DINOv2LTDETRObjectDetectionTrainArgsV2,
         data_args: YOLOObjectDetectionDataArgs,
         train_transform_args: LTDETRObjectDetectionTrainTransformArgs,
         val_transform_args: LTDETRObjectDetectionValTransformArgs,
@@ -288,11 +411,6 @@ class LTDETRObjectDetectionTrain(TrainModel):
         self.model_args = model_args
         self.data_args = data_args
 
-        backbone_args: dict[str, Any] | None = model_args.backbone_args
-
-        if not backbone_args:
-            backbone_args = None
-
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
         normalize_dict: dict[str, Any] | None
@@ -303,7 +421,10 @@ class LTDETRObjectDetectionTrain(TrainModel):
         else:
             normalize_dict = normalize.model_dump()
 
-        self.model = LTDETRObjectDetection(
+        backbone_args: dict[str, Any] | None = model_args.backbone_args
+        if not backbone_args:
+            backbone_args = None
+        self.model: LTDETRObjectDetection = LTDETRObjectDetection(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),
             classes=data_args.included_classes,
