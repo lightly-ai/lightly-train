@@ -132,7 +132,7 @@ def _get_image_filenames(
     )
     for dirpath, _, filenames in os.walk(image_dir, followlinks=True):
         filenames.sort()
-        
+
         # Make paths relative to image_dir. `dirpath` is absolute.
         parent = os.path.relpath(dirpath, start=image_dir)
         parent = "" if parent == "." else parent
