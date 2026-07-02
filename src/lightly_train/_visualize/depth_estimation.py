@@ -19,8 +19,10 @@ from torchvision.transforms import functional as torchvision_functional
 from lightly_train._visualize import utils
 from lightly_train.types import DepthEstimationBatch
 
-# Colormap used to render depth maps; near is bright, far is dark.
-_DEPTH_COLORMAP = "magma"
+# Colormap used to render depth maps during training. DAv3 predicts larger values for
+# farther pixels, so nearby pixels sit at the low end of the colormap. A multi-hue map
+# makes small near-depth changes easier to spot than the old dark-to-bright ``magma``.
+_DEPTH_COLORMAP = "Spectral_r"
 
 
 @dataclass
@@ -156,8 +158,6 @@ def _depth_to_pil(depth: Tensor, sky: Tensor | None = None) -> PILImage:
         finite = depth[valid]
         d_min = finite.min()
         d_max = finite.max()
-        # Replace sky pixels with the 99th percentile of the valid depth so they are
-        # colorized as the most distant scenery rather than collapsing to black.
         depth = torch.where(valid, depth, torch.quantile(finite, 0.99))
         normalized = (depth - d_min) / (d_max - d_min + 1e-6)
     else:

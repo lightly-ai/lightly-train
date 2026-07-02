@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import matplotlib
 import torch
 from PIL import ImageChops
 from torch import Tensor
@@ -14,9 +15,11 @@ from torch import Tensor
 from lightly_train._visualize import depth_estimation
 from lightly_train.types import DepthEstimationBatch
 
-# The magma colormap renders the normalized far value (0.0) as a near-black pixel; this
-# is what a genuinely invalid (non-positive depth) pixel collapses to.
-_FAR_PIXEL: tuple[int, int, int] = (0, 0, 3)
+
+def _far_pixel() -> tuple[int, int, int]:
+    # Non-positive depth is rendered with the low end of the active colormap.
+    rgb = matplotlib.colormaps[depth_estimation._DEPTH_COLORMAP](0.0)[:3]
+    return tuple(int(channel * 255) for channel in rgb)
 
 
 def _make_batch(*, depth: Tensor, sky: Tensor) -> DepthEstimationBatch:
@@ -72,7 +75,7 @@ def test_plot_depth_labels__sky_filled_as_distant_not_black() -> None:
     # A sky pixel is not black; it matches the color of the farthest valid pixel
     # (bottom row, the largest non-sky depth ~= the 99th percentile).
     farthest_valid = depth_panel.getpixel((0, 31))
-    assert depth_panel.getpixel((0, 0)) != _FAR_PIXEL
+    assert depth_panel.getpixel((0, 0)) != _far_pixel()
     assert depth_panel.getpixel((0, 0)) == farthest_valid
 
 
@@ -84,4 +87,4 @@ def test_plot_depth_labels__nonpositive_depth_rendered_as_far_value() -> None:
 
     depth_panel = depth_estimation._depth_to_pil(depth=depth[0], sky=sky[0] >= 0.5)
 
-    assert depth_panel.getpixel((0, 0)) == _FAR_PIXEL
+    assert depth_panel.getpixel((0, 0)) == _far_pixel()
