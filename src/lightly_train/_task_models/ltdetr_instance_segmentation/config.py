@@ -14,7 +14,7 @@ from pydantic import Field
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import ModelRegistry
 
-LTDETR_MODEL_REGISTRY: ModelRegistry[SegmentorConfig] = ModelRegistry()
+LTDETR_SEG_MODEL_REGISTRY: ModelRegistry[SegmentorConfig] = ModelRegistry()
 
 
 class HybridEncoderConfig(PydanticConfig):
@@ -71,7 +71,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
 class ECSegTransformerConfig(PydanticConfig):
     feat_channels: list[int]
     feat_strides: list[int] | Literal["auto"] = "auto"
-    hidden_dim: int = 256
+    hidden_dim: int
     num_levels: int = 3
     num_layers: int
     num_queries: int = 300
@@ -82,7 +82,7 @@ class ECSegTransformerConfig(PydanticConfig):
     num_points: list[int] = [3, 6, 3]
     query_select_method: str = "default"
     cross_attn_method: str = "default"
-    dim_feedforward: int = 2048
+    dim_feedforward: int
     reg_max: int = 32
     reg_scale: float = 4.0
     layer_scale: float = 1.0
