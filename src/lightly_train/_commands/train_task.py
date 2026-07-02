@@ -1596,12 +1596,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         else:
             nancapture_ctx = contextlib.nullcontext(None)
 
-        # Compose both debug monitors at the same scope so the training-loop
-        # body stays at a single indent level. ExitStack teardown closes them in
-        # LIFO order after `timer.stop()`/`Training completed.` log below.
-        with contextlib.ExitStack() as debug_stack:
-            underflow_overflow_monitor = debug_stack.enter_context(monitor_ctx)
-            nancapture_monitor = debug_stack.enter_context(nancapture_ctx)
+        with monitor_ctx as underflow_overflow_monitor, nancapture_ctx as nancapture_monitor:
             logger.info(
                 f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
             )
