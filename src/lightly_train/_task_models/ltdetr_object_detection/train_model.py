@@ -11,7 +11,7 @@ import copy
 import logging
 import math
 import re
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, override
 
 import torch
 from lightning_fabric import Fabric
@@ -360,6 +360,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
     val_transform_cls = LTDETRObjectDetectionValTransform
     torch_compile_args_cls = TorchCompileArgs
 
+    @override
     @classmethod
     def get_train_model_args_cls(
         cls, model_name: str
@@ -368,6 +369,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
             return DINOv2LTDETRObjectDetectionTrainArgsV2
         return LTDETRObjectDetectionTrainArgs
 
+    @override
     @classmethod
     def get_train_transform_cls(
         cls, model_name: str
@@ -379,6 +381,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
             return DINOv2LTDETRObjectDetectionTrainTransformV2
         return LTDETRObjectDetectionTrainTransform
 
+    @override
     @classmethod
     def get_val_transform_cls(
         cls, model_name: str
