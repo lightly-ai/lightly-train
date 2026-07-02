@@ -25,7 +25,6 @@ from lightly_train._metrics.depth_estimation.task_metric import (
     DepthEstimationTaskMetric,
     DepthEstimationTaskMetricArgs,
 )
-from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._optim import optimizer_helpers
 from lightly_train._task_models.depth_estimation.criterion import (
     GradientMatchingLoss,
@@ -126,9 +125,9 @@ class DepthEstimationTrain(TrainModel):
         self.model_args = model_args
         self.metric_args = metric_args
 
-        # Build the student without hosted weights; there is no small V3 checkpoint. When
-        # starting a fresh run we load the DINOv2-pretrained backbone and keep the DPT and
-        # sky heads randomly initialized.
+        # Build the student without hosted depth weights; trainable V3 students load the
+        # pretrained backbone separately and keep the DPT and sky heads randomly
+        # initialized.
         self.model = DepthAnythingDepthEstimation(
             model_name=model_name,
             load_weights=False,
@@ -311,10 +310,10 @@ class DepthEstimationTrain(TrainModel):
 def _load_pretrained_backbone(
     model: DepthAnythingDepthEstimation, *, backbone_weights: PathLike | None
 ) -> None:
-    """Loads DINOv2-pretrained backbone weights into the student backbone in place.
+    """Loads pretrained backbone weights into the student backbone in place.
 
     A local ``backbone_weights`` checkpoint takes precedence. Otherwise the public
-    DINOv2 weights for the student's backbone are fetched and copied in. For backbones
+    pretrained weights for the student's backbone are fetched and copied in. For backbones
     without hosted weights (e.g. the ``_vittest14`` test backbone) this is a no-op and
     the backbone keeps its random initialization.
     """
@@ -323,7 +322,7 @@ def _load_pretrained_backbone(
         model.backbone.load_state_dict(state_dict, strict=True)
         return
 
-    reference = DINOV2_VIT_PACKAGE.get_model(
+    reference = model.backbone_package.get_model(
         model_name=model.backbone_name,
         model_args=model.backbone_model_args,
         load_weights=True,

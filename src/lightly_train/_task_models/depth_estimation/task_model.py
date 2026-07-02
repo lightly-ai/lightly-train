@@ -19,6 +19,7 @@ from torch import Tensor
 
 from lightly_train._data import file_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.depth_estimation_components import image_utils
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
@@ -35,6 +36,7 @@ _METRIC_SCALE_FACTOR = 300.0
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-small": {
         "canonical_name": "dinov2/dav2-relative-small",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -53,6 +55,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-relative-base": {
         "canonical_name": "dinov2/dav2-relative-base",
+        "backbone_package": "dinov2",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -71,6 +74,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-relative-large": {
         "canonical_name": "dinov2/dav2-relative-large",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -93,6 +97,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     # backbone and DPT arguments are identical to the relative models.
     "dinov2/dav2-metric-small-hypersim": {
         "canonical_name": "dinov2/dav2-metric-small-hypersim",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -112,6 +117,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-base-hypersim": {
         "canonical_name": "dinov2/dav2-metric-base-hypersim",
+        "backbone_package": "dinov2",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -131,6 +137,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-large-hypersim": {
         "canonical_name": "dinov2/dav2-metric-large-hypersim",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -150,6 +157,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-small-vkitti": {
         "canonical_name": "dinov2/dav2-metric-small-vkitti",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -169,6 +177,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-base-vkitti": {
         "canonical_name": "dinov2/dav2-metric-base-vkitti",
+        "backbone_package": "dinov2",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -188,6 +197,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-large-vkitti": {
         "canonical_name": "dinov2/dav2-metric-large-vkitti",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
         "preprocess": "dav2",
@@ -207,6 +217,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav3-relative-large": {
         "canonical_name": "dinov2/dav3-relative-large",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 504,
         "preprocess": "dav3",
@@ -226,6 +237,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav3-metric-large": {
         "canonical_name": "dinov2/dav3-metric-large",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 504,
         "preprocess": "dav3",
@@ -250,6 +262,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     # [0, 1] confidence map for BCE distillation. DPT sizing mirrors `dav2-relative-small`.
     "dinov2/dav3-relative-small": {
         "canonical_name": "dinov2/dav3-relative-small",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 504,
         "preprocess": "dav3",
@@ -268,12 +281,59 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "use_sky_head": True,
         },
     },
+    # DINOv3 ViT-Tiny/TinyPlus DA3-style relative-depth students. They use the same DPT
+    # head topology as the DA3 relative student, adjusted to the DINOv3 16px patch grid
+    # and the 192-dim Tiny backbone family. These are trainable configs without hosted
+    # full depth checkpoints; training loads the DINOv3-pretrained backbone separately.
+    "dinov3/vitt16-dav3-relative": {
+        "canonical_name": "dinov3/vitt16-dav3-relative",
+        "backbone_package": "dinov3",
+        "backbone_name": "vitt16",
+        "image_size": 496,
+        "preprocess": "dav3",
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 496,
+            "patch_size": 16,
+            "features": 64,
+            "out_channels": (48, 96, 192, 384),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    "dinov3/vitt16plus-dav3-relative": {
+        "canonical_name": "dinov3/vitt16plus-dav3-relative",
+        "backbone_package": "dinov3",
+        "backbone_name": "vitt16plus",
+        "image_size": 496,
+        "preprocess": "dav3",
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 496,
+            "patch_size": 16,
+            "features": 64,
+            "out_channels": (48, 96, 192, 384),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
     # Test-only V3 config: the real ViT-S backbone with a tiny DPT head and a small
     # processing resolution to keep depth fine-tuning tests fast on CPU. (The 2-block
     # `_vittest14` backbone cannot feed the DPT, which needs four distinct intermediate
     # layers.)
     "dinov2/_vittest14-dav3": {
         "canonical_name": "dinov2/_vittest14-dav3",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 70,
         "preprocess": "dav3",
@@ -301,7 +361,7 @@ class DepthAnythingDepthEstimation(TaskModel):
     """Depth Anything V2/V3 relative- and metric-depth inference model.
 
     A single class serving all Depth Anything depth variants. The variant is selected by
-    ``model_name`` (see ``list_model_names``); the DINOv2 backbone, DPT head and
+    ``model_name`` (see ``list_model_names``); the ViT backbone, DPT head and
     pre/post-processing are configured per variant from the model registry.
     """
 
@@ -328,9 +388,9 @@ class DepthAnythingDepthEstimation(TaskModel):
                 e.g. ``out_layers``, ``features``, ``out_channels``, ``output_dim``,
                 ``use_sky_head`` (V3) or ``max_depth`` (V2 metric).
             backbone_args:
-                Additional arguments passed to the DINOv2 backbone construction (see
-                ``DINOV2_VIT_PACKAGE.get_model``), e.g. ``in_chans`` or
-                ``drop_path_rate``. These override the Depth Anything defaults.
+                Additional arguments passed to the backbone package construction, e.g.
+                ``in_chans`` or ``drop_path_rate``. These override the Depth Anything
+                defaults.
             load_weights:
                 If True, load the converted Depth Anything weights (backbone and DPT
                 head) so the model is a ready-to-use depth predictor; a local
@@ -384,27 +444,38 @@ class DepthAnythingDepthEstimation(TaskModel):
             # Fixed maximum depth in meters that the sigmoid head output is scaled by.
             self.max_depth = float(net_args["max_depth"])
 
-        # Reproduce the plain (register-free, unchunked, MLP-FFN) ViT that Depth Anything
-        # is built on so the state dict keys match the checkpoint; `block_chunks=0` keeps
-        # the `blocks.{i}.` key layout. The backbone is built without weights: when
-        # `load_weights` is True the converted checkpoint is loaded below instead.
-        backbone_model_args: dict[str, Any] = {
-            "img_size": int(net_args["image_size"]),
-            "ffn_layer": "mlp",
-            "block_chunks": 0,
-            "drop_path_rate": 0.0,
-            "init_values": 1.0,
-            "num_register_tokens": 0,
-            "interpolate_antialias": False,
-            "interpolate_offset": 0.1,
-        }
+        # Reproduce the backbone variant expected by each depth config. DINOv2 Depth
+        # Anything checkpoints use a plain register-free, unchunked MLP-FFN ViT so the
+        # state dict keys match; DINOv3 Tiny students use the package defaults plus the
+        # selected patch size. The backbone is built without weights here: when
+        # `load_weights` is True the full converted checkpoint is loaded below instead.
+        backbone_package = str(config["backbone_package"])
+        if backbone_package == "dinov2":
+            backbone_model_args: dict[str, Any] = {
+                "img_size": int(net_args["image_size"]),
+                "ffn_layer": "mlp",
+                "block_chunks": 0,
+                "drop_path_rate": 0.0,
+                "init_values": 1.0,
+                "num_register_tokens": 0,
+                "interpolate_antialias": False,
+                "interpolate_offset": 0.1,
+            }
+            self.backbone_package = DINOV2_VIT_PACKAGE
+        elif backbone_package == "dinov3":
+            backbone_model_args = {
+                "patch_size": patch_size,
+            }
+            self.backbone_package = DINOV3_PACKAGE
+        else:
+            raise ValueError(f"Unknown backbone package '{backbone_package}'.")
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         # Store the backbone construction so fine-tuning can re-fetch the same backbone
-        # with DINOv2-pretrained weights and copy them in.
+        # with pretrained weights and copy them in.
         self.backbone_name: str = config["backbone_name"]
         self.backbone_model_args: dict[str, Any] = backbone_model_args
-        self.backbone = DINOV2_VIT_PACKAGE.get_model(
+        self.backbone = self.backbone_package.get_model(
             model_name=config["backbone_name"],
             model_args=backbone_model_args,
             load_weights=False,
@@ -562,9 +633,12 @@ class DepthAnythingDepthEstimation(TaskModel):
                 x,
                 process_res=self.image_size,
                 process_res_method=_PROCESS_RES_METHOD_DAV3,
+                patch_size=self.patch_size,
             )
         else:
-            x = image_utils.process_image_dav2(x, process_res=self.image_size)
+            x = image_utils.process_image_dav2(
+                x, process_res=self.image_size, patch_size=self.patch_size
+            )
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 
@@ -677,6 +751,17 @@ def get_model_image_size(model_name: str) -> int:
             f"{DepthAnythingDepthEstimation.list_model_names()}."
         )
     return int(_MODEL_CONFIGS[key]["image_size"])
+
+
+def get_model_patch_size(model_name: str) -> int:
+    """Returns the ViT patch size for a depth model."""
+    key = model_name.lower()
+    if key not in _MODEL_CONFIGS:
+        raise ValueError(
+            f"Model name '{model_name}' is not supported. Available models are: "
+            f"{DepthAnythingDepthEstimation.list_model_names()}."
+        )
+    return int(_MODEL_CONFIGS[key]["model_args"]["patch_size"])
 
 
 def _processed_focal_length(

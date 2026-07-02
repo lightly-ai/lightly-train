@@ -18,20 +18,19 @@ from lightly_train._task_models.depth_estimation.task_model import (
     DepthAnythingDepthEstimation,
 )
 
+
 # Tiny per-variant model args so inference runs at a small resolution and tests stay
 # fast. DAv3 variants carry `use_sky_head` inside `model_args` exactly as the exported
 # checkpoints do; DAv2 metric variants carry `max_depth`.
-_TINY_BASE: dict[str, Any] = {
-    "out_layers": (0, 1, 2, 3),
-    "image_size": 56,
-    "patch_size": 14,
-    "features": 16,
-    "out_channels": (8, 16, 32, 32),
-}
-
-
 def _tiny_model_args(model_name: str) -> dict[str, Any]:
-    args = dict(_TINY_BASE)
+    patch_size = 16 if model_name.startswith("dinov3/") else 14
+    args: dict[str, Any] = {
+        "out_layers": (0, 1, 2, 3),
+        "image_size": patch_size * 4,
+        "patch_size": patch_size,
+        "features": 16,
+        "out_channels": (8, 16, 32, 32),
+    }
     if "metric" in model_name and "dav2" in model_name:
         args["max_depth"] = 20.0
     if "dav3" in model_name:
@@ -48,7 +47,7 @@ def _build(model_name: str, **overrides: Any) -> DepthAnythingDepthEstimation:
     )
     # Production fixes the image size per model; override it here so inference runs
     # at a tiny resolution and the tests stay fast.
-    model.image_size = 56
+    model.image_size = int(model_args["image_size"])
     return model
 
 
@@ -57,9 +56,16 @@ _NON_FOCAL_NAMES = [
     "dinov2/dav2-relative-large",
     "dinov2/dav2-metric-large-hypersim",
     "dinov2/dav3-relative-large",
+    "dinov3/vitt16-dav3-relative",
+    "dinov3/vitt16plus-dav3-relative",
 ]
 # Model names with a sky head (DAv3).
-_SKY_NAMES = ["dinov2/dav3-relative-large", "dinov2/dav3-metric-large"]
+_SKY_NAMES = [
+    "dinov2/dav3-relative-large",
+    "dinov2/dav3-metric-large",
+    "dinov3/vitt16-dav3-relative",
+    "dinov3/vitt16plus-dav3-relative",
+]
 _NO_SKY_NAMES = ["dinov2/dav2-relative-large", "dinov2/dav2-metric-large-hypersim"]
 
 
@@ -185,23 +191,25 @@ class TestDepthAnythingDepthEstimation:
     @pytest.mark.parametrize("model_name", _NO_SKY_NAMES)
     def test_forward__returns_depth(self, model_name: str) -> None:
         model = _build(model_name)
-        x = torch.randn(2, 3, 56, 70)
+        patch_size = model.patch_size
+        x = torch.randn(2, 3, patch_size * 4, patch_size * 5)
 
         out = model(x)
 
         # Depth Anything V2 has no sky head, so the forward output is depth only.
-        assert out["depth"].shape == (2, 1, 56, 70)
+        assert out["depth"].shape == (2, 1, patch_size * 4, patch_size * 5)
         assert "sky" not in out
 
     @pytest.mark.parametrize("model_name", _SKY_NAMES)
     def test_forward__returns_depth_and_sky(self, model_name: str) -> None:
         model = _build(model_name)
-        x = torch.randn(2, 3, 56, 70)
+        patch_size = model.patch_size
+        x = torch.randn(2, 3, patch_size * 4, patch_size * 5)
 
         out = model(x)
 
-        assert out["depth"].shape == (2, 1, 56, 70)
-        assert out["sky"].shape == (2, 1, 56, 70)
+        assert out["depth"].shape == (2, 1, patch_size * 4, patch_size * 5)
+        assert out["sky"].shape == (2, 1, patch_size * 4, patch_size * 5)
 
 
 def test__processed_focal_length() -> None:

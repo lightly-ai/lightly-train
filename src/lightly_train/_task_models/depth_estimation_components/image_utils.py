@@ -55,6 +55,7 @@ def process_image_dav3(
     *,
     process_res: int = 504,
     process_res_method: str = "upper_bound_resize",
+    patch_size: int = PATCH_SIZE,
 ) -> Tensor:
     """Preprocesses one image for Depth Anything 3.
 
@@ -67,6 +68,7 @@ def process_image_dav3(
             other dtypes raise.
         process_res: Target size for the boundary resize.
         process_res_method: One of ``RESIZE_METHODS``.
+        patch_size: Patch-grid multiple to round both output dimensions to.
 
     Returns:
         A float32 RGB tensor in [0, 255] of shape ``(3, H, W)``.
@@ -78,7 +80,7 @@ def process_image_dav3(
         )
     image = _to_float_rgb(img)
     image = _resize_bound(image, target_size=process_res, method=process_res_method)
-    image = _resize_to_patch_multiple(image, patch=PATCH_SIZE)
+    image = _resize_to_patch_multiple(image, patch=patch_size)
     return image
 
 
@@ -86,6 +88,7 @@ def process_image_dav2(
     img: Tensor,
     *,
     process_res: int = 518,
+    patch_size: int = PATCH_SIZE,
 ) -> Tensor:
     """Preprocesses one image for Depth Anything V2.
 
@@ -97,6 +100,7 @@ def process_image_dav2(
         img: Image of shape ``(C, H, W)``. Uint8 is read as [0, 255], float as [0, 1];
             other dtypes raise.
         process_res: Target size for the shorter side.
+        patch_size: Patch-grid multiple to round both output dimensions to.
 
     Returns:
         A float64 RGB tensor in [0, 255] of shape ``(3, H', W')``, H'/W' multiples of
@@ -107,7 +111,7 @@ def process_image_dav2(
     image = _to_float_rgb(img).to(torch.float64)
     h, w = image.shape[-2:]
     new_h, new_w = _dav2_target_size(
-        h=h, w=w, process_res=process_res, patch=PATCH_SIZE
+        h=h, w=w, process_res=process_res, patch=patch_size
     )
     if (new_h, new_w) == (h, w):
         return image

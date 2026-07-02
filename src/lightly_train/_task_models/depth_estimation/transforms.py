@@ -11,7 +11,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from lightly_train._task_models.depth_estimation.task_model import get_model_image_size
+from lightly_train._task_models.depth_estimation.task_model import (
+    get_model_image_size,
+    get_model_patch_size,
+)
 from lightly_train._transforms.depth_estimation_transform import (
     DepthEstimationTransform,
     DepthEstimationTransformArgs,
@@ -23,10 +26,7 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train.types import ImageSizeTuple
 
-# All depth backbones are DINOv2 ViTs with a patch size of 14, so the image size must be
-# a multiple of 14. Non-divisible sizes are silently truncated to the patch grid in the
-# DPT decoder (``H // patch_size``), so we validate against this value up front.
-_PATCH_SIZE = 14
+_DEFAULT_PATCH_SIZE = 14
 
 
 class DepthEstimationTrainTransformArgs(DepthEstimationTransformArgs):
@@ -74,11 +74,17 @@ def _resolve_depth_transform_auto(
         else:
             args.image_size = (504, 504)
 
+    model_name = model_init_args.get("model_name")
+    patch_size = (
+        get_model_patch_size(model_name=model_name)
+        if model_name is not None
+        else _DEFAULT_PATCH_SIZE
+    )
     height, width = args.image_size
-    if height % _PATCH_SIZE != 0 or width % _PATCH_SIZE != 0:
+    if height % patch_size != 0 or width % patch_size != 0:
         raise ValueError(
             f"image_size {args.image_size} (height, width) must be a multiple of the "
-            f"patch size {_PATCH_SIZE} in both dimensions. The DepthAnything V3 base "
+            f"patch size {patch_size} in both dimensions. The DepthAnything V3 base "
             f"resolution is (504, 504); other supported sizes from the paper include "
             f"(504, 378), (504, 336), (504, 280), (336, 504), (896, 504), (756, 504), "
             f"and (672, 504)."
