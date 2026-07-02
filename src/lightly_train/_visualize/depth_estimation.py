@@ -20,9 +20,13 @@ from lightly_train._visualize import utils
 from lightly_train.types import DepthEstimationBatch
 
 # Colormap used to render depth maps during training. DAv3 predicts larger values for
-# farther pixels, so nearby pixels sit at the low end of the colormap. A multi-hue map
-# makes small near-depth changes easier to spot than the old dark-to-bright ``magma``.
-_DEPTH_COLORMAP = "Spectral_r"
+# farther pixels, so nearby pixels sit at the low end of ``magma`` and appear dark.
+_DEPTH_COLORMAP = "magma"
+
+# Apply a gamma curve after min-max normalization so low normalized values occupy more
+# of the visible range. This improves separation of close-range structure while keeping
+# the near-to-far ordering unchanged.
+_DEPTH_VISUALIZATION_GAMMA = 0.5
 
 
 @dataclass
@@ -163,6 +167,7 @@ def _depth_to_pil(depth: Tensor, sky: Tensor | None = None) -> PILImage:
     else:
         normalized = torch.zeros_like(depth)
     normalized = torch.clamp(normalized, 0.0, 1.0)
+    normalized = _apply_depth_visualization_curve(normalized)
     # Non-positive (genuinely invalid) pixels are rendered as the colormap's far value.
     normalized = torch.where(depth > 0, normalized, torch.zeros_like(normalized))
 
@@ -170,6 +175,11 @@ def _depth_to_pil(depth: Tensor, sky: Tensor | None = None) -> PILImage:
     colored = colormap(normalized.numpy())[..., :3]  # Drop alpha, keep RGB.
     colored_uint8 = (colored * 255).astype("uint8")
     return Image.fromarray(colored_uint8)
+
+
+def _apply_depth_visualization_curve(normalized: Tensor) -> Tensor:
+    """Expands low normalized values so nearby structure gets more visual contrast."""
+    return torch.pow(normalized, _DEPTH_VISUALIZATION_GAMMA)
 
 
 def _concat_horizontal(left: PILImage, right: PILImage) -> PILImage:

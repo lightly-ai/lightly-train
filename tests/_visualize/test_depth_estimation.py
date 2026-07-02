@@ -88,3 +88,16 @@ def test_plot_depth_labels__nonpositive_depth_rendered_as_far_value() -> None:
     depth_panel = depth_estimation._depth_to_pil(depth=depth[0], sky=sky[0] >= 0.5)
 
     assert depth_panel.getpixel((0, 0)) == _far_pixel()
+
+
+def test_apply_depth_visualization_curve__expands_close_range() -> None:
+    # Nearby pixels live at the low end of the normalized range. The visualization
+    # curve should stretch that region so small close-range differences are easier to
+    # see while preserving the endpoints.
+    normalized = torch.tensor([0.0, 0.04, 0.25, 1.0], dtype=torch.float32)
+
+    curved = depth_estimation._apply_depth_visualization_curve(normalized)
+
+    assert torch.equal(curved[[0, -1]], normalized[[0, -1]])
+    assert curved[1] > normalized[1]
+    assert curved[2] > normalized[2]
