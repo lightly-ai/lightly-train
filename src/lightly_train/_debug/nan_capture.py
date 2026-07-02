@@ -49,6 +49,12 @@ values, not pre-batch — so replay may start from slightly stale buffers. This 
 accepted for v1; it does not affect dropout/data-driven NaN debugging. If the
 suspect path runs through BatchNorm-style buffers, treat replay results with
 that caveat.
+
+**References.** The capture-and-replay scheme (clone microbatches, snapshot RNG,
+write the capture before the optimizer step, halt on NaN/Inf) follows Chaim Rand,
+"Debugging the Dreaded NaN — Capturing and Reproducing Failures in PyTorch
+Training with Lightning", Feb 2025.
+https://chaimrand.medium.com/debugging-the-dreaded-nan-ac3f9feac5b2
 """
 
 from __future__ import annotations
