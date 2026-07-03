@@ -13,9 +13,11 @@ from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
+)
+from lightly_train._transforms.ltdetr_transforms.utils import (
     resolve_ltdetr_step_schedule_for_augmentation,
 )
 from lightly_train._transforms.transform import (
@@ -199,7 +201,7 @@ class DINOv2LTDETRObjectDetectionResizeArgs(ResizeArgs):
     width: int | Literal["auto"] = "auto"
 
 
-class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
+class DINOv2LTDETRObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: (
@@ -301,7 +303,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs
         )
 
 
-class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
+class DINOv2LTDETRObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: None = None
@@ -368,9 +370,9 @@ class DINOv2LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
                     self.num_channels = len(self.normalize.mean)
 
 
-class DINOv2LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
+class DINOv2LTDETRObjectDetectionTrainTransform(LTDETRObjectDetectionTransform):
     transform_args_cls = DINOv2LTDETRObjectDetectionTrainTransformArgs
 
 
-class DINOv2LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
+class DINOv2LTDETRObjectDetectionValTransform(LTDETRObjectDetectionTransform):
     transform_args_cls = DINOv2LTDETRObjectDetectionValTransformArgs

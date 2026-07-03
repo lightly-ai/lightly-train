@@ -59,10 +59,10 @@ from lightly_train._task_models.object_detection_components.utils import (
     _yolo_to_xyxy,
 )
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionCollateFunction,
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionCollateFunction,
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
 from lightly_train.types import (
@@ -341,7 +341,7 @@ def _make_val_bbox_params() -> BboxParams:
     )
 
 
-class _BenchmarkValTransformArgs(ObjectDetectionTransformArgs):
+class _BenchmarkValTransformArgs(LTDETRObjectDetectionTransformArgs):
     """Val transform args that mirror the training validation pipeline.
 
     All augmentations are disabled. Only resize and normalize (plus bbox params)
@@ -419,7 +419,7 @@ def _create_val_dataloader(
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
     image_info = list(val_dataset_args.list_image_info())
-    transform = ObjectDetectionTransform(transform_args=transform_args)
+    transform = LTDETRObjectDetectionTransform(transform_args=transform_args)
     dataset = dataset_cls(
         dataset_args=val_dataset_args,
         image_info=image_info,
@@ -435,7 +435,7 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=ObjectDetectionCollateFunction(
+        collate_fn=LTDETRObjectDetectionCollateFunction(
             split="val",
             transform_args=transform_args,
         ),

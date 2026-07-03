@@ -17,8 +17,8 @@ from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDropTV
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.base import (
+    LTDETRTransformArgs,
 )
 from lightly_train._transforms.random_rotate_90 import RandomRotate90
 from lightly_train._transforms.scale_jitter import TorchVisionScaleJitter
@@ -49,7 +49,7 @@ class OrientedObjectDetectionTransformOutput(TaskTransformOutput):
     class_labels: NotRequired[Tensor]
 
 
-class OrientedObjectDetectionTransformArgs(ObjectDetectionTransformArgs):
+class OrientedObjectDetectionTransformArgs(LTDETRTransformArgs):
     pass
 
 
