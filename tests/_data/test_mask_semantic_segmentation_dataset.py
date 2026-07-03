@@ -23,7 +23,7 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     SingleChannelClassInfo,
     SplitArgs,
 )
-from lightly_train._transforms.eomt_transforms import (
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
     EoMTSemanticSegmentationTransform,
     EoMTSemanticSegmentationTransformArgs,
 )

@@ -23,7 +23,7 @@ from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
-from lightly_train._transforms.eomt_transforms import (
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
     EoMTSemanticSegmentationCollateFunction,
     EoMTSemanticSegmentationTransform,
     EoMTSemanticSegmentationTransformArgs,

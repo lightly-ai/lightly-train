@@ -528,7 +528,7 @@ class TestInstanceSegmentationDatasetGetitem:
             from lightly_train._data.instance_segmentation_dataset import (
                 InstanceSegmentationDataset,
             )
-            from lightly_train._transforms.eomt_transforms import (
+            from lightly_train._transforms.eomt_transforms.instance_segmentation import (
                 EoMTInstanceSegmentationTransform,
                 EoMTInstanceSegmentationTransformArgs,
             )

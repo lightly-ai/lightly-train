@@ -13,7 +13,7 @@ from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
-from lightly_train._transforms.eomt_transforms import (
+from lightly_train._transforms.eomt_transforms.instance_segmentation import (
     EoMTInstanceSegmentationTransform,
     EoMTInstanceSegmentationTransformArgs,
 )

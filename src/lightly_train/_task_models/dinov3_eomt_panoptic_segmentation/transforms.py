@@ -11,7 +11,7 @@ from typing import Any, Literal, Sequence
 
 from pydantic import Field
 
-from lightly_train._transforms.eomt_transforms import (
+from lightly_train._transforms.eomt_transforms.panoptic_segmentation import (
     EoMTPanopticSegmentationTransform,
     EoMTPanopticSegmentationTransformArgs,
 )
