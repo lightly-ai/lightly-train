@@ -74,15 +74,15 @@ _NON_FOCAL_NAMES = [
     "dinov2/dav2-relative-large",
     "dinov2/dav2-metric-large-hypersim",
     "dinov2/dav3-relative-large",
-    "dinov3/vitt16-dav3-relative",
-    "dinov3/vitt16plus-dav3-relative",
+    "dinov3/dav3-relative-tiny",
+    "dinov3/dav3-relative-tiny-plus",
 ]
 # Model names with a sky head (DAv3).
 _SKY_NAMES = [
     "dinov2/dav3-relative-large",
     "dinov2/dav3-metric-large",
-    "dinov3/vitt16-dav3-relative",
-    "dinov3/vitt16plus-dav3-relative",
+    "dinov3/dav3-relative-tiny",
+    "dinov3/dav3-relative-tiny-plus",
 ]
 _NO_SKY_NAMES = ["dinov2/dav2-relative-large", "dinov2/dav2-metric-large-hypersim"]
 

@@ -288,8 +288,8 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     # head topology as the DA3 relative student, adjusted to the DINOv3 16px patch grid
     # and the 192-dim Tiny backbone family. These are trainable configs without hosted
     # full depth checkpoints; training loads the DINOv3-pretrained backbone separately.
-    "dinov3/vitt16-dav3-relative": {
-        "canonical_name": "dinov3/vitt16-dav3-relative",
+    "dinov3/dav3-relative-tiny": {
+        "canonical_name": "dinov3/dav3-relative-tiny",
         "backbone_package": "dinov3",
         "backbone_name": "vitt16",
         "image_size": 512,
@@ -312,8 +312,8 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "use_sky_head": True,
         },
     },
-    "dinov3/vitt16plus-dav3-relative": {
-        "canonical_name": "dinov3/vitt16plus-dav3-relative",
+    "dinov3/dav3-relative-tiny-plus": {
+        "canonical_name": "dinov3/dav3-relative-tiny-plus",
         "backbone_package": "dinov3",
         "backbone_name": "vitt16plus",
         "image_size": 512,
@@ -327,7 +327,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "out_layers": (2, 5, 8, 11),
             "image_size": 512,
             "patch_size": 16,
-            # See `vitt16-dav3-relative`: the same slimmed DPT head is used for the
+            # See `dav3-relative-tiny`: the same slimmed DPT head is used for the
             # TinyPlus student.
             "features": 32,
             "out_channels": (24, 48, 96, 192),

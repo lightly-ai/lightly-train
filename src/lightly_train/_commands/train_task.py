@@ -140,7 +140,7 @@ def train_depth_estimation(
             loss and metrics.
         model:
             The model to train. For example, "dinov2/dav3-relative-small",
-            "dinov3/vitt16-dav3-relative", "dinov3/vitt16plus-dav3-relative", or a
+            "dinov3/dav3-relative-tiny", "dinov3/dav3-relative-tiny-plus", or a
             path to a local model checkpoint.
 
             If you want to resume training from an interrupted or crashed run, use the
