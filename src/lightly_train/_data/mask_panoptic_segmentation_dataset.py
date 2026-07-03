@@ -26,10 +26,10 @@ from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
-from lightly_train._transforms.panoptic_segmentation_transform import (
-    MaskPanopticSegmentationCollateFunction,
-    PanopticSegmentationTransform,
-    PanopticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.panoptic_segmentation import (
+    EoMTMaskPanopticSegmentationCollateFunction,
+    EoMTPanopticSegmentationTransform,
+    EoMTPanopticSegmentationTransformArgs,
 )
 from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import (
@@ -53,14 +53,14 @@ class MaskPanopticSegmentationDataset(TaskDataset):
     dataset_args: MaskPanopticSegmentationDatasetArgs
 
     batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        MaskPanopticSegmentationCollateFunction
+        EoMTMaskPanopticSegmentationCollateFunction
     )
 
     def __init__(
         self,
         dataset_args: MaskPanopticSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: PanopticSegmentationTransform | None = None,
+        transform: EoMTPanopticSegmentationTransform | None = None,
     ):
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
@@ -93,12 +93,12 @@ class MaskPanopticSegmentationDataset(TaskDataset):
 
     def set_transform(self, transform: TaskTransform) -> None:
         super().set_transform(transform)
-        assert isinstance(transform, PanopticSegmentationTransform)
+        assert isinstance(transform, EoMTPanopticSegmentationTransform)
         self._init_image_mode(transform)
 
-    def _init_image_mode(self, transform: PanopticSegmentationTransform) -> None:
+    def _init_image_mode(self, transform: EoMTPanopticSegmentationTransform) -> None:
         transform_args = transform.transform_args
-        assert isinstance(transform_args, PanopticSegmentationTransformArgs)
+        assert isinstance(transform_args, EoMTPanopticSegmentationTransformArgs)
 
         image_mode = (
             None

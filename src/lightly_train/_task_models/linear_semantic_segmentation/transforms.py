@@ -11,9 +11,9 @@ from typing import Any, Literal, Sequence
 
 from pydantic import Field
 
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -66,7 +66,9 @@ class LinearSemanticSegmentationRandomCropArgs(RandomCropArgs):
     prob: float = 1.0
 
 
-class LinearSemanticSegmentationTrainTransformArgs(SemanticSegmentationTransformArgs):
+class LinearSemanticSegmentationTrainTransformArgs(
+    EoMTSemanticSegmentationTransformArgs
+):
     """
     Defines default transform arguments for linear semantic segmentation training.
     """
@@ -115,7 +117,7 @@ class LinearSemanticSegmentationTrainTransformArgs(SemanticSegmentationTransform
                 self.num_channels = len(self.normalize.mean)
 
 
-class LinearSemanticSegmentationValTransformArgs(SemanticSegmentationTransformArgs):
+class LinearSemanticSegmentationValTransformArgs(EoMTSemanticSegmentationTransformArgs):
     """
     Defines default transform arguments for linear semantic segmentation validation.
     """
@@ -160,9 +162,9 @@ class LinearSemanticSegmentationValTransformArgs(SemanticSegmentationTransformAr
                 self.num_channels = len(self.normalize.mean)
 
 
-class LinearSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
+class LinearSemanticSegmentationTrainTransform(EoMTSemanticSegmentationTransform):
     transform_args_cls = LinearSemanticSegmentationTrainTransformArgs
 
 
-class LinearSemanticSegmentationValTransform(SemanticSegmentationTransform):
+class LinearSemanticSegmentationValTransform(EoMTSemanticSegmentationTransform):
     transform_args_cls = LinearSemanticSegmentationValTransformArgs

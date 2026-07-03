@@ -33,12 +33,12 @@ from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
-from lightly_train._transforms.instance_segmentation_transform import (
-    InstanceSegmentationCollateFunction,
-    InstanceSegmentationTransform,
-    InstanceSegmentationTransformArgs,
-    InstanceSegmentationTransformInput,
-    InstanceSegmentationTransformOutput,
+from lightly_train._transforms.eomt_transforms.instance_segmentation import (
+    EoMTInstanceSegmentationCollateFunction,
+    EoMTInstanceSegmentationTransform,
+    EoMTInstanceSegmentationTransformArgs,
+    EoMTInstanceSegmentationTransformInput,
+    EoMTInstanceSegmentationTransformOutput,
 )
 from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import (
@@ -146,7 +146,7 @@ class InstanceSegmentationDataset(TaskDataset):
     )
 
     batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        InstanceSegmentationCollateFunction
+        EoMTInstanceSegmentationCollateFunction
     )
 
     def __init__(
@@ -154,7 +154,7 @@ class InstanceSegmentationDataset(TaskDataset):
         dataset_args: COCOInstanceSegmentationDatasetArgs
         | YOLOInstanceSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: InstanceSegmentationTransform | None = None,
+        transform: EoMTInstanceSegmentationTransform | None = None,
     ) -> None:
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
@@ -164,12 +164,12 @@ class InstanceSegmentationDataset(TaskDataset):
 
     def set_transform(self, transform: TaskTransform) -> None:
         super().set_transform(transform)
-        assert isinstance(transform, InstanceSegmentationTransform)
+        assert isinstance(transform, EoMTInstanceSegmentationTransform)
         self._init_image_mode(transform)
 
-    def _init_image_mode(self, transform: InstanceSegmentationTransform) -> None:
+    def _init_image_mode(self, transform: EoMTInstanceSegmentationTransform) -> None:
         transform_args = transform.transform_args
-        assert isinstance(transform_args, InstanceSegmentationTransformArgs)
+        assert isinstance(transform_args, EoMTInstanceSegmentationTransformArgs)
 
         image_mode = (
             None
@@ -230,7 +230,7 @@ class InstanceSegmentationDataset(TaskDataset):
             np.stack(mask_list) if mask_list else np.zeros((0, h, w), dtype=np.bool_)
         )
 
-        transform_input: InstanceSegmentationTransformInput = {
+        transform_input: EoMTInstanceSegmentationTransformInput = {
             "image": image_np,
             # Shape (n_instances, H, W)
             "binary_masks": binary_masks_np.astype(np.uint8),
@@ -238,7 +238,7 @@ class InstanceSegmentationDataset(TaskDataset):
             "class_labels": class_labels_np,  # Shape (n_instances,)
         }
 
-        transformed: InstanceSegmentationTransformOutput = self.transform(
+        transformed: EoMTInstanceSegmentationTransformOutput = self.transform(
             transform_input
         )
 
