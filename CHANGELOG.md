@@ -16,8 +16,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `lightly_train._debug.nan_capture.load_nan_capture(dir).replay()` to deterministically
   reproduce the failure in a notebook/REPL. Enable with
   `debug_args.nancapture.enabled=True`.
+- Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
+  `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
 
 ### Changed
+
+- Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
+  single config-driven `DepthAnythingDepthEstimation` model.
 
 ### Deprecated
 

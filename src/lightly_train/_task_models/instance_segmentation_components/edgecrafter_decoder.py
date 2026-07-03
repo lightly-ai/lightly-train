@@ -37,10 +37,10 @@ from lightly_train._task_models.object_detection_components.dfine_decoder import
     DFINETransformer,
 )
 
-__all__ = ["EdgeCrafterInstanceSegmentationTransformer"]
+__all__ = ["ECSegTransformer"]
 
 
-class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
+class ECSegTransformer(DFINETransformer):
     """D-FINE transformer that adds per-query instance mask logits."""
 
     def __init__(
