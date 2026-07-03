@@ -61,9 +61,6 @@ from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
-    DINOv2LTDETRObjectDetectionTrain,
-)
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
 )
@@ -73,9 +70,6 @@ from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-)
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
 )
@@ -84,6 +78,9 @@ from lightly_train._task_models.image_classification_multihead.train_model impor
 )
 from lightly_train._task_models.linear_semantic_segmentation.train_model import (
     LinearSemanticSegmentationTrain,
+)
+from lightly_train._task_models.ltdetr_object_detection.train_model import (
+    LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
@@ -133,8 +130,7 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
     SemanticSegmentationMultiheadTrain,
-    DINOv2LTDETRObjectDetectionTrain,
-    DINOv3LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrain,
     PicoDetObjectDetectionTrain,
 ]
 
@@ -368,6 +364,7 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
 
 def get_transform_args(
     train_model_cls: type[TrainModel],
+    model_name: str,
     transform_args: dict[str, Any] | None,
     ignore_index: int | None,
     model_init_args: dict[str, Any],
@@ -395,8 +392,12 @@ def get_transform_args(
     # }
     val_args = transform_args.pop("val", {})
 
-    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
-    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
+    train_transform_args_cls = train_model_cls.get_train_transform_cls(
+        model_name
+    ).transform_args_cls
+    val_transform_args_cls = train_model_cls.get_val_transform_cls(
+        model_name
+    ).transform_args_cls
     train_transform_args: TaskTransformArgs
     val_transform_args: TaskTransformArgs
 
@@ -444,9 +445,12 @@ def get_transform_args(
 
 def get_train_transform(
     train_model_cls: type[TrainModel],
+    model_name: str,
     train_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return train_model_cls.train_transform_cls(transform_args=train_transform_args)
+    return train_model_cls.get_train_transform_cls(model_name)(
+        transform_args=train_transform_args
+    )
 
 
 def get_metric_args(
@@ -474,9 +478,12 @@ def get_metric_args(
 
 def get_val_transform(
     train_model_cls: type[TrainModel],
+    model_name: str,
     val_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return train_model_cls.val_transform_cls(transform_args=val_transform_args)
+    return train_model_cls.get_val_transform_cls(model_name)(
+        transform_args=val_transform_args
+    )
 
 
 def get_sha256(value: Any) -> str:

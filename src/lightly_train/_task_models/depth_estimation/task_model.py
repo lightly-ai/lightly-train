@@ -8,16 +8,19 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
+from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
+from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._task_models import task_model_helpers
@@ -648,23 +651,34 @@ class DepthAnythingDepthEstimation(TaskModel):
         stacked = image_utils.process_batch(batch)
         return stacked.to(dtype=next(self.parameters()).dtype)
 
-    def forward(self, x: Tensor) -> dict[str, Tensor]:
-        """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``."""
+    def forward(self, x: Tensor) -> tuple[Tensor, ...]:
+        """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``.
+
+        Returns a fixed-order tuple of ``(depth,)`` for models without a sky head and
+        ``(depth, sky)`` for models with one (Depth Anything V3). The tuple output makes
+        this method directly ONNX-exportable (ONNX graph outputs must be tensors), so the
+        exported graph and this eager forward are the exact same code path.
+        """
         if x.ndim != 4:
             raise ValueError(
                 f"Expected input shape (B, C, H, W), got {tuple(x.shape)}."
             )
         feats = self._extract_features(x)
         out: dict[str, Tensor] = self.decoder(feats=feats, H=x.shape[-2], W=x.shape[-1])
-        return out
+        if self.decoder.use_sky_head:
+            return out["depth"], out["sky"]
+        return (out["depth"],)
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: dict[str, Tensor],
+        raw_outputs: tuple[Tensor, ...],
         metadata: Sequence[dict[str, Any]],
     ) -> list[Tensor]:
         """Maps raw forward outputs to one depth tensor per image, bilinearly resized to
         the original input size (``orig_h``, ``orig_w`` from the metadata).
+
+        ``raw_outputs`` is the tuple returned by ``forward``: ``(depth,)`` for models
+        without a sky head and ``(depth, sky)`` for models with one.
 
         For V3 models the sky pixels are filled at the processing resolution before any
         scaling. For metric models the depth is scaled before the resize: V2 metric
@@ -672,8 +686,8 @@ class DepthAnythingDepthEstimation(TaskModel):
         ``head(...) * max_depth`` order); V3 metric scales by ``focal / 300`` when the
         metadata carries a ``focal`` entry.
         """
-        depth_batch = raw_outputs["depth"]
-        sky_batch = raw_outputs.get("sky")
+        depth_batch = raw_outputs[0]
+        sky_batch = raw_outputs[1] if len(raw_outputs) > 1 else None
         out: list[Tensor] = []
         for i, meta in enumerate(metadata):
             depth = depth_batch[i, 0]
@@ -714,6 +728,264 @@ class DepthAnythingDepthEstimation(TaskModel):
                 if name.startswith("model.")
             }
         self.load_state_dict(state_dict, strict=True)
+
+    @torch.no_grad()
+    def export_onnx(
+        self,
+        out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        batch_size: int = 1,
+        dynamic_batch_size: bool = True,
+        height: int | None = None,
+        width: int | None = None,
+        opset_version: int | None = None,
+        simplify: bool = True,
+        verify: bool = True,
+        format_args: dict[str, Any] | None = None,
+    ) -> None:
+        """Exports the model to ONNX for inference.
+
+        The export uses a dummy input of shape (batch_size, 3, H, W). The spatial size
+        (H, W) is fixed in the ONNX graph: it defaults to the model's processing
+        resolution (``self.image_size`` on both sides) but can be overridden via
+        ``height``/``width`` (both must be multiples of the patch size, 14). If
+        ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch dimension.
+
+        The graph outputs the raw depth map at processing resolution, plus a sky map for
+        models with a sky head (Depth Anything V3). Postprocessing (sky filling, metric
+        scaling, and resizing back to the original resolution) is not part of the graph
+        and must be applied by the caller.
+
+        Optionally simplifies the exported model in-place using onnxslim and verifies
+        numerical closeness against a float32 CPU reference via ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "auto", "fp32", or "fp16". "auto"
+                uses the model's current precision.
+            batch_size:
+                Batch size for the ONNX input.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension for the
+                input. If False, the batch dimension is fixed to `batch_size`.
+            height:
+                Height of the ONNX input. If None, will be taken from `self.image_size`.
+            width:
+                Width of the ONNX input. If None, will be taken from `self.image_size`.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to `torch.onnx.export`.
+
+        Returns:
+            None. Writes the ONNX model to `out`.
+        """
+        from lightly_train._commands import _warnings
+
+        _logging.set_up_console_logging()
+        _warnings.filter_export_warnings()
+
+        self.eval()
+
+        first_parameter = next(self.parameters())
+        model_device = first_parameter.device
+        dtype = first_parameter.dtype
+
+        if precision == "fp32":
+            dtype = torch.float32
+        elif precision == "fp16":
+            dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+            )
+
+        self.to(dtype)
+
+        height = self.image_size if height is None else height
+        width = self.image_size if width is None else width
+        num_channels = 3
+
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
+        dummy_input = torch.randn(
+            batch_size,
+            num_channels,
+            height,
+            width,
+            requires_grad=False,
+            device=model_device,
+            dtype=dtype,
+        )
+
+        # `forward` returns a fixed-order tuple of (depth[, sky]) matching these output
+        # names, so it is directly ONNX-exportable without a wrapper.
+        output_names = ["depth", "sky"] if self.decoder.use_sky_head else ["depth"]
+
+        # Precalculate interpolated positional encoding for ONNX export.
+        with onnx_helpers.precalculate_for_onnx_export():
+            self(dummy_input)
+
+        input_names = ["images"]
+
+        torch.onnx.export(
+            self,
+            (dummy_input,),
+            str(out),
+            input_names=input_names,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamo=False,
+            dynamic_axes=dynamic_axes,
+            **(format_args or {}),
+        )
+
+        if simplify:
+            import onnxslim  # type: ignore [import-not-found,import-untyped]
+
+            # Simplify.
+            onnxslim.slim(
+                model=str(out),
+                output_model=out,
+            )
+
+        if verify:
+            logger.info("Verifying ONNX model")
+            import onnx
+            import onnxruntime as ort
+
+            onnx.checker.check_model(out, full_check=True)
+
+            # Always run the reference input in float32 and on cpu for consistency.
+            reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
+            reference_outputs = reference_model(
+                dummy_input.cpu().to(torch.float32),
+            )
+
+            # Get outputs from the ONNX model.
+            session = ort.InferenceSession(out)
+            input_feed = {
+                "images": dummy_input.cpu().numpy(),
+            }
+            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
+
+            # Verify that the outputs from both models are close.
+            if len(outputs_onnx) != len(reference_outputs):
+                raise AssertionError(
+                    f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
+                )
+            for output_onnx, output_model, output_name in zip(
+                outputs_onnx, reference_outputs, output_names
+            ):
+
+                def msg(s: str) -> str:
+                    return f'ONNX validation failed for output "{output_name}": {s}'
+
+                if output_model.is_floating_point():
+                    # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                    # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                    torch.testing.assert_close(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                        equal_nan=True,
+                        check_device=False,
+                        check_dtype=False,
+                        check_layout=False,
+                        atol=5e-3,
+                        rtol=1e-1,
+                    )
+                else:
+                    _torch_testing.assert_most_equal(
+                        output_onnx,
+                        output_model,
+                        msg=msg,
+                    )
+
+        logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    @torch.no_grad()
+    def export_tensorrt(
+        self,
+        out: PathLike,
+        *,
+        precision: Literal["auto", "fp32", "fp16"] = "auto",
+        onnx_args: dict[str, Any] | None = None,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model.
+
+        .. note::
+            TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+            Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+            See the `TensorRT documentation <https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html>`_ for more details.
+            On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+
+        This loads the ONNX file, parses it with TensorRT, infers the static input
+        shape (C, H, W) from the `"images"` input, and creates an engine with a
+        dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+        Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
+
+        The engine is serialized and written to `out`.
+
+        Args:
+            out:
+                Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "auto", "fp32", or "fp16". "auto" uses the model's current precision.
+            onnx_args:
+                Optional arguments to pass to `export_onnx` when exporting
+                the ONNX model prior to building the TensorRT engine. If None,
+                default arguments are used and the ONNX file is saved alongside
+                the TensorRT engine with the same name but `.onnx` extension.
+            max_batchsize:
+                Maximum supported batch size.
+            opt_batchsize:
+                Batch size TensorRT optimizes for.
+            min_batchsize:
+                Minimum supported batch size.
+            verbose:
+                Enable verbose TensorRT logging.
+
+        Raises:
+            FileNotFoundError: If the ONNX file does not exist.
+            RuntimeError: If the ONNX cannot be parsed or engine building fails.
+            ValueError: If batch size constraints are invalid or H/W are dynamic.
+        """
+        model_dtype = next(self.parameters()).dtype
+
+        onnx_args = dict(onnx_args) if onnx_args is not None else {}
+        onnx_args.setdefault("precision", precision)
+
+        tensorrt_helpers.export_tensorrt(
+            export_onnx_fn=self.export_onnx,
+            out=out,
+            precision=precision,
+            model_dtype=model_dtype,
+            onnx_args=onnx_args,
+            max_batchsize=max_batchsize,
+            opt_batchsize=opt_batchsize,
+            min_batchsize=min_batchsize,
+            # FP32 attention scores required for FP16 model stability. Otherwise output
+            # contains NaN.
+            fp32_attention_scores=True,
+            verbose=verbose,
+        )
 
     def _extract_features(self, x: Tensor) -> list[Tensor]:
         intermediate = self.backbone.get_intermediate_layers(

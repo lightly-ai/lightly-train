@@ -7,10 +7,12 @@
 #
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 from PIL import Image
 
 from lightly_train._task_models.depth_estimation import task_model
@@ -48,6 +50,22 @@ def _build(model_name: str, **overrides: Any) -> DepthAnythingDepthEstimation:
     # Production fixes the image size per model; override it here so inference runs
     # at a tiny resolution and the tests stay fast.
     model.image_size = int(model_args["image_size"])
+    return model
+
+
+# ONNX export runs the backbone several times (export trace, onnxslim and the
+# fp32-reference verify pass), so the export tests use the small (vits14, ~22M) backbone
+# instead of the large (~303M) one to stay fast. The sky head is a decoder feature
+# toggled via `model_args`, so a single small backbone covers both export output sets.
+def _build_for_export(*, use_sky_head: bool) -> DepthAnythingDepthEstimation:
+    model_args = _tiny_model_args("dinov2/dav2-relative-small")
+    model_args["use_sky_head"] = use_sky_head
+    model = DepthAnythingDepthEstimation(
+        model_name="dinov2/dav2-relative-small",
+        model_args=model_args,
+        load_weights=False,
+    )
+    model.image_size = 56
     return model
 
 
@@ -196,9 +214,9 @@ class TestDepthAnythingDepthEstimation:
 
         out = model(x)
 
-        # Depth Anything V2 has no sky head, so the forward output is depth only.
-        assert out["depth"].shape == (2, 1, patch_size * 4, patch_size * 5)
-        assert "sky" not in out
+        # Depth Anything V2 has no sky head, so the forward output is (depth,) only.
+        assert len(out) == 1
+        assert out[0].shape == (2, 1, patch_size * 4, patch_size * 5)
 
     @pytest.mark.parametrize("model_name", _SKY_NAMES)
     def test_forward__returns_depth_and_sky(self, model_name: str) -> None:
@@ -208,8 +226,108 @@ class TestDepthAnythingDepthEstimation:
 
         out = model(x)
 
-        assert out["depth"].shape == (2, 1, patch_size * 4, patch_size * 5)
-        assert out["sky"].shape == (2, 1, patch_size * 4, patch_size * 5)
+        # A model with a sky head (DAv3) returns (depth, sky) in that order.
+        depth, sky = out
+        assert depth.shape == (2, 1, patch_size * 4, patch_size * 5)
+        assert sky.shape == (2, 1, patch_size * 4, patch_size * 5)
+
+    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+    @pytest.mark.skipif(
+        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+    )
+    @pytest.mark.parametrize(
+        "use_sky_head, expected_output_names",
+        [
+            (True, ["depth", "sky"]),
+            (False, ["depth"]),
+        ],
+    )
+    def test_export_onnx__output_names_match_sky_head(
+        self, use_sky_head: bool, expected_output_names: list[str], tmp_path: Path
+    ) -> None:
+        import onnx
+
+        model = _build_for_export(use_sky_head=use_sky_head)
+        out = tmp_path / "model.onnx"
+
+        model.export_onnx(out=out, simplify=False, verify=True)
+
+        # A model with a sky head (DAv3) exports both depth and sky; one without (DAv2)
+        # exports depth only.
+        onnx_model = onnx.load(out)
+        assert [o.name for o in onnx_model.graph.output] == expected_output_names
+
+    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+    @pytest.mark.skipif(
+        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+    )
+    def test_export_onnx__dynamic_batch_size(self, tmp_path: Path) -> None:
+        import numpy as np
+        import onnx
+        import onnxruntime as ort
+
+        # A sky head exercises both ONNX outputs against PyTorch.
+        model = _build_for_export(use_sky_head=True)
+        out = tmp_path / "model.onnx"
+
+        model.export_onnx(out=out, dynamic_batch_size=True, simplify=False, verify=True)
+
+        onnx_model = onnx.load(out)
+        input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+        assert input_batch_dim.dim_param == "N"
+
+        inputs = np.random.randn(3, 3, 56, 56).astype(np.float32)
+        session = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+        onnx_outputs = session.run(None, {"images": inputs})
+
+        # `forward` returns (depth, sky) in the same order as the ONNX outputs.
+        with torch.no_grad():
+            torch_outputs = model(torch.from_numpy(inputs))
+
+        assert len(onnx_outputs) == len(torch_outputs)
+        for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+            close = torch.isclose(
+                torch.from_numpy(onnx_out), torch_out, atol=2e-2, rtol=1e-1
+            )
+            assert close.float().mean() > 0.95
+
+    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+    @pytest.mark.skipif(
+        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+    )
+    def test_export_onnx__static_batch_size(self, tmp_path: Path) -> None:
+        import onnx
+
+        model = _build_for_export(use_sky_head=False)
+        out = tmp_path / "model.onnx"
+
+        model.export_onnx(
+            out=out, batch_size=2, dynamic_batch_size=False, simplify=False, verify=True
+        )
+
+        # A static batch size fixes the batch dimension to the integer instead of "N".
+        onnx_model = onnx.load(out)
+        input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+        assert input_batch_dim.dim_value == 2
+
+    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+    @pytest.mark.skipif(
+        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+    )
+    def test_export_onnx__custom_height_width(self, tmp_path: Path) -> None:
+        import onnx
+
+        model = _build_for_export(use_sky_head=False)
+        out = tmp_path / "model.onnx"
+
+        # Height and width must be multiples of the patch size (14).
+        model.export_onnx(out=out, height=70, width=42, simplify=False, verify=True)
+
+        # The height/width override flows into the ONNX input's spatial dimensions.
+        onnx_model = onnx.load(out)
+        input_dims = onnx_model.graph.input[0].type.tensor_type.shape.dim
+        assert input_dims[2].dim_value == 70
+        assert input_dims[3].dim_value == 42
 
 
 def test__processed_focal_length() -> None:

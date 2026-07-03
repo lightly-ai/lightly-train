@@ -28,10 +28,10 @@ from lightly_train._task_models.object_detection_components.rtdetr_postprocessor
     RTDETRPostProcessor,
 )
 
-__all__ = ["EdgeCrafterInstanceSegmentationPostProcessor"]
+__all__ = ["ECSegPostProcessor"]
 
 
-class EdgeCrafterInstanceSegmentationPostProcessor(RTDETRPostProcessor):
+class ECSegPostProcessor(RTDETRPostProcessor):
     """Postprocessor for LTDETR instance segmentation outputs."""
 
     def forward(  # type: ignore[override]

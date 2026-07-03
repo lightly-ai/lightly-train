@@ -10,12 +10,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Callable, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import Self, override
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
@@ -25,14 +26,42 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
 )
-from lightly_train._task_models.dinov3_ltdetr.task_model import (
-    _DINOv3LTDETRBase,
-    _DINOv3LTDETRConfig,
-    _LTDETRDecoderName,
+from lightly_train._models import package_helpers
+from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
+    DinoVisionTransformer as DINOv2VisionTransformer,
+)
+from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
+from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
+    DinoVisionTransformer as DINOv3VisionTransformer,
+)
+from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
+from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._task_models.ltdetr_object_detection.config import (
+    LTDETR_MODEL_REGISTRY,
+    DetectorConfig,
+    DFINETransformerConfig,
+    LTDETRDFINETransformerConfig,
+    LTDETRRTDETRTransformerv2Config,
+    RTDETRTransformerv2Config,
+)
+from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
+    DINOSTAs,
+)
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
+    DINOv3ConvNextWrapper,
+)
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
     DFINETransformer,
+)
+from lightly_train._task_models.object_detection_components.hybrid_encoder import (
+    HybridEncoder,
 )
 from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
     RTDETRPostProcessor,
@@ -40,26 +69,246 @@ from lightly_train._task_models.object_detection_components.rtdetr_postprocessor
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
+from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+_LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
+_TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
+_TransformerConfigFactory = Callable[[], _TransformerConfig]
 
-class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
-    def build_decoder(
-        self, config: _DINOv3LTDETRConfig
-    ) -> RTDETRTransformerv2 | DFINETransformer:
-        return _build_decoder(
-            config=config,
-            decoder_name=config.decoder_name,
-            num_classes=len(self.classes),
-            image_size=self.image_size,
+
+def _resolve_transformer_config(
+    config: DetectorConfig, decoder_name: _LTDETRDecoderName | None
+) -> _TransformerConfig:
+    """Make backwards-compatible transformer config resolution for LTDETR task models."""
+    resolved_decoder_name = decoder_name or config.transformer.decoder_name
+    if resolved_decoder_name == config.transformer.decoder_name:
+        return config.transformer
+
+    config_name = type(config.transformer).__name__
+    if resolved_decoder_name == "rtdetrv2":
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRRTDETRTransformerv2Config, config_name),
+        )
+    elif resolved_decoder_name == "dfine":
+        config_factory = cast(
+            _TransformerConfigFactory,
+            getattr(LTDETRDFINETransformerConfig, config_name),
+        )
+    else:
+        raise ValueError(
+            f"Unsupported decoder_name={decoder_name!r}. "
+            "Expected one of 'rtdetrv2' or 'dfine'."
+        )
+    return config_factory()
+
+
+class LTDETRObjectDetection(TaskModel):
+    model_suffix = "ltdetr"
+
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        classes: dict[int, str],
+        image_size: tuple[int, int],
+        patch_size: int | None = None,
+        image_normalize: dict[str, tuple[float, ...]] | None = None,
+        backbone_freeze: bool = False,
+        backbone_weights: PathLike | None = None,
+        backbone_args: dict[str, Any] | None = None,
+        decoder_name: _LTDETRDecoderName | None = None,
+        load_weights: bool = True,
+    ) -> None:
+        """Create an LTDETR object detection task model.
+
+        Args:
+            model_name:
+                The model name. For example ``"dinov3/vits16-ltdetr"``.
+            classes:
+                A dict mapping class IDs to class names.
+            image_size:
+                The input image size.
+            patch_size:
+                Override for the backbone patch size used in ``resolve_auto``
+                (stride computation). If None, the value from the model config's
+                ``backbone_args`` is used.
+            image_normalize:
+                A dict containing normalization statistics with the keys ``"mean"``
+                and ``"std"``.
+            backbone_freeze:
+                Whether to freeze the backbone during training.
+            backbone_weights:
+                Path to the backbone weights.
+            backbone_args:
+                Additional arguments merged into the backbone model args (override
+                config defaults).
+            decoder_name:
+                Override the decoder from the model config.
+            load_weights:
+                If False, then no pretrained weights are loaded.
+        """
+        # Store init_args for checkpointing.
+        super().__init__(init_args=locals(), ignore_args={"load_weights"})
+
+        config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        transformer_config = _resolve_transformer_config(
+            config=config, decoder_name=decoder_name
+        )
+        config.transformer = transformer_config
+
+        package_name, short_backbone = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        self.image_size = image_size
+        self.classes = classes
+        self.backbone_freeze = backbone_freeze
+
+        if backbone_freeze:
+            config.backbone_wrapper.finetune = False
+
+        # Use the config's baked-in patch_size unless the caller overrides it.
+        if patch_size is None:
+            patch_size = config.backbone_args.get("patch_size")
+        else:
+            config.backbone_args["patch_size"] = patch_size
+        config.resolve_auto(patch_size=patch_size)
+
+        # Internally, the model processes classes as contiguous integers starting at 0.
+        # This list maps the internal class id to the class id in `classes`.
+        internal_class_to_class = list(self.classes.keys())
+
+        # Efficient lookup for converting internal class IDs to class IDs.
+        # Registered as buffer to be automatically moved to the correct device.
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(internal_class_to_class, dtype=torch.long),
+            persistent=False,  # No need to save it in the state dict.
+        )
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+
+        self.image_normalize = image_normalize
+
+        # Resolve the backbone's expected input channel count.
+        # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
+        self._expected_input_channels: int
+        if package_name == EDGE_CRAFTER_PACKAGE.name:
+            self._expected_input_channels = 3
+        elif backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels = backbone_args["in_chans"]
+        elif self.image_normalize is not None:
+            self._expected_input_channels = len(self.image_normalize["mean"])
+        else:
+            self._expected_input_channels = 3
+
+        # Build backbone model args: start from config defaults, then apply overrides.
+        backbone_model_args: dict[str, Any] = dict(config.backbone_args)
+        if backbone_args is not None:
+            backbone_model_args.update(backbone_args)
+        if backbone_weights is not None:
+            backbone_model_args["weights"] = str(backbone_weights)
+
+        get_model_kwargs = {}
+        if self.image_normalize is not None:
+            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+
+        package = package_helpers.get_package(package_name)
+
+        backbone = package.get_model(
+            model_name=short_backbone,
+            model_args=backbone_model_args,
+            load_weights=load_weights,
+            **get_model_kwargs,
+        )
+        assert isinstance(
+            backbone,
+            (
+                ConvNeXt,
+                DINOv3VisionTransformer,
+                DINOv2VisionTransformer,
+                ECViTModelWrapper,
+            ),
         )
 
-    def build_postprocessor(self, config: _DINOv3LTDETRConfig) -> RTDETRPostProcessor:
-        postprocessor_config = config.rtdetr_postprocessor.model_dump()
-        postprocessor_config.update({"num_classes": len(self.classes)})
-        return RTDETRPostProcessor(**postprocessor_config)
+        self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+
+        if isinstance(backbone, ECViTModelWrapper):
+            self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
+        elif isinstance(backbone, (DINOv3VisionTransformer, DINOv2VisionTransformer)):
+            # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
+            backbone.mask_token.requires_grad = False  # type: ignore
+            vit_model_wrapper: DINOv2ViTModelWrapper | DINOv3ViTModelWrapper = (
+                DINOv2ViTModelWrapper(backbone)
+                if isinstance(backbone, DINOv2VisionTransformer)
+                else DINOv3ViTModelWrapper(backbone)
+            )
+            self.backbone = DINOSTAs(
+                model_wrapper=vit_model_wrapper,
+                **config.backbone_wrapper.model_dump(exclude={"conv_inplane_factor"}),
+            )
+        else:
+            assert isinstance(backbone, ConvNeXt)
+            convnext_model_wrapper = DINOv3VConvNeXtModelWrapper(backbone)
+            self.backbone = DINOv3ConvNextWrapper(model_wrapper=convnext_model_wrapper)
+
+        self.encoder: HybridEncoder = HybridEncoder(
+            **config.hybrid_encoder.model_dump()
+        )
+
+        transformer_cfg = transformer_config.model_dump(exclude={"decoder_name"})
+        transformer_cfg["num_classes"] = len(self.classes)
+        if transformer_config.decoder_name == "rtdetrv2":
+            self.decoder: RTDETRTransformerv2 | DFINETransformer = RTDETRTransformerv2(  # type: ignore[no-untyped-call]
+                **transformer_cfg, eval_spatial_size=self.image_size
+            )
+        else:
+            self.decoder = DFINETransformer(  # type: ignore[no-untyped-call]
+                **transformer_cfg, eval_spatial_size=self.image_size
+            )
+
+        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
+        postprocessor_cfg["num_classes"] = len(self.classes)
+        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
+            **postprocessor_cfg
+        )
+
+        if self.backbone_freeze:
+            self.freeze_backbone()
+
+    @override
+    @classmethod
+    def is_supported_model(cls, model: str) -> bool:
+        return model in LTDETR_MODEL_REGISTRY.list_aliases()
+
+    @classmethod
+    def list_model_names(cls) -> list[str]:
+        return list(LTDETR_MODEL_REGISTRY.list_aliases())
+
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        """Resolve a registered model alias into its package/backbone parts."""
+        try:
+            config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        except KeyError:
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}."
+            )
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        return {
+            "package_name": package_name,
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
+            "backbone_name": backbone_name,
+        }
 
     def get_export_output_names(self) -> list[str]:
         return ["labels", "boxes", "scores"]
@@ -136,6 +385,130 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
                 }
             )
         return out
+
+    def freeze_backbone(self) -> None:
+        self.backbone.eval()
+        self.backbone.requires_grad_(False)
+
+    def deploy(self) -> Self:
+        self.eval()
+        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
+        for m in self.modules():
+            if hasattr(m, "convert_to_deploy"):
+                m.convert_to_deploy()  # type: ignore[operator]
+        return self
+
+    def load_train_state_dict(
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> Any:
+        """Load the state dict from a training checkpoint.
+
+        Loads the EMA weights if available, otherwise falls back to the model weights.
+        """
+        has_ema_weights = any(k.startswith("ema_model.model.") for k in state_dict)
+        has_model_weights = any(k.startswith("model.") for k in state_dict)
+        new_state_dict = {}
+        if has_ema_weights:
+            for name, param in state_dict.items():
+                if name.startswith("ema_model.model."):
+                    name = name[len("ema_model.model.") :]
+                    new_state_dict[name] = param
+        elif has_model_weights:
+            for name, param in state_dict.items():
+                if name.startswith("model."):
+                    name = name[len("model.") :]
+                    new_state_dict[name] = param
+        return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        image_h, image_w = x.shape[-2:]
+
+        # Expand grayscale to the expected channel count so images can be stacked.
+        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
+        # 1-channel expansion is a convenience inherited from RGB-only models.
+        expected_c = self._expected_input_channels
+        if x.shape[-3] == 1 and expected_c > 1:
+            x = x.expand(expected_c, -1, -1)
+        elif x.shape[-3] != expected_c:
+            raise ValueError(
+                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
+            )
+
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        if self.image_normalize is not None:
+            batch = transforms_functional.normalize(
+                batch,
+                mean=list(self.image_normalize["mean"]),
+                std=list(self.image_normalize["std"]),
+            )
+        return batch
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image predictions.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions
+                with scores <= threshold are discarded.
+
+        Returns:
+            A list with one prediction dict per input image.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata, threshold=threshold)
+
+    @torch.no_grad()
+    def predict(
+        self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
+    ) -> dict[str, Tensor]:
+        """Run inference on a single image and return task-specific predictions.
+
+        Args:
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape (C, H, W).
+            threshold:
+                Score threshold to filter low-confidence predictions. Predictions with
+                scores <= threshold are discarded.
+
+        Returns:
+            A task-specific prediction dictionary.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
@@ -576,28 +949,3 @@ class DINOv3LTDETRObjectDetection(_DINOv3LTDETRBase):
             strongly_typed=True,
             verbose=verbose,
         )
-
-
-def _build_decoder(
-    *,
-    config: _DINOv3LTDETRConfig,
-    decoder_name: _LTDETRDecoderName,
-    num_classes: int,
-    image_size: tuple[int, int],
-) -> RTDETRTransformerv2 | DFINETransformer:
-    if decoder_name == "rtdetrv2":
-        decoder_config = config.rtdetr_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return RTDETRTransformerv2(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    elif decoder_name == "dfine":
-        decoder_config = config.dfine_transformer.model_dump()
-        decoder_config.update({"num_classes": num_classes})
-        return DFINETransformer(  # type: ignore[no-untyped-call]
-            **decoder_config,
-            eval_spatial_size=image_size,
-        )
-    else:
-        raise ValueError(f"Unsupported LTDETR decoder: {decoder_name}")
