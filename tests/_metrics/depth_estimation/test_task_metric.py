@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import pytest
 import torch
 
 from lightly_train._metrics.depth_estimation.task_metric import (
@@ -16,14 +17,14 @@ from lightly_train._metrics.depth_estimation.task_metric import (
 
 
 class TestDepthEstimationTaskMetric:
-    def test___init___watch_metric_mode_min_for_rmse(self) -> None:
+    def test___init___watch_metric_mode_min_for_abs_rel(self) -> None:
         metric = DepthEstimationTaskMetric(
             task_metric_args=DepthEstimationTaskMetricArgs(),
             split="val",
             loss_names=["loss"],
         )
 
-        assert metric.watch_metric == "val_metric/rmse"
+        assert metric.watch_metric == "val_metric/abs_rel"
         assert metric.watch_metric_mode == "min"
 
     def test_compute_aggregated_values__perfect_prediction(self) -> None:
@@ -42,8 +43,45 @@ class TestDepthEstimationTaskMetric:
         assert agg.metric_values["val_metric/rmse"] == 0.0
         assert agg.metric_values["val_metric/abs_rel"] == 0.0
         assert agg.metric_values["val_metric/delta1"] == 1.0
-        assert agg.watch_metric == "val_metric/rmse"
+        assert agg.watch_metric == "val_metric/abs_rel"
         assert agg.watch_metric_mode == "min"
+
+    def test_update_with_predictions__scale_shift_invariant(self) -> None:
+        # A prediction that is a global affine transform of the target is a perfect
+        # relative-depth prediction: alignment must recover it and report zero error.
+        metric = DepthEstimationTaskMetric(
+            task_metric_args=DepthEstimationTaskMetricArgs(),
+            split="val",
+            loss_names=["loss"],
+        )
+        target = torch.rand(1, 1, 8, 8) + 1.0
+        preds = 3.0 * target + 2.0
+
+        metric.update_with_predictions(preds, target)
+        agg = metric.compute_aggregated_values()
+
+        assert agg.metric_values["val_metric/abs_rel"] == pytest.approx(0.0, abs=1e-5)
+        assert agg.metric_values["val_metric/rmse"] == pytest.approx(0.0, abs=1e-5)
+        assert agg.metric_values["val_metric/delta1"] == 1.0
+
+    def test_update_with_predictions__aligns_each_image_independently(self) -> None:
+        # Two images with different (target = affine of pred) relationships. A single
+        # batch-wide fit could not zero both; per-image alignment does.
+        metric = DepthEstimationTaskMetric(
+            task_metric_args=DepthEstimationTaskMetricArgs(),
+            split="val",
+            loss_names=["loss"],
+        )
+        target = torch.rand(2, 1, 8, 8) + 1.0
+        preds = torch.empty_like(target)
+        preds[0] = 3.0 * target[0] + 2.0
+        preds[1] = 0.5 * target[1] - 1.0
+
+        metric.update_with_predictions(preds, target)
+        agg = metric.compute_aggregated_values()
+
+        assert agg.metric_values["val_metric/abs_rel"] == pytest.approx(0.0, abs=1e-5)
+        assert agg.metric_values["val_metric/rmse"] == pytest.approx(0.0, abs=1e-5)
 
     def test_update_with_predictions__masks_invalid(self) -> None:
         metric = DepthEstimationTaskMetric(

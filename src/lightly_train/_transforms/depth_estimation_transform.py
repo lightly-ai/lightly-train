@@ -14,10 +14,13 @@ from typing import Any, Literal
 import torch
 from albumentations import (
     BasicTransform,
+    ColorJitter,
     Compose,
+    GaussianBlur,
     HorizontalFlip,
     RandomCrop,
     Resize,
+    ToGray,
     VerticalFlip,
 )
 from albumentations.pytorch import ToTensorV2
@@ -34,6 +37,8 @@ from lightly_train._transforms.task_transform import (
     TaskTransformOutput,
 )
 from lightly_train._transforms.transform import (
+    ColorJitterArgs,
+    GaussianBlurArgs,
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
@@ -71,6 +76,11 @@ class DepthEstimationTransformArgs(TaskTransformArgs):
     normalize: NormalizeArgs | Literal["auto"]
     random_flip: RandomFlipArgs | None
     random_crop: RandomCropArgs | None
+    # Photometric augmentations applied to the image only; depth and sky are mask
+    # targets and are never color-jittered, blurred, or grayscaled.
+    color_jitter: ColorJitterArgs | None
+    gaussian_blur: GaussianBlurArgs | None
+    random_gray_scale: float | None
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         pass
@@ -92,6 +102,12 @@ class DepthEstimationTransformArgs(TaskTransformArgs):
                 self.normalize.std[i % len(self.normalize.std)]
                 for i in range(num_channels)
             )
+
+        # Color jitter and grayscale only support 3-channel images.
+        if self.color_jitter is not None and num_channels != 3:
+            self.color_jitter = None
+        if self.random_gray_scale is not None and num_channels != 3:
+            self.random_gray_scale = None
 
 
 class DepthEstimationTransform(TaskTransform):
@@ -128,6 +144,36 @@ class DepthEstimationTransform(TaskTransform):
                 ]
             if transform_args.random_flip.vertical_prob > 0.0:
                 transform += [VerticalFlip(p=transform_args.random_flip.vertical_prob)]
+
+        # Photometric augmentations are applied to the image only. Because depth and sky
+        # are registered as mask targets they are left untouched, so the pixel-to-label
+        # correspondence is preserved.
+        if transform_args.color_jitter is not None:
+            transform += [
+                ColorJitter(
+                    brightness=transform_args.color_jitter.strength
+                    * transform_args.color_jitter.brightness,
+                    contrast=transform_args.color_jitter.strength
+                    * transform_args.color_jitter.contrast,
+                    saturation=transform_args.color_jitter.strength
+                    * transform_args.color_jitter.saturation,
+                    hue=transform_args.color_jitter.strength
+                    * transform_args.color_jitter.hue,
+                    p=transform_args.color_jitter.prob,
+                )
+            ]
+
+        if transform_args.random_gray_scale:
+            transform += [ToGray(p=transform_args.random_gray_scale)]
+
+        if transform_args.gaussian_blur is not None:
+            transform += [
+                GaussianBlur(
+                    blur_limit=transform_args.gaussian_blur.blur_limit,
+                    sigma_limit=transform_args.gaussian_blur.sigmas,
+                    p=transform_args.gaussian_blur.prob,
+                )
+            ]
 
         # Normalize only applies to the image; depth and sky are mask targets.
         transform += [

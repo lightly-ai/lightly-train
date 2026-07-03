@@ -22,6 +22,10 @@ from lightly_train._metrics.task_metric import (
     TaskMetricArgs,
 )
 
+# Small constant guarding divisions and the degenerate (near-constant prediction)
+# case of the scale-and-shift fit.
+_EPS = 1e-8
+
 # Standard relative-error depth metrics and whether they should be minimised or
 # maximised for best-model selection.
 _METRIC_MODES: dict[str, Literal["min", "max"]] = {
@@ -34,7 +38,7 @@ _METRIC_MODES: dict[str, Literal["min", "max"]] = {
 class DepthEstimationTaskMetricArgs(TaskMetricArgs):
     """Metrics configuration for depth estimation."""
 
-    watch_metric: str = "val_metric/rmse"
+    watch_metric: str = "val_metric/abs_rel"
     # Whether to also compute quality metrics (not just losses) on the train split.
     train: bool = False
 
@@ -44,7 +48,12 @@ class DepthEstimationTaskMetric(TaskMetric):
 
     Quality metrics are AbsRel, RMSE and ``delta1`` (the fraction of pixels with
     ``max(pred/target, target/pred) < 1.25``), all computed over valid pixels
-    (``target > 0``).
+    (``target > 0``) after a per-image least-squares scale-and-shift alignment of the
+    prediction to the target. The student predicts relative depth with an unconstrained
+    global scale and shift (the scale-invariant training loss deliberately does not pin
+    them down), so raw metrics would be dominated by that arbitrary scale rather than by
+    depth quality; aligning first is the standard MiDaS/DepthAnything relative-depth
+    evaluation protocol.
     """
 
     def __init__(
@@ -120,7 +129,13 @@ class DepthEstimationTaskMetric(TaskMetric):
 
 
 class _DepthMetrics(TorchmetricsMetric):
-    """Accumulates AbsRel, RMSE and ``delta1`` over valid pixels across batches."""
+    """Accumulates AbsRel, RMSE and ``delta1`` over valid pixels across batches.
+
+    Each prediction is aligned to its target by a per-image least-squares scale-and-shift
+    fit before the metrics are computed (see ``_align_scale_shift``), so the metrics
+    measure relative-depth quality independent of the arbitrary global scale/shift the
+    scale-invariant training loss leaves free.
+    """
 
     abs_rel_sum: Tensor
     se_sum: Tensor
@@ -136,17 +151,27 @@ class _DepthMetrics(TorchmetricsMetric):
         self.add_state("count", default=torch.tensor(0.0), dist_reduce_fx="sum")
 
     def update(self, preds: Tensor, target: Tensor) -> None:
-        valid = (target > 0) & torch.isfinite(preds) & torch.isfinite(target)
-        if not bool(valid.any()):
-            return
-        pred = preds[valid].float()
-        gt = target[valid].float()
+        # Align each image independently: a batch-wide fit would let one image's scale
+        # contaminate another. Errors are summed and divided by the pixel count at
+        # ``compute`` time so the epoch aggregate is a proper pixel-weighted mean.
+        for pred_img, target_img in zip(preds.float(), target.float()):
+            valid = (
+                (target_img > 0) & torch.isfinite(pred_img) & torch.isfinite(target_img)
+            )
+            if not bool(valid.any()):
+                continue
+            pred = pred_img[valid]
+            gt = target_img[valid]
+            pred = _align_scale_shift(pred=pred, target=gt)
+            # The aligned prediction can be non-positive where the fit extrapolates
+            # below zero; the ratio-based metrics need positive values, so clamp.
+            pred = pred.clamp_min(_EPS)
 
-        self.abs_rel_sum += torch.sum(torch.abs(pred - gt) / gt)
-        self.se_sum += torch.sum((pred - gt) ** 2)
-        ratio = torch.maximum(pred / gt, gt / pred)
-        self.delta1_sum += torch.sum((ratio < 1.25).float())
-        self.count += gt.numel()
+            self.abs_rel_sum += torch.sum(torch.abs(pred - gt) / gt)
+            self.se_sum += torch.sum((pred - gt) ** 2)
+            ratio = torch.maximum(pred / gt, gt / pred)
+            self.delta1_sum += torch.sum((ratio < 1.25).float())
+            self.count += gt.numel()
 
     def compute(self) -> dict[str, Tensor]:
         if bool(self.count == 0):
@@ -161,6 +186,36 @@ class _DepthMetrics(TorchmetricsMetric):
             f"{self.prefix}rmse": torch.sqrt(self.se_sum / self.count),
             f"{self.prefix}delta1": self.delta1_sum / self.count,
         }
+
+
+def _align_scale_shift(*, pred: Tensor, target: Tensor) -> Tensor:
+    """Returns ``pred`` aligned to ``target`` by a least-squares scale and shift.
+
+    Solves ``min_{s, t} sum_i (s * pred_i + t - target_i)^2`` in closed form and returns
+    ``s * pred + t``. This is the standard MiDaS/DepthAnything relative-depth evaluation
+    alignment: the student's depth has an arbitrary global scale and shift (the
+    scale-invariant loss does not constrain them), so the prediction must be aligned to
+    the target before an error metric is meaningful.
+
+    Args:
+        pred: Predicted depth over valid pixels, shape ``(N,)``.
+        target: Target depth over the same valid pixels, shape ``(N,)``.
+
+    Returns:
+        The aligned prediction, shape ``(N,)``. If the prediction is (near-)constant the
+        fit is degenerate; the prediction is then shifted to match the target mean.
+    """
+    n = pred.numel()
+    mean_pred = pred.mean()
+    mean_target = target.mean()
+    pred_centered = pred - mean_pred
+    var_pred = torch.sum(pred_centered * pred_centered) / n
+    if bool(var_pred < _EPS):
+        return pred - mean_pred + mean_target
+    cov = torch.sum(pred_centered * (target - mean_target)) / n
+    scale = cov / var_pred
+    shift = mean_target - scale * mean_pred
+    return scale * pred + shift
 
 
 def _get_watch_metric_mode(

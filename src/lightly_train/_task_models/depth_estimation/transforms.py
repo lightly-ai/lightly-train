@@ -20,6 +20,8 @@ from lightly_train._transforms.depth_estimation_transform import (
     DepthEstimationTransformArgs,
 )
 from lightly_train._transforms.transform import (
+    ColorJitterArgs,
+    GaussianBlurArgs,
     NormalizeArgs,
     RandomCropArgs,
     RandomFlipArgs,
@@ -27,6 +29,25 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import ImageSizeTuple
 
 _DEFAULT_PATCH_SIZE = 14
+
+
+class DepthEstimationColorJitterArgs(ColorJitterArgs):
+    # Mild photometric jitter matching the values used by the EoMT semantic
+    # segmentation task (also a dense-prediction task with mask labels).
+    prob: float = 0.5
+    strength: float = 1.0
+    brightness: float = 32.0 / 255.0
+    contrast: float = 0.5
+    saturation: float = 0.5
+    hue: float = 18.0 / 360.0
+
+
+class DepthEstimationGaussianBlurArgs(GaussianBlurArgs):
+    # Light blur applied to a minority of samples. blur_limit=0 lets albumentations
+    # derive the kernel size from the sampled sigma.
+    prob: float = 0.2
+    sigmas: tuple[float, float] = Field(default=(0.1, 1.0), strict=False)
+    blur_limit: int | tuple[int, int] = 0
 
 
 class DepthEstimationTrainTransformArgs(DepthEstimationTransformArgs):
@@ -37,6 +58,13 @@ class DepthEstimationTrainTransformArgs(DepthEstimationTransformArgs):
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_crop: RandomCropArgs | None = None
+    color_jitter: ColorJitterArgs | None = Field(
+        default_factory=DepthEstimationColorJitterArgs
+    )
+    gaussian_blur: GaussianBlurArgs | None = Field(
+        default_factory=DepthEstimationGaussianBlurArgs
+    )
+    random_gray_scale: float | None = 0.1
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         _resolve_depth_transform_auto(self, model_init_args=model_init_args)
@@ -50,6 +78,10 @@ class DepthEstimationValTransformArgs(DepthEstimationTransformArgs):
     normalize: NormalizeArgs | Literal["auto"] = "auto"
     random_flip: RandomFlipArgs | None = None
     random_crop: RandomCropArgs | None = None
+    # Validation runs on clean images so metrics reflect true depth accuracy.
+    color_jitter: ColorJitterArgs | None = None
+    gaussian_blur: GaussianBlurArgs | None = None
+    random_gray_scale: float | None = None
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         _resolve_depth_transform_auto(self, model_init_args=model_init_args)
