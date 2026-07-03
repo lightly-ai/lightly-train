@@ -303,8 +303,11 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "out_layers": (2, 5, 8, 11),
             "image_size": 512,
             "patch_size": 16,
-            "features": 64,
-            "out_channels": (48, 96, 192, 384),
+            # The 192-dim Tiny backbone is a small teacher target, so the DPT head is
+            # sized down (features 32, halved out_channels) to keep it a modest fraction
+            # of the ~5.5 M backbone; the resize/fusion convs scale with out_channels.
+            "features": 32,
+            "out_channels": (24, 48, 96, 192),
             "output_dim": 1,
             "use_sky_head": True,
         },
@@ -324,8 +327,10 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "out_layers": (2, 5, 8, 11),
             "image_size": 512,
             "patch_size": 16,
-            "features": 64,
-            "out_channels": (48, 96, 192, 384),
+            # See `vitt16-dav3-relative`: the same slimmed DPT head is used for the
+            # TinyPlus student.
+            "features": 32,
+            "out_channels": (24, 48, 96, 192),
             "output_dim": 1,
             "use_sky_head": True,
         },
