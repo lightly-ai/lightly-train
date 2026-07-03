@@ -23,9 +23,9 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     SingleChannelClassInfo,
     SplitArgs,
 )
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms import (
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     NormalizeArgs,
@@ -36,8 +36,8 @@ from .. import helpers
 from ..helpers import create_images, create_semantic_segmentation_masks
 
 
-def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
-    args = SemanticSegmentationTransformArgs(
+def _dummy_transform(num_channels: int = 3) -> EoMTSemanticSegmentationTransform:
+    args = EoMTSemanticSegmentationTransformArgs(
         ignore_index=-100,
         image_size=(32, 32),
         channel_drop=None,
@@ -53,7 +53,7 @@ def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
     )
     args.resolve_auto(model_init_args={})
     args.resolve_incompatible()
-    return SemanticSegmentationTransform(args)
+    return EoMTSemanticSegmentationTransform(args)
 
 
 class TestMaskSemanticSegmentationDataArgs:

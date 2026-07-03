@@ -11,9 +11,9 @@ from typing import Any, Literal, Sequence
 
 from pydantic import Field
 
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms import (
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -67,7 +67,7 @@ class DINOv3EoMTSemanticSegmentationRandomCropArgs(RandomCropArgs):
 
 
 class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
-    SemanticSegmentationTransformArgs
+    EoMTSemanticSegmentationTransformArgs
 ):
     """
     Defines default transform arguments for semantic segmentation training with DINOv3.
@@ -118,7 +118,9 @@ class DINOv3EoMTSemanticSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransformArgs):
+class DINOv3EoMTSemanticSegmentationValTransformArgs(
+    EoMTSemanticSegmentationTransformArgs
+):
     """
     Defines default transform arguments for semantic segmentation validation with DINOv3.
     """
@@ -163,9 +165,9 @@ class DINOv3EoMTSemanticSegmentationValTransformArgs(SemanticSegmentationTransfo
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTSemanticSegmentationTrainTransform(SemanticSegmentationTransform):
+class DINOv3EoMTSemanticSegmentationTrainTransform(EoMTSemanticSegmentationTransform):
     transform_args_cls = DINOv3EoMTSemanticSegmentationTrainTransformArgs
 
 
-class DINOv3EoMTSemanticSegmentationValTransform(SemanticSegmentationTransform):
+class DINOv3EoMTSemanticSegmentationValTransform(EoMTSemanticSegmentationTransform):
     transform_args_cls = DINOv3EoMTSemanticSegmentationValTransformArgs

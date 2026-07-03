@@ -13,9 +13,9 @@ from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
-from lightly_train._transforms.instance_segmentation_transform import (
-    InstanceSegmentationTransform,
-    InstanceSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms import (
+    EoMTInstanceSegmentationTransform,
+    EoMTInstanceSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -72,7 +72,7 @@ class DINOv3EoMTInstanceSegmentationRandomCropArgs(RandomCropArgs):
 
 
 class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
-    InstanceSegmentationTransformArgs
+    EoMTInstanceSegmentationTransformArgs
 ):
     """
     Defines default transform arguments for instance segmentation training with DINOv3.
@@ -130,7 +130,9 @@ class DINOv3EoMTInstanceSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransformArgs):
+class DINOv3EoMTInstanceSegmentationValTransformArgs(
+    EoMTInstanceSegmentationTransformArgs
+):
     """
     Defines default transform arguments for instance segmentation validation with DINOv3.
     """
@@ -184,9 +186,9 @@ class DINOv3EoMTInstanceSegmentationValTransformArgs(InstanceSegmentationTransfo
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv3EoMTInstanceSegmentationTrainTransform(InstanceSegmentationTransform):
+class DINOv3EoMTInstanceSegmentationTrainTransform(EoMTInstanceSegmentationTransform):
     transform_args_cls = DINOv3EoMTInstanceSegmentationTrainTransformArgs
 
 
-class DINOv3EoMTInstanceSegmentationValTransform(InstanceSegmentationTransform):
+class DINOv3EoMTInstanceSegmentationValTransform(EoMTInstanceSegmentationTransform):
     transform_args_cls = DINOv3EoMTInstanceSegmentationValTransformArgs
