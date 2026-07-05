@@ -262,6 +262,12 @@ conflicts = [
 ]
 
 [tool.uv.sources]
+# LightlySSL from the PatchKernelAlignmentLoss merge commit
+# (https://github.com/lightly-ai/lightly/pull/1953).
+# TODO(Igor, 07/2026): Remove this git override once a lightly release contains
+# PatchKernelAlignmentLoss and roi_resample_to_grid, so the plain "lightly"
+# dependency on PyPI suffices.
+lightly = { git = "https://github.com/lightly-ai/lightly.git", rev = "f03d012df6486e885dac5d6c2e14780b6455d9cb" }
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [

@@ -7,7 +7,10 @@
 #
 from __future__ import annotations
 
+from typing import Any, cast
+
 import cv2
+import torch
 from albumentations import (
     BasicTransform,
     ColorJitter,
@@ -53,11 +56,12 @@ class ViewTransformArgs(PydanticConfig):
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
     normalize: NormalizeArgs
+    # Record per-view crop/flip geometry and attach it to the output view as a
+    # "geometry" tensor, used by dense-relational losses (e.g. dinov31).
+    record_geometry: bool = False
 
 
-def _get_RandomResizedCrop(
-    args: RandomResizedCropArgs,
-) -> RandomResizedCrop:
+def _get_RandomResizedCrop(args: RandomResizedCropArgs) -> RandomResizedCrop:
     # A lot of though went into the choice of interpolation method here.
     # See details in https://github.com/lightly-ai/lightly-train-old/pull/284
     assert args.scale is not None
@@ -90,11 +94,60 @@ def _get_Solarize(args: SolarizeArgs) -> Solarize:
     )
 
 
+def build_photometric_ops(
+    color_jitter: ColorJitterArgs | None,
+    random_gray_scale: float | None,
+    gaussian_blur: GaussianBlurArgs | None,
+    solarize: SolarizeArgs | None,
+) -> list[BasicTransform]:
+    """Builds the standard DINO photometric augmentation ops in fixed order.
+
+    Shared by ``ViewTransform`` and the dinov31 PaKA clean/local renders so the
+    two stay in sync by construction.
+    """
+    ops: list[BasicTransform] = []
+    if color_jitter:
+        ops.append(
+            ColorJitter(
+                brightness=color_jitter.strength * color_jitter.brightness,
+                contrast=color_jitter.strength * color_jitter.contrast,
+                saturation=color_jitter.strength * color_jitter.saturation,
+                hue=color_jitter.strength * color_jitter.hue,
+                p=color_jitter.prob,
+            )
+        )
+    if random_gray_scale:
+        ops.append(ToGray(p=random_gray_scale))
+    if gaussian_blur:
+        ops.append(
+            GaussianBlur(
+                # Setting blur_limit=0 is necessary for older versions of albumentations.
+                # See details in https://linear.app/lightly/issue/LIG-5871/look-into-albumentations-gaussian-blur-difference
+                blur_limit=gaussian_blur.blur_limit,
+                sigma_limit=gaussian_blur.sigmas,
+                p=gaussian_blur.prob,
+            )
+        )
+    if solarize:
+        ops.append(_get_Solarize(solarize))
+    return ops
+
+
 class ViewTransform:
     def __init__(
         self,
         args: ViewTransformArgs,
-    ) -> None:
+    ):
+        self._record_geometry = args.record_geometry
+        if self._record_geometry:
+            if not ALBUMENTATIONS_VERSION_2XX:
+                raise ValueError("record_geometry=True requires albumentations>=2.0.0.")
+            if args.random_rotation is not None:
+                raise ValueError(
+                    "record_geometry=True is not supported together with "
+                    "random_rotation because rotation invalidates patch boxes."
+                )
+
         transform: list[BasicTransform] = []
 
         if args.channel_drop is not None:
@@ -135,42 +188,67 @@ class ViewTransform:
                 )
             ]
 
-        if args.color_jitter:
-            transform += [
-                ColorJitter(
-                    brightness=args.color_jitter.strength
-                    * args.color_jitter.brightness,
-                    contrast=args.color_jitter.strength * args.color_jitter.contrast,
-                    saturation=args.color_jitter.strength
-                    * args.color_jitter.saturation,
-                    hue=args.color_jitter.strength * args.color_jitter.hue,
-                    p=args.color_jitter.prob,
-                )
-            ]
-
-        if args.random_gray_scale:
-            transform += [ToGray(p=args.random_gray_scale)]
-
-        if args.gaussian_blur:
-            transform += [
-                GaussianBlur(
-                    # Setting blur_limit=0 is necessary for older versions of albumentations
-                    # See details in https://linear.app/lightly/issue/LIG-5871/look-into-albumentations-gaussian-blur-difference
-                    blur_limit=args.gaussian_blur.blur_limit,
-                    sigma_limit=args.gaussian_blur.sigmas,
-                    p=args.gaussian_blur.prob,
-                )
-            ]
-
-        if args.solarize:
-            transform += [_get_Solarize(args.solarize)]
+        transform += build_photometric_ops(
+            color_jitter=args.color_jitter,
+            random_gray_scale=args.random_gray_scale,
+            gaussian_blur=args.gaussian_blur,
+            solarize=args.solarize,
+        )
 
         transform += [Normalize(mean=args.normalize.mean, std=args.normalize.std)]
 
         transform += [ToTensorV2()]
 
-        self.transform = Compose(list(transform))
+        if self._record_geometry:
+            # save_applied_params (albumentations>=2.0 only) records the transforms
+            # that fired on each call, which is how we recover the crop box / flips
+            # for record_geometry. Read it inside __call__ immediately after the
+            # call; this keeps a single ViewTransform instance safe to reuse
+            # sequentially across views (as DINOTransform does for local views).
+            # Do not share a ViewTransform across threads.
+            self.transform = Compose(list(transform), save_applied_params=True)
+        else:
+            self.transform = Compose(list(transform))
 
     def __call__(self, input: TransformInput) -> TransformOutputSingleView:
-        transformed: TransformOutputSingleView = self.transform(**input)
+        if not self._record_geometry:
+            transformed: TransformOutputSingleView = self.transform(**input)
+            return transformed
+
+        image_h, image_w = input["image"].shape[:2]
+        transformed = self.transform(**input)
+        # Albumentations adds an "applied_transforms" list (not part of the
+        # TypedDict) when save_applied_params=True.
+        applied = cast(dict[str, Any], transformed).pop("applied_transforms")
+
+        crop_coords: tuple[int, int, int, int] | None = None
+        hflip = False
+        vflip = False
+        # applied_transforms lists only the transforms that fired on this call, so a
+        # flip entry means the flip was applied.
+        for name, params in applied:
+            if name == "RandomResizedCrop":
+                crop_coords = params["crop_coords"]
+            elif name == "HorizontalFlip":
+                hflip = True
+            elif name == "VerticalFlip":
+                vflip = True
+        if crop_coords is None:
+            raise RuntimeError(
+                "record_geometry=True but no crop was applied. This indicates "
+                "an incompatible albumentations version or pipeline."
+            )
+        transformed["geometry"] = torch.tensor(
+            [
+                float(crop_coords[0]),
+                float(crop_coords[1]),
+                float(crop_coords[2]),
+                float(crop_coords[3]),
+                float(image_w),
+                float(image_h),
+                1.0 if hflip else 0.0,
+                1.0 if vflip else 0.0,
+            ],
+            dtype=torch.float32,
+        )
         return transformed
