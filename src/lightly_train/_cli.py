@@ -194,6 +194,11 @@ _PRETRAIN_HELP_MSG = f"""
             Additional arguments for the PyTorch DataLoader.
         trainer_args (dict):
             Additional arguments for the PyTorch Lightning Trainer.
+        torch_compile_args (dict):
+            Arguments to configure torch.compile for pretraining backbone feature
+            extraction. Disabled by default. Enable with
+            `torch_compile_args.disable=false`; additional keys are passed to
+            torch.compile, e.g. `torch_compile_args.mode=max-autotune`.
         model_args (dict):
             Arguments for the model. The available arguments depend on the `model`
             parameter. For example, if `model='torchvision/<model_name>'`, the

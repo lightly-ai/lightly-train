@@ -41,6 +41,7 @@ from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._torch_helpers import _torch_weights_only_false
 from lightly_train._transforms.transform import MethodTransformArgs
 from lightly_train.types import PathLike
@@ -77,6 +78,7 @@ def pretrain(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Pretrain a self-supervised model.
@@ -229,6 +231,11 @@ def pretrain(
             Arguments for the PyTorch Lightning Trainer. Should only be used in special
             cases as default values are automatically set. For details, see:
             https://lightning.ai/docs/pytorch/stable/common/trainer.html
+        torch_compile_args:
+            Arguments to configure torch.compile for pretraining backbone feature
+            extraction. Compilation is disabled by default; pass for example
+            ``torch_compile_args={"disable": False, "mode": "max-autotune"}``
+            to enable it.
         model_args:
             Arguments for the model. The available arguments depend on the ``model``
             parameter. For example, if ``model='torchvision/<model_name>'``, the
@@ -270,6 +277,7 @@ def train(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    torch_compile_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Deprecated. Use :func:`pretrain` instead."""
@@ -485,6 +493,12 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             embedding_model=embedding_model,
             method=method_instance,
         )
+        config.torch_compile_args = train_helpers.get_torch_compile_args(
+            torch_compile_args=config.torch_compile_args
+        )
+        train_helpers.compile_method_backbones(
+            method=method_instance, torch_compile_args=config.torch_compile_args
+        )
         log_resolved_config(config=config, loggers=logger_instances)
 
         with _torch_weights_only_false():
@@ -555,6 +569,7 @@ class TrainConfig(PydanticConfig):
     loader_args: dict[str, Any] | None = None
     trainer_args: dict[str, Any] | None = None
     model_args: dict[str, Any] | None = None
+    torch_compile_args: dict[str, Any] | TorchCompileArgs | None = None
     resume: bool | None = None  # Deprecated, use `resume_interrupted` instead.
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
@@ -569,6 +584,7 @@ class FunctionTrainConfig(TrainConfig):
     optim: str = "auto"
     optim_args: dict[str, Any] | None = None
     transform_args: dict[str, Any] | None = None
+    torch_compile_args: dict[str, Any] | None = None
 
 
 class CLITrainConfig(FunctionTrainConfig):
