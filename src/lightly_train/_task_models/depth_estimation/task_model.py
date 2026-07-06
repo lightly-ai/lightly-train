@@ -17,33 +17,32 @@ import torch
 import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.depth_estimation_components import image_utils
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
-# Depth Anything V3 processes images by resizing the longer side to the inference size.
-_PROCESS_RES_METHOD_DAV3 = "upper_bound_resize"
 # Depth Anything V3 metric scaling constant: ``metric_depth = focal * output / 300``.
 _METRIC_SCALE_FACTOR = 300.0
+# ImageNet normalization statistics applied to the model input.
+_NORMALIZE_MEAN = (0.485, 0.456, 0.406)
+_NORMALIZE_STD = (0.229, 0.224, 0.225)
 
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-small": {
         "canonical_name": "dinov2/dav2-relative-small",
         "backbone_name": "vits14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "relu",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "none",
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -57,11 +56,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-base": {
         "canonical_name": "dinov2/dav2-relative-base",
         "backbone_name": "vitb14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "relu",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "none",
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -75,11 +72,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-relative-large": {
         "canonical_name": "dinov2/dav2-relative-large",
         "backbone_name": "vitl14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "relu",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "none",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -97,11 +92,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-small-hypersim": {
         "canonical_name": "dinov2/dav2-metric-small-hypersim",
         "backbone_name": "vits14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "sigmoid",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "max_depth",
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -116,11 +109,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-base-hypersim": {
         "canonical_name": "dinov2/dav2-metric-base-hypersim",
         "backbone_name": "vitb14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "sigmoid",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "max_depth",
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -135,11 +126,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-large-hypersim": {
         "canonical_name": "dinov2/dav2-metric-large-hypersim",
         "backbone_name": "vitl14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "sigmoid",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "max_depth",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -154,11 +143,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-small-vkitti": {
         "canonical_name": "dinov2/dav2-metric-small-vkitti",
         "backbone_name": "vits14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "sigmoid",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "max_depth",
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -173,11 +160,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-base-vkitti": {
         "canonical_name": "dinov2/dav2-metric-base-vkitti",
         "backbone_name": "vitb14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "sigmoid",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "max_depth",
         "model_args": {
             "out_layers": (2, 5, 8, 11),
@@ -192,11 +177,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav2-metric-large-vkitti": {
         "canonical_name": "dinov2/dav2-metric-large-vkitti",
         "backbone_name": "vitl14-noreg",
-        "image_size": 518,
-        "preprocess": "dav2",
+        "image_size": (518, 518),
         "activation": "sigmoid",
         "use_sky_head": False,
-        "align_corners": True,
         "scale_mode": "max_depth",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -211,11 +194,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav3-relative-large": {
         "canonical_name": "dinov2/dav3-relative-large",
         "backbone_name": "vitl14-noreg",
-        "image_size": 504,
-        "preprocess": "dav3",
+        "image_size": (504, 504),
         "activation": "exp",
         "use_sky_head": True,
-        "align_corners": False,
         "scale_mode": "none",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -230,11 +211,9 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     "dinov2/dav3-metric-large": {
         "canonical_name": "dinov2/dav3-metric-large",
         "backbone_name": "vitl14-noreg",
-        "image_size": 504,
-        "preprocess": "dav3",
+        "image_size": (504, 504),
         "activation": "exp",
         "use_sky_head": True,
-        "align_corners": False,
         "scale_mode": "focal",
         "model_args": {
             "out_layers": (4, 11, 17, 23),
@@ -263,6 +242,7 @@ class DepthAnythingDepthEstimation(TaskModel):
         self,
         *,
         model_name: str = "dinov2/dav3-relative-large",
+        image_size: tuple[int, int] | None = None,
         model_args: dict[str, Any] | None = None,
         backbone_args: dict[str, Any] | None = None,
         load_weights: bool = True,
@@ -275,6 +255,11 @@ class DepthAnythingDepthEstimation(TaskModel):
                 ``list_model_names``, e.g. ``"dinov2/dav2-relative-large"``,
                 ``"dinov2/dav2-metric-large-hypersim"``, ``"dinov2/dav3-relative-large"``
                 or ``"dinov2/dav3-metric-large"``.
+            image_size:
+                The ``(height, width)`` resolution the input is resized to before
+                inference; predictions are resized back to the original image size. Both
+                sides must be positive multiples of the patch size (14). Defaults to the
+                model's native resolution (518x518 for V2, 504x504 for V3).
             model_args:
                 Additional arguments controlling the DPT decoder and feature extraction,
                 e.g. ``out_layers``, ``features``, ``out_channels``, ``output_dim``,
@@ -305,13 +290,6 @@ class DepthAnythingDepthEstimation(TaskModel):
         config = _MODEL_CONFIGS[key]
 
         self.model_name = config["canonical_name"]
-        # The image size is fixed per model: it is the official Depth Anything
-        # inference resolution and predictions are resized back to the original image
-        # size, so it is not a user-facing parameter.
-        self.image_size = int(config["image_size"])
-
-        self._preprocess: str = config["preprocess"]
-        self._align_corners: bool = bool(config["align_corners"])
         self._scale_mode: str = config["scale_mode"]
 
         net_args = dict(config["model_args"])
@@ -321,6 +299,14 @@ class DepthAnythingDepthEstimation(TaskModel):
         patch_size = int(net_args["patch_size"])
         self.out_layers: tuple[int, ...] = tuple(net_args["out_layers"])
         self.patch_size = patch_size
+
+        # The input is resized to `image_size` before inference and predictions are
+        # resized back to the original image size. It defaults to the model's native
+        # inference resolution but can be overridden per instance.
+        size = config["image_size"] if image_size is None else image_size
+        resolved_image_size = (int(size[0]), int(size[1]))
+        _validate_image_size(image_size=resolved_image_size, patch_size=patch_size)
+        self.image_size: tuple[int, int] = resolved_image_size
         # `max_depth`/`use_sky_head`/`activation` historically live inside `model_args`
         # in exported checkpoints, so read them from the merged `net_args` with the
         # per-config value as the default to stay reconstructable from old checkpoints.
@@ -442,9 +428,9 @@ class DepthAnythingDepthEstimation(TaskModel):
 
         Returns:
             One depth tensor of shape ``(H, W)`` per image, matching each image's
-            original resolution. Images whose processed sizes differ are center-cropped
-            to the smallest size in the batch before inference, so their depth maps are
-            slightly stretched when resized back.
+            original resolution. All images are resized to ``self.image_size`` before
+            inference, so they stack into a single batch regardless of their original
+            sizes.
         """
         self._track_inference()
         if self.training:
@@ -480,31 +466,28 @@ class DepthAnythingDepthEstimation(TaskModel):
     ) -> tuple[Tensor, dict[str, Any]]:
         """Per-image preprocessing producing a model-input tensor and metadata.
 
-        The aspect-preserving resize means outputs across a batch may have different
-        shapes, so they are not always stackable; `preprocess_batch` therefore takes a
-        sequence and unifies the sizes.
+        The image is resized to the fixed ``self.image_size``, so outputs across a batch
+        share the same shape and are stackable in `preprocess_batch`.
         """
-        x = file_helpers.as_image_tensor(image)
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+        x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
-        if self._preprocess == "dav3":
-            # Process on the input's native device: the cv2-parity resize rounds after an
-            # einsum whose accumulation order differs between CPU and GPU, so moving to
-            # the model device first could flip pixels and break bit-exactness.
-            x = image_utils.process_image_dav3(
-                x,
-                process_res=self.image_size,
-                process_res_method=_PROCESS_RES_METHOD_DAV3,
-            )
-        else:
-            x = image_utils.process_image_dav2(x, process_res=self.image_size)
-        device = next(self.parameters()).device
-        return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
+        x = _to_rgb(x)
+        # `to_dtype(scale=True)` maps uint8 [0, 255] to float [0, 1]; float inputs are
+        # already in [0, 1] and are only cast.
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, list(self.image_size))
+        return x, {"orig_h": image_h, "orig_w": image_w}
 
     def preprocess_batch(  # type: ignore[override]
         self, batch: Sequence[Tensor]
     ) -> Tensor:
-        stacked = image_utils.process_batch(batch)
-        return stacked.to(dtype=next(self.parameters()).dtype)
+        stacked = torch.stack(list(batch))
+        normalized: Tensor = transforms_functional.normalize(
+            stacked, mean=list(_NORMALIZE_MEAN), std=list(_NORMALIZE_STD)
+        )
+        return normalized.to(dtype=next(self.parameters()).dtype)
 
     def forward(self, x: Tensor) -> tuple[Tensor, ...]:
         """Run depth inference on a preprocessed batch with shape ``(B, 3, H, W)``.
@@ -562,7 +545,7 @@ class DepthAnythingDepthEstimation(TaskModel):
                     depth[None, None],
                     size=(orig_h, orig_w),
                     mode="bilinear",
-                    align_corners=self._align_corners,
+                    align_corners=False,
                 )[0, 0]
             out.append(depth)
         return out
@@ -588,10 +571,10 @@ class DepthAnythingDepthEstimation(TaskModel):
         """Exports the model to ONNX for inference.
 
         The export uses a dummy input of shape (batch_size, 3, H, W). The spatial size
-        (H, W) is fixed in the ONNX graph: it defaults to the model's processing
-        resolution (``self.image_size`` on both sides) but can be overridden via
-        ``height``/``width`` (both must be multiples of the patch size, 14). If
-        ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch dimension.
+        (H, W) is fixed in the ONNX graph: it defaults to the model's ``image_size``
+        (height, width) but can be overridden via ``height``/``width`` (both must be
+        multiples of the patch size, 14). If ``dynamic_batch_size`` is True, the ONNX
+        graph has a dynamic batch dimension.
 
         The graph outputs the raw depth map at processing resolution, plus a sky map for
         models with a sky head (Depth Anything V3). Postprocessing (sky filling, metric
@@ -651,8 +634,8 @@ class DepthAnythingDepthEstimation(TaskModel):
 
         self.to(dtype)
 
-        height = self.image_size if height is None else height
-        width = self.image_size if width is None else width
+        height = self.image_size[0] if height is None else height
+        width = self.image_size[1] if width is None else width
         num_channels = 3
 
         if dynamic_batch_size:
@@ -849,6 +832,38 @@ class DepthAnythingDepthEstimation(TaskModel):
                 )
         elif intrinsics is not None:
             raise ValueError("This model does not accept intrinsics.")
+
+
+def _to_rgb(img: Tensor) -> Tensor:
+    """Returns a 3-channel ``(3, H, W)`` view of the image.
+
+    Grayscale is expanded to 3 channels and alpha is dropped; other channel counts raise.
+
+    Args:
+        img: Image of shape ``(C, H, W)``.
+
+    Returns:
+        The image with exactly 3 channels.
+    """
+    if img.ndim != 3:
+        raise ValueError(f"Expected image shape (C, H, W), got {tuple(img.shape)}.")
+    channels = img.shape[0]
+    if channels == 1:
+        return img.expand(3, -1, -1)
+    if channels == 4:
+        return img[:3]
+    if channels != 3:
+        raise ValueError(f"Expected an image with 1, 3, or 4 channels, got {channels}.")
+    return img
+
+
+def _validate_image_size(*, image_size: tuple[int, int], patch_size: int) -> None:
+    h, w = image_size
+    if h <= 0 or w <= 0 or h % patch_size != 0 or w % patch_size != 0:
+        raise ValueError(
+            f"image_size {image_size} must be two positive multiples of the patch "
+            f"size ({patch_size})."
+        )
 
 
 def _processed_focal_length(

@@ -41,16 +41,20 @@ def _tiny_model_args(model_name: str) -> dict[str, Any]:
     return args
 
 
-def _build(model_name: str, **overrides: Any) -> DepthAnythingDepthEstimation:
+def _build(
+    model_name: str,
+    *,
+    image_size: tuple[int, int] = (56, 56),
+    **overrides: Any,
+) -> DepthAnythingDepthEstimation:
     model_args = {**_tiny_model_args(model_name), **overrides}
+    # Use a tiny image size so inference runs at a small resolution and tests stay fast.
     model = DepthAnythingDepthEstimation(
         model_name=model_name,
+        image_size=image_size,
         model_args=model_args,
         load_weights=False,
     )
-    # Production fixes the image size per model; override it here so inference runs
-    # at a tiny resolution and the tests stay fast.
-    model.image_size = 56
     return model
 
 
@@ -63,10 +67,10 @@ def _build_for_export(*, use_sky_head: bool) -> DepthAnythingDepthEstimation:
     model_args["use_sky_head"] = use_sky_head
     model = DepthAnythingDepthEstimation(
         model_name="dinov2/dav2-relative-small",
+        image_size=(56, 56),
         model_args=model_args,
         load_weights=False,
     )
-    model.image_size = 56
     return model
 
 
@@ -82,6 +86,35 @@ _NO_SKY_NAMES = ["dinov2/dav2-relative-large", "dinov2/dav2-metric-large-hypersi
 
 
 class TestDepthAnythingDepthEstimation:
+    def test___init____rejects_non_multiple_of_patch_size(self) -> None:
+        with pytest.raises(ValueError, match="multiples of the patch size"):
+            _build("dinov2/dav2-relative-small", image_size=(50, 56))
+
+    def test_preprocess_image__resizes_to_image_size(self) -> None:
+        model = _build("dinov2/dav2-relative-small", image_size=(56, 42))
+        image = Image.new("RGB", (80, 64), color=(32, 64, 128))
+
+        x, metadata = model.preprocess_image(image)
+
+        assert x.shape == (3, 56, 42)
+        assert metadata == {"orig_h": 64, "orig_w": 80}
+
+    def test_preprocess_image__expands_grayscale(self) -> None:
+        model = _build("dinov2/dav2-relative-small", image_size=(56, 42))
+        image = torch.zeros(1, 64, 80, dtype=torch.uint8)
+
+        x, _ = model.preprocess_image(image)
+
+        assert x.shape == (3, 56, 42)
+
+    def test_preprocess_image__drops_alpha(self) -> None:
+        model = _build("dinov2/dav2-relative-small", image_size=(56, 42))
+        image = torch.zeros(4, 64, 80, dtype=torch.uint8)
+
+        x, _ = model.preprocess_image(image)
+
+        assert x.shape == (3, 56, 42)
+
     @pytest.mark.parametrize("model_name", _NON_FOCAL_NAMES)
     def test_predict__returns_original_resolution(self, model_name: str) -> None:
         model = _build(model_name)
@@ -109,7 +142,7 @@ class TestDepthAnythingDepthEstimation:
         assert torch.isfinite(depth).all()
 
     @pytest.mark.parametrize("model_name", _NON_FOCAL_NAMES)
-    def test_predict_batch__mixed_sizes(self, model_name: str) -> None:
+    def test_predict_batch__returns_per_image_resolution(self, model_name: str) -> None:
         model = _build(model_name)
         images = [
             Image.new("RGB", (80, 64), color=(32, 64, 128)),
@@ -118,9 +151,8 @@ class TestDepthAnythingDepthEstimation:
 
         depths = model.predict_batch(images)
 
-        # The processed sizes differ, so the batch is center-cropped to the smallest
-        # processed size before inference; each depth map is still resized back to its
-        # image's original resolution.
+        # Both images are resized to the same processing size, so they stack into one
+        # batch; each depth map is resized back to its own original resolution.
         assert len(depths) == 2
         assert depths[0].shape == (64, 80)
         assert depths[1].shape == (56, 56)
