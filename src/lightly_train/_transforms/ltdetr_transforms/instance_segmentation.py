@@ -11,23 +11,42 @@ from typing import Literal
 
 import numpy as np
 import torch
-from albumentations import Compose
+from albumentations import BboxParams, Compose
 from albumentations.pytorch.transforms import ToTensorV2
+from pydantic import ConfigDict
 from torch import Tensor
 
-from lightly_train._transforms.ltdetr_transforms.base import (
-    LTDETRTransformArgs,
-    _LTDETRCollateFunction,
-    _LTDETRTransform,
+from lightly_train._transforms.ltdetr_transforms.components import (
+    StepActivationTracker,
+    StepScheduledCompose,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
     filter_degenerate_yolo_boxes,
 )
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
+    TaskTransform,
+    TaskTransformArgs,
     TaskTransformInput,
     TaskTransformOutput,
 )
+from lightly_train._transforms.transform import (
+    ChannelDropArgs,
+    CopyBlendArgs,
+    MixUpArgs,
+    MosaicArgs,
+    NormalizeArgs,
+    RandomFlipArgs,
+    RandomIoUCropArgs,
+    RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
+    RandomZoomOutArgs,
+    ResizeArgs,
+    ScaleJitterArgs,
+)
 from lightly_train.types import (
+    ImageSizeTuple,
     InstanceSegmentationBatch,
     InstanceSegmentationDatasetItem,
     NDArrayBBoxes,
@@ -51,21 +70,73 @@ class LTDETRInstanceSegmentationTransformOutput(TaskTransformOutput):
     class_labels: NDArrayClasses
 
 
-class LTDETRInstanceSegmentationTransformArgs(LTDETRTransformArgs):
-    pass
+class LTDETRInstanceSegmentationTransformArgs(TaskTransformArgs):
+    """Transform arguments for LT-DETR instance segmentation.
+
+    Task-specific transforms subclass this to set their own field defaults; it is
+    not used directly.
+    """
+
+    channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
+    photometric_distort: RandomPhotometricDistortArgs | None
+    random_zoom_out: RandomZoomOutArgs | None
+    random_iou_crop: RandomIoUCropArgs | None
+    random_flip: RandomFlipArgs | None
+    random_rotate_90: RandomRotate90Args | None
+    random_rotate: RandomRotationArgs | None
+    image_size: ImageSizeTuple | Literal["auto"]
+    mixup: MixUpArgs | None = None
+    copyblend: CopyBlendArgs | None = None
+    mosaic: MosaicArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = None
+    resize: ResizeArgs | None
+    bbox_params: BboxParams | None
+    normalize: NormalizeArgs | Literal["auto"] | None
+
+    # Necessary for BboxParams, which are not serializable by pydantic.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class LTDETRInstanceSegmentationTransform(_LTDETRTransform):
-    transform_args_cls: type[LTDETRInstanceSegmentationTransformArgs] = (
-        LTDETRInstanceSegmentationTransformArgs
-    )
+class _MaskAwareStepScheduledCompose(StepScheduledCompose):
+    """Step-scheduled compose that also converts images and masks to tensors.
 
-    transform_args: LTDETRInstanceSegmentationTransformArgs
+    Instance segmentation appends ``ToTensorV2`` so albumentations converts the
+    image and the per-instance masks together, keeping them aligned.
+    """
 
     def _build_transform(self, key: tuple[bool, bool, bool]) -> Compose:
         transform = super()._build_transform(key)
         transform.transforms.append(ToTensorV2())
         return transform
+
+
+class LTDETRInstanceSegmentationTransform(TaskTransform):
+    transform_args_cls: type[LTDETRInstanceSegmentationTransformArgs] = (
+        LTDETRInstanceSegmentationTransformArgs
+    )
+
+    def __init__(
+        self,
+        transform_args: LTDETRInstanceSegmentationTransformArgs,
+    ) -> None:
+        super().__init__(transform_args=transform_args)
+        self.transform_args: LTDETRInstanceSegmentationTransformArgs = transform_args
+        # The step-scheduling and Compose-caching machinery is a component the
+        # transform holds, not a base class it inherits from.
+        self._transform_compose = _MaskAwareStepScheduledCompose(transform_args)
+
+    def set_step(self, step: int) -> None:
+        self._transform_compose.set_step(step)
+
+    def uses_step_dependent_worker_state(self) -> bool:
+        return self._transform_compose.uses_step_dependent_worker_state()
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return self._transform_compose.requires_dataloader_reinitialization()
+
+    def mark_dataloader_as_reinitialized(self) -> None:
+        self._transform_compose.mark_dataloader_as_reinitialized()
 
     def __call__(
         self, input: LTDETRInstanceSegmentationTransformInput
@@ -76,9 +147,16 @@ class LTDETRInstanceSegmentationTransform(_LTDETRTransform):
         binary_masks = input["binary_masks"]
         indices = np.arange(len(bboxes), dtype=np.int64)
 
-        if self._should_apply_mosaic():
-            image, bboxes, class_labels, binary_masks_opt = self.mosaic(  # type: ignore[misc]
-                image, bboxes, class_labels, binary_masks
+        if self._transform_compose.should_apply_mosaic():
+            if image.ndim != 3 or image.shape[2] != 3:
+                raise RuntimeError(
+                    "LT-DETR instance segmentation mosaic only supports RGB images "
+                    "with shape (H, W, 3). Disable mosaic for non-RGB inputs."
+                )
+            image, bboxes, class_labels, binary_masks_opt = (
+                self._transform_compose.mosaic(  # type: ignore[misc]
+                    image, bboxes, class_labels, binary_masks
+                )
             )
             if binary_masks_opt is None:
                 raise RuntimeError("Expected mask-aware mosaic output.")
@@ -93,9 +171,11 @@ class LTDETRInstanceSegmentationTransform(_LTDETRTransform):
             indices = indices_opt
             binary_masks = binary_masks[indices]
             indices = np.arange(len(bboxes), dtype=np.int64)
-            transform = self._get_transform_from_cache(skip_zoomout_ioucrop=True)
+            transform = self._transform_compose.get_transform(skip_zoomout_ioucrop=True)
         else:
-            transform = self._get_transform_from_cache(skip_zoomout_ioucrop=False)
+            transform = self._transform_compose.get_transform(
+                skip_zoomout_ioucrop=False
+            )
 
         if len(binary_masks) == 0:
             transformed = transform(
@@ -162,7 +242,7 @@ class LTDETRInstanceSegmentationTransform(_LTDETRTransform):
         }
 
 
-class LTDETRInstanceSegmentationCollateFunction(_LTDETRCollateFunction):
+class LTDETRInstanceSegmentationCollateFunction(TaskCollateFunction):
     def __init__(
         self,
         split: Literal["train", "val"],
@@ -170,9 +250,21 @@ class LTDETRInstanceSegmentationCollateFunction(_LTDETRCollateFunction):
     ) -> None:
         super().__init__(split, transform_args)
         self.transform_args: LTDETRInstanceSegmentationTransformArgs = transform_args
-        self._step = 0
-        self._current_transform_active_status = (
-            self._get_transform_active_status_at_step(self._step)
+        # Reinit bookkeeping is a shared primitive the collate holds, not inherited.
+        self._activation = StepActivationTracker(
+            self._get_transform_active_status_at_step
+        )
+
+    def _is_mixup_active_at_step(self, step: int) -> bool:
+        if self.transform_args.mixup is None or self.transform_args.mixup.prob <= 0.0:
+            return False
+        return self.transform_args.mixup.is_active(step)
+
+    def _should_apply_mixup(self) -> bool:
+        return (
+            self.transform_args.mixup is not None
+            and self._is_mixup_active_at_step(self._activation.step)
+            and np.random.random() < self.transform_args.mixup.prob
         )
 
     def _get_transform_active_status_at_step(self, step: int) -> tuple[bool]:
@@ -187,6 +279,15 @@ class LTDETRInstanceSegmentationCollateFunction(_LTDETRCollateFunction):
                 or self.transform_args.mixup.step_stop is not None
             )
         )
+
+    def set_step(self, step: int) -> None:
+        self._activation.set_step(step)
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return self._activation.requires_dataloader_reinitialization()
+
+    def mark_dataloader_as_reinitialized(self) -> None:
+        self._activation.mark_dataloader_as_reinitialized()
 
     def __call__(
         self, batch: list[InstanceSegmentationDatasetItem]

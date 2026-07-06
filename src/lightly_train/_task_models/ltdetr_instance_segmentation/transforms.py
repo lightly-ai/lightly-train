@@ -8,19 +8,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
 from pydantic import Field
 
-from lightly_train._transforms.ltdetr_transforms.base import (
-    LTDETRMosaicArgs,
-    LTDETRRandomFlipArgs,
-    LTDETRRandomIoUCropArgs,
-    LTDETRRandomPhotometricDistortArgs,
-    LTDETRRandomZoomOutArgs,
-    LTDETRResizeArgs,
-)
 from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
     LTDETRInstanceSegmentationTransform,
     LTDETRInstanceSegmentationTransformArgs,
@@ -34,14 +26,104 @@ from lightly_train._transforms.ltdetr_transforms.utils import (
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     MixUpArgs,
+    MosaicArgs,
     NormalizeArgs,
+    RandomFlipArgs,
+    RandomIoUCropArgs,
+    RandomPhotometricDistortArgs,
     RandomRotate90Args,
     RandomRotationArgs,
+    RandomZoomOutArgs,
     ResizeArgs,
 )
 from lightly_train.types import ImageSizeTuple
 
 logger = logging.getLogger(__name__)
+
+
+class LTDETRInstanceSegmentationRandomPhotometricDistortArgs(
+    RandomPhotometricDistortArgs
+):
+    prob: float = 0.5
+
+    brightness: tuple[float, float] = (0.875, 1.125)
+    contrast: tuple[float, float] = (0.5, 1.5)
+    saturation: tuple[float, float] = (0.5, 1.5)
+    hue: tuple[float, float] = (-0.05, 0.05)
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means photometric distort is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class LTDETRInstanceSegmentationRandomZoomOutArgs(RandomZoomOutArgs):
+    prob: float = 0.5
+
+    fill: float = 0.0
+    side_range: tuple[float, float] = (1.0, 4.0)
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means random zoom out is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class LTDETRInstanceSegmentationRandomIoUCropArgs(RandomIoUCropArgs):
+    prob: float = 0.8
+
+    min_scale: float = 0.3
+    max_scale: float = 1.0
+    min_aspect_ratio: float = 0.5
+    max_aspect_ratio: float = 2.0
+    sampler_options: Sequence[float] | None = None
+    crop_trials: int = 40
+    iou_trials: int = 1000
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" resolves to epoch total_epochs - no_aug_epoch. For shorter runs,
+    # no_aug_epoch is scaled following a certain rule. See :func:`resolve_ltdetr_step_schedule` for the full algorithm.
+    # None means random IoU crop is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class LTDETRInstanceSegmentationRandomFlipArgs(RandomFlipArgs):
+    horizontal_prob: float = 0.5
+    vertical_prob: float = 0.0
+
+
+class LTDETRInstanceSegmentationMosaicArgs(MosaicArgs):
+    prob: float = 0.5
+
+    output_size: int = 320
+    max_size: int | None = None
+    rotation_range: float = 10.0
+    translation_range: tuple[float, float] = (0.1, 0.1)
+    scaling_range: tuple[float, float] = (0.5, 1.5)
+    fill_value: int | float = 0
+    max_cached_images: int = 50
+    random_pop: bool = True
+
+    # "auto" resolves to epoch 4, or to floor(total_epochs / 3) for runs
+    # with <= 12 epochs.
+    step_start: int | Literal["auto"] = "auto"
+    # "auto" uses a compressed short-run schedule for <= 12 epochs and
+    # transitions to the midpoint rule on longer runs.
+    # None means mosaic is always on.
+    step_stop: int | Literal["auto"] | None = "auto"
+
+
+class LTDETRInstanceSegmentationResizeArgs(ResizeArgs):
+    height: int | Literal["auto"] = "auto"
+    width: int | Literal["auto"] = "auto"
 
 
 def _resolve_normalize_num_channels(
@@ -78,24 +160,28 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
 ):
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    photometric_distort: LTDETRRandomPhotometricDistortArgs | None = Field(
-        default_factory=LTDETRRandomPhotometricDistortArgs
+    photometric_distort: (
+        LTDETRInstanceSegmentationRandomPhotometricDistortArgs | None
+    ) = Field(default_factory=LTDETRInstanceSegmentationRandomPhotometricDistortArgs)
+    random_zoom_out: LTDETRInstanceSegmentationRandomZoomOutArgs | None = Field(
+        default_factory=LTDETRInstanceSegmentationRandomZoomOutArgs
     )
-    random_zoom_out: LTDETRRandomZoomOutArgs | None = Field(
-        default_factory=LTDETRRandomZoomOutArgs
+    random_iou_crop: LTDETRInstanceSegmentationRandomIoUCropArgs | None = Field(
+        default_factory=LTDETRInstanceSegmentationRandomIoUCropArgs
     )
-    random_iou_crop: LTDETRRandomIoUCropArgs | None = Field(
-        default_factory=LTDETRRandomIoUCropArgs
-    )
-    random_flip: LTDETRRandomFlipArgs | None = Field(
-        default_factory=LTDETRRandomFlipArgs
+    random_flip: LTDETRInstanceSegmentationRandomFlipArgs | None = Field(
+        default_factory=LTDETRInstanceSegmentationRandomFlipArgs
     )
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
-    resize: ResizeArgs | None = Field(default_factory=LTDETRResizeArgs)
+    resize: ResizeArgs | None = Field(
+        default_factory=LTDETRInstanceSegmentationResizeArgs
+    )
     scale_jitter: None = None
-    mosaic: LTDETRMosaicArgs | None = Field(default_factory=LTDETRMosaicArgs)
+    mosaic: LTDETRInstanceSegmentationMosaicArgs | None = Field(
+        default_factory=LTDETRInstanceSegmentationMosaicArgs
+    )
     mixup: LTDETRInstanceSegmentationMixUpArgs | None = Field(
         default_factory=LTDETRInstanceSegmentationMixUpArgs
     )
@@ -181,7 +267,9 @@ class LTDETRInstanceSegmentationValTransformArgs(
     random_rotate_90: RandomRotate90Args | None = None
     random_rotate: RandomRotationArgs | None = None
     image_size: ImageSizeTuple | Literal["auto"] = "auto"
-    resize: ResizeArgs | None = Field(default_factory=LTDETRResizeArgs)
+    resize: ResizeArgs | None = Field(
+        default_factory=LTDETRInstanceSegmentationResizeArgs
+    )
     scale_jitter: None = None
     mosaic: None = None
     mixup: None = None
