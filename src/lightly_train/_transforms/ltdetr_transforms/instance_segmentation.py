@@ -97,9 +97,33 @@ class LTDETRInstanceSegmentationTransform(_LTDETRTransform):
         else:
             transform = self._get_transform_from_cache(skip_zoomout_ioucrop=False)
 
+        if len(binary_masks) == 0:
+            transformed = transform(
+                image=image,
+                bboxes=bboxes,
+                class_labels=class_labels,
+                indices=indices,
+            )
+            image_out = transformed["image"]
+            height, width = image_out.shape[-2:]
+            bboxes_out = transformed["bboxes"]
+            class_labels_out = transformed["class_labels"]
+            if isinstance(bboxes_out, list):
+                bboxes_out = np.array(bboxes_out, dtype=np.float64).reshape(-1, 4)
+            elif bboxes_out.size == 0:
+                bboxes_out = bboxes_out.reshape(0, 4)
+            if isinstance(class_labels_out, list):
+                class_labels_out = np.array(class_labels_out)
+            return {
+                "image": image_out,
+                "binary_masks": image_out.new_zeros(0, height, width, dtype=torch.int),
+                "bboxes": bboxes_out,
+                "class_labels": class_labels_out,
+            }
+
         transformed = transform(
             image=image,
-            masks=[] if len(binary_masks) == 0 else binary_masks,
+            masks=binary_masks,
             bboxes=bboxes,
             class_labels=class_labels,
             indices=indices,
@@ -109,7 +133,9 @@ class LTDETRInstanceSegmentationTransform(_LTDETRTransform):
         class_labels_out = transformed["class_labels"]
         indices_out = transformed["indices"]
         if isinstance(bboxes_out, list):
-            bboxes_out = np.array(bboxes_out)
+            bboxes_out = np.array(bboxes_out, dtype=np.float64).reshape(-1, 4)
+        elif bboxes_out.size == 0:
+            bboxes_out = bboxes_out.reshape(0, 4)
         if isinstance(class_labels_out, list):
             class_labels_out = np.array(class_labels_out)
         if isinstance(indices_out, list):

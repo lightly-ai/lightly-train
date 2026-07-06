@@ -41,6 +41,7 @@ from lightly_train._transforms.eomt_transforms.instance_segmentation import (
     EoMTInstanceSegmentationTransformOutput,
 )
 from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
+    LTDETRInstanceSegmentationCollateFunction,
     LTDETRInstanceSegmentationTransform,
     LTDETRInstanceSegmentationTransformArgs,
     LTDETRInstanceSegmentationTransformInput,
@@ -177,6 +178,11 @@ class InstanceSegmentationDataset(TaskDataset):
             (EoMTInstanceSegmentationTransform, LTDETRInstanceSegmentationTransform),
         )
         self._init_image_mode(transform)
+
+    def get_batch_collate_fn_cls(self) -> type[TaskCollateFunction]:
+        if isinstance(self.transform, LTDETRInstanceSegmentationTransform):
+            return LTDETRInstanceSegmentationCollateFunction
+        return EoMTInstanceSegmentationCollateFunction
 
     def _init_image_mode(
         self,

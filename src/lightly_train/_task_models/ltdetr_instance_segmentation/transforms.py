@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 from albumentations import BboxParams
@@ -39,6 +40,31 @@ from lightly_train._transforms.transform import (
     ResizeArgs,
 )
 from lightly_train.types import ImageSizeTuple
+
+logger = logging.getLogger(__name__)
+
+
+def _resolve_normalize_num_channels(
+    normalize: NormalizeArgs, num_channels: int
+) -> None:
+    if len(normalize.mean) != num_channels:
+        logger.debug(
+            "Adjusting mean of normalize transform to match num_channels. "
+            f"num_channels is {num_channels} but "
+            f"normalize.mean has length {len(normalize.mean)}."
+        )
+        normalize.mean = tuple(
+            normalize.mean[i % len(normalize.mean)] for i in range(num_channels)
+        )
+    if len(normalize.std) != num_channels:
+        logger.debug(
+            "Adjusting std of normalize transform to match num_channels. "
+            f"num_channels is {num_channels} but "
+            f"normalize.std has length {len(normalize.std)}."
+        )
+        normalize.std = tuple(
+            normalize.std[i % len(normalize.std)] for i in range(num_channels)
+        )
 
 
 class LTDETRInstanceSegmentationMixUpArgs(MixUpArgs):
@@ -124,6 +150,11 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
             else:
                 self.num_channels = len(self.normalize.mean)
 
+        if not isinstance(self.num_channels, int):
+            raise RuntimeError("Expected num_channels to be resolved.")
+        if isinstance(self.normalize, NormalizeArgs):
+            _resolve_normalize_num_channels(self.normalize, self.num_channels)
+
     def resolve_step_schedule(
         self,
         total_steps: int,
@@ -203,6 +234,11 @@ class LTDETRInstanceSegmentationValTransformArgs(
                 self.num_channels = 3
             else:
                 self.num_channels = len(self.normalize.mean)
+
+        if not isinstance(self.num_channels, int):
+            raise RuntimeError("Expected num_channels to be resolved.")
+        if isinstance(self.normalize, NormalizeArgs):
+            _resolve_normalize_num_channels(self.normalize, self.num_channels)
 
 
 class LTDETRInstanceSegmentationTrainTransform(LTDETRInstanceSegmentationTransform):
