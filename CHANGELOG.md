@@ -9,9 +9,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
+  gradients during training, save a self-contained capture (model state dict +
+  TrainModel class/init kwargs + the step's microbatches + RNG state) to
+  `out_dir/debug/nan_capture/rank{R}/nan_capture.pt` and halt training. Replay via
+  `lightly_train._debug.nan_capture.load_nan_capture(dir).replay()` to deterministically
+  reproduce the failure in a notebook/REPL. Enable with
+  `debug_args.nancapture.enabled=True`.
+- Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
+  `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
+
 ### Changed
 
+- Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
+  single config-driven `DepthAnythingDepthEstimation` model.
+
 ### Deprecated
+
+- Removes the `DINOv3LTDETRObjectDetection` class in favor of the new
+  `LTDETRObjectDetection` class. For the user, this changes nothing, since they don't
+  use the class directly, but only its methods, which will remain available.
 
 ### Removed
 

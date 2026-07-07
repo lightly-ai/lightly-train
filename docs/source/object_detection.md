@@ -638,13 +638,13 @@ See [](train-settings-resume-training) on how to resume training.
 The following are the default image transform arguments. See
 [](train-settings-transforms) on how to customize transforms.
 
-`````{dropdown} DINOv3 LTDETR / LTDETRv2 Default Transform Arguments
+`````{dropdown} LTDETR / LTDETRv2 Default Transform Arguments
 ````{dropdown} Train
-```{include} _auto/dinov3ltdetrobjectdetectiontrain_train_transform_args.md
+```{include} _auto/ltdetrobjectdetectiontrain_train_transform_args.md
 ```
 ````
 ````{dropdown} Val
-```{include} _auto/dinov3ltdetrobjectdetectiontrain_val_transform_args.md
+```{include} _auto/ltdetrobjectdetectiontrain_val_transform_args.md
 ```
 ````
 `````

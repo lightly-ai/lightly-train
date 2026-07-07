@@ -17,6 +17,7 @@ from lightly_train._commands.train_task_helpers import (
     BestAggregatedMetricValues,
     get_best_metrics,
     get_train_model_args,
+    get_train_model_cls,
     get_transform_args,
     log_step,
 )
@@ -24,12 +25,21 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-    DINOv3LTDETRObjectDetectionTrainArgs,
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrain,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.transforms import (
-    DINOv3LTDETRObjectDetectionTrainTransformArgs,
+from lightly_train._task_models.ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrainArgsV2,
+    LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrainArgs,
+)
+from lightly_train._task_models.ltdetr_object_detection.transforms import (
+    DINOv2LTDETRObjectDetectionTrainTransformArgsV2,
+    DINOv2LTDETRObjectDetectionTrainTransformV2,
+    DINOv2LTDETRObjectDetectionValTransformV2,
+    LTDETRObjectDetectionTrainTransform,
+    LTDETRObjectDetectionTrainTransformArgs,
+    LTDETRObjectDetectionValTransform,
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
 
@@ -45,10 +55,10 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
     )
 
     train_model_args = cast(
-        DINOv3LTDETRObjectDetectionTrainArgs,
+        LTDETRObjectDetectionTrainArgs,
         get_train_model_args(
             model_args={"patch_size": 14},
-            model_args_cls=DINOv3LTDETRObjectDetectionTrainArgs,
+            model_args_cls=LTDETRObjectDetectionTrainArgs,
             total_steps=1000,
             gradient_accumulation_steps=1,
             train_num_batches=100,
@@ -63,7 +73,8 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
         resolved_model_init_args["patch_size"] = train_model_args.patch_size
 
     train_transform_args, _ = get_transform_args(
-        train_model_cls=DINOv3LTDETRObjectDetectionTrain,
+        train_model_cls=LTDETRObjectDetectionTrain,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
         transform_args=None,
         ignore_index=None,
         model_init_args=resolved_model_init_args,
@@ -73,12 +84,129 @@ def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_
     )
 
     train_transform_args = cast(
-        DINOv3LTDETRObjectDetectionTrainTransformArgs, train_transform_args
+        LTDETRObjectDetectionTrainTransformArgs, train_transform_args
     )
 
     assert train_model_args.patch_size == 14
     assert train_transform_args.scale_jitter is not None
     assert train_transform_args.scale_jitter.divisible_by == 28
+
+
+def test_get_train_model_args_and_transform_args__propagate_dinov2_patch_size_to_scale_jitter() -> (
+    None
+):
+    data_args = YOLOObjectDetectionDataArgs(
+        path=Path("/tmp/data"),
+        train=Path("train") / "images",
+        val=Path("val") / "images",
+        names={0: "class_0", 1: "class_1"},
+    )
+
+    train_model_args = cast(
+        DINOv2LTDETRObjectDetectionTrainArgsV2,
+        get_train_model_args(
+            model_args={},
+            model_args_cls=DINOv2LTDETRObjectDetectionTrainArgsV2,
+            total_steps=1000,
+            gradient_accumulation_steps=1,
+            train_num_batches=100,
+            model_name="dinov2/vits14-ltdetr",
+            model_init_args={},
+            data_args=data_args,
+        ),
+    )
+
+    resolved_model_init_args: dict[str, int] = {
+        "patch_size": train_model_args.patch_size
+    }
+
+    train_transform_args, _ = get_transform_args(
+        train_model_cls=LTDETRObjectDetectionTrain,
+        model_name="dinov2/vits14-ltdetr",
+        transform_args=None,
+        ignore_index=None,
+        model_init_args=resolved_model_init_args,
+        total_steps=1000,
+        train_num_batches=100,
+        gradient_accumulation_steps=1,
+    )
+
+    # "dinov2/..." model names dispatch to DINOv2LTDETRObjectDetectionTrainTransformArgsV2
+    # (a verbatim copy of the old dinov2_ltdetr_object_detection transform args), not
+    # the generic LTDETRObjectDetectionTrainTransformArgs. This carries the original
+    # patch-14-tuned scale-jitter sizes directly rather than deriving them from the
+    # generic patch-16-tuned list via rounding, which previously silently dropped the
+    # 560 and 784 sizes.
+    train_transform_args = cast(
+        DINOv2LTDETRObjectDetectionTrainTransformArgsV2, train_transform_args
+    )
+
+    assert train_model_args.patch_size == 14
+    assert train_transform_args.scale_jitter is not None
+    assert train_transform_args.scale_jitter.divisible_by is None
+    assert train_transform_args.scale_jitter.sizes == [
+        (476, 476),
+        (504, 504),
+        (532, 532),
+        (560, 560),
+        (588, 588),
+        (616, 616),
+        *([(644, 644)] * 20),
+        (672, 672),
+        (700, 700),
+        (728, 728),
+        (756, 756),
+        (784, 784),
+        (812, 812),
+    ]
+
+
+def test_get_train_model_cls__dinov2_ltdetr_routes_to_generic_pipeline() -> None:
+    assert (
+        get_train_model_cls(model_name="dinov2/vits14-ltdetr", task="object_detection")
+        is LTDETRObjectDetectionTrain
+    )
+
+
+def test_get_train_transform_cls__dinov2_ltdetr_routes_to_dinov2_transform() -> None:
+    assert (
+        LTDETRObjectDetectionTrain.get_train_transform_cls("dinov2/vits14-ltdetr")
+        is DINOv2LTDETRObjectDetectionTrainTransformV2
+    )
+    assert (
+        LTDETRObjectDetectionTrain.get_val_transform_cls("dinov2/vits14-ltdetr")
+        is DINOv2LTDETRObjectDetectionValTransformV2
+    )
+
+
+def test_get_train_transform_cls__dinov3_ltdetr_routes_to_generic_transform() -> None:
+    assert (
+        LTDETRObjectDetectionTrain.get_train_transform_cls(
+            "dinov3/vitt16-notpretrained-ltdetr"
+        )
+        is LTDETRObjectDetectionTrainTransform
+    )
+    assert (
+        LTDETRObjectDetectionTrain.get_val_transform_cls(
+            "dinov3/vitt16-notpretrained-ltdetr"
+        )
+        is LTDETRObjectDetectionValTransform
+    )
+
+
+def test_get_train_model_cls__dinov2_ltdetr_dsp_is_unsupported() -> None:
+    # The DSP variant has no equivalent config in the generic pipeline's
+    # LTDETR_MODEL_REGISTRY yet, and DINOv2LTDETRObjectDetectionTrain (standalone) was
+    # never wired up to accept the "-ltdetr-dsp" suffix either. This must keep raising
+    # after removing DINOv2LTDETRObjectDetectionTrain from the training dispatch list.
+    with pytest.raises(ValueError, match="Unsupported model name"):
+        get_train_model_cls(
+            model_name="dinov2/vits14-ltdetr-dsp", task="object_detection"
+        )
+    # Sanity check the standalone class itself still exists and is constructible
+    # directly (e.g. for loading old checkpoints), it's just no longer reachable via
+    # get_train_model_cls.
+    assert DINOv2LTDETRObjectDetectionTrain.task == "object_detection"
 
 
 def test_get_best_metrics__no_previous_best() -> None:
