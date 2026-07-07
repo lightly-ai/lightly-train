@@ -7,22 +7,20 @@
 #
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import numpy as np
 from albumentations import Compose
 
+from lightly_train._transforms.ltdetr_transforms.transform_args import (
+    LTDETRTransformArgs,
+)
 from lightly_train._transforms.ltdetr_transforms.utils import (
     build_ltdetr_sample_transform_parts,
     is_step_start_or_stop_configured,
     ordered_ltdetr_sample_transforms,
 )
 from lightly_train._transforms.mosaic import MosaicTransform
-
-if TYPE_CHECKING:
-    from lightly_train._transforms.ltdetr_transforms.object_detection import (
-        LTDETRObjectDetectionTransformArgs,
-    )
 
 
 class StepActivationTracker:
@@ -67,7 +65,7 @@ class StepScheduledCompose:
     inherit from.
     """
 
-    def __init__(self, transform_args: LTDETRObjectDetectionTransformArgs) -> None:
+    def __init__(self, transform_args: LTDETRTransformArgs) -> None:
         self.transform_args = transform_args
         self._transform_parts = build_ltdetr_sample_transform_parts(transform_args)
         self.photometric_distort = self._transform_parts["photometric_distort"]

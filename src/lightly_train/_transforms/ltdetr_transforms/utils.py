@@ -31,6 +31,9 @@ from lightly_train._task_models.object_detection_components.ltdetr_schedule impo
     resolve_ltdetr_step_schedule,
 )
 from lightly_train._transforms.channel_drop import ChannelDrop
+from lightly_train._transforms.ltdetr_transforms.transform_args import (
+    LTDETRTransformArgs,
+)
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_iou_crop import RandomIoUCrop
 from lightly_train._transforms.random_photometric_distort import (
@@ -178,7 +181,7 @@ def is_step_start_or_stop_configured(
 
 
 def build_ltdetr_sample_transform_parts(
-    transform_args: LTDETRObjectDetectionTransformArgs,
+    transform_args: LTDETRTransformArgs,
 ) -> dict[str, Any]:
     parts: dict[str, Any] = {
         "channel_drop": None,
