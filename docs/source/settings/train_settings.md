@@ -981,6 +981,17 @@ debugging. Two complementary tools are supported and may be enabled independentl
   that produced non-finite parameter gradients, then halts training before the optimizer
   step. Useful when you want to *reproduce* a bad batch outside of training.
 
+```{important}
+Both debug tools add significant per-step overhead. `underflow_overflow` runs an
+absolute `min`/`max` reduction on every weight, input and output on each forward
+pass and can make training roughly **3× slower** in fine-tuning workloads.
+`nancapture` clones every microbatch to CPU, snapshots the RNG each step, and
+scans all parameter gradients (plus a `torch.save` to disk on detection) and
+slows training down by a similar order of magnitude. Enable them only while
+you are actively collecting a report or capturing a known bad step — turn
+them off once you have what you need.
+```
+
 #### `underflow_overflow`
 
 When enabled, the monitor logs the absolute min/max of every weight, input and output to
@@ -1039,6 +1050,15 @@ from lightly_train._debug.nan_capture import load_nan_capture
 cap = load_nan_capture("out/my_run/debug/nan_capture/rank0")
 result = cap.replay()
 print(result.reproduced, result.nan_param_names)
+```
+
+```{warning}
+`nancapture` adds non-trivial per-step overhead — every step clones each
+microbatch to CPU, snapshots the torch (and CUDA, when available) RNG state,
+and scans parameter gradients for `NaN`/`Inf`. On detection it also writes
+the full capture to disk via `torch.save`. Expect training to be measurably
+slower (often **2–3×**) while the monitor is enabled. Disable it as soon
+as you have the capture you need.
 ```
 
 `cap.replay()` rebuilds the `TrainModel` from the captured class path and init kwargs,

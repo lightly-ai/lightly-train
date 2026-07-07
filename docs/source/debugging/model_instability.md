@@ -124,9 +124,11 @@ Output is written per rank to `out/debug/underflow_overflow_rank{rank}.log` — 
 with the first non-finite value is where to look.
 
 ```{warning}
-This tool significantly slows training — turn it off once you have a report.
-It also cannot be combined with `torch_compile_args={"disable": False}`; see
-[Compile settings](../settings/train_settings.md#compilation).
+This tool significantly slows training — measured at roughly **3×** slower on
+typical fine-tuning workloads (it runs an absolute `min`/`max` reduction on
+every weight, input and output on each forward). Disable it once you have a
+report. It also cannot be combined with `torch_compile_args={"disable": False}`;
+see [Compile settings](../settings/train_settings.md#compilation).
 ```
 
 (naninf-capture--replay)=
@@ -151,6 +153,14 @@ from lightly_train._debug.nan_capture import load_nan_capture
 cap = load_nan_capture("out/my_run/debug/nan_capture/rank0")
 result = cap.replay()
 print(result.reproduced, result.nan_param_names)
+```
+
+```{warning}
+`nancapture` adds non-trivial per-step overhead — every step clones each
+microbatch to CPU, snapshots the RNG, and scans parameter gradients for
+`NaN`/`Inf`, plus a `torch.save` to disk on detection. Expect training to be
+measurably slower (often **2–3×**) while the monitor is enabled. Disable it as
+soon as you have the capture you need.
 ```
 
 The replay reconstructs the `TrainModel`, restores the saved microbatches and RNG state,
