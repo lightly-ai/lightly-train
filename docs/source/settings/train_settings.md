@@ -1050,12 +1050,15 @@ with precision `"32-true"`; to reproduce a mixed-precision failure, pass a `Fabr
 matching the captured run's precision: `cap.replay(fabric=fabric)`.
 
 ```{tip}
-When `nancapture` aborts a run, the capture is the entire state of the failed
-step (model weights, microbatches, RNG, metadata). Inspect or replay it to
-diagnose, fix the underlying issue, then restart training — either from
-scratch in a new `out` directory or by pointing `model` at
-`out/<run>/checkpoints/last.ckpt` (do not use `resume_interrupted`, which would
-also restore the bad optimizer state).
+When `nancapture` aborts a run, the capture holds the entire state of the
+failed step (model weights, microbatches, RNG, metadata). Inspect or replay it
+to diagnose, fix the underlying issue, then restart the same run with
+`resume_interrupted=True` — `checkpoints/last.ckpt` is healthy because
+`check_and_capture` raises before `clip_gradients`, `optimizer.step`, and the
+per-step checkpoint save, so neither the bad gradient nor any bad optimizer
+state is ever persisted. Pointing `model` at `last.ckpt` to "resume" changes
+the experiment: that path only loads weights and discards optimizer/scheduler
+state.
 ```
 
 ```{note}
