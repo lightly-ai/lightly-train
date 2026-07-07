@@ -22,8 +22,8 @@ Start with the lightest signal and escalate as needed:
   [NaN/Inf Capture & Replay](#naninf-capture--replay).
 
 `gradient_norm` is logged automatically. Enable the other two on demand via the
-[`debug_args` setting](../settings/train_settings.md#train-settings-debug). The full key
-lists and output paths live in the same section.
+[`debug_args` setting](../settings/train_settings.md#debug). The full key lists and
+output paths live in the same section.
 
 ## What Instability Looks Like
 
@@ -119,15 +119,14 @@ debug_args={"underflow_overflow": {"enabled": True}}
 ```
 
 The full key list (`max_frames_to_save`, `trace_batch_nums`, `abort_after_batch_num`) is
-in the
-[underflow/overflow reference](../settings/train_settings.md#debug-underflow-overflow).
+in the [underflow/overflow reference](../settings/train_settings.md#underflow_overflow).
 Output is written per rank to `out/debug/underflow_overflow_rank{rank}.log` — the module
 with the first non-finite value is where to look.
 
 ```{warning}
 This tool significantly slows training — turn it off once you have a report.
 It also cannot be combined with `torch_compile_args={"disable": False}`; see
-[Compile settings](../settings/train_settings.md#train-settings-compilation).
+[Compile settings](../settings/train_settings.md#compilation).
 ```
 
 (naninf-capture--replay)=
@@ -163,4 +162,4 @@ After diagnosing and fixing the bug, restart with `resume_interrupted=True`: the
 `checkpoints/last.ckpt` is healthy because the capture raises before the optimizer step
 and the per-step checkpoint save, so neither the bad gradient nor any bad optimizer
 state is ever persisted. See the
-[nancapture reference](../settings/train_settings.md#debug-nancapture).
+[nancapture reference](../settings/train_settings.md#nancapture).
