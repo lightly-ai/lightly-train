@@ -58,6 +58,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._debug import debug_args, underflow_overflow
 from lightly_train._debug.debug_args import DebugArgs
+from lightly_train._debug.nan_capture import NaNCaptureMonitor
 from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
 from lightly_train._events import tracker
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
@@ -227,11 +228,12 @@ def train_image_classification(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     kwargs = {**locals()}
@@ -381,11 +383,12 @@ def train_image_classification_multihead(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     kwargs = {**locals()}
@@ -562,11 +565,12 @@ def train_instance_segmentation(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
@@ -730,11 +734,12 @@ def train_object_detection(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
@@ -899,11 +904,12 @@ def train_panoptic_segmentation(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
@@ -1067,11 +1073,12 @@ def train_semantic_segmentation(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
@@ -1200,11 +1207,12 @@ def train_semantic_segmentation_multihead(
             Set to 1 to explicitly disable gradient accumulation.
         debug_args:
             Debug configuration dict. `None` disables debugging; keys
-            configure individual debug tools. The currently supported key is
-            ``underflow_overflow``, which enables detection of inf/nan
-            activations and weights via forward hooks on all model modules.
-            Reports are written to per-rank log files in ``out/debug/``.
-            Cannot be combined with
+            configure individual debug tools. Supported keys are
+            ``underflow_overflow`` (detect inf/nan activations and weights via
+            forward hooks on all model modules) and ``nancapture`` (capture a
+            replayable bad-batch snapshot when parameter gradients become
+            non-finite). Reports/captures are written under ``out/debug/``.
+            ``underflow_overflow`` cannot be combined with
             ``torch_compile_args={"disable": False}``.
     """
     tracker.track_training_started(
@@ -1577,7 +1585,21 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         else:
             monitor_ctx = contextlib.nullcontext(None)
 
-        with monitor_ctx as underflow_overflow_monitor:
+        nancapture_ctx: contextlib.AbstractContextManager[NaNCaptureMonitor | None]
+        if config.debug_args.is_nancapture_enabled():
+            assert config.debug_args.nancapture is not None
+            nancapture_ctx = NaNCaptureMonitor(
+                train_model=train_model,
+                train_model_init_kwargs=train_model_init_kwargs,
+                debug_args=config.debug_args.nancapture,
+                out_dir=out_dir,
+                global_rank=fabric.global_rank,
+                gradient_accumulation_steps=config.gradient_accumulation_steps,
+            )
+        else:
+            nancapture_ctx = contextlib.nullcontext(None)
+
+        with monitor_ctx as underflow_overflow_monitor, nancapture_ctx as nancapture_monitor:
             logger.info(
                 f"Resolved Args: {helpers.pretty_format_args(args=config.model_dump())}"
             )
@@ -1708,6 +1730,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 if underflow_overflow_monitor is not None:
                     underflow_overflow_monitor.set_step(step=step)
 
+                # Reset the NaNCapture monitor's per-step buffer and snapshot RNG so
+                # that, if a NaN is detected at this step, the capture includes the
+                # exact microbatches and stochastic state needed for replay.
+                if nancapture_monitor is not None:
+                    nancapture_monitor.begin_step(step=step)
+
                 train_transform.set_step(step)
                 train_collate_fn.set_step(step)
 
@@ -1729,6 +1757,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     batch = next(infinite_train_dataloader)
                     timer.end_step("train_dataload")
 
+                    # Clone+detach this microbatch into the NaNCapture buffer so the
+                    # captured state is decoupled from the live autograd graph.
+                    if nancapture_monitor is not None:
+                        nancapture_monitor.collect_batch(batch)
+
                     # Type ignore is needed because `train_model` is not recognized as an
                     # instance of `_FabricModule`
                     with fabric.no_backward_sync(train_model, enabled=is_accumulating):  # type: ignore[arg-type]
@@ -1749,6 +1782,12 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                         )
 
                 # Optimizer step and scheduler step.
+                # Scan parameter gradients for NaN/Inf before the optimizer step
+                # (which would corrupt the model via the bad gradient). On detection,
+                # the monitor saves the capture and raises NaNDetectedError, halting
+                # training.
+                if nancapture_monitor is not None:
+                    nancapture_monitor.check_and_capture(train_model)
                 # clip_gradients returns the total gradient norm before clipping. It is
                 # None for models that do not support gradient norm logging.
                 gradient_norm = train_model.clip_gradients(
@@ -1965,8 +2004,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                             )
                     train_model.set_train_mode()
                     fabric.barrier()
-            timer.stop()
-            logger.info("Training completed.")
+        timer.stop()
+        logger.info("Training completed.")
 
 
 class TrainTaskConfig(PydanticConfig):

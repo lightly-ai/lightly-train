@@ -123,7 +123,7 @@ class LTDETRObjectDetection(TaskModel):
         decoder_name: _LTDETRDecoderName | None = None,
         load_weights: bool = True,
     ) -> None:
-        """Create a DINOv3 LTDETR task model.
+        """Create an LTDETR object detection task model.
 
         Args:
             model_name:
