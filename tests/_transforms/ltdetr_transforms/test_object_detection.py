@@ -22,12 +22,11 @@ from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionScaleJitterArgs,
     LTDETRObjectDetectionTrainTransformArgs,
 )
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionCollateFunction,
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
-    ObjectDetectionTransformInput,
-    resolve_ltdetr_step_schedule_for_augmentation,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionCollateFunction,
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
+    LTDETRObjectDetectionTransformInput,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -199,13 +198,6 @@ def _get_bbox_params() -> BboxParams:
     )
 
 
-def _get_ltdetr_train_transform_args() -> LTDETRObjectDetectionTrainTransformArgs:
-    return LTDETRObjectDetectionTrainTransformArgs(
-        image_size=_get_image_size(),
-        bbox_params=_get_bbox_params(),
-    )
-
-
 PossibleArgsTuple = (
     [None, _get_channel_drop_args()],
     [None, _get_photometric_distort_args()],
@@ -221,93 +213,6 @@ PossibleArgsTuple = (
 )
 
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
-
-
-@pytest.mark.parametrize(
-    ("augmentation_name", "step_start", "step_stop"),
-    [
-        ("photometric_distort", 100, 300),
-        ("random_zoom_out", 100, 300),
-        ("random_iou_crop", 100, 300),
-        ("copyblend", 100, 300),
-        ("mixup", 100, 200),
-        ("mosaic", 100, 200),
-    ],
-)
-def test_resolve_ltdetr_step_schedule_for_augmentation__applies_windows(
-    augmentation_name: str,
-    step_start: int,
-    step_stop: int,
-) -> None:
-    transform_args = _get_ltdetr_train_transform_args()
-    transform_args.resolve_auto(model_init_args={})
-
-    # total_steps=300 yields step_start=100, step_flat=200, step_stop=300, so
-    # every augmentation receives a non-empty window.
-    resolve_ltdetr_step_schedule_for_augmentation(
-        args=transform_args,
-        total_steps=300,
-        train_num_batches=100,
-        gradient_accumulation_steps=1,
-    )
-
-    aug = getattr(transform_args, augmentation_name)
-    assert aug is not None
-    assert aug.step_start == step_start
-    assert aug.step_stop == step_stop
-
-    assert transform_args.scale_jitter is not None
-    assert transform_args.scale_jitter.step_stop == 300
-
-
-@pytest.mark.parametrize("augmentation_name", ["mixup", "mosaic"])
-def test_resolve_ltdetr_step_schedule_for_augmentation__disables_empty_windows(
-    augmentation_name: str,
-) -> None:
-    transform_args = _get_ltdetr_train_transform_args()
-    transform_args.resolve_auto(model_init_args={})
-
-    # total_steps=100 yields step_start=0, step_flat=0, step_stop=100, so
-    # mixup/mosaic collapse to an empty window and must be disabled.
-    resolve_ltdetr_step_schedule_for_augmentation(
-        args=transform_args,
-        total_steps=100,
-        train_num_batches=100,
-        gradient_accumulation_steps=1,
-    )
-
-    assert getattr(transform_args, augmentation_name) is None
-
-    assert transform_args.scale_jitter is not None
-    assert transform_args.scale_jitter.step_stop == 100
-
-
-@pytest.mark.parametrize(
-    "augmentation_name",
-    ["photometric_distort", "random_zoom_out", "random_iou_crop", "copyblend"],
-)
-def test_resolve_ltdetr_step_schedule_for_augmentation__keeps_non_empty_windows(
-    augmentation_name: str,
-) -> None:
-    transform_args = _get_ltdetr_train_transform_args()
-    transform_args.resolve_auto(model_init_args={})
-
-    # total_steps=100 yields step_start=0, step_flat=0, step_stop=100, so
-    # augmentations using step_start->step_stop still receive a non-empty window.
-    resolve_ltdetr_step_schedule_for_augmentation(
-        args=transform_args,
-        total_steps=100,
-        train_num_batches=100,
-        gradient_accumulation_steps=1,
-    )
-
-    aug = getattr(transform_args, augmentation_name)
-    assert aug is not None
-    assert aug.step_start == 0
-    assert aug.step_stop == 100
-
-    assert transform_args.scale_jitter is not None
-    assert transform_args.scale_jitter.step_stop == 100
 
 
 class TestObjectDetectionTransform:
@@ -332,7 +237,7 @@ class TestObjectDetectionTransform:
         image_size = _get_image_size()
         bbox_params = _get_bbox_params()
 
-        transform_args = ObjectDetectionTransformArgs(
+        transform_args = LTDETRObjectDetectionTransformArgs(
             channel_drop=channel_drop,
             num_channels=3,
             photometric_distort=photometric_distort,
@@ -349,7 +254,7 @@ class TestObjectDetectionTransform:
             mosaic=mosaic,
         )
         transform_args.resolve_auto(model_init_args={})
-        transform = ObjectDetectionTransform(transform_args)
+        transform = LTDETRObjectDetectionTransform(transform_args)
 
         # Create a synthetic image and bounding boxes.
         num_channels = transform_args.num_channels
@@ -361,7 +266,7 @@ class TestObjectDetectionTransform:
         bboxes = np.array([[0.234375, 0.234375, 0.3125, 0.3125]], dtype=np.float64)
         class_labels = np.array([1], dtype=np.int64)
 
-        tr_input: ObjectDetectionTransformInput = {
+        tr_input: LTDETRObjectDetectionTransformInput = {
             "image": img,
             "bboxes": bboxes,
             "class_labels": class_labels,
@@ -373,92 +278,10 @@ class TestObjectDetectionTransform:
         assert "class_labels" in tr_output
         assert tr_output["class_labels"].dtype == np.int64
 
-    def test_requires_dataloader_reinitialization(self) -> None:
-        transform_args = ObjectDetectionTransformArgs(
-            channel_drop=None,
-            num_channels=3,
-            photometric_distort=_get_photometric_distort_args(
-                step_start=1,
-                step_stop=5,
-            ),
-            random_zoom_out=_get_random_zoom_out_args(
-                step_start=2,
-                step_stop=6,
-            ),
-            random_iou_crop=_get_random_iou_crop_args(
-                step_start=3,
-                step_stop=7,
-            ),
-            random_flip=_get_random_flip_args(),
-            random_rotate_90=None,
-            random_rotate=None,
-            image_size=_get_image_size(),
-            bbox_params=_get_bbox_params(),
-            resize=_get_resize_args(),
-            mosaic=_get_mosaic_args(
-                step_start=4,
-                step_stop=8,
-            ),
-            normalize=None,
-        )
-        transform_args.resolve_auto(model_init_args={})
-        transform = ObjectDetectionTransform(transform_args)
-
-        # step 0: no reinit needed
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 1: photometric_distort activates
-        transform.set_step(1)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 2: random_zoom_out activates
-        transform.set_step(2)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 3: random_iou_crop activates
-        transform.set_step(3)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 4: mosaic activates
-        transform.set_step(4)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 5: photometric_distort deactivates
-        transform.set_step(5)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 6: random_zoom_out deactivates
-        transform.set_step(6)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 7: random_iou_crop deactivates
-        transform.set_step(7)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
-        # step 8: mosaic deactivates
-        transform.set_step(8)
-        assert transform.requires_dataloader_reinitialization() is True
-        transform.mark_dataloader_as_reinitialized()
-        assert transform.requires_dataloader_reinitialization() is False
-
 
 class TestObjectDetectionCollateFunction:
     def test__call__(self) -> None:
-        transform_args = ObjectDetectionTransformArgs(
+        transform_args = LTDETRObjectDetectionTransformArgs(
             channel_drop=_get_channel_drop_args(),
             num_channels=3,
             photometric_distort=_get_photometric_distort_args(),
@@ -474,7 +297,7 @@ class TestObjectDetectionCollateFunction:
             normalize=_get_normalize_args(),
         )
         transform_args.resolve_auto(model_init_args={})
-        collate_fn = ObjectDetectionCollateFunction(
+        collate_fn = LTDETRObjectDetectionCollateFunction(
             split="train", transform_args=transform_args
         )
 
@@ -521,7 +344,7 @@ class TestObjectDetectionCollateFunction:
         )
         transform_args.resolve_auto(model_init_args={})
 
-        collate_fn = ObjectDetectionCollateFunction(
+        collate_fn = LTDETRObjectDetectionCollateFunction(
             split="train",
             transform_args=transform_args,
         )
