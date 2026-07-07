@@ -6,9 +6,11 @@ Training instabilities — such as exploding or vanishing gradients, sudden loss
 or numerical collapse to `NaN`/`inf` — can derail a run silently or abruptly. This page
 collects the tools LightlyTrain provides to detect and diagnose these issues.
 
-:::\{note} This section covers the debugging tools LightlyTrain ships for fine-tuning:
+```\{note}
+This section covers the debugging tools LightlyTrain ships for fine-tuning:
 gradient norm logging (always on) and the on-demand `underflow_overflow` and
-`nancapture` monitors. :::
+`nancapture` monitors.
+```
 
 ## Which Tool When
 
