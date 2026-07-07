@@ -11,17 +11,17 @@ from typing import Literal
 
 import numpy as np
 import torch
-from albumentations import Compose
+from albumentations import BboxParams, Compose
 from albumentations.pytorch.transforms import ToTensorV2
+from pydantic import ConfigDict
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.batch_transform import BatchReplayCompose, BatchTransform
 from lightly_train._transforms.copyblend import CopyBlend
-from lightly_train._transforms.ltdetr_transforms.base import (
-    LTDETRTransformArgs,
-    _LTDETRCollateFunction,
-    _LTDETRTransform,
+from lightly_train._transforms.ltdetr_transforms.components import (
+    StepActivationTracker,
+    StepScheduledCompose,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
     filter_degenerate_yolo_boxes,
@@ -30,10 +30,29 @@ from lightly_train._transforms.ltdetr_transforms.utils import (
 from lightly_train._transforms.mixup import MixUp
 from lightly_train._transforms.scale_jitter import ScaleJitter
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
+    TaskTransform,
+    TaskTransformArgs,
     TaskTransformInput,
     TaskTransformOutput,
 )
+from lightly_train._transforms.transform import (
+    ChannelDropArgs,
+    CopyBlendArgs,
+    MixUpArgs,
+    MosaicArgs,
+    NormalizeArgs,
+    RandomFlipArgs,
+    RandomIoUCropArgs,
+    RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
+    RandomZoomOutArgs,
+    ResizeArgs,
+    ScaleJitterArgs,
+)
 from lightly_train.types import (
+    ImageSizeTuple,
     NDArrayBBoxes,
     NDArrayClasses,
     NDArrayImage,
@@ -54,14 +73,60 @@ class LTDETRObjectDetectionTransformOutput(TaskTransformOutput):
     class_labels: NotRequired[NDArrayClasses]
 
 
-class LTDETRObjectDetectionTransformArgs(LTDETRTransformArgs):
-    pass
+class LTDETRObjectDetectionTransformArgs(TaskTransformArgs):
+    """Transform arguments for LT-DETR object detection.
+
+    Task-specific transforms subclass this to set their own field defaults; it is
+    not used directly.
+    """
+
+    channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
+    photometric_distort: RandomPhotometricDistortArgs | None
+    random_zoom_out: RandomZoomOutArgs | None
+    random_iou_crop: RandomIoUCropArgs | None
+    random_flip: RandomFlipArgs | None
+    random_rotate_90: RandomRotate90Args | None
+    random_rotate: RandomRotationArgs | None
+    image_size: ImageSizeTuple | Literal["auto"]
+    mixup: MixUpArgs | None = None
+    copyblend: CopyBlendArgs | None = None
+    mosaic: MosaicArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = None
+    resize: ResizeArgs | None
+    bbox_params: BboxParams | None
+    normalize: NormalizeArgs | Literal["auto"] | None
+
+    # Necessary for BboxParams, which are not serializable by pydantic.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class LTDETRObjectDetectionTransform(_LTDETRTransform):
+class LTDETRObjectDetectionTransform(TaskTransform):
     transform_args_cls: type[LTDETRObjectDetectionTransformArgs] = (
         LTDETRObjectDetectionTransformArgs
     )
+
+    def __init__(
+        self,
+        transform_args: LTDETRObjectDetectionTransformArgs,
+    ) -> None:
+        super().__init__(transform_args=transform_args)
+        self.transform_args: LTDETRObjectDetectionTransformArgs = transform_args
+        # The step-scheduling and Compose-caching machinery is a component the
+        # transform holds, not a base class it inherits from.
+        self._transform_compose = StepScheduledCompose(transform_args)
+
+    def set_step(self, step: int) -> None:
+        self._transform_compose.set_step(step)
+
+    def uses_step_dependent_worker_state(self) -> bool:
+        return self._transform_compose.uses_step_dependent_worker_state()
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return self._transform_compose.requires_dataloader_reinitialization()
+
+    def mark_dataloader_as_reinitialized(self) -> None:
+        self._transform_compose.mark_dataloader_as_reinitialized()
 
     def __call__(
         self, input: LTDETRObjectDetectionTransformInput
@@ -70,8 +135,10 @@ class LTDETRObjectDetectionTransform(_LTDETRTransform):
         bboxes = input["bboxes"]
         class_labels = input["class_labels"]
 
-        if self._should_apply_mosaic():
-            image, bboxes, class_labels, _ = self.mosaic(image, bboxes, class_labels)  # type: ignore[misc]
+        if self._transform_compose.should_apply_mosaic():
+            image, bboxes, class_labels, _ = self._transform_compose.mosaic(  # type: ignore[misc]
+                image, bboxes, class_labels
+            )
 
             # MosaicTransform clips boxes to the canvas but keeps degenerate boxes
             # (zero width/height). Filter them before passing to albumentations.
@@ -79,9 +146,11 @@ class LTDETRObjectDetectionTransform(_LTDETRTransform):
                 bboxes=bboxes, class_labels=class_labels
             )
 
-            transform = self._get_transform_from_cache(skip_zoomout_ioucrop=True)
+            transform = self._transform_compose.get_transform(skip_zoomout_ioucrop=True)
         else:
-            transform = self._get_transform_from_cache(skip_zoomout_ioucrop=False)
+            transform = self._transform_compose.get_transform(
+                skip_zoomout_ioucrop=False
+            )
 
         transformed = transform(image=image, bboxes=bboxes, class_labels=class_labels)
 
@@ -96,7 +165,7 @@ class LTDETRObjectDetectionTransform(_LTDETRTransform):
         }
 
 
-class LTDETRObjectDetectionCollateFunction(_LTDETRCollateFunction):
+class LTDETRObjectDetectionCollateFunction(TaskCollateFunction):
     def __init__(
         self,
         split: Literal["train", "val"],
@@ -140,9 +209,9 @@ class LTDETRObjectDetectionCollateFunction(_LTDETRCollateFunction):
                 bbox_params=self.transform_args.bbox_params,
             )
 
-        self._step = 0
-        self._current_transform_active_status = (
-            self._get_transform_active_status_at_step(self._step)
+        # Reinit bookkeeping is a shared primitive the collate holds, not inherited.
+        self._activation = StepActivationTracker(
+            self._get_transform_active_status_at_step
         )
 
         self.to_tensor = BatchTransform(
@@ -150,6 +219,18 @@ class LTDETRObjectDetectionCollateFunction(_LTDETRCollateFunction):
                 transforms=[ToTensorV2()],
                 bbox_params=self.transform_args.bbox_params,
             )
+        )
+
+    def _is_mixup_active_at_step(self, step: int) -> bool:
+        if self.transform_args.mixup is None or self.transform_args.mixup.prob <= 0.0:
+            return False
+        return self.transform_args.mixup.is_active(step)
+
+    def _should_apply_mixup(self) -> bool:
+        return (
+            self.transform_args.mixup is not None
+            and self._is_mixup_active_at_step(self._activation.step)
+            and np.random.random() < self.transform_args.mixup.prob
         )
 
     def _is_copyblend_active_at_step(self, step: int) -> bool:
@@ -173,7 +254,7 @@ class LTDETRObjectDetectionCollateFunction(_LTDETRCollateFunction):
     def _should_apply_copyblend(self) -> bool:
         return (
             self.transform_args.copyblend is not None
-            and self._is_copyblend_active_at_step(self._step)
+            and self._is_copyblend_active_at_step(self._activation.step)
             and np.random.random() < self.transform_args.copyblend.prob
         )
 
@@ -214,6 +295,15 @@ class LTDETRObjectDetectionCollateFunction(_LTDETRCollateFunction):
             )
         )
 
+    def set_step(self, step: int) -> None:
+        self._activation.set_step(step)
+
+    def requires_dataloader_reinitialization(self) -> bool:
+        return self._activation.requires_dataloader_reinitialization()
+
+    def mark_dataloader_as_reinitialized(self) -> None:
+        self._activation.mark_dataloader_as_reinitialized()
+
     def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
         augment_batch = [
             {
@@ -240,7 +330,7 @@ class LTDETRObjectDetectionCollateFunction(_LTDETRCollateFunction):
             augment_batch = self.copyblend(batch=augment_batch)
 
         if self.scale_jitter is not None and self._is_scale_jitter_active_at_step(
-            self._step
+            self._activation.step
         ):
             augment_batch = self.scale_jitter(batch=augment_batch)
 

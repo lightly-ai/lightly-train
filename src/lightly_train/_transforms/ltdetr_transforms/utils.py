@@ -41,7 +41,9 @@ from lightly_train._transforms.transform import ActivationPolicyArgs
 from lightly_train.types import NDArrayBBoxes, NDArrayClasses
 
 if TYPE_CHECKING:
-    from lightly_train._transforms.ltdetr_transforms.base import LTDETRTransformArgs
+    from lightly_train._transforms.ltdetr_transforms.object_detection import (
+        LTDETRObjectDetectionTransformArgs,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ def resolve_image_size_for_patch_size(
 
 
 def resolve_ltdetr_step_schedule_for_augmentation(
-    args: LTDETRTransformArgs,
+    args: LTDETRObjectDetectionTransformArgs,
     total_steps: int,
     train_num_batches: int,
     gradient_accumulation_steps: int,
@@ -135,7 +137,7 @@ def resolve_ltdetr_step_schedule_for_augmentation(
 
 
 def _resolve_aug_fields(
-    args: LTDETRTransformArgs,
+    args: LTDETRObjectDetectionTransformArgs,
     field_names: tuple[str, ...],
     step_start_resolved: int,
     step_stop_resolved: int,
@@ -176,7 +178,7 @@ def is_step_start_or_stop_configured(
 
 
 def build_ltdetr_sample_transform_parts(
-    transform_args: LTDETRTransformArgs,
+    transform_args: LTDETRObjectDetectionTransformArgs,
 ) -> dict[str, Any]:
     parts: dict[str, Any] = {
         "channel_drop": None,

@@ -11,15 +11,14 @@ from typing import Literal
 
 import torch
 import torchvision.tv_tensors as tv_tensors
+from albumentations import BboxParams
+from pydantic import ConfigDict
 from torch import Tensor
 from torchvision.transforms import v2
 from typing_extensions import NotRequired
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDropTV
-from lightly_train._transforms.ltdetr_transforms.base import (
-    LTDETRTransformArgs,
-)
 from lightly_train._transforms.random_rotate_90 import RandomRotate90
 from lightly_train._transforms.scale_jitter import TorchVisionScaleJitter
 from lightly_train._transforms.task_transform import (
@@ -29,7 +28,23 @@ from lightly_train._transforms.task_transform import (
     TaskTransformInput,
     TaskTransformOutput,
 )
+from lightly_train._transforms.transform import (
+    ChannelDropArgs,
+    CopyBlendArgs,
+    MixUpArgs,
+    MosaicArgs,
+    NormalizeArgs,
+    RandomFlipArgs,
+    RandomIoUCropArgs,
+    RandomPhotometricDistortArgs,
+    RandomRotate90Args,
+    RandomRotationArgs,
+    RandomZoomOutArgs,
+    ResizeArgs,
+    ScaleJitterArgs,
+)
 from lightly_train.types import (
+    ImageSizeTuple,
     OrientedObjectDetectionBatch,
     OrientedObjectDetectionDatasetItem,
 )
@@ -49,8 +64,32 @@ class OrientedObjectDetectionTransformOutput(TaskTransformOutput):
     class_labels: NotRequired[Tensor]
 
 
-class OrientedObjectDetectionTransformArgs(LTDETRTransformArgs):
-    pass
+class OrientedObjectDetectionTransformArgs(TaskTransformArgs):
+    """Transform arguments for oriented object detection.
+
+    Task-specific transforms subclass this to set their own field defaults; it is
+    not used directly.
+    """
+
+    channel_drop: ChannelDropArgs | None
+    num_channels: int | Literal["auto"]
+    photometric_distort: RandomPhotometricDistortArgs | None
+    random_zoom_out: RandomZoomOutArgs | None
+    random_iou_crop: RandomIoUCropArgs | None
+    random_flip: RandomFlipArgs | None
+    random_rotate_90: RandomRotate90Args | None
+    random_rotate: RandomRotationArgs | None
+    image_size: ImageSizeTuple | Literal["auto"]
+    mixup: MixUpArgs | None = None
+    copyblend: CopyBlendArgs | None = None
+    mosaic: MosaicArgs | None = None
+    scale_jitter: ScaleJitterArgs | None = None
+    resize: ResizeArgs | None
+    bbox_params: BboxParams | None
+    normalize: NormalizeArgs | Literal["auto"] | None
+
+    # Necessary for BboxParams, which are not serializable by pydantic.
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class OrientedObjectDetectionTransform(TaskTransform):

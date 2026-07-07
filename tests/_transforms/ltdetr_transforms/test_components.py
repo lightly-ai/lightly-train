@@ -14,6 +14,10 @@ from albumentations import BboxParams
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransformArgs,
 )
+from lightly_train._transforms.ltdetr_transforms.components import (
+    StepActivationTracker,
+    StepScheduledCompose,
+)
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionTransform,
     LTDETRObjectDetectionTransformArgs,
@@ -30,11 +34,12 @@ from lightly_train._transforms.transform import (
     ResizeArgs,
 )
 
-# The step-scheduling machinery, Compose caching, and dataloader-reinitialization logic
-# live in the shared ``_LTDETRTransform`` / ``LTDETRTransformArgs`` base classes and
-# behave identically for object detection and instance segmentation. They are therefore
-# tested once here, driven through the object detection concrete classes (the thinnest
-# concrete wrappers around the internal bases).
+# The step-scheduling machinery and Compose caching live in the shared
+# ``StepScheduledCompose`` / ``StepActivationTracker`` components (composed, not
+# inherited) and behave identically for object detection and any future LT-DETR task.
+# The dataloader-reinitialization contract is tested here through the object detection
+# concrete classes that hold these components; the components themselves are unit-tested
+# in ``TestStepActivationTracker`` / ``TestStepScheduledCompose`` below.
 
 
 def _get_image_size() -> tuple[int, int]:
@@ -305,3 +310,103 @@ def test_requires_dataloader_reinitialization() -> None:
     assert transform.requires_dataloader_reinitialization() is True
     transform.mark_dataloader_as_reinitialized()
     assert transform.requires_dataloader_reinitialization() is False
+
+
+class TestStepActivationTracker:
+    def test_no_reinit_when_active_set_unchanged(self) -> None:
+        # Active set toggles at step 5.
+        tracker = StepActivationTracker(lambda step: (step >= 5,))
+
+        assert tracker.step == 0
+        assert tracker.requires_dataloader_reinitialization() is False
+
+        tracker.set_step(4)
+        assert tracker.step == 4
+        assert tracker.requires_dataloader_reinitialization() is False
+
+    def test_reinit_flips_and_resets(self) -> None:
+        tracker = StepActivationTracker(lambda step: (step >= 5,))
+
+        tracker.set_step(5)
+        assert tracker.requires_dataloader_reinitialization() is True
+        # Idempotent: querying does not consume the signal.
+        assert tracker.requires_dataloader_reinitialization() is True
+
+        tracker.mark_dataloader_as_reinitialized()
+        assert tracker.requires_dataloader_reinitialization() is False
+
+    def test_tracks_multi_flag_tuples(self) -> None:
+        tracker = StepActivationTracker(lambda step: (step >= 2, step >= 4))
+
+        tracker.set_step(2)
+        assert tracker.requires_dataloader_reinitialization() is True
+        tracker.mark_dataloader_as_reinitialized()
+
+        # Second flag flips at step 4.
+        tracker.set_step(3)
+        assert tracker.requires_dataloader_reinitialization() is False
+        tracker.set_step(4)
+        assert tracker.requires_dataloader_reinitialization() is True
+
+
+class TestStepScheduledCompose:
+    def _get_args(self) -> LTDETRObjectDetectionTransformArgs:
+        transform_args = LTDETRObjectDetectionTransformArgs(
+            channel_drop=None,
+            num_channels=3,
+            photometric_distort=_get_photometric_distort_args(
+                step_start=1, step_stop=5
+            ),
+            random_zoom_out=_get_random_zoom_out_args(step_start=2, step_stop=6),
+            random_iou_crop=_get_random_iou_crop_args(step_start=3, step_stop=7),
+            random_flip=_get_random_flip_args(),
+            random_rotate_90=None,
+            random_rotate=None,
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            resize=_get_resize_args(),
+            mosaic=_get_mosaic_args(step_start=4, step_stop=8),
+            normalize=None,
+        )
+        transform_args.resolve_auto(model_init_args={})
+        return transform_args
+
+    def test_set_step_advances_via_tracker(self) -> None:
+        sample_transform = StepScheduledCompose(self._get_args())
+        assert sample_transform.step == 0
+        sample_transform.set_step(3)
+        assert sample_transform.step == 3
+
+    def test_get_transform_is_cached(self) -> None:
+        sample_transform = StepScheduledCompose(self._get_args())
+        sample_transform.set_step(3)  # photometric + zoom_out + iou_crop active
+
+        first = sample_transform.get_transform(skip_zoomout_ioucrop=False)
+        second = sample_transform.get_transform(skip_zoomout_ioucrop=False)
+        # Same active-status key returns the identical cached Compose.
+        assert first is second
+
+        # Skipping zoom_out/iou_crop is a different cache key -> different Compose.
+        skipped = sample_transform.get_transform(skip_zoomout_ioucrop=True)
+        assert skipped is not first
+
+    def test_mosaic_exposed_when_configured(self) -> None:
+        with_mosaic = StepScheduledCompose(self._get_args())
+        assert with_mosaic.mosaic is not None
+
+    def test_mosaic_none_when_not_configured(self) -> None:
+        args = self._get_args()
+        args.mosaic = None
+        without_mosaic = StepScheduledCompose(args)
+        assert without_mosaic.mosaic is None
+        assert without_mosaic.should_apply_mosaic() is False
+
+    def test_reinit_contract_matches_active_status(self) -> None:
+        sample_transform = StepScheduledCompose(self._get_args())
+        assert sample_transform.requires_dataloader_reinitialization() is False
+
+        # photometric_distort activates at step 1.
+        sample_transform.set_step(1)
+        assert sample_transform.requires_dataloader_reinitialization() is True
+        sample_transform.mark_dataloader_as_reinitialized()
+        assert sample_transform.requires_dataloader_reinitialization() is False
