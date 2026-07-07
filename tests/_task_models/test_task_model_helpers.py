@@ -7,6 +7,8 @@
 #
 import re
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -91,3 +93,66 @@ def test_download_checkpoint__unknown_name__raises_generic() -> None:
     message = str(exc_info.value)
     assert f"Unknown model name or checkpoint path: '{model_name}'" in message
     assert "convert_checkpoint_dav2" not in message
+
+
+def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    imported_modules: list[str] = []
+
+    class FakeLTDETRObjectDetection(torch.nn.Module):
+        def __init__(
+            self, model_name: str, load_weights: bool, decoder_name: str | None = None
+        ) -> None:
+            super().__init__()
+            self.model_name = model_name
+            self.load_weights = load_weights
+            self.decoder_name = decoder_name
+            self.loaded_state_dict: dict[str, Any] | None = None
+
+        def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+            self.loaded_state_dict = state_dict
+
+    def fake_import_module(module_path: str) -> SimpleNamespace:
+        imported_modules.append(module_path)
+        assert module_path == "lightly_train._task_models.ltdetr_object_detection.task_model"
+        return SimpleNamespace(LTDETRObjectDetection=FakeLTDETRObjectDetection)
+
+    monkeypatch.setattr(task_model_helpers.importlib, "import_module", fake_import_module)
+
+    model = task_model_helpers.init_model_from_checkpoint(
+        {
+            "model_class_path": (
+                "lightly_train._task_models.dinov2_ltdetr_object_detection.task_model"
+                ".DINOv2LTDETRObjectDetection"
+            ),
+            "model_init_args": {"model_name": "dinov2/vits14-ltdetr"},
+            "train_model": {"model.weight": torch.ones(1)},
+        },
+        device="cpu",
+    )
+
+    assert imported_modules == [
+        "lightly_train._task_models.ltdetr_object_detection.task_model"
+    ]
+    assert isinstance(model, FakeLTDETRObjectDetection)
+    assert model.model_name == "dinov2/vits14-ltdetr"
+    assert model.load_weights is False
+    assert model.decoder_name == "rtdetrv2"
+    assert model.loaded_state_dict is not None
+    assert torch.equal(model.loaded_state_dict["model.weight"], torch.ones(1))
+
+
+def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_dsp_raises() -> None:
+    with pytest.raises(ValueError, match="DINOv2 LT-DETR DSP checkpoints"):
+        task_model_helpers.init_model_from_checkpoint(
+            {
+                "model_class_path": (
+                    "lightly_train._task_models.dinov2_ltdetr_object_detection.task_model"
+                    ".DINOv2LTDETRDSPObjectDetection"
+                ),
+                "model_init_args": {"model_name": "dinov2/vits14-ltdetr-dsp"},
+                "train_model": {},
+            },
+            device="cpu",
+        )

@@ -34,6 +34,19 @@ DOWNLOADABLE_MODEL_BASE_URL = (
 
 LIGHTLY_TRAIN_PRETRAINED_MODEL = str
 
+_LEGACY_DINOV2_LTDETR_OBJECT_DETECTION_CLASS_PATH = (
+    "lightly_train._task_models.dinov2_ltdetr_object_detection.task_model"
+    ".DINOv2LTDETRObjectDetection"
+)
+_LEGACY_DINOV2_LTDETR_DSP_OBJECT_DETECTION_CLASS_PATH = (
+    "lightly_train._task_models.dinov2_ltdetr_object_detection.task_model"
+    ".DINOv2LTDETRDSPObjectDetection"
+)
+_GENERIC_LTDETR_OBJECT_DETECTION_CLASS_PATH = (
+    "lightly_train._task_models.ltdetr_object_detection.task_model"
+    ".LTDETRObjectDetection"
+)
+
 
 def _get_ltdetr_downloadable_model_url_and_hashes() -> dict[str, tuple[str, str]]:
     downloadable_model_url_and_hashes = {}
@@ -294,8 +307,17 @@ def init_model_from_checkpoint(
     checkpoint: dict[str, Any],
     device: Literal["cpu", "cuda", "mps"] | torch.device | None = None,
 ) -> TaskModel:
-    # Import the model class dynamically
-    module_path, class_name = checkpoint["model_class_path"].rsplit(".", 1)
+    # Import the model class dynamically. Legacy DINOv2 LT-DETR checkpoints are
+    # loaded through the generic LT-DETR implementation after the package deletion.
+    model_class_path = checkpoint["model_class_path"]
+    if model_class_path == _LEGACY_DINOV2_LTDETR_OBJECT_DETECTION_CLASS_PATH:
+        model_class_path = _GENERIC_LTDETR_OBJECT_DETECTION_CLASS_PATH
+    elif model_class_path == _LEGACY_DINOV2_LTDETR_DSP_OBJECT_DETECTION_CLASS_PATH:
+        raise ValueError(
+            "DINOv2 LT-DETR DSP checkpoints are not supported by the generic "
+            "LT-DETR object detection model."
+        )
+    module_path, class_name = model_class_path.rsplit(".", 1)
     module = importlib.import_module(module_path)
     model_class = getattr(module, class_name)
     model_init_args = checkpoint["model_init_args"]

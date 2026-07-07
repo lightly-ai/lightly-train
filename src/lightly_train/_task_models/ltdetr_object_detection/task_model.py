@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
 import torch
@@ -28,6 +29,7 @@ from lightly_train._export.onnx_helpers import (
 )
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
@@ -212,7 +214,11 @@ class LTDETRObjectDetection(TaskModel):
         backbone_model_args: dict[str, Any] = dict(config.backbone_args)
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
-        if backbone_weights is not None:
+        is_dinov2_backbone = package_name == DINOV2_VIT_PACKAGE.name
+        load_dinov2_backbone_weights = (
+            load_weights and backbone_weights is not None and is_dinov2_backbone
+        )
+        if backbone_weights is not None and not is_dinov2_backbone:
             backbone_model_args["weights"] = str(backbone_weights)
 
         get_model_kwargs = {}
@@ -236,6 +242,9 @@ class LTDETRObjectDetection(TaskModel):
                 ECViTModelWrapper,
             ),
         )
+        if load_dinov2_backbone_weights:
+            assert backbone_weights is not None
+            self.load_backbone_weights(backbone=backbone, path=backbone_weights)
 
         self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
@@ -419,6 +428,21 @@ class LTDETRObjectDetection(TaskModel):
                     name = name[len("model.") :]
                     new_state_dict[name] = param
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+
+    def load_backbone_weights(self, backbone: torch.nn.Module, path: PathLike) -> None:
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
+
+        state_dict = torch.load(path, map_location="cpu", weights_only=False)
+        missing, unexpected = backbone.load_state_dict(state_dict, strict=False)
+
+        if missing:
+            logger.warning(f"Missing keys when loading backbone: {missing}")
+        if unexpected:
+            logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
+        if not missing and not unexpected:
+            logger.info(f"Backbone weights loaded from '{path}'")
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor

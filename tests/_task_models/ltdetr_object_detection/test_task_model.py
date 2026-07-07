@@ -242,6 +242,107 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     assert model_args.patch_size == expected_patch_size
 
 
+class _FakeDINOv2Backbone(nn.Module):
+    embed_dim = 224
+    patch_size = 14
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.mask_token = nn.Parameter(torch.zeros(1))
+        self.loaded_state_dict: dict[str, Any] | None = None
+
+    def load_state_dict(  # type: ignore[override]
+        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
+    ) -> torch.nn.modules.module._IncompatibleKeys:
+        self.loaded_state_dict = state_dict
+        return torch.nn.modules.module._IncompatibleKeys([], [])
+
+
+def test_dinov2_backbone_weights_not_passed_as_model_args(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    checkpoint = tmp_path / "backbone.pt"
+    expected_state_dict = {"weight": torch.ones(1)}
+    torch.save(expected_state_dict, checkpoint)
+    captured_model_args: dict[str, Any] | None = None
+    fake_backbone = _FakeDINOv2Backbone()
+
+    class FakeDINOv2Package:
+        def get_model(
+            self,
+            model_name: str,
+            model_args: dict[str, Any] | None = None,
+            load_weights: bool = True,
+            **kwargs: Any,
+        ) -> _FakeDINOv2Backbone:
+            nonlocal captured_model_args
+            captured_model_args = model_args
+            return fake_backbone
+
+    mocker.patch(
+        "lightly_train._task_models.ltdetr_object_detection.task_model.DINOv2VisionTransformer",
+        _FakeDINOv2Backbone,
+    )
+    mocker.patch(
+        "lightly_train._task_models.ltdetr_object_detection.task_model.package_helpers.get_package",
+        return_value=FakeDINOv2Package(),
+    )
+
+    LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0"},
+        image_size=(644, 644),
+        backbone_weights=checkpoint,
+    )
+
+    assert captured_model_args is not None
+    assert "weights" not in captured_model_args
+    assert fake_backbone.loaded_state_dict is not None
+    assert torch.equal(fake_backbone.loaded_state_dict["weight"], expected_state_dict["weight"])
+
+
+def test_dinov2_backbone_weights_ignored_when_load_weights_false(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    checkpoint = tmp_path / "backbone.pt"
+    torch.save({"weight": torch.ones(1)}, checkpoint)
+    captured_model_args: dict[str, Any] | None = None
+    fake_backbone = _FakeDINOv2Backbone()
+
+    class FakeDINOv2Package:
+        def get_model(
+            self,
+            model_name: str,
+            model_args: dict[str, Any] | None = None,
+            load_weights: bool = True,
+            **kwargs: Any,
+        ) -> _FakeDINOv2Backbone:
+            nonlocal captured_model_args
+            captured_model_args = model_args
+            return fake_backbone
+
+    mocker.patch(
+        "lightly_train._task_models.ltdetr_object_detection.task_model.DINOv2VisionTransformer",
+        _FakeDINOv2Backbone,
+    )
+    mocker.patch(
+        "lightly_train._task_models.ltdetr_object_detection.task_model.package_helpers.get_package",
+        return_value=FakeDINOv2Package(),
+    )
+
+    LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0"},
+        image_size=(644, 644),
+        backbone_weights=checkpoint,
+        load_weights=False,
+    )
+
+    assert captured_model_args is not None
+    assert "weights" not in captured_model_args
+    assert fake_backbone.loaded_state_dict is None
+
+
 def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
     # Backwards compatibility: a checkpoint trained with the previous
     # RTDETRv2 default must reconstruct with the RTDETRv2 architecture when
