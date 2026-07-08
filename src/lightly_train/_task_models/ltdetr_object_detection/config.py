@@ -545,7 +545,15 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
 
 
 class RTDETRPostProcessorConfig(PydanticConfig):
-    num_top_queries: int = 300
+    num_top_queries: int
+
+
+class LTDETRPostProcessorConfig(ConfigsNamespace):
+    class Generic(RTDETRPostProcessorConfig):
+        num_top_queries: int = 300
+
+    class ViTTest(RTDETRPostProcessorConfig):
+        num_top_queries: int = 20
 
 
 class DetectorConfig(PydanticConfig):
@@ -576,7 +584,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.CNNLarge
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -587,7 +595,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.CNNBase
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -598,7 +606,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.CNNSmall
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -609,7 +617,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.CNNTiny
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
@@ -620,7 +628,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.ViTTiny
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
     class ViTTinyPlus(DetectorConfig):
@@ -628,7 +636,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.ViTTinyPlus
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
     class ViTSmall(DetectorConfig):
@@ -636,7 +644,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.ViTSmall
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
     class DINOv2ViTSmallNoRegistersLegacy(DetectorConfig):
@@ -644,7 +652,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.DINOv2ViTSmallNoRegistersLegacy
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
     class ViTBase(DetectorConfig):
@@ -652,7 +660,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.ViTBase
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
     class ViTLarge(DetectorConfig):
@@ -660,7 +668,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.ViTLarge
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
     class ViTGiant(DetectorConfig):
@@ -668,7 +676,7 @@ class LTDETRBaseConfig(ConfigsNamespace):
             default_factory=LTDETRHybridEncoderConfig.ViTGiant
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
-            default_factory=RTDETRPostProcessorConfig
+            default_factory=LTDETRPostProcessorConfig.Generic
         )
 
 
