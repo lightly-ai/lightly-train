@@ -278,7 +278,7 @@ class TestLTDETRInstanceSegmentationTransform:
 
 
 class TestLTDETRInstanceSegmentationTrainTransformArgs:
-    def test_resolve_auto_rejects_photometric_distort_for_non_rgb(self) -> None:
+    def test_resolve_auto_rejects_non_rgb(self) -> None:
         transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
             channel_drop=ChannelDropArgs(
                 num_channels_keep=2,
@@ -289,7 +289,8 @@ class TestLTDETRInstanceSegmentationTrainTransformArgs:
         with pytest.raises(
             RuntimeError,
             match=(
-                "photometric_distort only supports RGB images but num_channels is 2"
+                "LT-DETR instance segmentation only supports RGB images but "
+                "num_channels is 2"
             ),
         ):
             transform_args.resolve_auto(model_init_args={})

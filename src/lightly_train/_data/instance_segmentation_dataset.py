@@ -152,10 +152,6 @@ class InstanceSegmentationDataset(TaskDataset):
         COCOInstanceSegmentationDatasetArgs | YOLOInstanceSegmentationDatasetArgs
     )
 
-    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        EoMTInstanceSegmentationCollateFunction
-    )
-
     def __init__(
         self,
         dataset_args: COCOInstanceSegmentationDatasetArgs
