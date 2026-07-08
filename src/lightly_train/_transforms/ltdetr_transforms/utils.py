@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 from albumentations import (
@@ -42,11 +42,6 @@ from lightly_train._transforms.random_photometric_distort import (
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
 from lightly_train._transforms.transform import ActivationPolicyArgs
 from lightly_train.types import NDArrayBBoxes, NDArrayClasses
-
-if TYPE_CHECKING:
-    from lightly_train._transforms.ltdetr_transforms.object_detection import (
-        LTDETRObjectDetectionTransformArgs,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +80,7 @@ def resolve_image_size_for_patch_size(
 
 
 def resolve_ltdetr_step_schedule_for_augmentation(
-    args: LTDETRObjectDetectionTransformArgs,
+    args: LTDETRTransformArgs,
     total_steps: int,
     train_num_batches: int,
     gradient_accumulation_steps: int,
@@ -134,13 +129,13 @@ def resolve_ltdetr_step_schedule_for_augmentation(
                 f"step_stop ({step_schedule.step_stop}) <= 0. "
                 "Disabling scale_jitter for this run."
             )
-            args.scale_jitter = None
+            setattr(args, "scale_jitter", None)
         else:
             scale_jitter.step_stop = step_schedule.step_stop
 
 
 def _resolve_aug_fields(
-    args: LTDETRObjectDetectionTransformArgs,
+    args: LTDETRTransformArgs,
     field_names: tuple[str, ...],
     step_start_resolved: int,
     step_stop_resolved: int,
