@@ -604,11 +604,6 @@ class LTDETRPostProcessorConfig(ConfigsNamespace):
         num_top_queries: int = 20
 
 
-class LTDETRPostProcessorConfig(ConfigsNamespace):
-    class ViTTest(RTDETRPostProcessorConfig):
-        num_top_queries: int = 20
-
-
 class DetectorConfig(PydanticConfig):
     version: Literal["v1", "v2"]
     backbone_name: str  # full "package/backbone" string, e.g. "dinov3/vits16"
