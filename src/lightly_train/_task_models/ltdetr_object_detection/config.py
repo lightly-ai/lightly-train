@@ -144,6 +144,19 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         depth_mult: float = 1
         act: str = "silu"
 
+    class ViTTest(HybridEncoderConfig):
+        in_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        use_encoder_idx: list[int] = [2]
+        num_encoder_layers: int = 1
+        nhead: int = 1
+        dim_feedforward: int = 32
+        dropout: float = 0.0
+        enc_act: str = "gelu"
+        expansion: float = 1.0
+        depth_mult: float = 1.0
+        act: str = "silu"
+
     class ViTTiny(HybridEncoderConfig):
         in_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -272,6 +285,14 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
     class CNNLarge(RTDETRTransformerv2Config):
         feat_channels: list[int] = [384, 384, 384]
 
+    class ViTTest(RTDETRTransformerv2Config):
+        feat_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        num_layers: int = 1
+        num_queries: int = 20
+        num_points: list[int] = [3, 6, 3]
+        dim_feedforward: int = 32
+
     class ViTTiny(RTDETRTransformerv2Config):
         feat_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -371,6 +392,13 @@ class LTDETRDFINETransformerConfig(ConfigsNamespace):
         feat_strides: list[int] = [8, 16, 32]
         num_layers: int = 6
         reg_scale: float = 8.0
+
+    class ViTTest(DFINETransformerConfig):
+        feat_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        num_layers: int = 1
+        num_queries: int = 20
+        dim_feedforward: int = 32
 
     class ViTTiny(DFINETransformerConfig):
         feat_channels: list[int] = [192, 192, 192]
@@ -499,6 +527,14 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
 
 
 class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
+    class ViTTest(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [0, 1, 2]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 2
+        hidden_dim: int = 8
+        project_features: bool = True
+
     class ViTTiny(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
@@ -558,6 +594,11 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
 
 class RTDETRPostProcessorConfig(PydanticConfig):
     num_top_queries: int = 300
+
+
+class LTDETRPostProcessorConfig(ConfigsNamespace):
+    class ViTTest(RTDETRPostProcessorConfig):
+        num_top_queries: int = 20
 
 
 class DetectorConfig(PydanticConfig):
@@ -625,6 +666,14 @@ class LTDETRBaseConfig(ConfigsNamespace):
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
+        )
+
+    class ViTTest(DetectorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.ViTTest
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=LTDETRPostProcessorConfig.ViTTest
         )
 
     class ViTTiny(DetectorConfig):
@@ -860,10 +909,21 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register(
-        "dinov2/_vittest14-ltdetr",
-        "dinov2/vits14-ltdetr",
-    )
+    @LTDETR_MODEL_REGISTRY.register("dinov2/_vittest14-ltdetr")
+    class ViTTest(LTDETRBaseConfig.ViTTest):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "dinov2/_vittest14"
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTTest
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTTest
+        )
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
     class DINOv2ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vits14"
