@@ -58,6 +58,10 @@ _DINOV3_CONVNEXT_LARGE_COCO_URL = "dinov3_convnext_large_ltdetr_coco_251218_03fe
 _DINOV3_CONVNEXT_LARGE_COCO_SHA256 = (
     "03fe6750392daf3ecd32bbab3f144bd5c4d6cdc8bd75635f9e1c5e296e7dd8b0"
 )
+_DINOV2_VITS14_NOREG_COCO_URL = "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt"
+_DINOV2_VITS14_NOREG_COCO_SHA256 = (
+    "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717"
+)
 
 
 class HybridEncoderConfig(PydanticConfig):
@@ -179,6 +183,19 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         depth_mult: float = 1.0
         act: str = "silu"
 
+    class DINOv2ViTSmallNoRegistersLegacy(HybridEncoderConfig):
+        in_channels: list[int] = [384, 384, 384]
+        hidden_dim: int = 384
+        use_encoder_idx: list[int] = [2]
+        num_encoder_layers: int = 1
+        nhead: int = 8
+        dim_feedforward: int = 2048
+        dropout: float = 0.0
+        enc_act: str = "gelu"
+        expansion: float = 1.0
+        depth_mult: float = 1.0
+        act: str = "silu"
+
     class ViTBase(HybridEncoderConfig):
         in_channels: list[int] = [768, 768, 768]
         hidden_dim: int = 768
@@ -275,6 +292,13 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
         num_layers: int = 4
         num_points: list[int] = [3, 6, 3]
         dim_feedforward: int = 1792
+
+    class DINOv2ViTSmallNoRegistersLegacy(RTDETRTransformerv2Config):
+        feat_channels: list[int] = [384, 384, 384]
+        hidden_dim: int = 256
+        num_layers: int = 6
+        num_points: list[int] = [3, 6, 3]
+        dim_feedforward: int = 1024
 
     class ViTBase(RTDETRTransformerv2Config):
         feat_channels: list[int] = [768, 768, 768]
@@ -416,6 +440,7 @@ class RTDETRBackboneWrapperConfig(PydanticConfig):
     conv_inplane: int | Literal["auto"] = "auto"
     conv_inplane_factor: int = 2
     hidden_dim: int
+    project_features: bool = True
 
     def resolve_auto(self, patch_size: int | None) -> None:
         patch_size = patch_size or 16
@@ -488,6 +513,14 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 2
         hidden_dim: int = 224
+
+    class DINOv2ViTSmallNoRegistersLegacy(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [5, 8, 11]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 2
+        hidden_dim: int = 384
+        project_features: bool = False
 
     class ViTBase(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -601,6 +634,14 @@ class LTDETRBaseConfig(ConfigsNamespace):
     class ViTSmall(DetectorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTSmall
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=RTDETRPostProcessorConfig
+        )
+
+    class DINOv2ViTSmallNoRegistersLegacy(DetectorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.DINOv2ViTSmallNoRegistersLegacy
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=RTDETRPostProcessorConfig
@@ -807,7 +848,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register("dinov2/_vittest14-ltdetr", "dinov2/vits14-ltdetr")
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov2/_vittest14-ltdetr",
+        "dinov2/vits14-ltdetr",
+    )
     class DINOv2ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vits14"
@@ -825,7 +869,34 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTSmallNotPretrained(DINOv2ViTSmall):
         backbone_name: str = "dinov2/vits14-notpretrained"
 
-    @LTDETR_MODEL_REGISTRY.register("dinov2/vitb14-ltdetr")
+    @LTDETR_MODEL_REGISTRY.register(
+        ModelAlias(
+            name="dinov2/vits14-noreg-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_DINOV2_VITS14_NOREG_COCO_URL,
+                sha256=_DINOV2_VITS14_NOREG_COCO_SHA256,
+            ),
+        ),
+        "dinov2/vits14-noreg-ltdetr",
+    )
+    class DINOv2ViTSmallNoRegistersLegacy(
+        LTDETRBaseConfig.DINOv2ViTSmallNoRegistersLegacy
+    ):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "dinov2/vits14-noreg"
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.DINOv2ViTSmallNoRegistersLegacy
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.DINOv2ViTSmallNoRegistersLegacy
+        )
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov2/vitb14-ltdetr",
+    )
     class DINOv2ViTBase(LTDETRBaseConfig.ViTBase):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitb14"
@@ -843,7 +914,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTBaseNotPretrained(DINOv2ViTBase):
         backbone_name: str = "dinov2/vitb14-notpretrained"
 
-    @LTDETR_MODEL_REGISTRY.register("dinov2/vitl14-ltdetr")
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov2/vitl14-ltdetr",
+    )
     class DINOv2ViTLarge(LTDETRBaseConfig.ViTLarge):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitl14"
@@ -861,7 +934,9 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv2ViTLargeNotPretrained(DINOv2ViTLarge):
         backbone_name: str = "dinov2/vitl14-notpretrained"
 
-    @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-ltdetr")
+    @LTDETR_MODEL_REGISTRY.register(
+        "dinov2/vitg14-ltdetr",
+    )
     class DINOv2ViTGiant(LTDETRBaseConfig.ViTGiant):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vitg14"

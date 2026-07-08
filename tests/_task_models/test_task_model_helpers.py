@@ -72,6 +72,14 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
     assert d["ltdetrv2-s-coco"] == d["edgecrafter/ecvitt-ltdetr-coco"]
 
 
+def test_downloadable_model__dinov2_vits14_noreg_ltdetr_coco() -> None:
+    d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
+    assert d["dinov2/vits14-noreg-ltdetr-coco"] == (
+        "dinov2_vits14_noreg_ltdetr_coco_251218_4e1f523d.pt",
+        "4e1f523db68c94516ee5b35a91f24267657af474bea58b52a7f7e51ec2d8f717",
+    )
+
+
 def test_download_checkpoint__non_hosted_dav2__raises_convert_guidance() -> None:
     model_name = "dinov2/dav2-relative-large"
 

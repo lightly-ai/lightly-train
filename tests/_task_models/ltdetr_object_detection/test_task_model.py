@@ -258,6 +258,82 @@ class _FakeDINOv2Backbone(nn.Module):
         return torch.nn.modules.module._IncompatibleKeys([], [])
 
 
+class _FakeDINOv2NoRegistersBackbone(_FakeDINOv2Backbone):
+    embed_dim = 384
+
+
+def test_dinov2_noreg_coco_alias_uses_legacy_checkpoint_config() -> None:
+    config = LTDETR_MODEL_REGISTRY.get(alias="dinov2/vits14-noreg-ltdetr-coco")()
+
+    assert config.backbone_name == "dinov2/vits14-noreg"
+    assert config.hybrid_encoder.in_channels == [384, 384, 384]
+    assert config.hybrid_encoder.hidden_dim == 384
+    assert config.hybrid_encoder.dim_feedforward == 2048
+    assert config.transformer.feat_channels == [384, 384, 384]
+    assert config.transformer.hidden_dim == 256
+    assert config.transformer.num_layers == 6
+    assert config.transformer.dim_feedforward == 1024
+    assert config.backbone_wrapper.hidden_dim == 384
+    assert config.backbone_wrapper.use_sta is False
+    assert config.backbone_wrapper.project_features is False
+    assert (
+        LTDETRObjectDetection.parse_model_name("dinov2/vits14-noreg-ltdetr-coco")[
+            "model_name"
+        ]
+        == "dinov2/vits14-noreg-ltdetr"
+    )
+
+
+def test_dinov2_noreg_constructor_passes_noreg_backbone_to_package(
+    mocker: MockerFixture,
+) -> None:
+    captured_model_name: str | None = None
+    fake_backbone = _FakeDINOv2NoRegistersBackbone()
+
+    class FakeDINOv2Package:
+        def get_model(
+            self,
+            model_name: str,
+            model_args: dict[str, Any] | None = None,
+            load_weights: bool = True,
+            **kwargs: Any,
+        ) -> _FakeDINOv2Backbone:
+            nonlocal captured_model_name
+            captured_model_name = model_name
+            return fake_backbone
+
+    mocker.patch(
+        "lightly_train._task_models.ltdetr_object_detection.task_model.DINOv2VisionTransformer",
+        _FakeDINOv2NoRegistersBackbone,
+    )
+    mocker.patch(
+        "lightly_train._task_models.ltdetr_object_detection.task_model.package_helpers.get_package",
+        return_value=FakeDINOv2Package(),
+    )
+
+    model = LTDETRObjectDetection(
+        model_name="dinov2/vits14-noreg-ltdetr",
+        classes={0: "class_0"},
+        image_size=(644, 644),
+        load_weights=False,
+    )
+
+    state_dict = model.state_dict()
+    assert captured_model_name == "vits14-noreg"
+    assert not any(k.startswith("backbone.convs") for k in state_dict)
+    assert not any(k.startswith("backbone.norms") for k in state_dict)
+    assert "decoder.decoder.layers.5.self_attn.in_proj_weight" in state_dict
+
+
+def test_dino_legacy_backbone_prefix_is_remapped() -> None:
+    state_dict = {"backbone.backbone.mask_token": torch.ones(1)}
+
+    DINOSTAs._remap_legacy_keys(nn.Module(), state_dict, "backbone.")
+
+    assert "backbone._model_wrapper._model.mask_token" in state_dict
+    assert "backbone.backbone.mask_token" not in state_dict
+
+
 def test_dinov2_backbone_weights_not_passed_as_model_args(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:

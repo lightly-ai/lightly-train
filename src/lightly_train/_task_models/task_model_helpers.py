@@ -42,6 +42,10 @@ _LEGACY_DINOV2_LTDETR_DSP_OBJECT_DETECTION_CLASS_PATH = (
     "lightly_train._task_models.dinov2_ltdetr_object_detection.task_model"
     ".DINOv2LTDETRDSPObjectDetection"
 )
+_LEGACY_DINOV3_LTDETR_OBJECT_DETECTION_CLASS_PATH = (
+    "lightly_train._task_models.dinov3_ltdetr_object_detection.task_model"
+    ".DINOv3LTDETRObjectDetection"
+)
 _GENERIC_LTDETR_OBJECT_DETECTION_CLASS_PATH = (
     "lightly_train._task_models.ltdetr_object_detection.task_model"
     ".LTDETRObjectDetection"
@@ -317,6 +321,8 @@ def init_model_from_checkpoint(
             "DINOv2 LT-DETR DSP checkpoints are not supported by the generic "
             "LT-DETR object detection model."
         )
+    elif model_class_path == _LEGACY_DINOV3_LTDETR_OBJECT_DETECTION_CLASS_PATH:
+        model_class_path = _GENERIC_LTDETR_OBJECT_DETECTION_CLASS_PATH
     module_path, class_name = model_class_path.rsplit(".", 1)
     module = importlib.import_module(module_path)
     model_class = getattr(module, class_name)

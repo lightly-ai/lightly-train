@@ -131,6 +131,7 @@ class DINOSTAs(Module):
         use_sta: bool = True,
         conv_inplane: int = 16,
         hidden_dim: int | None = None,
+        project_features: bool = True,
     ):
         super().__init__()
 
@@ -156,8 +157,18 @@ class DINOSTAs(Module):
         else:
             conv_inplane = 0
 
-        # linear projection
+        self.project_features = project_features
         hidden_dim = hidden_dim if hidden_dim is not None else embed_dim
+        if not self.project_features and (use_sta or hidden_dim != embed_dim):
+            raise ValueError(
+                "project_features=False requires use_sta=False and hidden_dim to match "
+                f"the backbone embed_dim ({embed_dim}), but got hidden_dim={hidden_dim}."
+            )
+
+        # linear projection
+        if not self.project_features:
+            return
+
         self.convs = ModuleList(
             [
                 Conv2d(
@@ -211,6 +222,7 @@ class DINOSTAs(Module):
         for old_prefix_suffix, label in [
             ("dinov3.", "DINOv3STAs"),
             ("dinov2.", "DINOv2STAs"),
+            ("backbone.", "DINOv2STAs"),
         ]:
             old_subprefix = prefix + old_prefix_suffix
             if any(k.startswith(old_subprefix) for k in state_dict):
@@ -271,6 +283,9 @@ class DINOSTAs(Module):
                 )
         else:
             fused_feats = resized_feats
+
+        if not self.project_features:
+            return fused_feats[0], fused_feats[1], fused_feats[2]
 
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))
