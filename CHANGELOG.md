@@ -18,14 +18,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `debug_args.nancapture.enabled=True`.
 - Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
   `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
-- Add a `process_res_method` argument to depth estimation `predict` and `predict_batch`
-  to control how images are resized to the model's processing resolution:
-  `"square_resize"` (the default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
+- Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
+  `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
 
 ### Changed
 
 - Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
   single config-driven `DepthAnythingDepthEstimation` model.
+- Depth estimation `predict`/`predict_batch` now default to `square_resize` (previously
+  aspect-preserving upper/lower-bound per model), changing default depth outputs. Pass
+  `process_res_method="upper_bound_resize"`/`"lower_bound_resize"` to restore the
+  previous geometry.
 
 ### Deprecated
 
