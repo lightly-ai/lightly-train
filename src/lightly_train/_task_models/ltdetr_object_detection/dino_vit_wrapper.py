@@ -132,6 +132,7 @@ class DINOSTAs(Module):
         conv_inplane: int = 16,
         hidden_dim: int | None = None,
         project_features: bool = True,
+        resize_features: bool = True,
     ):
         super().__init__()
 
@@ -141,6 +142,7 @@ class DINOSTAs(Module):
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
         self.patch_size = model_wrapper.get_model().patch_size
+        self.resize_features = resize_features
 
         if not finetune:
             model_wrapper.eval()
@@ -248,6 +250,12 @@ class DINOSTAs(Module):
         num_scales = len(sem_feats) - 2
         for i, sem_feat in enumerate(sem_feats):
             feat = sem_feat["features"]
+            if not self.resize_features:
+                # All taps already share the same spatial resolution (H_c, W_c) —
+                # some backbones (e.g. DINOv2ViTSmallNoRegistersLegacy) were trained
+                # on 3 same-resolution feature taps with no synthesized pyramid.
+                resized_feats.append(feat)
+                continue
             resize_H, resize_W = (
                 int(H_c * 2 ** (num_scales - i)),
                 int(W_c * 2 ** (num_scales - i)),

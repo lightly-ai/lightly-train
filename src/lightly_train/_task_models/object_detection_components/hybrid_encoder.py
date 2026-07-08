@@ -14,11 +14,13 @@
 
 import copy
 from collections import OrderedDict
+from typing import Any
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from lightly_train import _torch_helpers
 from lightly_train._task_models.object_detection_components.utils import get_activation
 
 
@@ -208,6 +210,7 @@ class HybridEncoder(nn.Module):
     def __init__(
         self,
         upsample: bool,  # Added: Lionel (09/25) to handle grid_sampling in line 386
+        state_dict_ignore_keys: set[str] | None = None,
         in_channels=[512, 1024, 2048],
         feat_strides=[8, 16, 32],
         hidden_dim=256,
@@ -238,6 +241,11 @@ class HybridEncoder(nn.Module):
         self.upsample = (
             upsample  # Added: Lionel (09/25) to handle grid_sampling in line 386
         )
+        self.state_dict_ignore_keys = state_dict_ignore_keys or set()
+        if self.state_dict_ignore_keys:
+            _torch_helpers.register_load_state_dict_pre_hook(
+                self, self._pop_ignored_state_dict_keys
+            )
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -322,6 +330,19 @@ class HybridEncoder(nn.Module):
             )
 
         self._reset_parameters()
+
+    def _pop_ignored_state_dict_keys(
+        self,
+        module: nn.Module,
+        state_dict: dict[str, Any],
+        prefix: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        for ignore_key in self.state_dict_ignore_keys:
+            full_prefix = prefix + ignore_key
+            for key in [k for k in state_dict if k.startswith(full_prefix)]:
+                state_dict.pop(key)
 
     def _reset_parameters(self):
         if self.eval_spatial_size:

@@ -374,7 +374,9 @@ def test_dinov2_backbone_weights_not_passed_as_model_args(
     assert captured_model_args is not None
     assert "weights" not in captured_model_args
     assert fake_backbone.loaded_state_dict is not None
-    assert torch.equal(fake_backbone.loaded_state_dict["weight"], expected_state_dict["weight"])
+    assert torch.equal(
+        fake_backbone.loaded_state_dict["weight"], expected_state_dict["weight"]
+    )
 
 
 def test_dinov2_backbone_weights_ignored_when_load_weights_false(

@@ -77,7 +77,8 @@ class HybridEncoderConfig(PydanticConfig):
     expansion: float
     depth_mult: float
     act: str
-    upsample: bool = True
+    upsample: bool
+    state_dict_ignore_keys: set[str] = Field(default_factory=set)
 
     def resolve_auto(self, patch_size: int | None) -> None:
         patch_size = patch_size or 16
@@ -101,6 +102,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1
         act: str = "silu"
+        upsample: bool = True
 
     class CNNSmall(HybridEncoderConfig):
         in_channels: list[int] = [192, 384, 768]
@@ -115,6 +117,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1
         act: str = "silu"
+        upsample: bool = True
 
     class CNNBase(HybridEncoderConfig):
         in_channels: list[int] = [256, 512, 1024]
@@ -129,6 +132,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1
         act: str = "silu"
+        upsample: bool = True
 
     class CNNLarge(HybridEncoderConfig):
         in_channels: list[int] = [384, 768, 1536]
@@ -143,6 +147,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1
         act: str = "silu"
+        upsample: bool = True
 
     class ViTTest(HybridEncoderConfig):
         in_channels: list[int] = [8, 8, 8]
@@ -156,6 +161,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1.0
         act: str = "silu"
+        upsample: bool = True
 
     class ViTTiny(HybridEncoderConfig):
         in_channels: list[int] = [192, 192, 192]
@@ -169,6 +175,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 0.34
         depth_mult: float = 0.67
         act: str = "silu"
+        upsample: bool = True
 
     class ViTTinyPlus(HybridEncoderConfig):
         in_channels: list[int] = [256, 256, 256]
@@ -182,6 +189,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 0.67
         depth_mult: float = 1.0
         act: str = "silu"
+        upsample: bool = True
 
     class ViTSmall(HybridEncoderConfig):
         in_channels: list[int] = [224, 224, 224]
@@ -195,9 +203,11 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1.0
         act: str = "silu"
+        upsample: bool = True
 
     class DINOv2ViTSmallNoRegistersLegacy(HybridEncoderConfig):
         in_channels: list[int] = [384, 384, 384]
+        feat_strides: list[int] = [14, 14, 14]
         hidden_dim: int = 384
         use_encoder_idx: list[int] = [2]
         num_encoder_layers: int = 1
@@ -208,6 +218,15 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1.0
         act: str = "silu"
+        # The original checkpoint carries real (but unused) downsample_convs
+        # weights. We don't allocate that module (upsample=False, since all 3
+        # backbone taps already share the same spatial resolution at stride
+        # 14), so its checkpoint keys are dropped before the strict state_dict
+        # load.
+        upsample: bool = False
+        state_dict_ignore_keys: set[str] = Field(
+            default_factory=lambda: {"downsample_convs."}
+        )
 
     class ViTBase(HybridEncoderConfig):
         in_channels: list[int] = [768, 768, 768]
@@ -221,6 +240,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1.0
         act: str = "silu"
+        upsample: bool = True
 
     class ViTLarge(HybridEncoderConfig):
         in_channels: list[int] = [1024, 1024, 1024]
@@ -234,6 +254,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1.0
         act: str = "silu"
+        upsample: bool = True
 
     class ViTGiant(HybridEncoderConfig):
         in_channels: list[int] = [1536, 1536, 1536]
@@ -247,6 +268,7 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         expansion: float = 1.0
         depth_mult: float = 1.0
         act: str = "silu"
+        upsample: bool = True
 
 
 class RTDETRTransformerv2Config(PydanticConfig):
@@ -316,9 +338,10 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
 
     class DINOv2ViTSmallNoRegistersLegacy(RTDETRTransformerv2Config):
         feat_channels: list[int] = [384, 384, 384]
+        feat_strides: list[int] = [14, 14, 14]
         hidden_dim: int = 256
         num_layers: int = 6
-        num_points: list[int] = [3, 6, 3]
+        num_points: list[int] = [4, 4, 4]
         dim_feedforward: int = 1024
 
     class ViTBase(RTDETRTransformerv2Config):
@@ -469,6 +492,7 @@ class RTDETRBackboneWrapperConfig(PydanticConfig):
     conv_inplane_factor: int = 2
     hidden_dim: int
     project_features: bool
+    resize_features: bool = True
 
     def resolve_auto(self, patch_size: int | None) -> None:
         patch_size = patch_size or 16
@@ -566,6 +590,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         conv_inplane_factor: int = 2
         hidden_dim: int = 384
         project_features: bool = False
+        resize_features: bool = False
 
     class ViTBase(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]

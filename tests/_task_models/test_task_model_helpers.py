@@ -123,10 +123,15 @@ def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic(
 
     def fake_import_module(module_path: str) -> SimpleNamespace:
         imported_modules.append(module_path)
-        assert module_path == "lightly_train._task_models.ltdetr_object_detection.task_model"
+        assert (
+            module_path
+            == "lightly_train._task_models.ltdetr_object_detection.task_model"
+        )
         return SimpleNamespace(LTDETRObjectDetection=FakeLTDETRObjectDetection)
 
-    monkeypatch.setattr(task_model_helpers.importlib, "import_module", fake_import_module)
+    monkeypatch.setattr(
+        task_model_helpers.importlib, "import_module", fake_import_module
+    )
 
     model = task_model_helpers.init_model_from_checkpoint(
         {
