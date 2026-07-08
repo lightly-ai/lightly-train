@@ -214,10 +214,14 @@ depths = model.predict_batch(
 ```
 
 ```{note}
-Images with different aspect ratios are center-cropped to the smallest processed size in
-the batch before inference, so their depth maps are slightly stretched when resized back
-to the original resolution. For pixel-perfect results on images of different sizes, call
-`predict` on each image individually.
+By default (`process_res_method="square_resize"`) every image is resized to the same
+square processing resolution, so batches of differently sized images are handled without
+any cropping. The aspect-preserving methods (`"upper_bound_resize"` and
+`"lower_bound_resize"`) can yield different processed sizes across a batch; those images
+are then center-cropped to the smallest processed size before inference, so their depth
+maps are slightly stretched when resized back to the original resolution. For
+pixel-perfect results with an aspect-preserving method, call `predict` on each image
+individually.
 ```
 
 (depth-estimation-convert)=
