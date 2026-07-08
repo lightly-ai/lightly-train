@@ -1,11 +1,19 @@
-# LightlyTrain - SOTA Pretraining, Fine-tuning and Distillation
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lightly-ai/lightly-train/main/docs/source/_static/lightly_train_dark.svg">
+    <img src="https://raw.githubusercontent.com/lightly-ai/lightly-train/main/docs/source/_static/lightly_train_light.svg" alt="LightlyTrain" width="400" style="max-width: 100%; height: auto;">
+  </picture>
+
+  <h1>SOTA Pretraining, Fine-tuning and Distillation</h1>
+
+  <p><em>Train Better Models, Faster</em></p>
 
 [![Python](https://img.shields.io/badge/Python-3.8%7C3.9%7C3.10%7C3.11%7C3.12%7C3.13-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
 [![Docker](https://img.shields.io/badge/Docker-blue?logo=docker&logoColor=fff)](https://docs.lightly.ai/train/stable/docker.html#)
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/)
 [![Discord](https://img.shields.io/discord/752876370337726585?logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
 
-*Train Better Models, Faster*
+</div>
 
 LightlyTrain is the leading framework for transforming your data into state-of-the-art
 computer vision models. It covers the entire model development lifecycle from
