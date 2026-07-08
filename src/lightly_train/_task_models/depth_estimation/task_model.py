@@ -25,13 +25,14 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.depth_estimation_components import image_utils
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
+from lightly_train._task_models.depth_estimation_components.image_utils import (
+    ResizeMethod,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
-# Depth Anything V3 processes images by resizing the longer side to the inference size.
-_PROCESS_RES_METHOD_DAV3 = "upper_bound_resize"
 # Depth Anything V3 metric scaling constant: ``metric_depth = focal * output / 300``.
 _METRIC_SCALE_FACTOR = 300.0
 
@@ -40,7 +41,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-relative-small",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "relu",
         "use_sky_head": False,
         "align_corners": True,
@@ -58,7 +58,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-relative-base",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "relu",
         "use_sky_head": False,
         "align_corners": True,
@@ -76,7 +75,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-relative-large",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "relu",
         "use_sky_head": False,
         "align_corners": True,
@@ -98,7 +96,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-small-hypersim",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "sigmoid",
         "use_sky_head": False,
         "align_corners": True,
@@ -117,7 +114,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-base-hypersim",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "sigmoid",
         "use_sky_head": False,
         "align_corners": True,
@@ -136,7 +132,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-large-hypersim",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "sigmoid",
         "use_sky_head": False,
         "align_corners": True,
@@ -155,7 +150,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-small-vkitti",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "sigmoid",
         "use_sky_head": False,
         "align_corners": True,
@@ -174,7 +168,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-base-vkitti",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "sigmoid",
         "use_sky_head": False,
         "align_corners": True,
@@ -193,7 +186,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav2-metric-large-vkitti",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
-        "preprocess": "dav2",
         "activation": "sigmoid",
         "use_sky_head": False,
         "align_corners": True,
@@ -212,7 +204,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav3-relative-large",
         "backbone_name": "vitl14-noreg",
         "image_size": 504,
-        "preprocess": "dav3",
         "activation": "exp",
         "use_sky_head": True,
         "align_corners": False,
@@ -231,7 +222,6 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "canonical_name": "dinov2/dav3-metric-large",
         "backbone_name": "vitl14-noreg",
         "image_size": 504,
-        "preprocess": "dav3",
         "activation": "exp",
         "use_sky_head": True,
         "align_corners": False,
@@ -310,7 +300,6 @@ class DepthAnythingDepthEstimation(TaskModel):
         # size, so it is not a user-facing parameter.
         self.image_size = int(config["image_size"])
 
-        self._preprocess: str = config["preprocess"]
         self._align_corners: bool = bool(config["align_corners"])
         self._scale_mode: str = config["scale_mode"]
 
@@ -381,6 +370,7 @@ class DepthAnythingDepthEstimation(TaskModel):
         self,
         image: PathLike | PILImage | Tensor,
         *,
+        process_res_method: ResizeMethod = "square_resize",
         intrinsics: Tensor | None = None,
     ) -> Tensor:
         """Returns a depth map for the given image.
@@ -390,6 +380,12 @@ class DepthAnythingDepthEstimation(TaskModel):
                 The input image as a path, URL, PIL image, or tensor. Tensors must have
                 shape ``(C, H, W)``; uint8 tensors are interpreted in [0, 255] and
                 float tensors in [0, 1].
+            process_res_method:
+                How the image is resized to the model's fixed processing resolution.
+                One of ``"square_resize"`` (resize to a square of the processing
+                resolution, the default), ``"upper_bound_resize"`` (longest side to the
+                processing resolution) or ``"lower_bound_resize"`` (shortest side to the
+                processing resolution); the latter two preserve the aspect ratio.
             intrinsics:
                 ``(3, 3)`` camera intrinsics matrix of the original image in pixel
                 coordinates. Required for the metric V3 model, which returns metric depth
@@ -408,7 +404,9 @@ class DepthAnythingDepthEstimation(TaskModel):
             self.eval()
 
         self._validate_intrinsics(intrinsics=intrinsics)
-        x, metadata = self.preprocess_image(image)
+        x, metadata = self.preprocess_image(
+            image, process_res_method=process_res_method
+        )
         if intrinsics is not None:
             metadata["focal"] = _processed_focal_length(
                 intrinsics=intrinsics,
@@ -426,6 +424,7 @@ class DepthAnythingDepthEstimation(TaskModel):
         self,
         images: Sequence[PathLike | PILImage | Tensor],
         *,
+        process_res_method: ResizeMethod = "square_resize",
         intrinsics: Sequence[Tensor] | None = None,
     ) -> list[Tensor]:
         """Returns depth maps for the given batch of images.
@@ -435,6 +434,12 @@ class DepthAnythingDepthEstimation(TaskModel):
                 Sequence of input images. Each can be a path, URL, PIL image, or
                 tensor. Tensors must have shape ``(C, H, W)``; uint8 tensors are
                 interpreted in [0, 255] and float tensors in [0, 1].
+            process_res_method:
+                How each image is resized to the model's fixed processing resolution.
+                One of ``"square_resize"`` (the default), ``"upper_bound_resize"`` or
+                ``"lower_bound_resize"``; see ``predict``. With the aspect-preserving
+                methods, images whose processed sizes differ are center-cropped to the
+                smallest size in the batch before inference.
             intrinsics:
                 Sequence of ``(3, 3)`` camera intrinsics matrices, one per image, in
                 original-image pixel coordinates. Required for the metric V3 model and
@@ -460,7 +465,9 @@ class DepthAnythingDepthEstimation(TaskModel):
         tensors: list[Tensor] = []
         metadata: list[dict[str, Any]] = []
         for i, image in enumerate(images):
-            x, meta = self.preprocess_image(image)
+            x, meta = self.preprocess_image(
+                image, process_res_method=process_res_method
+            )
             if intrinsics is not None:
                 meta["focal"] = _processed_focal_length(
                     intrinsics=intrinsics[i],
@@ -476,27 +483,24 @@ class DepthAnythingDepthEstimation(TaskModel):
         return self.postprocess(raw, metadata)
 
     def preprocess_image(
-        self, image: PathLike | PILImage | Tensor
+        self,
+        image: PathLike | PILImage | Tensor,
+        *,
+        process_res_method: ResizeMethod = "square_resize",
     ) -> tuple[Tensor, dict[str, Any]]:
         """Per-image preprocessing producing a model-input tensor and metadata.
 
-        The aspect-preserving resize means outputs across a batch may have different
-        shapes, so they are not always stackable; `preprocess_batch` therefore takes a
-        sequence and unifies the sizes.
+        The ``upper_bound_resize``/``lower_bound_resize`` methods preserve the aspect
+        ratio, so outputs across a batch may have different shapes and are not always
+        stackable; `preprocess_batch` therefore takes a sequence and unifies the sizes.
         """
         x = file_helpers.as_image_tensor(image)
         image_h, image_w = x.shape[-2:]
-        if self._preprocess == "dav3":
-            # Process on the input's native device: the cv2-parity resize rounds after an
-            # einsum whose accumulation order differs between CPU and GPU, so moving to
-            # the model device first could flip pixels and break bit-exactness.
-            x = image_utils.process_image_dav3(
-                x,
-                process_res=self.image_size,
-                process_res_method=_PROCESS_RES_METHOD_DAV3,
-            )
-        else:
-            x = image_utils.process_image_dav2(x, process_res=self.image_size)
+        x = image_utils.process_image(
+            x,
+            process_res=self.image_size,
+            process_res_method=process_res_method,
+        )
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
 
