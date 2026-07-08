@@ -144,6 +144,19 @@ class LTDETRHybridEncoderConfig(ConfigsNamespace):
         depth_mult: float = 1
         act: str = "silu"
 
+    class ViTTest(HybridEncoderConfig):
+        in_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        use_encoder_idx: list[int] = [2]
+        num_encoder_layers: int = 1
+        nhead: int = 1
+        dim_feedforward: int = 32
+        dropout: float = 0.0
+        enc_act: str = "gelu"
+        expansion: float = 1.0
+        depth_mult: float = 1.0
+        act: str = "silu"
+
     class ViTTiny(HybridEncoderConfig):
         in_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -272,6 +285,14 @@ class LTDETRRTDETRTransformerv2Config(ConfigsNamespace):
     class CNNLarge(RTDETRTransformerv2Config):
         feat_channels: list[int] = [384, 384, 384]
 
+    class ViTTest(RTDETRTransformerv2Config):
+        feat_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        num_layers: int = 1
+        num_queries: int = 20
+        num_points: list[int] = [3, 6, 3]
+        dim_feedforward: int = 32
+
     class ViTTiny(RTDETRTransformerv2Config):
         feat_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -372,6 +393,13 @@ class LTDETRDFINETransformerConfig(ConfigsNamespace):
         num_layers: int = 6
         reg_scale: float = 8.0
 
+    class ViTTest(DFINETransformerConfig):
+        feat_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        num_layers: int = 1
+        num_queries: int = 20
+        dim_feedforward: int = 32
+
     class ViTTiny(DFINETransformerConfig):
         feat_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -440,7 +468,7 @@ class RTDETRBackboneWrapperConfig(PydanticConfig):
     conv_inplane: int | Literal["auto"] = "auto"
     conv_inplane_factor: int = 2
     hidden_dim: int
-    project_features: bool = True
+    project_features: bool
 
     def resolve_auto(self, patch_size: int | None) -> None:
         patch_size = patch_size or 16
@@ -455,6 +483,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 1
         hidden_dim: int = 192
+        project_features: bool = True
 
     class ViTTinyPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
@@ -462,6 +491,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 1
         hidden_dim: int = 256
+        project_features: bool = True
 
     class ViTSmall(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -469,6 +499,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 2
         hidden_dim: int = 224
+        project_features: bool = True
 
     class ViTBase(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -476,6 +507,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 4
         hidden_dim: int = 768
+        project_features: bool = True
 
     class ViTLarge(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [11, 17, 23]
@@ -483,6 +515,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 4
         hidden_dim: int = 1024
+        project_features: bool = True
 
     class ViTGiant(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [19, 29, 39]
@@ -490,15 +523,25 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 4
         hidden_dim: int = 1536
+        project_features: bool = True
 
 
 class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
+    class ViTTest(RTDETRBackboneWrapperConfig):
+        interaction_indexes: list[int] = [0, 1, 2]
+        finetune: bool = True
+        use_sta: bool = False
+        conv_inplane_factor: int = 2
+        hidden_dim: int = 8
+        project_features: bool = True
+
     class ViTTiny(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
         finetune: bool = True
         use_sta: bool = False
         conv_inplane_factor: int = 1
         hidden_dim: int = 192
+        project_features: bool = True
 
     class ViTTinyPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
@@ -506,6 +549,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 1
         hidden_dim: int = 256
+        project_features: bool = True
 
     class ViTSmall(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -513,6 +557,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 2
         hidden_dim: int = 224
+        project_features: bool = True
 
     class DINOv2ViTSmallNoRegistersLegacy(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -528,6 +573,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 4
         hidden_dim: int = 768
+        project_features: bool = True
 
     class ViTLarge(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [11, 17, 23]
@@ -535,6 +581,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 4
         hidden_dim: int = 1024
+        project_features: bool = True
 
     class ViTGiant(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [19, 29, 39]
@@ -542,6 +589,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 4
         hidden_dim: int = 1536
+        project_features: bool = True
 
 
 class RTDETRPostProcessorConfig(PydanticConfig):
@@ -552,6 +600,11 @@ class LTDETRPostProcessorConfig(ConfigsNamespace):
     class Generic(RTDETRPostProcessorConfig):
         num_top_queries: int = 300
 
+    class ViTTest(RTDETRPostProcessorConfig):
+        num_top_queries: int = 20
+
+
+class LTDETRPostProcessorConfig(ConfigsNamespace):
     class ViTTest(RTDETRPostProcessorConfig):
         num_top_queries: int = 20
 
@@ -621,6 +674,14 @@ class LTDETRBaseConfig(ConfigsNamespace):
         )
         backbone_wrapper: CNNBackboneWrapperConfig = Field(
             default_factory=CNNBackboneWrapperConfig
+        )
+
+    class ViTTest(DetectorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.ViTTest
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=LTDETRPostProcessorConfig.ViTTest
         )
 
     class ViTTiny(DetectorConfig):
@@ -856,10 +917,21 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
-    @LTDETR_MODEL_REGISTRY.register(
-        "dinov2/_vittest14-ltdetr",
-        "dinov2/vits14-ltdetr",
-    )
+    @LTDETR_MODEL_REGISTRY.register("dinov2/_vittest14-ltdetr")
+    class ViTTest(LTDETRBaseConfig.ViTTest):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "dinov2/_vittest14"
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRRTDETRTransformerv2Config.ViTTest
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTTest
+        )
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-ltdetr")
     class DINOv2ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov2/vits14"
