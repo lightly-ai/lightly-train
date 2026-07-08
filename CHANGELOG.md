@@ -18,6 +18,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `debug_args.nancapture.enabled=True`.
 - Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
   `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
+- Add a `process_res_method` argument to depth estimation `predict` and `predict_batch`
+  to control how images are resized to the model's processing resolution:
+  `"square_resize"` (the default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
 
 ### Changed
 
