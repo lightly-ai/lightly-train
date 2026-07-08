@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Literal, get_args
 
 import torch
 from torch import Tensor
@@ -50,18 +51,19 @@ logger = logging.getLogger(__name__)
 NORMALIZE_MEAN = (0.485, 0.456, 0.406)
 NORMALIZE_STD = (0.229, 0.224, 0.225)
 PATCH_SIZE = 14
-RESIZE_METHODS = (
+ResizeMethod = Literal[
     "upper_bound_resize",
     "lower_bound_resize",
     "square_resize",
-)
+]
+RESIZE_METHODS = get_args(ResizeMethod)
 
 
 def process_image(
     img: Tensor,
     *,
     process_res: int,
-    process_res_method: str = "square_resize",
+    process_res_method: ResizeMethod = "square_resize",
 ) -> Tensor:
     """Preprocesses one image for Depth Anything depth inference.
 

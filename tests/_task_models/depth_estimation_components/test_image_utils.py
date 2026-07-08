@@ -63,7 +63,11 @@ class TestProcessImage:
         img = torch.zeros(3, 32, 32, dtype=torch.uint8)
 
         with pytest.raises(ValueError, match="Unsupported process_res_method 'nope'"):
-            image_utils.process_image(img, process_res=28, process_res_method="nope")
+            image_utils.process_image(
+                img,
+                process_res=28,
+                process_res_method="nope",  # type: ignore[arg-type]
+            )
 
     def test_process_image__grayscale_expanded_to_rgb(self) -> None:
         img = torch.full((1, 28, 28), 128, dtype=torch.uint8)

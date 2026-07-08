@@ -25,6 +25,9 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.depth_estimation_components import image_utils
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
+from lightly_train._task_models.depth_estimation_components.image_utils import (
+    ResizeMethod,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -367,7 +370,7 @@ class DepthAnythingDepthEstimation(TaskModel):
         self,
         image: PathLike | PILImage | Tensor,
         *,
-        process_res_method: str = "square_resize",
+        process_res_method: ResizeMethod = "square_resize",
         intrinsics: Tensor | None = None,
     ) -> Tensor:
         """Returns a depth map for the given image.
@@ -421,7 +424,7 @@ class DepthAnythingDepthEstimation(TaskModel):
         self,
         images: Sequence[PathLike | PILImage | Tensor],
         *,
-        process_res_method: str = "square_resize",
+        process_res_method: ResizeMethod = "square_resize",
         intrinsics: Sequence[Tensor] | None = None,
     ) -> list[Tensor]:
         """Returns depth maps for the given batch of images.
@@ -483,7 +486,7 @@ class DepthAnythingDepthEstimation(TaskModel):
         self,
         image: PathLike | PILImage | Tensor,
         *,
-        process_res_method: str = "square_resize",
+        process_res_method: ResizeMethod = "square_resize",
     ) -> tuple[Tensor, dict[str, Any]]:
         """Per-image preprocessing producing a model-input tensor and metadata.
 
