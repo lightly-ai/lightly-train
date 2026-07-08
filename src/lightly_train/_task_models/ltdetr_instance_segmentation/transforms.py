@@ -238,6 +238,12 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
 
         if not isinstance(self.num_channels, int):
             raise RuntimeError("Expected num_channels to be resolved.")
+        if self.photometric_distort is not None and self.num_channels != 3:
+            raise RuntimeError(
+                "LT-DETR instance segmentation photometric_distort only supports "
+                f"RGB images but num_channels is {self.num_channels}. Set "
+                "photometric_distort=None for non-RGB inputs."
+            )
         if isinstance(self.normalize, NormalizeArgs):
             _resolve_normalize_num_channels(self.normalize, self.num_channels)
 

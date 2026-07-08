@@ -174,7 +174,7 @@ class LTDETRInstanceSegmentationTransform(TaskTransform):
             transform = self._transform_compose.get_transform(skip_zoomout_ioucrop=True)
         else:
             transform = self._transform_compose.get_transform(
-                skip_zoomout_ioucrop=False
+                skip_zoomout_ioucrop=len(bboxes) == 0
             )
 
         if len(binary_masks) == 0:
