@@ -4,9 +4,9 @@
     <img src="https://raw.githubusercontent.com/lightly-ai/lightly-train/main/docs/source/_static/lightly_train_light.svg" alt="LightlyTrain" width="400" style="max-width: 100%; height: auto;">
   </picture>
 
-  <h1>SOTA Pretraining, Fine-tuning and Distillation</h1>
+<h1>SOTA Pretraining, Fine-tuning and Distillation</h1>
 
-  <p><em>Train Better Models, Faster</em></p>
+<p><em>Train Better Models, Faster</em></p>
 
 [![Python](https://img.shields.io/badge/Python-3.8%7C3.9%7C3.10%7C3.11%7C3.12%7C3.13-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
 [![Docker](https://img.shields.io/badge/Docker-blue?logo=docker&logoColor=fff)](https://docs.lightly.ai/train/stable/docker.html#)
