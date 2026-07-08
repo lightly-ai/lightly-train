@@ -440,7 +440,7 @@ class RTDETRBackboneWrapperConfig(PydanticConfig):
     conv_inplane: int | Literal["auto"] = "auto"
     conv_inplane_factor: int = 2
     hidden_dim: int
-    project_features: bool = True
+    project_features: bool
 
     def resolve_auto(self, patch_size: int | None) -> None:
         patch_size = patch_size or 16
@@ -455,6 +455,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 1
         hidden_dim: int = 192
+        project_features: bool = True
 
     class ViTTinyPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
@@ -462,6 +463,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 1
         hidden_dim: int = 256
+        project_features: bool = True
 
     class ViTSmall(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -469,6 +471,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 2
         hidden_dim: int = 224
+        project_features: bool = True
 
     class ViTBase(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -476,6 +479,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 4
         hidden_dim: int = 768
+        project_features: bool = True
 
     class ViTLarge(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [11, 17, 23]
@@ -483,6 +487,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 4
         hidden_dim: int = 1024
+        project_features: bool = True
 
     class ViTGiant(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [19, 29, 39]
@@ -490,6 +495,7 @@ class LTDETRRTDETRBackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = True
         conv_inplane_factor: int = 4
         hidden_dim: int = 1536
+        project_features: bool = True
 
 
 class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
@@ -499,6 +505,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 1
         hidden_dim: int = 192
+        project_features: bool = True
 
     class ViTTinyPlus(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [3, 7, 11]
@@ -506,6 +513,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 1
         hidden_dim: int = 256
+        project_features: bool = True
 
     class ViTSmall(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -513,6 +521,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 2
         hidden_dim: int = 224
+        project_features: bool = True
 
     class DINOv2ViTSmallNoRegistersLegacy(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [5, 8, 11]
@@ -528,6 +537,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 4
         hidden_dim: int = 768
+        project_features: bool = True
 
     class ViTLarge(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [11, 17, 23]
@@ -535,6 +545,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 4
         hidden_dim: int = 1024
+        project_features: bool = True
 
     class ViTGiant(RTDETRBackboneWrapperConfig):
         interaction_indexes: list[int] = [19, 29, 39]
@@ -542,6 +553,7 @@ class LTDETRRTDETRNoSTABackboneWrapperConfig(ConfigsNamespace):
         use_sta: bool = False
         conv_inplane_factor: int = 4
         hidden_dim: int = 1536
+        project_features: bool = True
 
 
 class RTDETRPostProcessorConfig(PydanticConfig):
