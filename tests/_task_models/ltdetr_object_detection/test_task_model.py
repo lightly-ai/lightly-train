@@ -34,6 +34,7 @@ from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import 
     DINOSTAs,
 )
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
+    LTDETR_DEFAULT_IMAGE_NORMALIZE,
     LTDETRObjectDetection,
     _resolve_transformer_config,
 )
@@ -370,6 +371,36 @@ def test_resolve_auto__auto_lr_warmup_steps_short_run(
 
     assert isinstance(model_args.lr_warmup_steps, int)
     assert 0 <= model_args.lr_warmup_steps < 100
+
+
+def test_task_model_uses_default_image_normalize_when_none() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        image_normalize=None,
+        load_weights=False,
+    )
+
+    assert model.image_normalize == LTDETR_DEFAULT_IMAGE_NORMALIZE
+    assert model.init_args["image_normalize"] is None
+
+
+def test_task_model_explicit_image_normalize_overrides_default() -> None:
+    image_normalize: dict[str, tuple[float, ...]] = {
+        "mean": (0.5, 0.5, 0.5),
+        "std": (0.25, 0.25, 0.25),
+    }
+
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(640, 640),
+        image_normalize=image_normalize,
+        load_weights=False,
+    )
+
+    assert model.image_normalize == image_normalize
 
 
 def test_task_model_init_args_roundtrip_preserves_patch_size() -> None:
