@@ -50,7 +50,9 @@ from lightly_train._data.yolo_oriented_object_detection_dataset import (
 )
 
 
-def _with_data_config_file(data_args: TaskDataArgs, data_config_file: Path) -> TaskDataArgs:
+def _with_data_config_file(
+    data_args: TaskDataArgs, data_config_file: Path
+) -> TaskDataArgs:
     data_args.data_config_file = data_config_file
     return data_args
 
@@ -71,16 +73,22 @@ def _assert_image_classification_multilabel_paths(
     assert data_args.test == (base_dir / "test.csv").resolve()
 
 
-def _assert_yolo_object_detection_paths(data_args: TaskDataArgs, base_dir: Path) -> None:
+def _assert_yolo_object_detection_paths(
+    data_args: TaskDataArgs, base_dir: Path
+) -> None:
     assert isinstance(data_args, YOLOObjectDetectionDataArgs)
     assert data_args.path == (base_dir / "dataset").resolve()
     assert data_args.train == Path("images/train")
     assert data_args.val == Path("images/val")
 
 
-def _assert_coco_object_detection_paths(data_args: TaskDataArgs, base_dir: Path) -> None:
+def _assert_coco_object_detection_paths(
+    data_args: TaskDataArgs, base_dir: Path
+) -> None:
     assert isinstance(data_args, COCOObjectDetectionDataArgs)
-    assert data_args.train.annotations == (base_dir / "annotations/train.json").resolve()
+    assert (
+        data_args.train.annotations == (base_dir / "annotations/train.json").resolve()
+    )
     assert data_args.val.annotations == (base_dir / "annotations/val.json").resolve()
     assert data_args.train.images == Path("images/train")
     assert data_args.val.images == (base_dir / "absolute/val_images").resolve()
@@ -108,7 +116,9 @@ def _assert_coco_instance_segmentation_paths(
     data_args: TaskDataArgs, base_dir: Path
 ) -> None:
     assert isinstance(data_args, COCOInstanceSegmentationDataArgs)
-    assert data_args.train.annotations == (base_dir / "annotations/train.json").resolve()
+    assert (
+        data_args.train.annotations == (base_dir / "annotations/train.json").resolve()
+    )
     assert data_args.val.annotations == (base_dir / "annotations/val.json").resolve()
     assert data_args.train.images == Path("images/train")
     assert data_args.val.images == (base_dir / "absolute/val_images").resolve()
@@ -133,7 +143,9 @@ def _assert_mask_panoptic_segmentation_paths(
     assert isinstance(data_args, MaskPanopticSegmentationDataArgs)
     assert data_args.train.images == (base_dir / "images/train").resolve()
     assert data_args.train.masks == (base_dir / "masks/train").resolve()
-    assert data_args.train.annotations == (base_dir / "annotations/train.json").resolve()
+    assert (
+        data_args.train.annotations == (base_dir / "annotations/train.json").resolve()
+    )
     assert data_args.val.images == (base_dir / "images/val").resolve()
     assert data_args.val.masks == (base_dir / "masks/val").resolve()
     assert data_args.val.annotations == (base_dir / "annotations/val.json").resolve()

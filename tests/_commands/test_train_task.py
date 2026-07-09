@@ -979,7 +979,9 @@ def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_
 def test_create_train_task_config__data_is_coco_yaml(
     tmp_path: Path,
     path_type: type,
-    config_cls: type[ObjectDetectionTrainTaskConfig | InstanceSegmentationTrainTaskConfig],
+    config_cls: type[
+        ObjectDetectionTrainTaskConfig | InstanceSegmentationTrainTaskConfig
+    ],
     task: str,
     expected_data_args_cls: type[
         COCOObjectDetectionDataArgs | COCOInstanceSegmentationDataArgs
@@ -1029,7 +1031,9 @@ def test_create_train_task_config__data_is_coco_yaml(
 def test_create_train_task_config__data_yaml_defaults_to_yolo(
     tmp_path: Path,
     path_type: type,
-    config_cls: type[ObjectDetectionTrainTaskConfig | InstanceSegmentationTrainTaskConfig],
+    config_cls: type[
+        ObjectDetectionTrainTaskConfig | InstanceSegmentationTrainTaskConfig
+    ],
     task: str,
     expected_data_args_cls: type[
         YOLOObjectDetectionDataArgs | YOLOInstanceSegmentationDataArgs
@@ -1139,9 +1143,7 @@ def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_
 ) -> None:
     data_yaml = tmp_path / "configs" / "data.yaml"
     data_yaml.parent.mkdir()
-    (data_yaml.parent / "classes.json").write_text(
-        '{"0": "background", "1": "car"}'
-    )
+    (data_yaml.parent / "classes.json").write_text('{"0": "background", "1": "car"}')
     data_yaml.write_text(
         yaml.dump(
             {
@@ -1213,9 +1215,10 @@ def test_create_train_task_config__panoptic_segmentation_data_yaml(
     config.data.resolve_data_paths()
 
     assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
-    assert config.data.train.annotations == (
-        data_yaml.parent / "annotations/train.json"
-    ).resolve()
+    assert (
+        config.data.train.annotations
+        == (data_yaml.parent / "annotations/train.json").resolve()
+    )
     assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
 
 
