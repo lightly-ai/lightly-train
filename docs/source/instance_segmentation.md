@@ -228,6 +228,16 @@ lightly_train.train_instance_segmentation(
 )
 ```
 
+The same configuration can also be stored in a YAML file and passed as the `data`
+argument:
+
+```python
+lightly_train.train_instance_segmentation(
+    ...,
+    data="path/to/data.yaml",
+)
+```
+
 If you would like to skip specific classes during training, add their IDs to the
 optional `ignore_classes` list. The trainer omits these classes from loss computation
 and the exported model does not predict them.

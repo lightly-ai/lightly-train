@@ -65,7 +65,8 @@ accidental data loss.
 Dataset configuration. You can either provide a dictionary with dataset parameters or a
 path to a YAML file containing the dataset configuration. Each task (detection,
 segmentation, etc.) has different dataset requirements. Refer to the task documentation
-for details on the expected dataset structure and configuration options.
+for details on the expected dataset structure and configuration options. Semantic
+segmentation can additionally load the `classes` mapping from a separate `.json` file.
 
 - [Object Detection](object-detection-data)
 - [Instance Segmentation](instance-segmentation-data)
