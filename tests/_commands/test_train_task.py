@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 from lightning_utilities.core.imports import RequirementCache
+from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
 from lightly_train._data.coco_object_detection_dataset import (
