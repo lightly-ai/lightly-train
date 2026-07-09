@@ -35,8 +35,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 - Removes the `DINOv3LTDETRObjectDetection` and `DINOv2LTDETRObjectDetection` classes in
-  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing, 
-  since they don't use the class directly, but only its methods, which will remain 
+  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing,
+  since they don't use the class directly, but only its methods, which will remain
   available.
 
 ### Fixed
