@@ -2093,7 +2093,8 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
 
     @field_validator("data", mode="before")
     @classmethod
-    def _set_default_format(cls, v: Any) -> Any:
+    def _prepare_data(cls, v: Any) -> Any:
+        v = data_helpers.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
         return data_helpers.set_default_data_format(v)
 
 

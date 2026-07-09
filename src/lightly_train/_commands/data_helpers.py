@@ -14,12 +14,27 @@ import fsspec
 import yaml
 
 
+def _resolve_path_relative_to_yaml(value: Any, yaml_path: Path) -> Any:
+    """Resolve a relative top-level data path against the YAML file location."""
+    if not isinstance(value, dict) or "path" not in value:
+        return value
+    path = value["path"]
+    if not isinstance(path, (str, Path)):
+        return value
+    path = Path(path)
+    if path.is_absolute():
+        return value
+    return {**value, "path": yaml_path.parent / path}
+
+
 def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
     """Loads a data config from a YAML file if ``value`` is a path.
 
     If ``value`` is a string or ``Path`` it is interpreted as the path to a YAML file
-    that is loaded and returned as a dictionary. All keys that are not part of the
-    Pydantic model are ignored. As the data config can be a ``Union``, it would be
+    that is loaded and returned as a dictionary. For local YAML files, a relative
+    top-level path value is resolved against the YAML file's parent directory.
+    All keys that are not part of the Pydantic model are ignored. As the data
+    config can be a ``Union``, it would be
     impossible to figure out which keys to exclude, so in that case the fields of all
     union members are included. If ``value`` is not a path it is returned unchanged.
 
@@ -32,8 +47,11 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
             ``cls.model_fields["data"].annotation``.
     """
     if isinstance(value, (str, Path)):
+        yaml_path_or_url = str(value)
         with fsspec.open(value, "r") as file:
             value = yaml.safe_load(file)
+        if fsspec.utils.infer_storage_options(yaml_path_or_url)["protocol"] == "file":
+            value = _resolve_path_relative_to_yaml(value, Path(yaml_path_or_url))
         if get_origin(data_annotation) is Union:
             members = get_args(data_annotation)
         else:

@@ -17,6 +17,9 @@ from pytest import LogCaptureFixture
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
+)
 
 if RequirementCache("albumentations<1.4.0"):
     # Skip test if albumentations version is too old. This can happen on Python 3.8.
@@ -960,3 +963,73 @@ def test_create_object_detection_train_task_config__data_is_yaml(
     assert isinstance(config.data, COCOObjectDetectionDataArgs)
     assert config.data.train.annotations == "train.json"
     assert config.data.val.annotations == "val.json"
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_create_object_detection_train_task_config__yolo_yaml_without_format(
+    tmp_path: Path, path_type: type
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "path": ".",
+                "train": "train/images",
+                "val": "val/images",
+                "names": {0: "class_0", 1: "class_1"},
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data=path_type(data_yaml),
+    )
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.format == "yolo"
+    assert config.data.path == tmp_path
+    assert config.data.names == {0: "class_0", 1: "class_1"}
+
+
+def test_create_object_detection_train_task_config__yolo_yaml_path_is_relative_to_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    dataset_dir = tmp_path / "dataset"
+    run_dir = tmp_path / "run"
+    config_dir.mkdir()
+    run_dir.mkdir()
+    helpers.create_yolo_object_detection_dataset(
+        tmp_path=dataset_dir, split_first=True, num_files=1
+    )
+    data_yaml = config_dir / "data.yaml"
+    data_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "path": "../dataset",
+                "train": "train/images",
+                "val": "val/images",
+                "names": {0: "class_0", 1: "class_1"},
+            }
+        )
+    )
+    monkeypatch.chdir(run_dir)
+
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data=data_yaml,
+    )
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    train_info = list(config.data.get_train_args().list_image_info())
+    val_info = list(config.data.get_val_args().list_image_info())
+    assert len(train_info) == 1
+    assert len(val_info) == 1
+    assert Path(train_info[0]["image_path"]).exists()
+    assert Path(val_info[0]["image_path"]).exists()
