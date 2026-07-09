@@ -13,9 +13,9 @@ from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import (
     NormalizeArgs,
@@ -72,7 +72,7 @@ class PicoDetScaleJitterArgs(ScaleJitterArgs):
     divisible_by: int | None = None
 
 
-class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
+class PicoDetObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArgs):
     """PicoDet training transforms aligned with the reference config.
 
     PicoDet defaults mirror LTDETR training augmentations for consistency.
@@ -182,13 +182,13 @@ class PicoDetObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
             self.scale_jitter.divisible_by = 32
 
 
-class PicoDetObjectDetectionTrainTransform(ObjectDetectionTransform):
+class PicoDetObjectDetectionTrainTransform(LTDETRObjectDetectionTransform):
     """Training transforms for PicoDet."""
 
     transform_args_cls = PicoDetObjectDetectionTrainTransformArgs
 
 
-class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
+class PicoDetObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs):
     """PicoDet validation transforms."""
 
     channel_drop: None = None
@@ -258,7 +258,7 @@ class PicoDetObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
                 self.num_channels = 3
 
 
-class PicoDetObjectDetectionValTransform(ObjectDetectionTransform):
+class PicoDetObjectDetectionValTransform(LTDETRObjectDetectionTransform):
     """Validation transforms for PicoDet."""
 
     transform_args_cls = PicoDetObjectDetectionValTransformArgs

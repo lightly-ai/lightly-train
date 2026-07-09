@@ -7,19 +7,22 @@
 #
 from __future__ import annotations
 
-import math
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
 from lightly_train._task_models.object_detection_components.ltdetr_geometry import (
     ltdetr_image_size_divisor,
 )
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
+)
+from lightly_train._transforms.ltdetr_transforms.utils import (
+    ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5,
+    ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1,
+    resolve_image_size_for_patch_size,
     resolve_ltdetr_step_schedule_for_augmentation,
 )
 from lightly_train._transforms.transform import (
@@ -38,39 +41,6 @@ from lightly_train._transforms.transform import (
     ScaleJitterArgs,
 )
 from lightly_train.types import ImageSizeTuple
-
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
-
-
-def _resolve_image_size_for_patch_size(
-    model_init_args: dict[str, Any],
-    *,
-    default_image_size: tuple[int, int],
-    patch_size: int | None,
-) -> tuple[int, int]:
-    provided_image_size = model_init_args.get("image_size")
-    if provided_image_size is not None:
-        image_size = (
-            int(provided_image_size[0]),
-            int(provided_image_size[1]),
-        )
-        if patch_size is not None:
-            divisor = ltdetr_image_size_divisor(patch_size)
-            if any(size % divisor != 0 for size in image_size):
-                raise ValueError(
-                    "When providing an image size in model_init_args, it must be divisible by 2 * the patch size."
-                )
-        return image_size
-
-    if patch_size is None:
-        return default_image_size
-
-    divisor = ltdetr_image_size_divisor(patch_size)
-    return (
-        math.ceil(default_image_size[0] / divisor) * divisor,
-        math.ceil(default_image_size[1] / divisor) * divisor,
-    )
 
 
 class LTDETRObjectDetectionRandomPhotometricDistortArgs(RandomPhotometricDistortArgs):
@@ -229,7 +199,7 @@ class LTDETRObjectDetectionResizeArgs(ResizeArgs):
     width: int | Literal["auto"] = "auto"
 
 
-class LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
+class LTDETRObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArgs):
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: LTDETRObjectDetectionRandomPhotometricDistortArgs | None = (
@@ -284,7 +254,7 @@ class LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
         patch_size: int | None = model_init_args.get("patch_size")
 
         if self.image_size == "auto":
-            self.image_size = _resolve_image_size_for_patch_size(
+            self.image_size = resolve_image_size_for_patch_size(
                 model_init_args,
                 default_image_size=(640, 640),
                 patch_size=patch_size,
@@ -350,7 +320,7 @@ class LTDETRObjectDetectionTrainTransformArgs(ObjectDetectionTransformArgs):
         )
 
 
-class LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
+class LTDETRObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: None = None
@@ -387,7 +357,7 @@ class LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
         patch_size: int | None = model_init_args.get("patch_size")
 
         if self.image_size == "auto":
-            self.image_size = _resolve_image_size_for_patch_size(
+            self.image_size = resolve_image_size_for_patch_size(
                 model_init_args,
                 default_image_size=(640, 640),
                 patch_size=patch_size,
@@ -421,11 +391,11 @@ class LTDETRObjectDetectionValTransformArgs(ObjectDetectionTransformArgs):
                     self.num_channels = len(self.normalize.mean)
 
 
-class LTDETRObjectDetectionTrainTransform(ObjectDetectionTransform):
+class LTDETRObjectDetectionTrainTransform(LTDETRObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionTrainTransformArgs
 
 
-class LTDETRObjectDetectionValTransform(ObjectDetectionTransform):
+class LTDETRObjectDetectionValTransform(LTDETRObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionValTransformArgs
 
 
@@ -592,7 +562,9 @@ class DINOv2LTDETRObjectDetectionResizeArgsV2(ResizeArgs):
     width: int | Literal["auto"] = "auto"
 
 
-class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(ObjectDetectionTransformArgs):
+class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(
+    LTDETRObjectDetectionTransformArgs
+):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: (
@@ -694,7 +666,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(ObjectDetectionTransformAr
         )
 
 
-class DINOv2LTDETRObjectDetectionValTransformArgsV2(ObjectDetectionTransformArgs):
+class DINOv2LTDETRObjectDetectionValTransformArgsV2(LTDETRObjectDetectionTransformArgs):
     channel_drop: None = None
     num_channels: int | Literal["auto"] = "auto"
     photometric_distort: None = None
@@ -761,9 +733,9 @@ class DINOv2LTDETRObjectDetectionValTransformArgsV2(ObjectDetectionTransformArgs
                     self.num_channels = len(self.normalize.mean)
 
 
-class DINOv2LTDETRObjectDetectionTrainTransformV2(ObjectDetectionTransform):
+class DINOv2LTDETRObjectDetectionTrainTransformV2(LTDETRObjectDetectionTransform):
     transform_args_cls = DINOv2LTDETRObjectDetectionTrainTransformArgsV2
 
 
-class DINOv2LTDETRObjectDetectionValTransformV2(ObjectDetectionTransform):
+class DINOv2LTDETRObjectDetectionValTransformV2(LTDETRObjectDetectionTransform):
     transform_args_cls = DINOv2LTDETRObjectDetectionValTransformArgsV2

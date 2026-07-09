@@ -1497,14 +1497,14 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_name=config.model,
             val_transform_args=val_transform_args,
         )
-        train_collate_fn = train_dataset.batch_collate_fn_cls(
-            split="train", transform_args=train_transform_args
-        )
-        val_collate_fn = val_dataset.batch_collate_fn_cls(
-            split="val", transform_args=val_transform_args
-        )
         train_dataset.set_transform(train_transform)
         val_dataset.set_transform(val_transform)
+        train_collate_fn = train_dataset.get_batch_collate_fn_cls()(
+            split="train", transform_args=train_transform_args
+        )
+        val_collate_fn = val_dataset.get_batch_collate_fn_cls()(
+            split="val", transform_args=val_transform_args
+        )
         train_dataloader.collate_fn = train_collate_fn  # type: ignore[assignment]
         val_dataloader.collate_fn = val_collate_fn  # type: ignore[assignment]
         helpers.disable_persistent_workers_for_step_aware_transforms(

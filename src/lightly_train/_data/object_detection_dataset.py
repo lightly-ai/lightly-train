@@ -23,8 +23,8 @@ import numpy as np
 
 from lightly_train._data import file_helpers
 from lightly_train._data.task_dataset import TaskDataset
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionCollateFunction,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionCollateFunction,
 )
 from lightly_train._transforms.task_transform import TaskCollateFunction
 from lightly_train.types import ObjectDetectionDatasetItem
@@ -35,7 +35,7 @@ class ObjectDetectionDataset(TaskDataset):
     dataset_args: COCOObjectDetectionDatasetArgs | YOLOObjectDetectionDatasetArgs  # type: ignore[assignment]
 
     batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        ObjectDetectionCollateFunction
+        LTDETRObjectDetectionCollateFunction
     )
 
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
