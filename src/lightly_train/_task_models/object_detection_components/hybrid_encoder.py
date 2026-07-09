@@ -12,6 +12,8 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
+from __future__ import annotations
+
 import copy
 from collections import OrderedDict
 from typing import Any
