@@ -32,7 +32,7 @@ _COMMON_KWARGS = dict(
 def test_state_dict_ignore_keys_drops_unused_downsample_convs() -> None:
     # Simulates a legacy checkpoint that carries real (but unused) downsample_convs
     # weights, produced by a HybridEncoder built with upsample=True.
-    legacy_shaped = HybridEncoder(upsample=True, **_COMMON_KWARGS)
+    legacy_shaped = HybridEncoder(upsample=True, **_COMMON_KWARGS)  # type: ignore[arg-type]
     legacy_state_dict = legacy_shaped.state_dict()
     assert any(k.startswith("downsample_convs.") for k in legacy_state_dict)
 
