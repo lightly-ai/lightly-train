@@ -1067,3 +1067,57 @@ def test_create_train_task_config__direct_data_has_no_data_config_file(
     assert isinstance(config.data, YOLOObjectDetectionDataArgs)
     assert config.data.data_config_file is None
     assert "data_config_file" not in config.model_dump()["data"]
+
+
+def test_train_task_config_resolve_data_paths__yaml_relative_to_data_config(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "path": "dataset",
+                "train": "images/train",
+                "val": "images/val",
+                "names": {0: "class_a"},
+            }
+        )
+    )
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data=data_yaml,
+    )
+
+    config.data.resolve_data_paths()
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.path == (data_yaml.parent / "dataset").resolve()
+    assert config.data.train == Path("images/train")
+    assert config.data.val == Path("images/val")
+
+
+def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data={
+            "path": "dataset",
+            "train": "images/train",
+            "val": "images/val",
+            "names": {0: "class_a"},
+        },
+    )
+
+    config.data.resolve_data_paths()
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.path == (tmp_path / "dataset").resolve()
+    assert config.data.train == Path("images/train")
+    assert config.data.val == Path("images/val")

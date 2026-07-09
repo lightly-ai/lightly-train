@@ -321,6 +321,18 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
     val: SplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.images = self._resolve_path(self.train.images, base_dir=base_dir)
+        self.train.masks = self._resolve_path(self.train.masks, base_dir=base_dir)
+        self.train.annotations = self._resolve_path(
+            self.train.annotations, base_dir=base_dir
+        )
+        self.val.images = self._resolve_path(self.val.images, base_dir=base_dir)
+        self.val.masks = self._resolve_path(self.val.masks, base_dir=base_dir)
+        self.val.annotations = self._resolve_path(
+            self.val.annotations, base_dir=base_dir
+        )
+
     def train_data_mmap_hash(self) -> str:
         annotations_path = Path(self.train.annotations).resolve()
         return str(

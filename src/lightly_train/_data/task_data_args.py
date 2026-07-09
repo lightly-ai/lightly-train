@@ -18,6 +18,24 @@ from lightly_train._data.task_dataset import TaskDatasetArgs
 class TaskDataArgs(PydanticConfig):
     data_config_file: Path | None = Field(default=None, exclude=True, repr=False)
 
+    def resolve_data_paths(self) -> None:
+        base_dir = (
+            self.data_config_file.parent
+            if self.data_config_file is not None
+            else Path.cwd()
+        )
+        self._resolve_data_paths(base_dir=base_dir)
+
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        raise NotImplementedError()
+
+    @staticmethod
+    def _resolve_path(path: str | Path, base_dir: Path) -> Path:
+        path = Path(path)
+        if not path.is_absolute():
+            path = base_dir / path
+        return path.resolve()
+
     @property
     def included_classes(self) -> dict[int, str]:
         raise NotImplementedError()

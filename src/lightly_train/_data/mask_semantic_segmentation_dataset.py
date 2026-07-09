@@ -319,6 +319,16 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.images = self._resolve_path(self.train.images, base_dir=base_dir)
+        self.train.masks = self._resolve_path(self.train.masks, base_dir=base_dir)
+        self.val.images = self._resolve_path(self.val.images, base_dir=base_dir)
+        self.val.masks = self._resolve_path(self.val.masks, base_dir=base_dir)
+        if not isinstance(self.classes, dict):
+            self.classes = self.validate_classes(
+                self._resolve_path(self.classes, base_dir=base_dir)
+            )
+
     def _deterministic_classes_str(self) -> str:
         """Serialize classes deterministically for hashing.
 
@@ -360,11 +370,13 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     @field_validator("classes", mode="before")
     @classmethod
-    def validate_classes(cls, classes: Any) -> dict[int, ClassInfo]:
+    def validate_classes(cls, classes: Any) -> Any:
         if isinstance(classes, (str, Path)):
             path = Path(classes)
             if path.suffix != ".json":
                 raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
+            if not path.is_absolute() and not path.exists():
+                return path
             try:
                 with path.open(encoding="utf-8") as f:
                     data = json.load(f)

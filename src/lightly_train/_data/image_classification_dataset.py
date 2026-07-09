@@ -111,6 +111,12 @@ class ImageClassificationDataArgs(TaskDataArgs):
 
     classification_task: Literal["multiclass", "multilabel"]
 
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        self.train = self._resolve_path(self.train, base_dir=base_dir)
+        self.val = self._resolve_path(self.val, base_dir=base_dir)
+        if self.test is not None:
+            self.test = self._resolve_path(self.test, base_dir=base_dir)
+
     def train_data_mmap_hash(self) -> str:
         return str(
             (

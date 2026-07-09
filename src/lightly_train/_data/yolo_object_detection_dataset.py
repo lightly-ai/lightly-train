@@ -34,6 +34,9 @@ class YOLOObjectDetectionDataArgs(TaskDataArgs):
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
 
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        self.path = self._resolve_path(self.path, base_dir=base_dir)
+
     def train_data_mmap_hash(self) -> str:
         return str(
             (

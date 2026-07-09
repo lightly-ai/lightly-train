@@ -306,6 +306,9 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
 
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        self.path = self._resolve_path(self.path, base_dir=base_dir)
+
     def train_data_mmap_hash(self) -> str:
         return str(
             (
@@ -462,6 +465,18 @@ class COCOInstanceSegmentationDataArgs(TaskDataArgs):
     val: COCOSplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_annotations_missing: bool = False
+
+    def _resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.annotations = self._resolve_path(
+            self.train.annotations, base_dir=base_dir
+        )
+        self.val.annotations = self._resolve_path(
+            self.val.annotations, base_dir=base_dir
+        )
+        if self.train.images is not None and Path(self.train.images).is_absolute():
+            self.train.images = Path(self.train.images).resolve()
+        if self.val.images is not None and Path(self.val.images).is_absolute():
+            self.val.images = Path(self.val.images).resolve()
 
     @functools.cached_property
     def _classes(self) -> dict[int, str]:

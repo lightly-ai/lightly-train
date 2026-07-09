@@ -1322,6 +1322,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
 
+    config.data.resolve_data_paths()
+
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args,
         data_args=config.data,
