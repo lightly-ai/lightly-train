@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
-from pydantic import AliasChoices, Field, computed_field
+from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -72,31 +72,27 @@ from lightly_train.types import InstanceSegmentationBatch, PathLike
 
 logger = logging.getLogger(__name__)
 
-# ECSeg is D-FINE based: the seg decoder (ECSegTransformer) subclasses DFINETransformer
-# and the criterion subclasses DFINECriterion, so the effective losses always include
-# the D-FINE "local" losses (FGL + DDF) on top of the vfl / box / mask / dice losses.
 _LTDETR_SEG_LOSS_WEIGHT_DICT: dict[str, float] = {
     "loss_vfl": 1.0,
     "loss_bbox": 5.0,
     "loss_giou": 2.0,
     "loss_mask": 5.0,
     "loss_dice": 5.0,
+    "loss_fgl": 0.15,
+    "loss_ddf": 1.5,
 }
-_LTDETR_SEG_LOSSES: list[str] = ["vfl", "boxes", "masks"]
-
-# D-FINE extra losses, merged on top of the seg losses (mirrors the detection recipe in
-# ltdetr_object_detection.train_model). Kept local so this module does not depend on the
-# object-detection train model.
-_DFINE_EXTRA_LOSS_WEIGHT_DICT: dict[str, float] = {"loss_fgl": 0.15, "loss_ddf": 1.5}
-_DFINE_EXTRA_LOSSES: list[str] = ["local"]
+_LTDETR_SEG_LOSSES: list[str] = ["vfl", "boxes", "masks", "local"]
 
 # Loss names logged during validation (no FGL/DDF, matching detection's val logging).
-_LTDETR_SEG_VAL_LOSS_NAMES: list[str] = ["loss", *_LTDETR_SEG_LOSS_WEIGHT_DICT]
-# Loss names logged during training, extended with the D-FINE FGL/DDF losses.
-_LTDETR_SEG_TRAIN_LOSS_NAMES: list[str] = [
-    *_LTDETR_SEG_VAL_LOSS_NAMES,
-    *_DFINE_EXTRA_LOSS_WEIGHT_DICT,
+_LTDETR_SEG_VAL_LOSS_NAMES: list[str] = [
+    "loss",
+    "loss_vfl",
+    "loss_bbox",
+    "loss_giou",
+    "loss_mask",
+    "loss_dice",
 ]
+_LTDETR_SEG_TRAIN_LOSS_NAMES: list[str] = ["loss", *_LTDETR_SEG_LOSS_WEIGHT_DICT]
 
 
 class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
@@ -148,7 +144,10 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
     loss_alpha: float = 0.75
     loss_gamma: float = 2.0
 
-    # Point sampling for the mask loss (Mask2Former / ECSeg defaults).
+    # Point sampling for mask matching/loss.
+    # ECSeg derives the point budget from the mask resolution with ratio 16.
+    mask_point_sample_ratio: int | None = 16
+    # Fallback point budget when mask_point_sample_ratio is disabled.
     mask_num_points: int = 12544
     mask_oversample_ratio: float = 3.0
     mask_importance_sample_ratio: float = 0.75
@@ -210,19 +209,6 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
                 self.scheduler_no_aug_steps = (
                     total_steps - scheduler_step_schedule.step_stop
                 )
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def effective_loss_weight_dict(self) -> dict[str, float]:
-        return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def effective_losses(self) -> list[str]:
-        return [
-            *self.losses,
-            *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
-        ]
 
 
 class LTDETRInstanceSegmentationTrain(TrainModel):
@@ -289,6 +275,7 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
             alpha=model_args.matcher_alpha,
             gamma=model_args.matcher_gamma,
             num_points=model_args.mask_num_points,
+            mask_point_sample_ratio=model_args.mask_point_sample_ratio,
         )
         self.train_loss_names = _LTDETR_SEG_TRAIN_LOSS_NAMES
         self.val_loss_names = _LTDETR_SEG_VAL_LOSS_NAMES
@@ -296,8 +283,8 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
         # reg_max for the FGL/DDF losses (the ECSeg decoder subclasses DFINETransformer).
         self.criterion = EdgeCrafterInstanceSegmentationCriterion(  # type: ignore[no-untyped-call]
             matcher=matcher,
-            weight_dict=model_args.effective_loss_weight_dict,
-            losses=model_args.effective_losses,
+            weight_dict=model_args.loss_weight_dict,
+            losses=model_args.losses,
             alpha=model_args.loss_alpha,
             gamma=model_args.loss_gamma,
             num_classes=len(data_args.included_classes),
