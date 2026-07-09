@@ -242,26 +242,6 @@ def test_resolve_auto__uses_model_explicit_patch_size_arg(
     assert model_args.patch_size == expected_patch_size
 
 
-class _FakeDINOv2Backbone(nn.Module):
-    embed_dim = 224
-    patch_size = 14
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.mask_token = nn.Parameter(torch.zeros(1))
-        self.loaded_state_dict: dict[str, Any] | None = None
-
-    def load_state_dict(  # type: ignore[override]
-        self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
-    ) -> torch.nn.modules.module._IncompatibleKeys:
-        self.loaded_state_dict = state_dict
-        return torch.nn.modules.module._IncompatibleKeys([], [])
-
-
-class _FakeDINOv2NoRegistersBackbone(_FakeDINOv2Backbone):
-    embed_dim = 384
-
-
 def test_dino_legacy_backbone_prefix_is_remapped() -> None:
     state_dict = {"backbone.backbone.mask_token": torch.ones(1)}
 
