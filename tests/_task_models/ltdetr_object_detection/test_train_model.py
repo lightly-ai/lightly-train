@@ -7,6 +7,13 @@
 #
 from __future__ import annotations
 
+from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrainArgs,
+)
+from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import (
+    DINOv2LTDETRObjectDetectionTrainTransformArgs,
+    DINOv2LTDETRObjectDetectionValTransformArgs,
+)
 from lightly_train._task_models.ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrainArgsV2,
 )
@@ -16,81 +23,58 @@ from lightly_train._task_models.ltdetr_object_detection.transforms import (
 )
 
 
-def test_dinov2_train_args_v2_defaults() -> None:
-    args = DINOv2LTDETRObjectDetectionTrainArgsV2()
+# TODO (Lionel, 06/26): Remove this test once the DINOv2 LT-DETR models are completely
+# migrated to the generic LTDETR pipeline.
+def test_dinov2_train_args_v2_matches_original_dinov2_train_args() -> None:
+    """DINOv2LTDETRObjectDetectionTrainArgsV2 must replicate the original
+    DINOv2LTDETRObjectDetectionTrainArgs defaults exactly.
 
-    assert DINOv2LTDETRObjectDetectionTrainArgsV2.default_batch_size == 16
-    assert DINOv2LTDETRObjectDetectionTrainArgsV2.default_steps == 100_000 // 16 * 72
-    assert args.patch_size == 14
-    assert args.decoder_name == "rtdetrv2"
-    assert args.lr == 1e-4
-    assert args.backbone_lr_factor == 1e-2
-    assert args.scheduler_name == "linear"
-    assert args.lr_warmup_steps == 2000
-    assert args.scheduler_flat_steps == "auto"
-    assert args.scheduler_no_aug_steps == "auto"
-    assert args.use_ema_model is True
-    assert args.ema_momentum == 0.9999
-    assert args.ema_warmup_steps == 2000
-    assert args.matcher_weight_dict == {
-        "cost_class": 2.0,
-        "cost_bbox": 5.0,
-        "cost_giou": 2.0,
-    }
-    assert args.loss_weight_dict == {
-        "loss_vfl": 1.0,
-        "loss_bbox": 5.0,
-        "loss_giou": 2.0,
-    }
-    assert args.losses == ["vfl", "boxes"]
-    assert args.loss_alpha == 0.75
-    assert args.loss_gamma == 2.0
-    assert args.gradient_clip_val == 0.1
-    assert args.weight_decay == 1e-4
-    assert args.optimizer_betas == (0.9, 0.999)
-    assert args.scheduler_start_factor == 0.01
+    The generic LTDETR pipeline reimplements the DINOv2 LTDETR training recipe as a
+    separate args class. Regression test to catch accidental drift between the two.
+    """
+    original = DINOv2LTDETRObjectDetectionTrainArgs()
+    v2 = DINOv2LTDETRObjectDetectionTrainArgsV2()
+
+    # patch_size is not present on the original standalone args class: DINOv2 ViT
+    # backbones are always patch-14 there, resolved implicitly from the model itself
+    # rather than being a configurable train arg.
+    v2_dump = v2.model_dump()
+    v2_dump.pop("patch_size")
+    assert v2_dump == original.model_dump()
+    assert (
+        DINOv2LTDETRObjectDetectionTrainArgsV2.default_batch_size
+        == DINOv2LTDETRObjectDetectionTrainArgs.default_batch_size
+    )
+    assert (
+        DINOv2LTDETRObjectDetectionTrainArgsV2.default_steps
+        == DINOv2LTDETRObjectDetectionTrainArgs.default_steps
+    )
 
 
-def test_dinov2_transform_args_v2_defaults() -> None:
-    train_args = DINOv2LTDETRObjectDetectionTrainTransformArgsV2()
-    val_args = DINOv2LTDETRObjectDetectionValTransformArgsV2()
+# TODO (Lionel, 06/26): Remove this test once the DINOv2 LT-DETR models are completely
+# migrated to the generic LTDETR pipeline.
+def test_dinov2_transform_args_v2_matches_original_dinov2_transform_args() -> None:
+    """DINOv2LTDETRObjectDetection{Train,Val}TransformArgsV2 must replicate the
+    original dinov2_ltdetr_object_detection transform args defaults exactly.
 
-    assert train_args.image_size == "auto"
-    assert train_args.normalize == "auto"
-    assert train_args.num_channels == "auto"
-    assert train_args.channel_drop is None
-    assert train_args.scale_jitter is not None
-    assert train_args.scale_jitter.divisible_by is None
-    assert train_args.scale_jitter.sizes == [
-        (476, 476),
-        (504, 504),
-        (532, 532),
-        (560, 560),
-        (588, 588),
-        (616, 616),
-        *([(644, 644)] * 20),
-        (672, 672),
-        (700, 700),
-        (728, 728),
-        (756, 756),
-        (784, 784),
-        (812, 812),
-    ]
-    assert train_args.mosaic is not None
-    assert train_args.mosaic.output_size == 320
-    assert train_args.mixup is not None
-    assert train_args.mixup.prob == 0.5
-    assert train_args.copyblend is not None
-    assert train_args.copyblend.prob == 0.5
-
-    assert val_args.image_size == "auto"
-    assert val_args.normalize == "auto"
-    assert val_args.num_channels == "auto"
-    assert val_args.photometric_distort is None
-    assert val_args.random_zoom_out is None
-    assert val_args.random_iou_crop is None
-    assert val_args.random_flip is None
-    assert val_args.scale_jitter is None
-    assert val_args.mosaic is None
-    assert val_args.mixup is None
-    assert val_args.copyblend is None
+    The generic LTDETR pipeline copies the DINOv2 LTDETR transform recipe (in
+    particular the patch-14-tuned scale-jitter `sizes` list) verbatim into a
+    separate args class rather than deriving it from the generic, patch-16-tuned
+    recipe. Regression test to catch accidental drift between the two.
+    """
+    for v2_args, original_args in (
+        (
+            DINOv2LTDETRObjectDetectionTrainTransformArgsV2(),
+            DINOv2LTDETRObjectDetectionTrainTransformArgs(),
+        ),
+        (
+            DINOv2LTDETRObjectDetectionValTransformArgsV2(),
+            DINOv2LTDETRObjectDetectionValTransformArgs(),
+        ),
+    ):
+        # BboxParams (from albumentations) doesn't implement __eq__, so compare its
+        # fields via vars() instead of relying on model_dump() equality.
+        v2_dump = v2_args.model_dump(exclude={"bbox_params"})
+        original_dump = original_args.model_dump(exclude={"bbox_params"})
+        assert v2_dump == original_dump
+        assert vars(v2_args.bbox_params) == vars(original_args.bbox_params)
