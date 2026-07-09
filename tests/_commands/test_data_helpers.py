@@ -15,7 +15,11 @@ import yaml
 from pydantic import BaseModel
 
 DATA_HELPERS_PATH = (
-    Path(__file__).parents[2] / "src" / "lightly_train" / "_commands" / "data_helpers.py"
+    Path(__file__).parents[2]
+    / "src"
+    / "lightly_train"
+    / "_commands"
+    / "data_helpers.py"
 )
 SPEC = util.spec_from_file_location("data_helpers", DATA_HELPERS_PATH)
 assert SPEC is not None

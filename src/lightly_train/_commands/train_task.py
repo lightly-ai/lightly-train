@@ -2048,13 +2048,6 @@ class TrainTaskConfig(PydanticConfig):
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @field_validator("data", mode="before")
-    @classmethod
-    def _load_yaml_if_path(cls, v: Any) -> Any:
-        return data_helpers.load_data_yaml_if_path(
-            v, cls.model_fields["data"].annotation
-        )
-
 
 class ImageClassificationMulticlassTrainTaskConfig(TrainTaskConfig):
     data: ImageClassificationMulticlassDataArgs
@@ -2075,8 +2068,11 @@ class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
 
     @field_validator("data", mode="before")
     @classmethod
-    def _set_default_format(cls, v: Any) -> Any:
-        return data_helpers.set_default_data_format(v)
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        data_dict = data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
+        return data_helpers.set_default_data_format(data_dict, default="yolo")
 
 
 class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
@@ -2093,8 +2089,11 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
 
     @field_validator("data", mode="before")
     @classmethod
-    def _set_default_format(cls, v: Any) -> Any:
-        return data_helpers.set_default_data_format(v)
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        data_dict = data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
+        return data_helpers.set_default_data_format(data_dict, default="yolo")
 
 
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):

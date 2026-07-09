@@ -39,18 +39,14 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
         else:
             members = (data_annotation,)
         # data_attributes is the set of all field names of all union members.
-        data_attributes = {
-            name
-            for m in members
-            for name in m.model_fields
-        }
+        data_attributes = {name for m in members for name in m.model_fields}
         # Only keep keys that are in the union members. Necessary because
         # foreign keys in the YAML file would otherwise cause a validation error.
         value = {name: val for name, val in value.items() if name in data_attributes}
     return value
 
 
-def set_default_data_format(value: Any, default: str = "yolo") -> Any:
+def set_default_data_format(value: Any, default: str) -> Any:
     """Sets a default ``format`` on a data config dict if none is given.
 
     Returns ``value`` unchanged if it is not a dict or already has a ``format`` key.
