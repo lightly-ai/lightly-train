@@ -41,6 +41,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fixed an issue with legacy LT-DETR checkpoints that used a [0,1] normalization instead
+  of the now-default ImageNet normalization.
+
 ### Security
 
 ## [0.16.1] - 2026-06-26
