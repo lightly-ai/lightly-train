@@ -269,11 +269,13 @@ class TestBenchmarkObjectDetectionConfig:
 
     def test_loads_data_from_yaml_path(self, tmp_path: Path) -> None:
         # A path to a YAML file is loaded automatically and unknown keys are ignored.
-        yaml_path = tmp_path / "data.yaml"
+        config_dir = tmp_path / "configs"
+        config_dir.mkdir()
+        yaml_path = config_dir / "data.yaml"
         with yaml_path.open("w") as file:
             yaml.safe_dump(
                 {
-                    "path": str(tmp_path),
+                    "path": "../dataset",
                     "train": "images/train",
                     "val": "images/val",
                     "names": {0: "class_a"},
@@ -297,6 +299,7 @@ class TestBenchmarkObjectDetectionConfig:
         )
         assert isinstance(config.data, YOLOObjectDetectionDataArgs)
         assert config.data.format == "yolo"
+        assert config.data.path == tmp_path / "configs" / "../dataset"
         assert config.data.names == {0: "class_a"}
 
 

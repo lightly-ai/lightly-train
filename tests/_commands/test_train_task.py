@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 from lightning_utilities.core.imports import RequirementCache
 from pytest import LogCaptureFixture
 
@@ -39,7 +40,10 @@ import torch
 import yaml
 
 import lightly_train
-from lightly_train._commands.train_task import ObjectDetectionTrainTaskConfig
+from lightly_train._commands.train_task import (
+    ObjectDetectionTrainTaskConfig,
+    PanopticSegmentationTrainTaskConfig,
+)
 
 from .. import helpers
 
@@ -961,8 +965,8 @@ def test_create_object_detection_train_task_config__data_is_yaml(
         data=path_type(data_yaml),
     )
     assert isinstance(config.data, COCOObjectDetectionDataArgs)
-    assert config.data.train.annotations == "train.json"
-    assert config.data.val.annotations == "val.json"
+    assert config.data.train.annotations == tmp_path / "train.json"
+    assert config.data.val.annotations == tmp_path / "val.json"
 
 
 @pytest.mark.parametrize("path_type", [str, Path])
@@ -1033,3 +1037,33 @@ def test_create_object_detection_train_task_config__yolo_yaml_path_is_relative_t
     assert len(val_info) == 1
     assert Path(train_info[0]["image_path"]).exists()
     assert Path(val_info[0]["image_path"]).exists()
+
+
+def test_create_panoptic_segmentation_train_task_config__data_yaml_path_not_supported(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "train": {
+                    "images": "train/images",
+                    "masks": "train/masks",
+                    "annotations": "train.json",
+                },
+                "val": {
+                    "images": "val/images",
+                    "masks": "val/masks",
+                    "annotations": "val.json",
+                },
+            }
+        )
+    )
+
+    with pytest.raises(ValidationError):
+        PanopticSegmentationTrainTaskConfig(
+            out="out",
+            model="some/model",
+            task="panoptic_segmentation",
+            data=data_yaml,
+        )

@@ -288,12 +288,10 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
     @field_validator("data", mode="before")
     @classmethod
     def _prepare_data(cls, v: Any) -> Any:
-        # Load the data config from a YAML file if a path is given, then default the
-        # format to "yolo" if none is specified. This mirrors the behavior of
-        # train_object_detection so that the data config is consistent across both.
-        v = data_helpers.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
-        v = data_helpers.set_default_data_format(v)
-        return v
+        # Keep data config handling consistent with train_object_detection.
+        return data_helpers.prepare_object_detection_data(
+            v, cls.model_fields["data"].annotation
+        )
 
 
 _SIZE_SUFFIXES = {"small", "medium", "large"}
