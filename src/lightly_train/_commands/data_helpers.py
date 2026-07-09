@@ -38,11 +38,14 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
             members = get_args(data_annotation)
         else:
             members = (data_annotation,)
+        # data_attributes is the set of all field names of all union members.
         data_attributes = {
             name
             for m in members
-            for name in m.model_fields  # type: ignore[attr-defined]
+            for name in m.model_fields
         }
+        # Only keep keys that are in the union members. Necessary because
+        # foreign keys in the YAML file would otherwise cause a validation error.
         value = {name: val for name, val in value.items() if name in data_attributes}
     return value
 
