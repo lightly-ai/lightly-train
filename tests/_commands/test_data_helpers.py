@@ -30,10 +30,12 @@ SPEC.loader.exec_module(data_helpers)
 
 class DataArgsA(BaseModel):
     train: str
+    data_config_file: Path | None = None
 
 
 class DataArgsB(BaseModel):
     val: str
+    data_config_file: Path | None = None
 
 
 def test_load_data_yaml_if_path__union_annotation(tmp_path: Path) -> None:
@@ -53,6 +55,7 @@ def test_load_data_yaml_if_path__union_annotation(tmp_path: Path) -> None:
     assert data == {
         "train": "train",
         "val": "val",
+        "data_config_file": data_yaml.resolve(),
     }
 
 
@@ -70,4 +73,10 @@ def test_load_data_yaml_if_path__single_annotation(tmp_path: Path) -> None:
 
     data = data_helpers.load_data_yaml_if_path(data_yaml, DataArgsA)
 
-    assert data == {"train": "train"}
+    assert data == {"train": "train", "data_config_file": data_yaml.resolve()}
+
+
+def test_load_data_yaml_if_path__direct_config_unchanged() -> None:
+    data = {"train": "train"}
+
+    assert data_helpers.load_data_yaml_if_path(data, DataArgsA) is data

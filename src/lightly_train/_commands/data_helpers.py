@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Union, get_args, get_origin
+from typing import Annotated, Any, Union, get_args, get_origin
 
 import fsspec
 import yaml
@@ -32,18 +32,28 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
             ``cls.model_fields["data"].annotation``.
     """
     if isinstance(value, (str, Path)):
+        data_config_file = Path(value).resolve()
         with fsspec.open(value, "r") as file:
             value = yaml.safe_load(file)
-        if get_origin(data_annotation) is Union:
-            members = get_args(data_annotation)
-        else:
-            members = (data_annotation,)
+
+        members = _data_model_members(data_annotation)
         # data_attributes is the set of all field names of all union members.
         data_attributes = {name for m in members for name in m.model_fields}
         # Only keep keys that are in the union members. Necessary because
         # foreign keys in the YAML file would otherwise cause a validation error.
         value = {name: val for name, val in value.items() if name in data_attributes}
+        if "data_config_file" in data_attributes:
+            value["data_config_file"] = data_config_file
     return value
+
+
+def _data_model_members(data_annotation: Any) -> tuple[Any, ...]:
+    origin = get_origin(data_annotation)
+    if origin is Annotated:
+        return _data_model_members(get_args(data_annotation)[0])
+    if origin is Union:
+        return get_args(data_annotation)
+    return (data_annotation,)
 
 
 def set_default_data_format(value: Any, default: str) -> Any:

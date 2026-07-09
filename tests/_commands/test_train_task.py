@@ -992,6 +992,8 @@ def test_create_train_task_config__data_is_coco_yaml(
     assert config.data.format == "coco"
     assert config.data.train.annotations == "train.json"
     assert config.data.val.annotations == "val.json"
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
 
 
 @pytest.mark.parametrize("path_type", [str, Path])
@@ -1043,3 +1045,25 @@ def test_create_train_task_config__data_yaml_defaults_to_yolo(
     assert config.data.train == Path("images/train")
     assert config.data.val == Path("images/val")
     assert config.data.names == {0: "class_a"}
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__direct_data_has_no_data_config_file(
+    tmp_path: Path,
+) -> None:
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data={
+            "path": str(tmp_path),
+            "train": "images/train",
+            "val": "images/val",
+            "names": {0: "class_a"},
+        },
+    )
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.data_config_file is None
+    assert "data_config_file" not in config.model_dump()["data"]

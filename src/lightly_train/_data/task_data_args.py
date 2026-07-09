@@ -7,11 +7,17 @@
 #
 from __future__ import annotations
 
+from pathlib import Path
+
+from pydantic import Field
+
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_dataset import TaskDatasetArgs
 
 
 class TaskDataArgs(PydanticConfig):
+    data_config_file: Path | None = Field(default=None, exclude=True, repr=False)
+
     @property
     def included_classes(self) -> dict[int, str]:
         raise NotImplementedError()
