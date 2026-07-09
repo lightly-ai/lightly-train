@@ -18,7 +18,7 @@ from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
@@ -319,14 +319,18 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
-    def _resolve_data_paths(self, base_dir: Path) -> None:
-        self.train.images = self._resolve_path(self.train.images, base_dir=base_dir)
-        self.train.masks = self._resolve_path(self.train.masks, base_dir=base_dir)
-        self.val.images = self._resolve_path(self.val.images, base_dir=base_dir)
-        self.val.masks = self._resolve_path(self.val.masks, base_dir=base_dir)
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.images = data_helpers.resolve_path(
+            self.train.images, base_dir=base_dir
+        )
+        self.train.masks = data_helpers.resolve_path(
+            self.train.masks, base_dir=base_dir
+        )
+        self.val.images = data_helpers.resolve_path(self.val.images, base_dir=base_dir)
+        self.val.masks = data_helpers.resolve_path(self.val.masks, base_dir=base_dir)
         if not isinstance(self.classes, dict):
             self.classes = self.validate_classes(
-                self._resolve_path(self.classes, base_dir=base_dir)
+                data_helpers.resolve_path(self.classes, base_dir=base_dir)
             )
 
     def _deterministic_classes_str(self) -> str:

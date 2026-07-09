@@ -61,6 +61,7 @@ from lightly_train._commands.train_task import (
     PanopticSegmentationTrainTaskConfig,
     SemanticSegmentationTrainTaskConfig,
 )
+from lightly_train._data import data_helpers as data_arg_helpers
 
 from .. import helpers
 
@@ -1168,7 +1169,7 @@ def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_
     assert config.data.data_config_file == data_yaml.resolve()
     assert "data_config_file" not in config.model_dump()["data"]
 
-    config.data.resolve_data_paths()
+    data_arg_helpers.resolve_data_paths(config.data)
 
     assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
     assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
@@ -1212,7 +1213,7 @@ def test_create_train_task_config__panoptic_segmentation_data_yaml(
     assert config.data.data_config_file == data_yaml.resolve()
     assert "data_config_file" not in config.model_dump()["data"]
 
-    config.data.resolve_data_paths()
+    data_arg_helpers.resolve_data_paths(config.data)
 
     assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
     assert (
@@ -1244,7 +1245,7 @@ def test_train_task_config_resolve_data_paths__yaml_relative_to_data_config(
         data=data_yaml,
     )
 
-    config.data.resolve_data_paths()
+    data_arg_helpers.resolve_data_paths(config.data)
 
     assert isinstance(config.data, YOLOObjectDetectionDataArgs)
     assert config.data.path == (data_yaml.parent / "dataset").resolve()
@@ -1268,7 +1269,7 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
         },
     )
 
-    config.data.resolve_data_paths()
+    data_arg_helpers.resolve_data_paths(config.data)
 
     assert isinstance(config.data, YOLOObjectDetectionDataArgs)
     assert config.data.path == (tmp_path / "dataset").resolve()

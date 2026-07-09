@@ -16,7 +16,7 @@ import torch
 from pydantic import Field
 from torch import Tensor
 
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.image_classification_transform import (
@@ -111,11 +111,11 @@ class ImageClassificationDataArgs(TaskDataArgs):
 
     classification_task: Literal["multiclass", "multilabel"]
 
-    def _resolve_data_paths(self, base_dir: Path) -> None:
-        self.train = self._resolve_path(self.train, base_dir=base_dir)
-        self.val = self._resolve_path(self.val, base_dir=base_dir)
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train = data_helpers.resolve_path(self.train, base_dir=base_dir)
+        self.val = data_helpers.resolve_path(self.val, base_dir=base_dir)
         if self.test is not None:
-            self.test = self._resolve_path(self.test, base_dir=base_dir)
+            self.test = data_helpers.resolve_path(self.test, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
         return str(

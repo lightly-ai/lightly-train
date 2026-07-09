@@ -12,6 +12,7 @@ from typing import Callable
 
 import pytest
 
+from lightly_train._data import data_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -274,7 +275,7 @@ def test_task_data_args_resolve_paths_relative_to_data_config_file(
     (base_dir / "classes.json").write_text('{"0": "background", "1": "car"}')
     data_args = _with_data_config_file(make_data_args(base_dir), data_config_file)
 
-    data_args.resolve_data_paths()
+    data_helpers.resolve_data_paths(data_args)
 
     assert_paths(data_args, base_dir)
 
@@ -290,7 +291,7 @@ def test_task_data_args_resolve_paths_relative_to_cwd(
         names={0: "class_a"},
     )
 
-    data_args.resolve_data_paths()
+    data_helpers.resolve_data_paths(data_args)
 
     assert data_args.path == (tmp_path / "dataset").resolve()
     assert data_args.train == Path("images/train")

@@ -33,6 +33,7 @@ from lightly_train._commands.train_task_helpers import BestAggregatedMetricValue
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -1322,7 +1323,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
     )
 
-    config.data.resolve_data_paths()
+    data_arg_helpers.resolve_data_paths(config.data)
 
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args,
