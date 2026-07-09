@@ -183,6 +183,16 @@ define the thing and stuff classes and list the individual segments for each ima
 the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data) for more
 details.
 
+We specify the training data with the `data` argument. You can pass the configuration
+inline as a dictionary, or pass a path to a YAML file containing the same keys:
+
+```python
+lightly_train.train_panoptic_segmentation(
+    ...,
+    data="path/to/data.yaml",
+)
+```
+
 The following image formats are supported:
 
 - jpg

@@ -288,6 +288,16 @@ image (under a different directory) or follows a specific template pattern. The 
 must be PNG images in either grayscale integer format, where each pixel value
 corresponds to a class ID, or multi-channel (e.g., RGB) format.
 
+We specify the training data with the `data` argument. You can pass the configuration
+inline as a dictionary, or pass a path to a YAML file containing the same keys:
+
+```python
+lightly_train.train_semantic_segmentation(
+    ...,
+    data="path/to/data.yaml",
+)
+```
+
 The following image formats are supported:
 
 - jpg
@@ -505,8 +515,10 @@ dictionary.
 #### Loading Classes from a JSON File
 
 Instead of specifying `classes` inline, you can pass a path to a `.json` file directly
-as the `classes` value. The JSON file supports the same formats as the inline `classes`
-dict.
+as the `classes` value. This JSON support applies only to the `classes` mapping inside
+the semantic segmentation data configuration. Full dataset configurations should be
+provided inline or as YAML files. The JSON file supports the same formats as the inline
+`classes` dict.
 
 **Simple format** — maps each class ID to a name (label defaults to the class ID):
 

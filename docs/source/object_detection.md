@@ -273,7 +273,8 @@ lightly_train.train_object_detection(
 )
 ```
 
-The `format` key is optional and defaults to `"yolo"` if omitted.
+The `format` key is optional and defaults to `"yolo"` if omitted. You can pass this
+configuration either inline as a dictionary or as a YAML file path.
 
 Instead of a dictionary, you can also pass a path to a YAML file containing the same
 configuration. This is convenient if you already have an Ultralytics-style `data.yaml`:
