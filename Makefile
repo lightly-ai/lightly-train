@@ -314,6 +314,12 @@ install-dev:
 	uv sync --frozen ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_DEV))
 	uv run --frozen pre-commit install
 
+# Install package for local development with ROCm PyTorch wheels.
+.PHONY: install-dev-rocm
+install-dev-rocm:
+	uv sync --frozen ${NO_EDITABLE} --group dev --group rocm-torch $(call to_uv_extras,$(EXTRAS_DEV))
+	uv run --frozen pre-commit install
+
 # Install package with minimal dependencies and latest development dependencies.
 #
 # Explanation of flags:
