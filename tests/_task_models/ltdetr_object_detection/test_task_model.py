@@ -387,7 +387,10 @@ def test_task_model_uses_default_image_normalize_when_none() -> None:
 
 
 def test_task_model_explicit_image_normalize_overrides_default() -> None:
-    image_normalize = {"mean": (0.5, 0.5, 0.5), "std": (0.25, 0.25, 0.25)}
+    image_normalize: dict[str, tuple[float, ...]] = {
+        "mean": (0.5, 0.5, 0.5),
+        "std": (0.25, 0.25, 0.25),
+    }
 
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
