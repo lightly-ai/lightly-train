@@ -76,6 +76,11 @@ from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
 
+LTDETR_DEFAULT_IMAGE_NORMALIZE: dict[str, tuple[float, ...]] = {
+    "mean": (0.0, 0.0, 0.0),
+    "std": (1.0, 1.0, 1.0),
+}
+
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
 _TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
 _TransformerConfigFactory = Callable[[], _TransformerConfig]
@@ -196,7 +201,11 @@ class LTDETRObjectDetection(TaskModel):
             for internal_class_id, class_name in enumerate(self.classes.values())
         }
 
-        self.image_normalize = image_normalize
+        self.image_normalize = (
+            image_normalize
+            if image_normalize is not None
+            else dict(LTDETR_DEFAULT_IMAGE_NORMALIZE)
+        )
 
         # Resolve the backbone's expected input channel count.
         # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
@@ -205,10 +214,8 @@ class LTDETRObjectDetection(TaskModel):
             self._expected_input_channels = 3
         elif backbone_args is not None and "in_chans" in backbone_args:
             self._expected_input_channels = backbone_args["in_chans"]
-        elif self.image_normalize is not None:
-            self._expected_input_channels = len(self.image_normalize["mean"])
         else:
-            self._expected_input_channels = 3
+            self._expected_input_channels = len(self.image_normalize["mean"])
 
         # Build backbone model args: start from config defaults, then apply overrides.
         backbone_model_args: dict[str, Any] = dict(config.backbone_args)
@@ -221,9 +228,9 @@ class LTDETRObjectDetection(TaskModel):
         if backbone_weights is not None and not is_dinov2_backbone:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        get_model_kwargs = {}
-        if self.image_normalize is not None:
-            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+        get_model_kwargs = {
+            "num_input_channels": len(self.image_normalize["mean"]),
+        }
 
         package = package_helpers.get_package(package_name)
 
