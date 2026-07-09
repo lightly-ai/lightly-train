@@ -17,9 +17,19 @@ from pytest import LogCaptureFixture
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationMulticlassDataArgs,
+    ImageClassificationMultilabelDataArgs,
+)
 from lightly_train._data.instance_segmentation_dataset import (
     COCOInstanceSegmentationDataArgs,
     YOLOInstanceSegmentationDataArgs,
+)
+from lightly_train._data.mask_panoptic_segmentation_dataset import (
+    MaskPanopticSegmentationDataArgs,
+)
+from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
 )
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
@@ -44,8 +54,12 @@ import yaml
 
 import lightly_train
 from lightly_train._commands.train_task import (
+    ImageClassificationMulticlassTrainTaskConfig,
+    ImageClassificationMultilabelTrainTaskConfig,
     InstanceSegmentationTrainTaskConfig,
     ObjectDetectionTrainTaskConfig,
+    PanopticSegmentationTrainTaskConfig,
+    SemanticSegmentationTrainTaskConfig,
 )
 
 from .. import helpers
@@ -1067,6 +1081,142 @@ def test_create_train_task_config__direct_data_has_no_data_config_file(
     assert isinstance(config.data, YOLOObjectDetectionDataArgs)
     assert config.data.data_config_file is None
     assert "data_config_file" not in config.model_dump()["data"]
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+@pytest.mark.parametrize(
+    "config_cls, expected_data_args_cls",
+    [
+        (
+            ImageClassificationMulticlassTrainTaskConfig,
+            ImageClassificationMulticlassDataArgs,
+        ),
+        (
+            ImageClassificationMultilabelTrainTaskConfig,
+            ImageClassificationMultilabelDataArgs,
+        ),
+    ],
+)
+def test_create_train_task_config__image_classification_data_yaml(
+    tmp_path: Path,
+    path_type: type,
+    config_cls: type[
+        ImageClassificationMulticlassTrainTaskConfig
+        | ImageClassificationMultilabelTrainTaskConfig
+    ],
+    expected_data_args_cls: type[
+        ImageClassificationMulticlassDataArgs | ImageClassificationMultilabelDataArgs
+    ],
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": "train",
+                "val": "val",
+                "classes": {0: "class_a"},
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = config_cls(
+        out="out",
+        model="some/model",
+        data=path_type(data_yaml),
+    )
+
+    assert isinstance(config.data, expected_data_args_cls)
+    assert config.data.train == "train"
+    assert config.data.val == "val"
+    assert config.data.classes == {0: "class_a"}
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_json(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    (data_yaml.parent / "classes.json").write_text(
+        '{"0": "background", "1": "car"}'
+    )
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {"images": "images/train", "masks": "masks/train"},
+                "val": {"images": "images/val", "masks": "masks/val"},
+                "classes": "classes.json",
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = SemanticSegmentationTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,
+    )
+
+    assert isinstance(config.data, MaskSemanticSegmentationDataArgs)
+    assert config.data.train.images == "images/train"
+    assert config.data.val.masks == "masks/val"
+    assert config.data.classes == Path("classes.json")
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+    config.data.resolve_data_paths()
+
+    assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
+    assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
+    assert not isinstance(config.data.classes, Path)
+    assert config.data.classes[0].name == "background"
+    assert config.data.classes[1].name == "car"
+
+
+def test_create_train_task_config__panoptic_segmentation_data_yaml(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {
+                    "images": "images/train",
+                    "masks": "masks/train",
+                    "annotations": "annotations/train.json",
+                },
+                "val": {
+                    "images": "images/val",
+                    "masks": "masks/val",
+                    "annotations": "annotations/val.json",
+                },
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = PanopticSegmentationTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,
+    )
+
+    assert isinstance(config.data, MaskPanopticSegmentationDataArgs)
+    assert config.data.train.images == "images/train"
+    assert config.data.train.annotations == "annotations/train.json"
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+    config.data.resolve_data_paths()
+
+    assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
+    assert config.data.train.annotations == (
+        data_yaml.parent / "annotations/train.json"
+    ).resolve()
+    assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
 
 
 def test_train_task_config_resolve_data_paths__yaml_relative_to_data_config(

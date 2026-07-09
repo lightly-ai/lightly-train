@@ -2050,6 +2050,13 @@ class TrainTaskConfig(PydanticConfig):
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @field_validator("data", mode="before")
+    @classmethod
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        return data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
+
 
 class ImageClassificationMulticlassTrainTaskConfig(TrainTaskConfig):
     data: ImageClassificationMulticlassDataArgs
