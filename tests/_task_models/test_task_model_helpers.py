@@ -96,9 +96,7 @@ def test_download_checkpoint__unknown_name__raises_generic() -> None:
     assert "convert_checkpoint_dav2" not in message
 
 
-def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic() -> (
-    None
-):
+def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic() -> None:
     reference_model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
