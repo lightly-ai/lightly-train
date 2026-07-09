@@ -51,10 +51,16 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
         self.val.annotations = self._resolve_path(
             self.val.annotations, base_dir=base_dir
         )
-        if self.train.images is not None and Path(self.train.images).is_absolute():
-            self.train.images = Path(self.train.images).resolve()
-        if self.val.images is not None and Path(self.val.images).is_absolute():
-            self.val.images = Path(self.val.images).resolve()
+        if self.train.images is not None:
+            train_images = Path(self.train.images)
+            self.train.images = (
+                train_images.resolve() if train_images.is_absolute() else train_images
+            )
+        if self.val.images is not None:
+            val_images = Path(self.val.images)
+            self.val.images = (
+                val_images.resolve() if val_images.is_absolute() else val_images
+            )
 
     @functools.cached_property
     def _classes(self) -> dict[int, str]:
