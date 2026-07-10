@@ -17,6 +17,12 @@ from torch.hub import download_url_to_file
 
 from lightly_train import load_model
 from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import (
+    DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
+)
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
+    DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
 )
@@ -74,20 +80,43 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
 
 
 def test_downloadable_model__dinov3_eomt_semantic_aliases_from_registry() -> None:
-    d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
+    aliases = [
+        "dinov3/vits16-eomt-coco",
+        "dinov3/vits32-eomt-coco",
+        "dinov3/vitl16-eomt-ade20k",
+    ]
 
-    assert d["dinov3/vits16-eomt-coco"] == (
-        "dinov3_vits16_eomt_coco_260105_11be50b5.pt",
-        "11be50b578251c974b1fdb413c76e2cd7cfe1e154f6118556bd87477ea205d5a",
-    )
-    assert d["dinov3/vits32-eomt-coco"] == (
-        "dinov3_vits32_eomt_coco_260106_06595b53.pt",
-        "06595b53b0ee63032e8f7882a2d1e877c84b996c8313727a6694abf42e871d05",
-    )
-    assert d["dinov3/vitl16-eomt-ade20k"] == (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
-        "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
-    )
+    for alias in aliases:
+        checkpoint = (
+            DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get_alias_metadata(
+                alias
+            ).downloadable_checkpoint
+        )
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
+
+
+def test_downloadable_model__dinov3_eomt_instance_aliases_from_registry() -> None:
+    aliases = [
+        "dinov3/vitt16-eomt-inst-coco",
+        "dinov3/vitt16plus-eomt-inst-coco",
+        "dinov3/vits16-eomt-inst-coco",
+        "dinov3/vitb16-eomt-inst-coco",
+        "dinov3/vitl16-eomt-inst-coco",
+    ]
+
+    for alias in aliases:
+        checkpoint = (
+            DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.get_alias_metadata(
+                alias
+            ).downloadable_checkpoint
+        )
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
 
 
 def test_download_checkpoint__non_hosted_dav2__raises_convert_guidance() -> None:

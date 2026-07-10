@@ -914,7 +914,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
-            reference_outputs = reference_model(
+            reference_outputs: tuple[Tensor, ...] = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -938,7 +938,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     # Absolute and relative tolerances are a bit arbitrary and taken from here:
                     # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                     torch.testing.assert_close(
