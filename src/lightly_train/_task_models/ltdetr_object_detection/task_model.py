@@ -364,14 +364,6 @@ class LTDETRObjectDetection(TaskModel):
         x = self.decoder(feats=x, targets=targets)
         return x
 
-    def postprocess(  # type: ignore[override]
-        self,
-        raw_outputs: ObjectDetectionOutput,
-        metadata: Sequence[dict[str, Any]],
-        threshold: float,
-    ) -> list[dict[str, Tensor]]:
-        return self.postprocessor.postprocess(raw_outputs, metadata, threshold)
-
     def freeze_backbone(self) -> None:
         self.backbone.eval()
         self.backbone.requires_grad_(False)
@@ -421,17 +413,6 @@ class LTDETRObjectDetection(TaskModel):
         if not missing and not unexpected:
             logger.info(f"Backbone weights loaded from '{path}'")
 
-    def preprocess_image(
-        self, image: PathLike | PILImage | Tensor
-    ) -> tuple[Tensor, dict[str, Any]]:
-        first_param = next(self.parameters())
-        return self.preprocessor.preprocess_image(
-            image, device=first_param.device, dtype=first_param.dtype
-        )
-
-    def preprocess_batch(self, batch: Tensor) -> Tensor:
-        return self.preprocessor.preprocess_batch(batch)
-
     @torch.no_grad()
     def predict_batch(
         self,
@@ -454,16 +435,19 @@ class LTDETRObjectDetection(TaskModel):
         self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
+        first_param = next(self.parameters())
         tensors: list[Tensor] = []
         metadata: list[dict[str, Any]] = []
         for image in images:
-            x, meta = self.preprocess_image(image)
+            x, meta = self.preprocessor.preprocess_image(
+                image, device=first_param.device, dtype=first_param.dtype
+            )
             tensors.append(x)
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
-        batch = self.preprocess_batch(batch)
+        batch = self.preprocessor.preprocess_batch(batch)
         raw = self.forward(batch)
-        return self.postprocess(raw, metadata, threshold=threshold)
+        return self.postprocessor.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
     def predict(
@@ -484,10 +468,13 @@ class LTDETRObjectDetection(TaskModel):
         self._track_inference()
         if self.training or not self.postprocessor.deploy_mode:
             self.deploy()
-        x, metadata = self.preprocess_image(image)
-        batch = self.preprocess_batch(x.unsqueeze(0))
+        first_param = next(self.parameters())
+        x, metadata = self.preprocessor.preprocess_image(
+            image, device=first_param.device, dtype=first_param.dtype
+        )
+        batch = self.preprocessor.preprocess_batch(x.unsqueeze(0))
         raw = self.forward(batch)
-        return self.postprocess(raw, [metadata], threshold=threshold)[0]
+        return self.postprocessor.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(

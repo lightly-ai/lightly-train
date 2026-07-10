@@ -636,10 +636,10 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
         load_weights=False,
     )
 
-    preprocess_image_spy = mocker.spy(model, "preprocess_image")
-    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
+    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
     forward_spy = mocker.spy(model, "forward")
-    postprocess_spy = mocker.spy(model, "postprocess")
+    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
