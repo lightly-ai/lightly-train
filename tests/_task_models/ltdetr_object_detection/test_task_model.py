@@ -448,9 +448,9 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     model.eval()
     model.deploy()
     with torch.no_grad():
-        logits, boxes = model(torch.randn(1, 3, 224, 224))
-    assert logits.shape == (1, 300, 2)  # num_classes = 2
-    assert boxes.shape == (1, 300, 4)
+        out = model(torch.randn(1, 3, 224, 224))
+    assert out.logits.shape == (1, 300, 2)  # num_classes = 2
+    assert out.boxes.shape == (1, 300, 4)
 
 
 @pytest.mark.parametrize(
@@ -638,7 +638,7 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     preprocess_image_spy = mocker.spy(model, "preprocess_image")
     preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
-    forward_backend_spy = mocker.spy(model, "forward_backend")
+    forward_spy = mocker.spy(model, "forward")
     postprocess_spy = mocker.spy(model, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
@@ -652,15 +652,15 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    # forward_backend receives the output of preprocess_batch.
-    assert forward_backend_spy.call_count == 1
-    (forward_in,) = forward_backend_spy.call_args.args
+    # forward (the raw neural pass) receives the output of preprocess_batch.
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
     assert forward_in is preprocess_batch_spy.spy_return
 
-    # postprocess receives forward_backend's output and per-image metadata.
+    # postprocess receives forward's output and per-image metadata.
     assert postprocess_spy.call_count == 1
     raw_in, metadata = postprocess_spy.call_args.args
-    assert raw_in is forward_backend_spy.spy_return
+    assert raw_in is forward_spy.spy_return
     assert len(metadata) == 2
 
     # predict_batch returns whatever postprocess produced.
@@ -698,7 +698,8 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     onnx_outputs = session.run(None, {"images": inputs})
 
     with torch.no_grad():
-        torch_outputs = model(torch.from_numpy(inputs))
+        torch_output = model(torch.from_numpy(inputs))
+    torch_outputs = (torch_output.logits, torch_output.boxes)
 
     for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
         onnx_tensor = torch.from_numpy(onnx_out)

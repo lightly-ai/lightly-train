@@ -86,8 +86,15 @@ class TorchBackend(ObjectDetectionBackend):
         else:
             self.model.eval()
 
+        # LTDETRObjectDetection exposes the raw pass as `forward` (returning a
+        # BaseModelOutput); other task models still expose `forward_backend`.
+        if type(self.model).forward_backend is TaskModel.forward_backend:
+            self._forward_fn = self.model.forward
+        else:
+            self._forward_fn = self.model.forward_backend
+
         if backend_args.compile:
-            self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
+            self._forward_fn = torch.compile(self._forward_fn)
 
     @override
     def run_batch(
@@ -109,7 +116,7 @@ class TorchBackend(ObjectDetectionBackend):
             dtype=autocast_dtype or torch.float16,
             enabled=autocast_dtype is not None,
         ):
-            raw_outputs = self.model.forward_backend(images)
+            raw_outputs = self._forward_fn(images)
         time_predict = time.perf_counter() - start_predict
 
         # postprocess

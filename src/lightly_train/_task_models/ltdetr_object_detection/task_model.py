@@ -16,6 +16,7 @@ from typing import Any, Callable, Literal, Union, cast
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torch.nn import Module
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self, override
 
@@ -41,6 +42,12 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionOutput,
+    ObjectDetectionPostprocessor,
+    ObjectDetectionPreprocessor,
+)
+from lightly_train._task_models import task_model_io
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
@@ -64,9 +71,6 @@ from lightly_train._task_models.object_detection_components.dfine_decoder import
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
-)
-from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
-    RTDETRPostProcessor,
 )
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
@@ -111,6 +115,20 @@ def _resolve_transformer_config(
             "Expected one of 'rtdetrv2' or 'dfine'."
         )
     return config_factory()
+
+
+class _RawForwardTupleWrapper(Module):
+    """Adapts a model whose ``forward`` returns a ``BaseModelOutput`` into one that
+    returns a plain tuple of tensors, for the legacy TorchScript ONNX exporter
+    (which cannot flatten dataclass outputs)."""
+
+    def __init__(self, model: Module) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, x: Tensor) -> tuple[Tensor, ...]:
+        values, _ = task_model_io._model_output_flatten(self.model(x))
+        return tuple(values)
 
 
 class LTDETRObjectDetection(TaskModel):
@@ -185,16 +203,10 @@ class LTDETRObjectDetection(TaskModel):
         config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
-        # This list maps the internal class id to the class id in `classes`.
-        internal_class_to_class = list(self.classes.keys())
-
-        # Efficient lookup for converting internal class IDs to class IDs.
-        # Registered as buffer to be automatically moved to the correct device.
-        self.internal_class_to_class: Tensor
-        self.register_buffer(
-            "internal_class_to_class",
-            torch.tensor(internal_class_to_class, dtype=torch.long),
-            persistent=False,  # No need to save it in the state dict.
+        # This tensor maps the internal class id to the class id in `classes`. It is
+        # owned by the postprocessor (constructed below).
+        internal_class_to_class = torch.tensor(
+            list(self.classes.keys()), dtype=torch.long
         )
         self.included_classes: dict[int, str] = {
             internal_class_id: class_name
@@ -291,8 +303,14 @@ class LTDETRObjectDetection(TaskModel):
 
         postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
         postprocessor_cfg["num_classes"] = len(self.classes)
-        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **postprocessor_cfg
+        self.preprocessor = ObjectDetectionPreprocessor(
+            image_size=self.image_size,
+            image_normalize=self.image_normalize,
+            expected_input_channels=self._expected_input_channels,
+        )
+        self.postprocessor = ObjectDetectionPostprocessor(
+            rtdetr_postprocessor_cfg=postprocessor_cfg,
+            internal_class_to_class=internal_class_to_class,
         )
 
         if self.backbone_freeze:
@@ -329,19 +347,16 @@ class LTDETRObjectDetection(TaskModel):
     def get_export_output_names(self) -> list[str]:
         return ["logits", "boxes"]
 
-    def forward_backend(self, x: Tensor) -> Any:
-        x = self.backbone(x)
-        x = self.encoder(x)
-        return self.decoder(x)
-
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        # Function used for ONNX export. Returns the raw decoder outputs:
+    def forward(self, x: Tensor) -> ObjectDetectionOutput:
+        # The raw neural forward pass. Returns the raw decoder outputs:
         #   logits: (B, num_queries, num_classes)
         #   boxes:  (B, num_queries, 4) in normalized cxcywh format
         # Top-k selection, thresholding, NMS and rescaling to original image
         # coordinates are left to the caller (see `postprocess`/`predict*`).
-        out = self.forward_backend(x)
-        return out["pred_logits"], out["pred_boxes"]
+        x = self.backbone(x)
+        x = self.encoder(x)
+        out = self.decoder(x)
+        return ObjectDetectionOutput(logits=out["pred_logits"], boxes=out["pred_boxes"])
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
@@ -351,38 +366,11 @@ class LTDETRObjectDetection(TaskModel):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: Any | dict[str, Tensor],
+        raw_outputs: ObjectDetectionOutput,
         metadata: Sequence[dict[str, Any]],
         threshold: float,
     ) -> list[dict[str, Tensor]]:
-        if not isinstance(raw_outputs, dict):
-            raise ValueError(
-                f"Expected raw_outputs to be a dict, got {type(raw_outputs).__name__}."
-            )
-        device = next(self.parameters()).device
-        # Postprocessor expects (W, H) per image.
-        orig_target_size = torch.tensor(
-            [[m["orig_w"], m["orig_h"]] for m in metadata],
-            dtype=torch.int64,
-            device=device,
-        )
-        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
-            raw_outputs, orig_target_size
-        )
-        out: list[dict[str, Tensor]] = []
-        labels_batch, boxes_batch, scores_batch = postprocessor_out
-
-        labels_batch = self.internal_class_to_class[labels_batch]
-        for i in range(len(metadata)):
-            keep = scores_batch[i] > threshold
-            out.append(
-                {
-                    "labels": labels_batch[i][keep],
-                    "bboxes": boxes_batch[i][keep],
-                    "scores": scores_batch[i][keep],
-                }
-            )
-        return out
+        return self.postprocessor.postprocess(raw_outputs, metadata, threshold)
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
@@ -390,7 +378,7 @@ class LTDETRObjectDetection(TaskModel):
 
     def deploy(self) -> Self:
         self.eval()
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
+        self.postprocessor.deploy()
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
@@ -437,34 +425,12 @@ class LTDETRObjectDetection(TaskModel):
         self, image: PathLike | PILImage | Tensor
     ) -> tuple[Tensor, dict[str, Any]]:
         first_param = next(self.parameters())
-        device, dtype = first_param.device, first_param.dtype
-
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        # Expand grayscale to the expected channel count so images can be stacked.
-        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
-        # 1-channel expansion is a convenience inherited from RGB-only models.
-        expected_c = self._expected_input_channels
-        if x.shape[-3] == 1 and expected_c > 1:
-            x = x.expand(expected_c, -1, -1)
-        elif x.shape[-3] != expected_c:
-            raise ValueError(
-                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
-            )
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.resize(x, self.image_size)
-        return x, {"orig_h": image_h, "orig_w": image_w}
+        return self.preprocessor.preprocess_image(
+            image, device=first_param.device, dtype=first_param.dtype
+        )
 
     def preprocess_batch(self, batch: Tensor) -> Tensor:
-        if self.image_normalize is not None:
-            batch = transforms_functional.normalize(
-                batch,
-                mean=list(self.image_normalize["mean"]),
-                std=list(self.image_normalize["std"]),
-            )
-        return batch
+        return self.preprocessor.preprocess_batch(batch)
 
     @torch.no_grad()
     def predict_batch(
@@ -496,7 +462,7 @@ class LTDETRObjectDetection(TaskModel):
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
         batch = self.preprocess_batch(batch)
-        raw = self.forward_backend(batch)
+        raw = self.forward(batch)
         return self.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
@@ -520,7 +486,7 @@ class LTDETRObjectDetection(TaskModel):
             self.deploy()
         x, metadata = self.preprocess_image(image)
         batch = self.preprocess_batch(x.unsqueeze(0))
-        raw = self.forward_backend(batch)
+        raw = self.forward(batch)
         return self.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
@@ -603,9 +569,8 @@ class LTDETRObjectDetection(TaskModel):
 
         # Feed the tiles in parallel to the model, then postprocess to get
         # top-k predictions with boxes rescaled to each tile's pixel coordinates.
-        raw = self.forward_backend(tiles)
-        labels, boxes, scores = self.postprocessor(raw, orig_target_sizes)
-        labels = self.internal_class_to_class[labels]
+        raw = self.forward(tiles)
+        labels, boxes, scores = self.postprocessor.decode(raw, orig_target_sizes)
 
         # Add coordinates of the tiles to the boxes.
         tiles_coordinates = (
@@ -771,8 +736,16 @@ class LTDETRObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = self.get_export_output_names()
 
+        # `forward` returns a BaseModelOutput dataclass, which the legacy
+        # TorchScript ONNX exporter cannot flatten. Wrap the model so the exported
+        # graph exposes a plain tuple of tensors (in the same field order).
+        # Keep it in eval mode: the legacy exporter restores the module's original
+        # training flag afterwards, and a fresh wrapper would otherwise flip the
+        # wrapped model back to train mode (breaking the deployed decoder path).
+        export_module = _RawForwardTupleWrapper(self).eval()
+
         torch.onnx.export(
-            self,
+            export_module,
             (dummy_input,),
             str(out),
             input_names=input_names,
@@ -836,8 +809,13 @@ class LTDETRObjectDetection(TaskModel):
                 # Always run the reference input in float32 and on cpu for consistency.
                 reference_model = deepcopy(self).cpu().to(torch.float32).eval()
                 reference_model.deploy()
-                reference_outputs: tuple[Tensor, ...] = reference_model(
+                reference_output = reference_model(
                     dummy_input.cpu().to(torch.float32),
+                )
+                # forward returns a BaseModelOutput dataclass; flatten it to a tuple
+                # of tensors (in declaration order) for the numerical comparison below.
+                reference_outputs: tuple[Tensor, ...] = tuple(
+                    task_model_io._model_output_flatten(reference_output)[0]
                 )
 
                 # Get outputs from the ONNX model. Load from bytes to avoid
