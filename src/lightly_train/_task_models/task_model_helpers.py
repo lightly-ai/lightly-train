@@ -197,6 +197,10 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
     ),
     #### Depth Estimation
+    "dinov2/dav3-relative-small": (
+        "dinov2_dav3_relative_small_260710_dcc2463f.pt",
+        "dcc2463f7fa07606cb1352236889e636a10cc3db64ec31a227a20cc88ce6c21d",
+    ),
     "dinov2/dav3-relative-large": (
         "dinov2_dav3_relative_large_260629_9c2e9320.pt",
         "9c2e932085843bbd960e16bc80917b6591e99fc6fd3907ded7bda68d35368e49",
