@@ -32,7 +32,6 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
 )
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.config import (
     DINOV2_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
-    EoMTInstanceSegmentationConfig,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
@@ -100,7 +99,7 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
                 If False, then no pretrained weights are loaded.
         """
         super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
+        parsed_name = self._resolve_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
         self.image_size = image_size
@@ -202,64 +201,21 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
+        return model in DINOV2_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.list_aliases()
 
     @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
-            raise ValueError(
-                f"Model name '{model_name}' is not supported. Available "
-                f"models are: {cls.list_model_names()}. See the documentation for "
-                "more information: https://docs.lightly.ai/train/stable/instance_segmentation.html"
-            )
-
-        config: EoMTInstanceSegmentationConfig | None = None
+    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
         try:
             config = DINOV2_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.get(
                 alias=model_name
             )()
         except KeyError:
-            pass
+            raise ValueError(
+                f"Model name '{model_name}' is not supported. Available "
+                f"models are: {cls.list_model_names()}. See the documentation for "
+                "more information: https://docs.lightly.ai/train/stable/instance_segmentation.html"
+            ) from None
 
-        if config is None:
-            if not model_name.endswith(f"-{cls.model_suffix}"):
-                raise_invalid_name()
-
-            backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-            try:
-                package_name, backbone_name = package_helpers.parse_model_name(
-                    backbone_name
-                )
-            except ValueError:
-                raise_invalid_name()
-
-            if package_name != DINOV2_VIT_PACKAGE.name:
-                raise_invalid_name()
-
-            try:
-                backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
-                    model_name=backbone_name
-                )
-            except ValueError:
-                raise_invalid_name()
-
-            normalized_model_name = (
-                f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}"
-            )
-            try:
-                config = DINOV2_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.get(
-                    alias=normalized_model_name
-                )()
-            except KeyError:
-                raise_invalid_name()
-
-        assert config is not None
         package_name, backbone_name = package_helpers.parse_model_name(
             config.backbone_name
         )

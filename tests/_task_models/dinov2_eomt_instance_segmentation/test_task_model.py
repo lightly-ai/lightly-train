@@ -40,9 +40,16 @@ def test_list_model_names__uses_registry() -> None:
     assert "dinov2/vits14-notpretrained-eomt" in names
 
 
-def test_parse_model_name__uses_registry() -> None:
-    parsed = DINOv2EoMTInstanceSegmentation.parse_model_name("dinov2/vits14-eomt")
+def test_is_supported_model__uses_registry() -> None:
+    assert DINOv2EoMTInstanceSegmentation.is_supported_model("dinov2/vits14-eomt")
+    assert DINOv2EoMTInstanceSegmentation.is_supported_model(
+        "dinov2/vits14-notpretrained-eomt"
+    )
+    assert not DINOv2EoMTInstanceSegmentation.is_supported_model(
+        "dinov2/vits14_pretrain-eomt"
+    )
 
+    parsed = DINOv2EoMTInstanceSegmentation._resolve_model_name("dinov2/vits14-eomt")
     assert parsed == {
         "model_name": "dinov2/vits14-eomt",
         "backbone_name": "vits14",

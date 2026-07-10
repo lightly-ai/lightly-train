@@ -45,11 +45,18 @@ def test_list_model_names__uses_registry() -> None:
     assert "dinov3/convnext-tiny-eomt" not in names
 
 
-def test_parse_model_name__hosted_alias_uses_canonical_model_name() -> None:
-    parsed = DINOv3EoMTInstanceSegmentation.parse_model_name(
+def test_is_supported_model__uses_registry() -> None:
+    assert DINOv3EoMTInstanceSegmentation.is_supported_model("dinov3/vits16-eomt")
+    assert DINOv3EoMTInstanceSegmentation.is_supported_model(
         "dinov3/vits16-eomt-inst-coco"
     )
+    assert not DINOv3EoMTInstanceSegmentation.is_supported_model(
+        "dinov3/convnext-tiny-eomt"
+    )
 
+    parsed = DINOv3EoMTInstanceSegmentation._resolve_model_name(
+        "dinov3/vits16-eomt-inst-coco"
+    )
     assert parsed == {
         "model_name": "dinov3/vits16-eomt",
         "backbone_name": "vits16",
