@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any, Literal, Union, override
+from typing import Any, Literal, Union
 
 import torch
 from lightning_fabric import Fabric
@@ -18,7 +18,7 @@ from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-def
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
-from typing_extensions import Annotated
+from typing_extensions import Annotated, override
 
 from lightly_train import (
     _float32_matmul_precision,

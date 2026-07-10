@@ -377,13 +377,13 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     @field_validator("classes", mode="before")
     @classmethod
     def validate_classes(cls, classes: RawClasses) -> dict[int, ClassInfo] | Path:
-        # Relative JSON paths may need the data config base_dir, which is only
-        # known later in resolve_data_paths. Keep those paths unresolved here.
+        # Relative JSON paths need the data config base_dir, which is only known
+        # later in resolve_data_paths. Keep those paths unresolved here.
         if isinstance(classes, (str, Path)):
             path = Path(classes)
             if path.suffix != ".json":
                 raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
-            if not path.is_absolute() and not path.exists():
+            if not path.is_absolute():
                 return path
             try:
                 with path.open(encoding="utf-8") as f:
