@@ -228,6 +228,13 @@ lightly_train.train_instance_segmentation(
 )
 ```
 
+The `format` key is optional and defaults to `"yolo"` if omitted. Instead of a
+dictionary, you can also pass a path to a YAML file containing the same configuration.
+Relative paths in YAML-backed configs are resolved relative to the YAML file. Unknown
+top-level YAML keys are ignored, but unknown nested keys still raise a validation
+error. Training uses the `train` and `val` splits; optional `test` entries are accepted
+by the data config for compatibility but are not used during training.
+
 If you would like to skip specific classes during training, add their IDs to the
 optional `ignore_classes` list. The trainer omits these classes from loss computation
 and the exported model does not predict them.

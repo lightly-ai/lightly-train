@@ -67,7 +67,7 @@ class TestImageClassificationMulticlassDataArgs:
         assert data_args.val == (tmp_path / "val").resolve()
         assert data_args.test == (tmp_path / "test").resolve()
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = ImageClassificationMulticlassDataArgs(
             train="train",
@@ -102,7 +102,7 @@ class TestImageClassificationMultilabelDataArgs:
         assert data_args.val == (tmp_path / "val.csv").resolve()
         assert data_args.test == (tmp_path / "test.csv").resolve()
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = ImageClassificationMultilabelDataArgs(
             train="train.csv",
@@ -137,7 +137,7 @@ class TestYOLOObjectDetectionDataArgs:
         assert data_args.train == Path("images/train")
         assert data_args.val == Path("images/val")
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = YOLOObjectDetectionDataArgs(
             path="dataset",
@@ -182,7 +182,7 @@ class TestCOCOObjectDetectionDataArgs:
         )
         assert data_args.val.images == (tmp_path / "absolute/val_images").resolve()
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = COCOObjectDetectionDataArgs(
             train=COCOObjectDetectionSplitArgs(
@@ -231,7 +231,7 @@ class TestYOLOOrientedObjectDetectionDataArgs:
         assert data_args.train == Path("images/train")
         assert data_args.val == Path("images/val")
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = YOLOOrientedObjectDetectionDataArgs(
             path="dataset",
@@ -266,7 +266,7 @@ class TestYOLOInstanceSegmentationDataArgs:
         assert data_args.train == Path("images/train")
         assert data_args.val == Path("images/val")
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = YOLOInstanceSegmentationDataArgs(
             path="dataset",
@@ -311,7 +311,7 @@ class TestCOCOInstanceSegmentationDataArgs:
         )
         assert data_args.val.images == (tmp_path / "absolute/val_images").resolve()
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = COCOInstanceSegmentationDataArgs(
             train=COCOInstanceSegmentationSplitArgs(
@@ -368,7 +368,7 @@ class TestMaskSemanticSegmentationDataArgs:
         assert data_args.classes[0].name == "background"
         assert data_args.classes[1].name == "car"
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_yaml.parent.mkdir()
         (tmp_path / "configs" / "classes.json").write_text(
@@ -430,7 +430,7 @@ class TestMaskPanopticSegmentationDataArgs:
             data_args.val.annotations == (tmp_path / "annotations/val.json").resolve()
         )
 
-    def test_resolves_yaml_paths_relative_to_yaml_file(self, tmp_path: Path) -> None:
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "configs" / "data.yaml"
         data_args = MaskPanopticSegmentationDataArgs(
             train=MaskPanopticSegmentationSplitArgs(

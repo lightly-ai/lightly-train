@@ -183,6 +183,11 @@ define the thing and stuff classes and list the individual segments for each ima
 the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data) for more
 details.
 
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits.
+
 The following image formats are supported:
 
 - jpg

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Union
 
 import yaml
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 DATA_HELPERS_PATH = (
     Path(__file__).parents[2]
@@ -35,6 +35,11 @@ class DataArgsA(BaseModel):
 
 class DataArgsB(BaseModel):
     val: str
+    data_config_file: Path | None = None
+
+
+class DataArgsWithAliases(BaseModel):
+    train: str = Field(validation_alias=AliasChoices("train", "train_csv"))
     data_config_file: Path | None = None
 
 
@@ -74,6 +79,22 @@ def test_load_data_yaml_if_path__single_annotation(tmp_path: Path) -> None:
     data = data_helpers.load_data_yaml_if_path(data_yaml, DataArgsA)
 
     assert data == {"train": "train", "data_config_file": data_yaml.resolve()}
+
+
+def test_load_data_yaml_if_path__keeps_validation_alias(tmp_path: Path) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train_csv": "train.csv",
+                "extra": "extra",
+            }
+        )
+    )
+
+    data = data_helpers.load_data_yaml_if_path(data_yaml, DataArgsWithAliases)
+
+    assert data == {"train_csv": "train.csv", "data_config_file": data_yaml.resolve()}
 
 
 def test_load_data_yaml_if_path__direct_config_unchanged() -> None:

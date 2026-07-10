@@ -299,7 +299,8 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     path: PathLike
     train: PathLike
     val: PathLike
-    # TODO(Guarin, 10/25): Handle test set.
+    # Accepted for compatibility with YOLO data configs. Task training currently
+    # consumes only train and val splits.
     test: PathLike | None = None
     # "names" instead of "classes" to match YOLO convention.
     names: dict[int, str]

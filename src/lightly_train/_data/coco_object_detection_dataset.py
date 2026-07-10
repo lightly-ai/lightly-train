@@ -37,7 +37,7 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
     to the annotation file's parent directory, optionally under ``images``.
     """
 
-    # TODO: (Lionel, 08/25): Handle test set.
+    # Task training currently consumes only train and val splits.
     format: Literal["coco"] = "coco"
     train: SplitArgs
     val: SplitArgs

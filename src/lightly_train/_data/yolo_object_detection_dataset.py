@@ -24,11 +24,12 @@ from lightly_train.types import PathLike
 
 
 class YOLOObjectDetectionDataArgs(TaskDataArgs):
-    # TODO: (Lionel, 08/25): Handle test set.
     format: Literal["yolo"] = "yolo"
     path: PathLike
     train: PathLike
     val: PathLike
+    # Accepted for compatibility with YOLO data configs. Task training currently
+    # consumes only train and val splits.
     test: PathLike | None = None
     names: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)

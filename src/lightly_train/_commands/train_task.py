@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any, Literal, Union
+from typing import Any, Literal, Union, override
 
 import torch
 from lightning_fabric import Fabric
@@ -2076,6 +2076,7 @@ class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
     ]
     task: Literal["instance_segmentation"] = "instance_segmentation"
 
+    @override
     @field_validator("data", mode="before")
     @classmethod
     def _load_yaml_if_path(cls, v: Any) -> Any:
@@ -2097,6 +2098,7 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
     ]
     task: Literal["object_detection"] = "object_detection"
 
+    @override
     @field_validator("data", mode="before")
     @classmethod
     def _load_yaml_if_path(cls, v: Any) -> Any:

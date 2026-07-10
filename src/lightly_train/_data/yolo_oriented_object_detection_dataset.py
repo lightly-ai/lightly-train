@@ -159,10 +159,11 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
 
 
 class YOLOOrientedObjectDetectionDataArgs(TaskDataArgs):
-    # TODO: (Lionel, 08/25): Handle test set.
     path: PathLike
     train: PathLike
     val: PathLike
+    # Accepted for compatibility with YOLO data configs. Task training currently
+    # consumes only train and val splits.
     test: PathLike | None = None
     names: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)

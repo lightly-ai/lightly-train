@@ -12,6 +12,7 @@ from typing import Annotated, Any, Union, get_args, get_origin
 
 import fsspec
 import yaml
+from pydantic import AliasChoices, AliasPath
 
 
 def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
@@ -37,8 +38,16 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
             value = yaml.safe_load(file)
 
         members = _data_model_members(data_annotation)
-        # data_attributes is the set of all field names of all union members.
-        data_attributes = {name for m in members for name in m.model_fields}
+        # data_attributes is the set of all accepted top-level input keys of all
+        # union members, including Pydantic validation aliases.
+        # This filtering happens before Pydantic validates the data model, so aliases
+        # such as train_csv/val_csv must be kept here or their validators never run.
+        data_attributes = {
+            name
+            for member in members
+            for field_name, field in member.model_fields.items()
+            for name in _field_input_keys(field_name, field.validation_alias)
+        }
         # Only keep keys that are in the union members. Necessary because
         # foreign keys in the YAML file would otherwise cause a validation error.
         value = {name: val for name, val in value.items() if name in data_attributes}
@@ -56,6 +65,21 @@ def _data_model_members(data_annotation: Any) -> tuple[Any, ...]:
     if origin is Union:
         return get_args(data_annotation)
     return (data_annotation,)
+
+
+def _field_input_keys(field_name: str, validation_alias: Any) -> tuple[str, ...]:
+    if validation_alias is None:
+        return (field_name,)
+    if isinstance(validation_alias, str):
+        return (field_name, validation_alias)
+    if isinstance(validation_alias, AliasChoices):
+        aliases = tuple(
+            choice for choice in validation_alias.choices if isinstance(choice, str)
+        )
+        return (field_name, *aliases)
+    if isinstance(validation_alias, AliasPath):
+        return (field_name,)
+    return (field_name,)
 
 
 def set_default_data_format(value: Any, default: str) -> Any:

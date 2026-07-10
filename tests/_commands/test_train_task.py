@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from lightning_utilities.core.imports import RequirementCache
+from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
 from lightly_train._data.coco_object_detection_dataset import (
@@ -55,10 +56,13 @@ import yaml
 import lightly_train
 from lightly_train._commands.train_task import (
     ImageClassificationMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMultilabelTrainTaskConfig,
     ImageClassificationMultilabelTrainTaskConfig,
     InstanceSegmentationTrainTaskConfig,
     ObjectDetectionTrainTaskConfig,
     PanopticSegmentationTrainTaskConfig,
+    SemanticSegmentationMultiheadTrainTaskConfig,
     SemanticSegmentationTrainTaskConfig,
 )
 from lightly_train._data import data_helpers as data_arg_helpers
@@ -1100,6 +1104,14 @@ def test_create_train_task_config__direct_data_has_no_data_config_file(
             ImageClassificationMultilabelTrainTaskConfig,
             ImageClassificationMultilabelDataArgs,
         ),
+        (
+            ImageClassificationMultiheadMulticlassTrainTaskConfig,
+            ImageClassificationMulticlassDataArgs,
+        ),
+        (
+            ImageClassificationMultiheadMultilabelTrainTaskConfig,
+            ImageClassificationMultilabelDataArgs,
+        ),
     ],
 )
 def test_create_train_task_config__image_classification_data_yaml(
@@ -1108,6 +1120,8 @@ def test_create_train_task_config__image_classification_data_yaml(
     config_cls: type[
         ImageClassificationMulticlassTrainTaskConfig
         | ImageClassificationMultilabelTrainTaskConfig
+        | ImageClassificationMultiheadMulticlassTrainTaskConfig
+        | ImageClassificationMultiheadMultilabelTrainTaskConfig
     ],
     expected_data_args_cls: type[
         ImageClassificationMulticlassDataArgs | ImageClassificationMultilabelDataArgs
@@ -1137,6 +1151,101 @@ def test_create_train_task_config__image_classification_data_yaml(
     assert config.data.classes == {0: "class_a"}
     assert config.data.data_config_file == data_yaml.resolve()
     assert "data_config_file" not in config.model_dump()["data"]
+
+
+@pytest.mark.parametrize(
+    "config_cls, expected_data_args_cls",
+    [
+        (
+            ImageClassificationMulticlassTrainTaskConfig,
+            ImageClassificationMulticlassDataArgs,
+        ),
+        (
+            ImageClassificationMultilabelTrainTaskConfig,
+            ImageClassificationMultilabelDataArgs,
+        ),
+    ],
+)
+def test_create_train_task_config__image_classification_csv_aliases(
+    config_cls: type[
+        ImageClassificationMulticlassTrainTaskConfig
+        | ImageClassificationMultilabelTrainTaskConfig
+    ],
+    expected_data_args_cls: type[
+        ImageClassificationMulticlassDataArgs | ImageClassificationMultilabelDataArgs
+    ],
+) -> None:
+    config = config_cls(
+        out="out",
+        model="some/model",
+        data={
+            "train_csv": "train.csv",
+            "val_csv": "val.csv",
+            "classes": {0: "class_a"},
+        },
+    )
+
+    assert isinstance(config.data, expected_data_args_cls)
+    assert config.data.train == "train.csv"
+    assert config.data.val == "val.csv"
+    assert "train_csv" not in config.model_dump()["data"]
+    assert "val_csv" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__image_classification_csv_alias_conflict() -> None:
+    with pytest.raises(
+        ValidationError, match="Cannot specify both 'train' and 'train_csv'"
+    ):
+        ImageClassificationMulticlassTrainTaskConfig(
+            out="out",
+            model="some/model",
+            data={
+                "train": "train",
+                "train_csv": "train.csv",
+                "val": "val",
+                "classes": {0: "class_a"},
+            },
+        )
+
+    with pytest.raises(
+        ValidationError, match="Cannot specify both 'val' and 'val_csv'"
+    ):
+        ImageClassificationMulticlassTrainTaskConfig(
+            out="out",
+            model="some/model",
+            data={
+                "train": "train",
+                "val": "val",
+                "val_csv": "val.csv",
+                "classes": {0: "class_a"},
+            },
+        )
+
+
+def test_create_train_task_config__image_classification_data_yaml_csv_aliases(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train_csv": "train.csv",
+                "val_csv": "val.csv",
+                "classes": {0: "class_a"},
+            }
+        )
+    )
+
+    config = ImageClassificationMultilabelTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,
+    )
+
+    assert isinstance(config.data, ImageClassificationMultilabelDataArgs)
+    assert config.data.train == "train.csv"
+    assert config.data.val == "val.csv"
+    assert config.data.data_config_file == data_yaml.resolve()
 
 
 def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_json(
@@ -1176,6 +1285,64 @@ def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_
     assert not isinstance(config.data.classes, Path)
     assert config.data.classes[0].name == "background"
     assert config.data.classes[1].name == "car"
+
+
+def test_create_train_task_config__semantic_segmentation_multihead_data_yaml_with_classes_json(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    (data_yaml.parent / "classes.json").write_text('{"0": "background", "1": "car"}')
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {"images": "images/train", "masks": "masks/train"},
+                "val": {"images": "images/val", "masks": "masks/val"},
+                "classes": "classes.json",
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = SemanticSegmentationMultiheadTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,
+    )
+
+    assert isinstance(config.data, MaskSemanticSegmentationDataArgs)
+    assert config.data.train.images == "images/train"
+    assert config.data.val.masks == "masks/val"
+    assert config.data.classes == Path("classes.json")
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__data_yaml_nested_unknown_key_errors(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {
+                    "images": "images/train",
+                    "masks": "masks/train",
+                    "unknown_nested_key": "unknown",
+                },
+                "val": {"images": "images/val", "masks": "masks/val"},
+                "classes": {0: "background", 1: "car"},
+            }
+        )
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        SemanticSegmentationTrainTaskConfig(
+            out="out",
+            model="some/model",
+            data=data_yaml,
+        )
 
 
 def test_create_train_task_config__panoptic_segmentation_data_yaml(
