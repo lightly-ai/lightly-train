@@ -10,5 +10,6 @@ from enum import Enum
 
 class OptimizerType(Enum):
     ADAMW = "adamw"
+    ADAMW8BIT = "adamw8bit"
     SGD = "sgd"
     LARS = "lars"

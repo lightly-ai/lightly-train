@@ -109,6 +109,11 @@ pinned-torch-maximal = [
 ]
 
 [project.optional-dependencies]
+bitsandbytes = [
+    # Optional 8-bit optimizer state (optim_type="adamw8bit"). Imported lazily,
+    # so the dependency is only required when that optimizer is selected.
+    "bitsandbytes>=0.43.0",
+]
 dicom = [
     "pydicom>=2.1.0",
 ]

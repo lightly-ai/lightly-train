@@ -49,7 +49,7 @@ Example::
 from __future__ import annotations
 
 import copy
-from typing import Any, Mapping, cast
+from typing import Any, Literal, Mapping, cast
 
 import torch
 from lightly.loss import PatchKernelAlignmentLoss, roi_resample_to_grid
@@ -58,13 +58,30 @@ from torch import Tensor
 from torch.nn import Module
 from torch.nn.modules.module import _IncompatibleKeys
 
-from lightly_train._methods.dinov2.dinov2 import DINOv2, DINOv2Args, freeze_eval_module
+from lightly_train._methods.dinov2.dinov2 import (
+    DINOv2,
+    DINOv2AdamWViTArgs,
+    DINOv2Args,
+    freeze_eval_module,
+)
 from lightly_train._methods.dinov2.dinov2_head import _build_mlp
 from lightly_train._methods.dinov31.dinov31_transform import DINOv31Transform
 from lightly_train._methods.method import TrainingStepResult
+from lightly_train._optim.adamw8bit_args import AdamW8bitArgs
+from lightly_train._optim.optimizer_args import OptimizerArgs
+from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._torch_helpers import update_momentum
 from lightly_train.types import Batch
+
+
+class DINOv31AdamW8bitArgs(DINOv2AdamWViTArgs, AdamW8bitArgs):
+    """8-bit AdamW args for DINOv31 (bitsandbytes).
+
+    Keeps the DINOv2 ViT layerwise-decay defaults (lr/wd/eps/betas) via
+    :class:`DINOv2AdamWViTArgs` and the 8-bit optimizer construction via
+    :class:`AdamW8bitArgs`. ``DINOv2`` itself is unchanged.
+    """
 
 
 class DINOv31Args(DINOv2Args):
@@ -129,6 +146,17 @@ class DINOv31(DINOv2):
     @staticmethod
     def method_args_cls() -> type[DINOv31Args]:
         return DINOv31Args
+
+    @staticmethod
+    def optimizer_args_cls(
+        optim_type: OptimizerType | Literal["auto"],
+    ) -> type[OptimizerArgs]:
+        # Adds the optional 8-bit AdamW optimizer on top of DINOv2's mapping.
+        # Everything else (auto / ADAMW / SGD / LARS) delegates to DINOv2
+        # unchanged, so DINOv2 stays byte-identical.
+        if optim_type == OptimizerType.ADAMW8BIT:
+            return DINOv31AdamW8bitArgs
+        return DINOv2.optimizer_args_cls(optim_type=optim_type)
 
     @staticmethod
     def transform_cls() -> type[DINOv31Transform]:
