@@ -4,10 +4,9 @@
 
 DINOv31 post-trains ("continues") a DINOv2-pretrained backbone with the full DINOv2
 objective (DINO + iBOT + KoLeo) plus an auxiliary Patch Kernel Alignment (PaKA / CKA)
-loss that aligns the relational structure of student and teacher dense patch tokens. It
-is a thin subclass of {ref}`methods-dinov2` and is aimed at improving dense
-(patch-level) features for downstream segmentation and detection. See the
-[PaKA paper](https://arxiv.org/abs/2509.05606) for details.
+loss that aligns the relational structure of student and teacher dense patch tokens,
+aimed at improving dense (patch-level) features for downstream segmentation and
+detection. See the [PaKA paper](https://arxiv.org/abs/2509.05606) for details.
 
 ```{seealso}
 DINOv31 is a DINOv2 post-training method: start from a DINOv2 checkpoint
@@ -24,9 +23,8 @@ if __name__ == "__main__":
     lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
-        model="dinov2/vits14",
+        model="dinov2/vits14",  # pretrained DINOv2 ViT-S init (Meta weights)
         method="dinov31",
-        checkpoint="dinov2_vits14.ckpt",  # DINOv2 init; paka_head keys tolerated
     )
 ```
 ````
@@ -37,8 +35,7 @@ lightly-train pretrain \
     out=out/my_experiment \
     data=my_data_dir \
     model="dinov2/vits14" \
-    method="dinov31" \
-    checkpoint="dinov2_vits14.ckpt"
+    method="dinov31"
 ```
 ````
 

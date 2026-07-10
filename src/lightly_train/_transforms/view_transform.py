@@ -56,9 +56,6 @@ class ViewTransformArgs(PydanticConfig):
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
     normalize: NormalizeArgs
-    # Record per-view crop/flip geometry and attach it to the output view as a
-    # "geometry" tensor, used by dense-relational losses (e.g. dinov31).
-    record_geometry: bool = False
 
 
 def _get_RandomResizedCrop(args: RandomResizedCropArgs) -> RandomResizedCrop:
@@ -137,8 +134,13 @@ class ViewTransform:
     def __init__(
         self,
         args: ViewTransformArgs,
+        record_geometry: bool = False,
     ):
-        self._record_geometry = args.record_geometry
+        # ``record_geometry`` is passed in by the method's transform (e.g. the
+        # dinov31 PaKA cross-view loss needs the crop box / flips) rather than
+        # living on the generic ``ViewTransformArgs``, so each method keeps its
+        # whole configuration in one place.
+        self._record_geometry = record_geometry
         if self._record_geometry:
             if not ALBUMENTATIONS_VERSION_2XX:
                 raise ValueError("record_geometry=True requires albumentations>=2.0.0.")

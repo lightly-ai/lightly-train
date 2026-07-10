@@ -30,8 +30,7 @@ Example::
     # Post-train a DINOv2 ViT-S backbone with PaKA on COCO.
     lightly_train.pretrain(
         method="dinov31",
-        model="dinov2/vits14",
-        checkpoint="dinov2_vits14.ckpt",  # DINOv2 init; paka_head keys tolerated
+        model="dinov2/vits14",  # pretrained DINOv2 ViT-S init (Meta weights)
         method_args={
             "transform_args": {"image_size": [518, 518]},
             "paka_weight": 1.0,

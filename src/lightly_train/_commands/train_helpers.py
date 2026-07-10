@@ -421,57 +421,6 @@ def load_checkpoint(
         )
 
 
-def _interpolate_pos_embed(
-    state_dict: dict[str, torch.Tensor],
-    target_state_dict: dict[str, torch.Tensor],
-) -> None:
-    """Bicubic-resize any ``*pos_embed`` whose patch grid differs from the
-    target, so a checkpoint trained at one image size restores into a model at
-    another (e.g. a 224px DINOv2 checkpoint into a 518px model). Only fires on
-    a genuine shape mismatch with a square patch grid; the leading non-patch
-    token (cls) is preserved. Mutates ``state_dict`` in place.
-
-    Note: assumes a single leading non-patch (cls) token. Models with register
-    tokens (``num_register_tokens > 0``) carry additional leading tokens that
-    this heuristic would mis-parse; the common DINOv2 init path (``vits14``,
-    no registers) is handled correctly.
-    """
-    for key, value in state_dict.items():
-        if not key.endswith("pos_embed"):
-            continue
-        target = target_state_dict.get(key)
-        if target is None or value.shape == target.shape:
-            continue
-        # Expect [1, 1 + n_patches, dim] (cls token + a square patch grid).
-        if (
-            value.dim() != 3
-            or value.shape[0] != 1
-            or value.shape[-1] != target.shape[-1]
-        ):
-            continue
-        n_old = value.shape[1] - 1
-        n_new = target.shape[1] - 1
-        grid_old = int(round(math.sqrt(n_old)))
-        grid_new = int(round(math.sqrt(n_new)))
-        if grid_old * grid_old != n_old or grid_new * grid_new != n_new:
-            continue
-        dim = value.shape[-1]
-        cls_token = value[:, :1]
-        patches = value[:, 1:].reshape(1, grid_old, grid_old, dim).permute(0, 3, 1, 2)
-        patches = torch.nn.functional.interpolate(
-            patches,
-            size=(grid_new, grid_new),
-            mode="bicubic",
-            align_corners=False,
-        )
-        patches = patches.permute(0, 2, 3, 1).reshape(1, n_new, dim)
-        state_dict[key] = torch.cat([cls_token, patches], dim=1).to(value.dtype)
-        logger.info(
-            f"Interpolated '{key}' pos_embed {tuple(value.shape)} -> "
-            f"{tuple(target.shape)} for checkpoint load."
-        )
-
-
 def load_state_dict(
     wrapped_model: ModelWrapper,
     embedding_model: EmbeddingModel,
@@ -479,17 +428,11 @@ def load_state_dict(
     checkpoint: PathLike,
 ) -> None:
     ckpt = Checkpoint.from_path(Path(checkpoint))
-    wrapped_sd = ckpt.lightly_train.models.wrapped_model.state_dict()
-    _interpolate_pos_embed(wrapped_sd, wrapped_model.state_dict())
-    wrapped_model.load_state_dict(wrapped_sd)
+    wrapped_model.load_state_dict(ckpt.lightly_train.models.wrapped_model.state_dict())
     model = wrapped_model.get_model()
     if isinstance(model, Module):
-        model_sd = ckpt.lightly_train.models.model.state_dict()
-        _interpolate_pos_embed(model_sd, model.state_dict())
-        model.load_state_dict(model_sd)
-    embedding_sd = ckpt.lightly_train.models.embedding_model.state_dict()
-    _interpolate_pos_embed(embedding_sd, embedding_model.state_dict())
-    embedding_model.load_state_dict(embedding_sd)
-    method_sd = dict(ckpt.state_dict)
-    _interpolate_pos_embed(method_sd, method.state_dict())
-    method.load_state_dict(method_sd)
+        model.load_state_dict(ckpt.lightly_train.models.model.state_dict())
+    embedding_model.load_state_dict(
+        ckpt.lightly_train.models.embedding_model.state_dict()
+    )
+    method.load_state_dict(ckpt.state_dict)

@@ -147,8 +147,8 @@ class TestViewTransform:
                 gaussian_blur=_get_gaussian_blur_args(),
                 solarize=None,
                 normalize=_get_normalize_args(),
-                record_geometry=True,
-            )
+            ),
+            record_geometry=True,
         )
         image_w, image_h = 224, 224
         tr_input: TransformInput = {
@@ -182,8 +182,8 @@ class TestViewTransform:
                 gaussian_blur=None,
                 solarize=None,
                 normalize=_get_normalize_args(),
-                record_geometry=True,
-            )
+            ),
+            record_geometry=True,
         )
         tr_input: TransformInput = {
             "image": np.random.rand(128, 128, 3).astype(np.float32),
@@ -209,8 +209,8 @@ class TestViewTransform:
                     gaussian_blur=None,
                     solarize=None,
                     normalize=_get_normalize_args(),
-                    record_geometry=True,
-                )
+                ),
+                record_geometry=True,
             )
 
     @pytest.mark.parametrize(

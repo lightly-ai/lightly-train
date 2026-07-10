@@ -24,7 +24,9 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
+from lightly_train import _torch_helpers
 from lightly_train._export.onnx_helpers import is_in_precalculate_for_onnx_export
+from lightly_train._models import _model_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     MemEffAttention,
     Mlp,
@@ -214,6 +216,14 @@ class DinoVisionTransformer(nn.Module):
         self.head = nn.Identity()
 
         self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
+
+        # Resize a mismatched pos_embed (e.g. a 224px DINOv2 checkpoint into a
+        # 518px model) when weights are loaded, so cross-resolution init works
+        # without callers having to interpolate manually. DINOv2-ViT-specific,
+        # hence registered here rather than in the generic checkpoint loader.
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, _model_helpers.interpolate_pos_embed_hook
+        )
 
         self.init_weights()
 

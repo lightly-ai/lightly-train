@@ -567,39 +567,3 @@ def test_load_state_dict(tmp_path: Path) -> None:
     )
     assert next(model_2.get_model().parameters()) is next(method_2.parameters())
 
-
-class TestInterpolatePosEmbed:
-    def test__interpolate_pos_embed__bicubic_square_grid(self) -> None:
-        # 224px DINOv2 vits14 ckpt (1 cls + 16x16 grid) -> 518px model (37x37).
-        cls = torch.randn(1, 1, 384)
-        patches = torch.randn(1, 256, 384)
-        state_dict = {"_model.pos_embed": torch.cat([cls, patches], dim=1)}
-        target = {"_model.pos_embed": torch.zeros(1, 1370, 384)}
-        train_helpers._interpolate_pos_embed(state_dict, target)
-        interpolated = state_dict["_model.pos_embed"]
-        assert interpolated.shape == (1, 1370, 384)
-        # The cls token is preserved exactly.
-        assert_close(interpolated[:, :1], cls)
-
-    def test__interpolate_pos_embed__noop_matching_shape(self) -> None:
-        pos_embed = torch.randn(1, 1370, 384)
-        state_dict = {"_model.pos_embed": pos_embed}
-        target = {"_model.pos_embed": torch.zeros(1, 1370, 384)}
-        train_helpers._interpolate_pos_embed(state_dict, target)
-        # Unchanged when checkpoint and model grids already match.
-        assert state_dict["_model.pos_embed"] is pos_embed
-
-    def test__interpolate_pos_embed__skip_nonsquare_grid(self) -> None:
-        # 1 + 10 patches: 10 is not a perfect square -> left untouched.
-        pos_embed = torch.randn(1, 11, 384)
-        state_dict = {"_model.pos_embed": pos_embed}
-        target = {"_model.pos_embed": torch.zeros(1, 1370, 384)}
-        train_helpers._interpolate_pos_embed(state_dict, target)
-        assert state_dict["_model.pos_embed"] is pos_embed
-
-    def test__interpolate_pos_embed__ignores_non_pos_embed_keys(self) -> None:
-        weight = torch.randn(3, 384)
-        state_dict = {"blocks.0.attn.qkv.weight": weight}
-        target = {"blocks.0.attn.qkv.weight": torch.zeros(4, 384)}
-        train_helpers._interpolate_pos_embed(state_dict, target)
-        assert state_dict["blocks.0.attn.qkv.weight"] is weight

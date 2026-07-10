@@ -150,8 +150,8 @@ class DINOTransform(MethodTransform):
                 gaussian_blur=transform_args.gaussian_blur,
                 solarize=transform_args.solarize,
                 normalize=transform_args.normalize,
-                record_geometry=transform_args.record_geometry,
-            )
+            ),
+            record_geometry=transform_args.record_geometry,
         )
 
         global_transform_1 = ViewTransform(
@@ -168,8 +168,8 @@ class DINOTransform(MethodTransform):
                 gaussian_blur=transform_args.global_view_1.gaussian_blur,
                 solarize=transform_args.global_view_1.solarize,
                 normalize=transform_args.normalize,
-                record_geometry=transform_args.record_geometry,
-            )
+            ),
+            record_geometry=transform_args.record_geometry,
         )
 
         transforms = [global_transform_0, global_transform_1]
@@ -190,8 +190,8 @@ class DINOTransform(MethodTransform):
                     gaussian_blur=transform_args.local_view.gaussian_blur,
                     solarize=transform_args.solarize,
                     normalize=transform_args.normalize,
-                    record_geometry=transform_args.record_geometry,
-                )
+                ),
+                record_geometry=transform_args.record_geometry,
             )
             local_transforms = [local_transform] * transform_args.local_view.num_views
             transforms.extend(local_transforms)
