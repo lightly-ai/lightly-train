@@ -64,7 +64,6 @@ def test_is_supported_model__uses_registry() -> None:
     assert parsed == {
         "model_name": "dinov3/vits16-eomt",
         "backbone_name": "vits16",
-        "patch_size": "16",
     }
 
 

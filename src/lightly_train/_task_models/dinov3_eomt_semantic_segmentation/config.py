@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from pydantic import Field
+
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
 from lightly_train._configs.model_registry import (
     DownloadableCheckpoint,
@@ -15,9 +17,13 @@ from lightly_train._configs.model_registry import (
 )
 
 
+class BackboneArgs(PydanticConfig):
+    patch_size: int = 16
+
+
 class EoMTSemanticSegmentationConfig(PydanticConfig):
     backbone_name: str
-    patch_size: int
+    backbone_args: BackboneArgs = Field(default_factory=BackboneArgs)
 
 
 DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY: ModelRegistry[
@@ -104,7 +110,6 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register("dinov3/_vittest16-eomt")
     class ViTTest(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/_vittest16"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -118,7 +123,6 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTTiny16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -132,35 +136,30 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTTinyPlus16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16plus"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitt16-notpretrained-eomt"
     )
     class ViTTinyNotPretrained16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16-notpretrained"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-notpretrained-eomt"
     )
     class ViTTinyPlusNotPretrained16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16plus-notpretrained"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitt16-distillationv1-eomt"
     )
     class ViTTinyDistillationV116(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16-distillationv1"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitt16plus-distillationv1-eomt"
     )
     class ViTTinyPlusDistillationV116(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16plus-distillationv1"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -188,12 +187,10 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTSmall16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vits16"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register("dinov3/vits16plus-eomt")
     class ViTSmallPlus16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vits16plus"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -221,7 +218,6 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTBase16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitb16"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -249,52 +245,44 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTLarge16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitl16"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register("dinov3/vith16plus-eomt")
     class ViTHugePlus16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vith16plus"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register("dinov3/vit7b16-eomt")
     class ViT7B16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vit7b16"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitl16-sat493m-eomt"
     )
     class ViTLargeSAT493M16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitl16-sat493m"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vit7b16-sat493m-eomt"
     )
     class ViT7BSAT493M16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vit7b16-sat493m"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitt16-eupe-eomt"
     )
     class ViTTinyEUPE16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16-eupe"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vits16-eupe-eomt"
     )
     class ViTSmallEUPE16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vits16-eupe"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         "dinov3/vitb16-eupe-eomt"
     )
     class ViTBaseEUPE16(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitb16-eupe"
-        patch_size: int = 16
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -308,7 +296,9 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTTiny32(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt32"
-        patch_size: int = 32
+        backbone_args: BackboneArgs = Field(
+            default_factory=lambda: BackboneArgs(patch_size=32)
+        )
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -322,7 +312,9 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTTinyPlus32(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt32plus"
-        patch_size: int = 32
+        backbone_args: BackboneArgs = Field(
+            default_factory=lambda: BackboneArgs(patch_size=32)
+        )
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -336,7 +328,9 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTSmall32(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vits32"
-        patch_size: int = 32
+        backbone_args: BackboneArgs = Field(
+            default_factory=lambda: BackboneArgs(patch_size=32)
+        )
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -350,7 +344,9 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTBase32(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitb32"
-        patch_size: int = 32
+        backbone_args: BackboneArgs = Field(
+            default_factory=lambda: BackboneArgs(patch_size=32)
+        )
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
@@ -364,4 +360,6 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTLarge32(EoMTSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitl32"
-        patch_size: int = 32
+        backbone_args: BackboneArgs = Field(
+            default_factory=lambda: BackboneArgs(patch_size=32)
+        )

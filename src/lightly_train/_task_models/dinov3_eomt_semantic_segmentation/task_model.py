@@ -34,6 +34,7 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
     DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+    EoMTSemanticSegmentationConfig,
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
@@ -112,6 +113,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         super().__init__(
             locals(), ignore_args={"backbone_weights", "backbone_url", "load_weights"}
         )
+        config = self._get_config(model_name=model_name)
         parsed_name = self._resolve_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
@@ -148,11 +150,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {}
+        # The registry config is the single, typed source of truth for the backbone
+        # args (e.g. patch size). Caller-provided backbone_args override the defaults.
+        backbone_model_args: dict[str, Any] = config.backbone_args.model_dump()
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
-        # The registry config is the single source of truth for the patch size.
-        backbone_model_args.setdefault("patch_size", int(parsed_name["patch_size"]))
         if backbone_url is not None:
             # For backwards compatibility. We prioritize backbone_weights over
             # backbone_url as the former is the new standard.
@@ -234,9 +236,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         return model in DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases()
 
     @classmethod
-    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
+    def _get_config(cls, model_name: str) -> EoMTSemanticSegmentationConfig:
         try:
-            config = DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get(
+            return DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get(
                 alias=model_name
             )()
         except KeyError:
@@ -246,6 +248,10 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
             ) from None
 
+    @classmethod
+    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
+        config = cls._get_config(model_name=model_name)
+
         package_name, backbone_name = package_helpers.parse_model_name(
             config.backbone_name
         )
@@ -253,8 +259,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         return {
             "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
-            # The registry config is the single source of truth for the patch size.
-            "patch_size": str(config.patch_size),
         }
 
     @classmethod
