@@ -448,10 +448,9 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     model.eval()
     model.deploy()
     with torch.no_grad():
-        labels, boxes, scores = model(torch.randn(1, 3, 224, 224))
-    assert labels.shape == (1, 300)
+        logits, boxes = model(torch.randn(1, 3, 224, 224))
+    assert logits.shape == (1, 300, 2)  # num_classes = 2
     assert boxes.shape == (1, 300, 4)
-    assert scores.shape == (1, 300)
 
 
 @pytest.mark.parametrize(

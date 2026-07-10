@@ -327,39 +327,21 @@ class LTDETRObjectDetection(TaskModel):
         }
 
     def get_export_output_names(self) -> list[str]:
-        return ["labels", "boxes", "scores"]
+        return ["logits", "boxes"]
 
     def forward_backend(self, x: Tensor) -> Any:
         x = self.backbone(x)
         x = self.encoder(x)
         return self.decoder(x)
 
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None = None
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Function used for ONNX export
-        if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
-        else:
-            # Flip from (H, W) to (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-
-            # Move to device.
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        # Forward the image through the model.
-        x = self.forward_backend(x)
-
-        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
-            self.postprocessor(x, orig_target_size_)
-        )
-        # Postprocessor must be in deploy mode at this point. It returns only tuples
-        # during deploy mode.
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]
-        return (labels, boxes, scores)
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        # Function used for ONNX export. Returns the raw decoder outputs:
+        #   logits: (B, num_queries, num_classes)
+        #   boxes:  (B, num_queries, 4) in normalized cxcywh format
+        # Top-k selection, thresholding, NMS and rescaling to original image
+        # coordinates are left to the caller (see `postprocess`/`predict*`).
+        out = self.forward_backend(x)
+        return out["pred_logits"], out["pred_boxes"]
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
@@ -619,8 +601,11 @@ class LTDETRObjectDetection(TaskModel):
         orig_target_sizes[0, 0] = h
         orig_target_sizes[0, 1] = w
 
-        # Feed the tiles in parallel to the model.
-        labels, boxes, scores = self(tiles, orig_target_size=orig_target_sizes)
+        # Feed the tiles in parallel to the model, then postprocess to get
+        # top-k predictions with boxes rescaled to each tile's pixel coordinates.
+        raw = self.forward_backend(tiles)
+        labels, boxes, scores = self.postprocessor(raw, orig_target_sizes)
+        labels = self.internal_class_to_class[labels]
 
         # Add coordinates of the tiles to the boxes.
         tiles_coordinates = (
@@ -682,6 +667,13 @@ class LTDETRObjectDetection(TaskModel):
         inferred from the first model parameter and (H, W) come from
         `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
         have a dynamic batch dimension for the input. The graph output names are provided by the concrete task model.
+
+        The exported graph is self-contained and takes only the (already resized)
+        image tensor as input. It returns the raw decoder outputs: class ``logits``
+        of shape (B, num_queries, num_classes) and ``boxes`` of shape
+        (B, num_queries, 4) in normalized ``cxcywh`` format. Top-k selection,
+        thresholding, NMS and rescaling to original image coordinates are left to
+        the caller.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -779,9 +771,6 @@ class LTDETRObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = self.get_export_output_names()
 
-        # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
-        # expose orig_target_size as a second ONNX input to rescale boxes to original
-        # image coordinates inside the graph.
         torch.onnx.export(
             self,
             (dummy_input,),
