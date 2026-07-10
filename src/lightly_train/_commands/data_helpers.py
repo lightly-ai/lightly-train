@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Any, Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
 
 import fsspec
 import yaml
 from pydantic import AliasChoices, AliasPath
+from typing_extensions import Annotated
 
 
 def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
