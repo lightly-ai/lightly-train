@@ -56,8 +56,8 @@ class MultiChannelClassInfo(PydanticConfig):
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
-RawClassInfo = Union[ClassInfo, str, dict[str, object]]
-RawClasses = Union[dict[int | str, RawClassInfo], PathLike]
+RawClassInfo = Union[ClassInfo, str, Dict[str, object]]
+RawClasses = Union[Dict[Union[int, str], RawClassInfo], PathLike]
 
 
 class MaskSemanticSegmentationDataset(TaskDataset):
