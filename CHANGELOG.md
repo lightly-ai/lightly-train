@@ -9,6 +9,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.2] - 2026-07-10
+
+### Added
+
 - Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
   gradients during training, save a self-contained capture (model state dict +
   TrainModel class/init kwargs + the step's microbatches + RNG state) to
@@ -18,21 +32,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `debug_args.nancapture.enabled=True`.
 - Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
   `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
+- Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
+  `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
 
 ### Changed
 
 - Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
   single config-driven `DepthAnythingDepthEstimation` model.
+- Depth estimation `predict`/`predict_batch` now default to `square_resize` (previously
+  aspect-preserving upper/lower-bound per model), changing default depth outputs. Pass
+  `process_res_method="upper_bound_resize"`/`"lower_bound_resize"` to restore the
+  previous geometry.
 
 ### Deprecated
 
-- Removes the `DINOv3LTDETRObjectDetection` class in favor of the new
-  `LTDETRObjectDetection` class. For the user, this changes nothing, since they don't
-  use the class directly, but only its methods, which will remain available.
-
 ### Removed
 
+- Removes the `DINOv3LTDETRObjectDetection` and `DINOv2LTDETRObjectDetection` classes in
+  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing,
+  since they don't use the class directly, but only its methods, which will remain
+  available.
+
 ### Fixed
+
+- Fixed an issue with legacy LT-DETR checkpoints that used a [0,1] normalization instead
+  of the now-default ImageNet normalization.
 
 ### Security
 

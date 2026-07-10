@@ -635,6 +635,17 @@ You can also learn more about exporting EoMT to TensorRT using our Colab noteboo
 The following are the default image transform arguments. See
 [](train-settings-transforms) on how to customize transform settings.
 
+`````{dropdown} LTDETR Instance Segmentation Default Transform Arguments
+````{dropdown} Train
+```{include} _auto/ltdetrinstancesegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} _auto/ltdetrinstancesegmentationtrain_val_transform_args.md
+```
+````
+`````
+
 `````{dropdown} EoMT Instance Segmentation DINOv3 Default Transform Arguments
 ````{dropdown} Train
 ```{include} _auto/dinov3eomtinstancesegmentationtrain_train_transform_args.md

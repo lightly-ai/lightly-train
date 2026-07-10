@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Literal
 
 import torch
 from lightning_fabric import Fabric
-from pydantic import AliasChoices, Field, computed_field
+from pydantic import AliasChoices, Field
 from torch import Tensor
 from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim import AdamW, Optimizer  # type: ignore[attr-defined]
@@ -24,33 +24,33 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
 )
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.task_data_args import TaskDataArgs
-from lightly_train._data.yolo_object_detection_dataset import (
-    YOLOObjectDetectionDataArgs,
+from lightly_train._data.instance_segmentation_dataset import (
+    COCOInstanceSegmentationDataArgs,
+    YOLOInstanceSegmentationDataArgs,
 )
 from lightly_train._distributed import reduce_dict
-from lightly_train._metrics.detection.task_metric import (
-    ObjectDetectionTaskMetric,
-    ObjectDetectionTaskMetricArgs,
+from lightly_train._metrics.instance_segmentation.task_metric import (
+    InstanceSegmentationTaskMetric,
+    InstanceSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.dinov2_ltdetr_object_detection.dinov2_vit_wrapper import (
-    DINOv2STAs,
+from lightly_train._task_models.instance_segmentation_components.edgecrafter_criterion import (
+    EdgeCrafterInstanceSegmentationCriterion,
 )
-from lightly_train._task_models.dinov2_ltdetr_object_detection.task_model import (
-    DINOv2LTDETRObjectDetection,
+from lightly_train._task_models.instance_segmentation_components.matcher import (
+    MaskAwareHungarianMatcher,
 )
-from lightly_train._task_models.dinov2_ltdetr_object_detection.transforms import (
-    DINOv2LTDETRObjectDetectionTrainTransform,
-    DINOv2LTDETRObjectDetectionTrainTransformArgs,
-    DINOv2LTDETRObjectDetectionValTransform,
-    DINOv2LTDETRObjectDetectionValTransformArgs,
+from lightly_train._task_models.ltdetr_instance_segmentation.task_model import (
+    LTDETRInstanceSegmentation,
 )
-from lightly_train._task_models.object_detection_components.dfine_criterion import (
-    DFINECriterion,
+from lightly_train._task_models.ltdetr_instance_segmentation.transforms import (
+    LTDETRInstanceSegmentationTrainTransform,
+    LTDETRInstanceSegmentationTrainTransformArgs,
+    LTDETRInstanceSegmentationValTransform,
+    LTDETRInstanceSegmentationValTransformArgs,
 )
-from lightly_train._task_models.object_detection_components.dfine_decoder import (
-    DFINETransformer,
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
+    ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.object_detection_components.flat_cosine import (
@@ -58,16 +58,6 @@ from lightly_train._task_models.object_detection_components.flat_cosine import (
 )
 from lightly_train._task_models.object_detection_components.ltdetr_schedule import (
     resolve_ltdetr_step_schedule,
-)
-from lightly_train._task_models.object_detection_components.matcher import (
-    HungarianMatcher,
-)
-from lightly_train._task_models.object_detection_components.rtdetrv2_criterion import (
-    RTDETRCriterionv2,
-)
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.train_model import (
@@ -77,82 +67,115 @@ from lightly_train._task_models.train_model import (
 )
 from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._torch_helpers import total_gradient_norm
-from lightly_train._visualize import object_detection
-from lightly_train.types import ObjectDetectionBatch, PathLike
+from lightly_train._visualize import instance_segmentation
+from lightly_train.types import InstanceSegmentationBatch, PathLike
 
-_RTDETRV2_LOSS_WEIGHT_DICT: dict[str, float] = {
+logger = logging.getLogger(__name__)
+
+_LTDETR_SEG_LOSS_WEIGHT_DICT: dict[str, float] = {
     "loss_vfl": 1.0,
     "loss_bbox": 5.0,
     "loss_giou": 2.0,
+    "loss_mask": 5.0,
+    "loss_dice": 5.0,
+    "loss_fgl": 0.15,
+    "loss_ddf": 1.5,
 }
-_RTDETRV2_LOSSES: list[str] = ["vfl", "boxes"]
-_RTDETRV2_LOSS_NAMES: list[str] = ["loss", *_RTDETRV2_LOSS_WEIGHT_DICT]
+_LTDETR_SEG_LOSSES: list[str] = ["vfl", "boxes", "masks", "local"]
 
-_DFINE_EXTRA_LOSS_WEIGHT_DICT: dict[str, float] = {"loss_fgl": 0.15, "loss_ddf": 1.5}
-_DFINE_EXTRA_LOSSES: list[str] = ["local"]
-_DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT_DICT]
-logger = logging.getLogger(__name__)
+# Loss names logged during validation (no FGL/DDF, matching detection's val logging).
+_LTDETR_SEG_VAL_LOSS_NAMES: list[str] = [
+    "loss",
+    "loss_vfl",
+    "loss_bbox",
+    "loss_giou",
+    "loss_mask",
+    "loss_dice",
+]
+_LTDETR_SEG_TRAIN_LOSS_NAMES: list[str] = ["loss", *_LTDETR_SEG_LOSS_WEIGHT_DICT]
 
 
-class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
-    default_batch_size: ClassVar[int] = 16
+class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
+    """Training args for LTDETR (EdgeCrafter/ECViT) instance segmentation.
+
+    Standalone: mirrors the LTDETR object-detection recipe but does not inherit from
+    it. ECSeg is D-FINE based, so the effective losses always include the D-FINE FGL/DDF
+    losses on top of the vfl / box / mask / dice losses.
+    """
+
+    default_batch_size: ClassVar[int] = 32
     default_steps: ClassVar[int] = (
-        100_000 // 16 * 72
-    )  # TODO (Lionel, 10/25): Adjust default steps.
+        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
+    )
 
+    # ECViT (EdgeCrafter) backbones all use a fixed patch size of 16.
+    patch_size: int | Literal["auto"] | None = "auto"
+
+    # Backbone configuration. The task model rejects non-None backbone_args /
+    # backbone_weights for ECViT instance segmentation, so these stay at their defaults.
     backbone_weights: PathLike | None = None
     backbone_url: str = ""
     backbone_args: dict[str, Any] = {}
     backbone_freeze: bool = False
-    decoder_name: Literal["rtdetrv2", "dfine"] = "rtdetrv2"
 
+    # EMA configuration.
     use_ema_model: bool = True
     ema_momentum: float = 0.9999
     ema_warmup_steps: int = 2000
 
-    # TODO(Thomas, 10/25): use separate dataclass for optimizer, matcher, etc.
-    # Matcher configuration
+    # Matcher: detection costs + mask/dice costs.
     matcher_weight_dict: dict[str, float] = Field(
-        default_factory=lambda: {"cost_class": 2.0, "cost_bbox": 5.0, "cost_giou": 2.0}
+        default_factory=lambda: {
+            "cost_class": 2.0,
+            "cost_bbox": 5.0,
+            "cost_giou": 2.0,
+            "cost_mask": 2.0,
+            "cost_dice": 2.0,
+        }
     )
-    matcher_use_focal_loss: bool = True
     matcher_alpha: float = 0.25
     matcher_gamma: float = 2.0
 
-    # Criterion configuration
+    # Criterion: detection losses + mask/dice losses.
     loss_weight_dict: dict[str, float] = Field(
-        default_factory=lambda: dict(_RTDETRV2_LOSS_WEIGHT_DICT)
+        default_factory=lambda: dict(_LTDETR_SEG_LOSS_WEIGHT_DICT)
     )
-    losses: list[str] = Field(default_factory=lambda: list(_RTDETRV2_LOSSES))
+    losses: list[str] = Field(default_factory=lambda: list(_LTDETR_SEG_LOSSES))
     loss_alpha: float = 0.75
     loss_gamma: float = 2.0
 
-    # Miscellaneous
+    # Point sampling for mask matching/loss.
+    # ECSeg derives the point budget from the mask resolution with ratio 16.
+    mask_point_sample_ratio: int | None = 16
+    # Fallback point budget when mask_point_sample_ratio is disabled.
+    mask_num_points: int = 12544
+    mask_oversample_ratio: float = 3.0
+    mask_importance_sample_ratio: float = 0.75
+
+    # Miscellaneous.
     gradient_clip_val: float = 0.1
 
-    # Optimizer configuration
+    # Optimizer configuration.
     lr: float = Field(
-        default=1e-4,
+        default=5e-4,
         validation_alias=AliasChoices("lr", "optimizer_lr"),
     )
+    backbone_lr_factor: float = 0.05
     weight_decay: float = Field(
         default=1e-4,
         validation_alias=AliasChoices("weight_decay", "optimizer_weight_decay"),
     )
     optimizer_betas: tuple[float, float] = (0.9, 0.999)
 
-    # Per-parameter-group overrides
-    backbone_lr_factor: float = 1e-2
-
-    # Scheduler configuration
-    scheduler_name: Literal["linear", "flat-cosine"] = "linear"
+    # Scheduler configuration.
+    scheduler_name: Literal["linear", "flat-cosine"] = "flat-cosine"
     scheduler_start_factor: float = 0.01
-    lr_warmup_steps: int = Field(
-        default=2000,
-        validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
-    )
     scheduler_flat_steps: int | Literal["auto"] = "auto"
     scheduler_no_aug_steps: int | Literal["auto"] = "auto"
+    lr_warmup_steps: int | Literal["auto"] = Field(
+        default="auto",
+        validation_alias=AliasChoices("lr_warmup_steps", "scheduler_warmup_steps"),
+    )
 
     def resolve_auto(
         self,
@@ -161,14 +184,25 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
         train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
-        data_args: TaskDataArgs,
+        data_args: Any,
     ) -> None:
-        if self.scheduler_flat_steps == "auto" or self.scheduler_no_aug_steps == "auto":
+        if self.patch_size == "auto":
+            patch_size = model_init_args.get("patch_size", None)
+            # EdgeCrafter (ECViT) backbones all use a fixed patch size of 16.
+            self.patch_size = int(patch_size) if patch_size is not None else 16
+
+        if (
+            self.lr_warmup_steps == "auto"
+            or self.scheduler_flat_steps == "auto"
+            or self.scheduler_no_aug_steps == "auto"
+        ):
             scheduler_step_schedule = resolve_ltdetr_step_schedule(
                 total_steps=total_steps,
                 train_num_batches=train_num_batches,
                 gradient_accumulation_steps=gradient_accumulation_steps,
             )
+            if self.lr_warmup_steps == "auto":
+                self.lr_warmup_steps = scheduler_step_schedule.step_start
             if self.scheduler_flat_steps == "auto":
                 self.scheduler_flat_steps = scheduler_step_schedule.step_flat
             if self.scheduler_no_aug_steps == "auto":
@@ -176,43 +210,26 @@ class DINOv2LTDETRObjectDetectionTrainArgs(TrainModelArgs):
                     total_steps - scheduler_step_schedule.step_stop
                 )
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def effective_loss_weight_dict(self) -> dict[str, float]:
-        if self.decoder_name == "dfine":
-            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
-        return dict(self.loss_weight_dict)
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def effective_losses(self) -> list[str]:
-        if self.decoder_name == "dfine":
-            return [
-                *self.losses,
-                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
-            ]
-        return list(self.losses)
-
-
-class DINOv2LTDETRObjectDetectionTrain(TrainModel):
-    task = "object_detection"
-    train_model_args_cls = DINOv2LTDETRObjectDetectionTrainArgs
-    task_metric_args_cls = ObjectDetectionTaskMetricArgs
-    task_model_cls = DINOv2LTDETRObjectDetection
-    train_transform_cls = DINOv2LTDETRObjectDetectionTrainTransform
-    val_transform_cls = DINOv2LTDETRObjectDetectionValTransform
+class LTDETRInstanceSegmentationTrain(TrainModel):
+    task = "instance_segmentation"
+    train_model_args_cls = LTDETRInstanceSegmentationTrainArgs
+    task_metric_args_cls = InstanceSegmentationTaskMetricArgs
+    task_model_cls = LTDETRInstanceSegmentation
+    train_transform_cls = LTDETRInstanceSegmentationTrainTransform
+    val_transform_cls = LTDETRInstanceSegmentationValTransform
     torch_compile_args_cls = TorchCompileArgs
 
     def __init__(
         self,
         *,
         model_name: str,
-        model_args: DINOv2LTDETRObjectDetectionTrainArgs,
-        data_args: YOLOObjectDetectionDataArgs,
-        train_transform_args: DINOv2LTDETRObjectDetectionTrainTransformArgs,
-        val_transform_args: DINOv2LTDETRObjectDetectionValTransformArgs,
+        model_args: LTDETRInstanceSegmentationTrainArgs,
+        data_args: YOLOInstanceSegmentationDataArgs | COCOInstanceSegmentationDataArgs,
+        train_transform_args: LTDETRInstanceSegmentationTrainTransformArgs,
+        val_transform_args: LTDETRInstanceSegmentationValTransformArgs,
         load_weights: bool,
-        metric_args: ObjectDetectionTaskMetricArgs,
+        metric_args: InstanceSegmentationTaskMetricArgs,
         gradient_accumulation_steps: int,
     ) -> None:
         super().__init__()
@@ -222,7 +239,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
 
         # Get the normalization.
         normalize = no_auto(val_transform_args.normalize)
-        normalize_dict: dict[str, Any] | None
         self._normalize = normalize
 
         if normalize is None:
@@ -230,15 +246,18 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         else:
             normalize_dict = normalize.model_dump()
 
-        self.model = DINOv2LTDETRObjectDetection(
+        backbone_args: dict[str, Any] | None = model_args.backbone_args
+        if not backbone_args:
+            backbone_args = None
+        self.model: LTDETRInstanceSegmentation = LTDETRInstanceSegmentation(
             model_name=model_name,
             image_size=no_auto(val_transform_args.image_size),
             classes=data_args.included_classes,
             image_normalize=normalize_dict,
             backbone_freeze=model_args.backbone_freeze,
+            backbone_args=backbone_args,
+            patch_size=no_auto(model_args.patch_size),
             backbone_weights=model_args.backbone_weights,
-            backbone_args=model_args.backbone_args,  # TODO (Lionel, 10/25): Potentially remove in accordance with EoMT.
-            decoder_name=model_args.decoder_name,
             load_weights=load_weights,
         )
 
@@ -251,62 +270,52 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 warmups=model_args.ema_warmup_steps,
             )
 
-        matcher = HungarianMatcher(  # type: ignore[no-untyped-call]
+        matcher = MaskAwareHungarianMatcher(
             weight_dict=model_args.matcher_weight_dict,
-            use_focal_loss=model_args.matcher_use_focal_loss,
             alpha=model_args.matcher_alpha,
             gamma=model_args.matcher_gamma,
+            num_points=model_args.mask_num_points,
+            mask_point_sample_ratio=model_args.mask_point_sample_ratio,
         )
-
-        criterion: DFINECriterion | RTDETRCriterionv2
-        if model_args.decoder_name == "dfine":
-            self.train_loss_names = _DFINE_LOSS_NAMES
-            self.val_loss_names = _RTDETRV2_LOSS_NAMES
-            if not isinstance(self.model.decoder, DFINETransformer):
-                raise TypeError("decoder='dfine' requires a DFINETransformer decoder.")
-            criterion = DFINECriterion(  # type: ignore[no-untyped-call]
-                matcher=matcher,
-                weight_dict=model_args.effective_loss_weight_dict,
-                losses=model_args.effective_losses,
-                alpha=model_args.loss_alpha,
-                gamma=model_args.loss_gamma,
-                num_classes=len(data_args.included_classes),
-                reg_max=self.model.decoder.reg_max,
-            )
-        else:
-            self.train_loss_names = _RTDETRV2_LOSS_NAMES
-            self.val_loss_names = _RTDETRV2_LOSS_NAMES
-            criterion = RTDETRCriterionv2(  # type: ignore[no-untyped-call]
-                matcher=matcher,
-                weight_dict=model_args.effective_loss_weight_dict,
-                losses=model_args.effective_losses,
-                alpha=model_args.loss_alpha,
-                gamma=model_args.loss_gamma,
-                num_classes=len(data_args.included_classes),
-            )
-        self.criterion = criterion
+        self.train_loss_names = _LTDETR_SEG_TRAIN_LOSS_NAMES
+        self.val_loss_names = _LTDETR_SEG_VAL_LOSS_NAMES
+        # EdgeCrafterInstanceSegmentationCriterion subclasses DFINECriterion, so it needs
+        # reg_max for the FGL/DDF losses (the ECSeg decoder subclasses DFINETransformer).
+        self.criterion = EdgeCrafterInstanceSegmentationCriterion(  # type: ignore[no-untyped-call]
+            matcher=matcher,
+            weight_dict=model_args.loss_weight_dict,
+            losses=model_args.losses,
+            alpha=model_args.loss_alpha,
+            gamma=model_args.loss_gamma,
+            num_classes=len(data_args.included_classes),
+            reg_max=self.model.decoder.reg_max,
+            num_points=model_args.mask_num_points,
+            oversample_ratio=model_args.mask_oversample_ratio,
+            importance_sample_ratio=model_args.mask_importance_sample_ratio,
+        )
 
         class_names = list(data_args.included_classes.values())
         self.metric_args = metric_args
-        self.train_metrics = ObjectDetectionTaskMetric(
+        self.train_metrics = InstanceSegmentationTaskMetric(
             task_metric_args=metric_args,
             split="train",
             class_names=class_names,
-            box_format="xyxy",
             loss_names=self.train_loss_names,
             train_loss_running_mean_window=gradient_accumulation_steps,
         )
-        self.val_metrics = ObjectDetectionTaskMetric(
+        self.val_metrics = InstanceSegmentationTaskMetric(
             task_metric_args=metric_args,
             split="val",
             class_names=class_names,
-            box_format="xyxy",
             loss_names=self.val_loss_names,
         )
 
-        # TODO(Nauryz, 04/2026): These visualization thresholds are currently hardcoded, but we may want to make them configurable in the future (with logger_args).
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
         self.viz_score_threshold = 0.1
         self.viz_max_images = 4
+        self.viz_alpha = 0.5
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
@@ -348,24 +357,30 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
 
     def set_train_mode(self) -> None:
         super().set_train_mode()
-        self.criterion.train()  # TODO (Lionel, 10/25): Check if this is necessary.
+        self.criterion.train()
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
     def training_step(
-        self, fabric: Fabric, batch: ObjectDetectionBatch, step: int
+        self, fabric: Fabric, batch: InstanceSegmentationBatch, step: int
     ) -> TaskStepResult:
-        samples, boxes, classes = batch["image"], batch["bboxes"], batch["classes"]
-        targets: list[dict[str, Tensor]] = [
-            {"boxes": boxes, "labels": classes}
-            for boxes, classes in zip(boxes, classes)
-        ]
-        outputs = self.model._forward_train(
-            x=samples,
-            targets=targets,
+        samples, boxes, classes, binary_masks = (
+            batch["image"],
+            batch["bboxes"],
+            batch["classes"],
+            batch["binary_masks"],
         )
-        # Additional kwargs are anyway ignore in RTDETRCriterionv2.
-        # The loss expects gt boxes in cxcywh format normalized in [0,1].
+        assert isinstance(samples, Tensor), (
+            "Images must be a single tensor for training"
+        )
+        # Targets carry masks for the mask-aware matcher + criterion. Boxes are already
+        # normalized cxcywh (yolo format), as expected by the criterion.
+        targets = [
+            {"boxes": boxes, "labels": classes, "masks": binary_masks["masks"]}
+            for boxes, classes, binary_masks in zip(boxes, classes, binary_masks)
+        ]
+        outputs = self.model._forward_train(x=samples, targets=targets)
+
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -379,7 +394,6 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # Metrics
         self.train_metrics.update_with_losses(
             loss_dict=_get_loss_log_dict(
                 total_loss=total_loss,
@@ -389,30 +403,25 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             weight=samples.shape[0],
         )
         if self.metric_args.train:
-            orig_target_sizes = batch["original_size"]
-            # Convert to xyxy format and de-normalize the boxes.
-            boxes = _yolo_to_xyxy(boxes)
-            boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
-            for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
-                target["boxes"] = sample_denormalized_boxes
-
-            orig_target_sizes_tensor = torch.tensor(
-                orig_target_sizes, device=samples.device
+            # The postprocessor resizes masks to the given (W, H) per image. We use the
+            # model-input resolution so predicted masks match the target masks carried
+            # in ``binary_masks``.
+            orig_target_sizes = _orig_target_sizes(samples)
+            results = self.model.postprocessor(
+                outputs, orig_target_sizes=orig_target_sizes
             )
-            results: list[dict[str, Tensor]] = self.model.postprocessor(
-                outputs, orig_target_sizes=orig_target_sizes_tensor
-            )
-            self.train_metrics.update_with_predictions(results, targets)
+            self.train_metrics.update_with_predictions(results, batch["binary_masks"])
 
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.train_metrics,
-            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+            visualization=instance_segmentation.InstanceSegmentationTaskStepVisualization(
                 batch=batch,
                 class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
                 score_threshold=self.viz_score_threshold,
             ),
         )
@@ -422,20 +431,20 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             self.ema_model.update(self.model)
 
     def validation_step(
-        self,
-        fabric: Fabric,
-        batch: ObjectDetectionBatch,
-        step: int,
+        self, fabric: Fabric, batch: InstanceSegmentationBatch, step: int
     ) -> TaskStepResult:
-        samples, boxes, classes, orig_target_sizes = (
+        images, boxes, classes, binary_masks = (
             batch["image"],
             batch["bboxes"],
             batch["classes"],
-            batch["original_size"],
+            batch["binary_masks"],
         )
+        # Val images are resized to a fixed size by the val transform; stack into a
+        # single batch tensor for the forward pass.
+        samples = images if isinstance(images, Tensor) else torch.stack(list(images))
         targets = [
-            {"boxes": boxes, "labels": classes}
-            for boxes, classes in zip(boxes, classes)
+            {"boxes": boxes, "labels": classes, "masks": binary_masks["masks"]}
+            for boxes, classes, binary_masks in zip(boxes, classes, binary_masks)
         ]
 
         if self.ema_model is not None:
@@ -444,7 +453,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             model_to_use = self.model
 
         with torch.no_grad():
-            outputs = model_to_use._forward_train(  # type: ignore
+            outputs = model_to_use._forward_train(  # type: ignore[operator]
                 x=samples,
                 targets=targets,
             )
@@ -464,20 +473,11 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # Convert to xyxy format and de-normalize the boxes.
-        boxes = _yolo_to_xyxy(boxes)
-        boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
-        for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
-            target["boxes"] = sample_denormalized_boxes
-
-        orig_target_sizes_tensor = torch.tensor(
-            orig_target_sizes, device=samples.device
-        )
-        results: list[dict[str, Tensor]] = self.model.postprocessor(
-            outputs, orig_target_sizes=orig_target_sizes_tensor
+        orig_target_sizes = _orig_target_sizes(images)
+        results: list[dict[str, Tensor]] = model_to_use.postprocessor(  # type: ignore[operator]
+            outputs, orig_target_sizes=orig_target_sizes
         )
 
-        # Metrics
         self.val_metrics.update_with_losses(
             loss_dict=_get_loss_log_dict(
                 total_loss=total_loss,
@@ -486,24 +486,27 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             ),
             weight=samples.shape[0],
         )
-        self.val_metrics.update_with_predictions(results, targets)
+        self.val_metrics.update_with_predictions(results, batch["binary_masks"])
 
         return TaskStepResult(
             loss=total_loss,
             log_dict={},
             metrics=self.val_metrics,
-            visualization=object_detection.ObjectDetectionTaskStepVisualization(
+            visualization=instance_segmentation.InstanceSegmentationTaskStepVisualization(
                 batch=batch,
-                results=results,
+                predictions=results,
                 class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
-                score_threshold=self.viz_score_threshold,
                 max_images=self.viz_max_images,
+                alpha=self.viz_alpha,
+                score_threshold=self.viz_score_threshold,
             ),
         )
 
     def get_optimizer(
-        self, total_steps: int, global_batch_size: int
+        self,
+        total_steps: int,
+        global_batch_size: int,
     ) -> tuple[Optimizer, LRScheduler]:
         _, params_no_wd_list = optimizer_helpers.get_weight_decay_parameters(
             modules=[self.model]
@@ -516,16 +519,16 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
         backbone_lr = lr * self.model_args.backbone_lr_factor
 
+        # ECViTModelWrapper has two parts:
+        #   - self.backbone  (VisionTransformer) - loaded with pretrained weights, so it
+        #     gets the low backbone_lr_factor.
+        #   - self.projector (nn.ModuleList of ConvNormLayer) - freshly initialized, so
+        #     it is merged into the detector group to train at the full LR.
         backbone = self.model.backbone
-        if isinstance(backbone, DINOv2STAs):
-            # Only the pretrained ViT gets the low backbone LR.
-            backbone_params = list(backbone.backbone_model.parameters())
-            # The connector modules (sta, convs, norms) are randomly initialized and
-            # are merged into the detector group to train at the full LR.
-            vit_params_ids = {id(p) for p in backbone_params}
-            connector_params = [
-                p for p in backbone.parameters() if id(p) not in vit_params_ids
-            ]
+        if isinstance(backbone, ECViTBackboneWrapper):
+            ecvit_wrapper = backbone._model_wrapper
+            backbone_params = list(ecvit_wrapper.backbone.parameters())
+            connector_params = list(ecvit_wrapper.projector.parameters())
         else:
             backbone_params = list(backbone.parameters())
             connector_params = []
@@ -581,23 +584,24 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
         )
         scheduler: LRScheduler
         if self.model_args.scheduler_name == "linear":
-            if self.model_args.lr_warmup_steps > total_steps:
+            warmup_steps = no_auto(self.model_args.lr_warmup_steps)
+            if warmup_steps > total_steps:
                 logger.warning(
                     f"{self.model_args.scheduler_name} scheduler has "
-                    f"lr_warmup_steps={self.model_args.lr_warmup_steps} "
+                    f"lr_warmup_steps={warmup_steps} "
                     f"and total_steps={total_steps}; the schedule will not complete "
                     "as intended."
                 )
             scheduler = LinearLR(
                 optimizer=optim,
-                total_iters=self.model_args.lr_warmup_steps,
+                total_iters=warmup_steps,
                 start_factor=self.model_args.scheduler_start_factor,
             )
         elif self.model_args.scheduler_name == "flat-cosine":
             scheduler = FlatCosineLRScheduler(
                 optimizer=optim,
                 total_steps=total_steps,
-                warmup_steps=self.model_args.lr_warmup_steps,
+                warmup_steps=no_auto(self.model_args.lr_warmup_steps),
                 flat_steps=no_auto(self.model_args.scheduler_flat_steps),
                 no_aug_steps=no_auto(self.model_args.scheduler_no_aug_steps),
             )
@@ -606,6 +610,7 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
                 f"Unknown scheduler: {self.model_args.scheduler_name!r}. "
                 "Expected 'linear' or 'flat-cosine'."
             )
+
         return optim, scheduler
 
     def get_task_model(self) -> TaskModel:
@@ -622,6 +627,23 @@ class DINOv2LTDETRObjectDetectionTrain(TrainModel):
             )
         # Clipping disabled: return the total norm for logging without mutating grads.
         return total_gradient_norm(self.parameters())
+
+
+def _orig_target_sizes(images: Tensor | list[Tensor]) -> Tensor:
+    """Returns per-image ``(W, H)`` sizes for the postprocessor.
+
+    The ECSeg postprocessor resizes predicted masks to these sizes; using the
+    model-input resolution keeps predicted masks aligned with the target masks
+    carried in the batch.
+    """
+    if isinstance(images, Tensor):
+        height, width = images.shape[-2:]
+        sizes = [[int(width), int(height)]] * images.shape[0]
+        device = images.device
+    else:
+        sizes = [[int(image.shape[-1]), int(image.shape[-2])] for image in images]
+        device = images[0].device
+    return torch.tensor(sizes, device=device)
 
 
 def _get_loss_log_dict(
