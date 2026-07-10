@@ -14,18 +14,12 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
-from lightly_train._data.mask_semantic_segmentation_dataset import (
-    MaskSemanticSegmentationDataArgs,
-)
 from lightly_train._export.onnx_helpers import (
     _TORCH_DYNAMO_AVAILABLE,
     _TORCH_DYNAMO_MIN_VERSION,
 )
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
-)
-from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
-    DINOv3EoMTSemanticSegmentationTrainArgs,
 )
 
 
@@ -40,21 +34,6 @@ def model() -> DINOv3EoMTSemanticSegmentation:
         num_queries=2,
         num_joint_blocks=1,
         load_weights=False,
-    )
-
-
-@pytest.fixture()
-def data_args(tmp_path: Path) -> MaskSemanticSegmentationDataArgs:
-    return MaskSemanticSegmentationDataArgs(
-        train={
-            "images": tmp_path / "train" / "images",
-            "masks": tmp_path / "train" / "masks",
-        },
-        val={
-            "images": tmp_path / "val" / "images",
-            "masks": tmp_path / "val" / "masks",
-        },
-        classes={0: {"name": "background", "labels": {0}}},
     )
 
 
@@ -85,47 +64,14 @@ def test_is_supported_model__uses_registry() -> None:
     assert parsed == {
         "model_name": "dinov3/vits16-eomt",
         "backbone_name": "vits16",
+        "patch_size": "16",
     }
 
 
-@pytest.mark.parametrize(
-    ("model_name", "expected_patch_size"),
-    [("dinov3/vits16-eomt-coco", 16), ("dinov3/vits32-eomt-coco", 32)],
-)
-def test_train_args_resolve_auto__uses_registry_patch_size(
-    model_name: str,
-    expected_patch_size: int,
-    data_args: MaskSemanticSegmentationDataArgs,
-) -> None:
-    model_args = DINOv3EoMTSemanticSegmentationTrainArgs()
-
-    model_args.resolve_auto(
-        total_steps=1000,
-        gradient_accumulation_steps=1,
-        train_num_batches=100,
-        model_name=model_name,
-        model_init_args={},
-        data_args=data_args,
-    )
-
-    assert model_args.patch_size == expected_patch_size
-
-
-def test_train_args_resolve_auto__model_init_args_patch_size_wins(
-    data_args: MaskSemanticSegmentationDataArgs,
-) -> None:
-    model_args = DINOv3EoMTSemanticSegmentationTrainArgs()
-
-    model_args.resolve_auto(
-        total_steps=1000,
-        gradient_accumulation_steps=1,
-        train_num_batches=100,
-        model_name="dinov3/vits16-eomt-coco",
-        model_init_args={"patch_size": 32},
-        data_args=data_args,
-    )
-
-    assert model_args.patch_size == 32
+def test_init__uses_registry_patch_size(model: DINOv3EoMTSemanticSegmentation) -> None:
+    # The patch size comes from the registry config, not from the train model.
+    assert model.patch_size == 16
+    assert model.backbone.patch_size == 16
 
 
 def test_predict_batch__composes_stages_in_order(

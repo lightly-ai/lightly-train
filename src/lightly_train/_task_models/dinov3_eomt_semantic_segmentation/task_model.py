@@ -151,6 +151,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         backbone_model_args: dict[str, Any] = {}
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
+        # The registry config is the single source of truth for the patch size.
+        backbone_model_args.setdefault("patch_size", int(parsed_name["patch_size"]))
         if backbone_url is not None:
             # For backwards compatibility. We prioritize backbone_weights over
             # backbone_url as the former is the new standard.
@@ -251,6 +253,8 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         return {
             "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
+            # The registry config is the single source of truth for the patch size.
+            "patch_size": str(config.patch_size),
         }
 
     @classmethod
