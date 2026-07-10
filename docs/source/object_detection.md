@@ -598,6 +598,7 @@ Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under t
 ```
 
 ```{dropdown} DINOv2 ViT backbones
+- `dinov2/vits14-noreg-ltdetr-coco` (pretrained on COCO)
 - `dinov2/vits14-ltdetr`
 - `dinov2/vitb14-ltdetr`
 - `dinov2/vitl14-ltdetr`
