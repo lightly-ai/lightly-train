@@ -25,9 +25,6 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
-from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
-    DINOv2LTDETRObjectDetectionTrain,
-)
 from lightly_train._task_models.ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrainArgsV2,
     LTDETRObjectDetectionTrain,
@@ -131,9 +128,8 @@ def test_get_train_model_args_and_transform_args__propagate_dinov2_patch_size_to
         gradient_accumulation_steps=1,
     )
 
-    # "dinov2/..." model names dispatch to DINOv2LTDETRObjectDetectionTrainTransformArgsV2
-    # (a verbatim copy of the old dinov2_ltdetr_object_detection transform args), not
-    # the generic LTDETRObjectDetectionTrainTransformArgs. This carries the original
+    # "dinov2/..." model names dispatch to DINOv2LTDETRObjectDetectionTrainTransformArgsV2,
+    # not the generic LTDETRObjectDetectionTrainTransformArgs. This carries the original
     # patch-14-tuned scale-jitter sizes directly rather than deriving them from the
     # generic patch-16-tuned list via rounding, which previously silently dropped the
     # 560 and 784 sizes.
@@ -166,6 +162,13 @@ def test_get_train_model_cls__dinov2_ltdetr_routes_to_generic_pipeline() -> None
         get_train_model_cls(model_name="dinov2/vits14-ltdetr", task="object_detection")
         is LTDETRObjectDetectionTrain
     )
+    assert (
+        get_train_model_cls(
+            model_name="dinov2/vits14-notpretrained-ltdetr",
+            task="object_detection",
+        )
+        is LTDETRObjectDetectionTrain
+    )
 
 
 def test_get_train_transform_cls__dinov2_ltdetr_routes_to_dinov2_transform() -> None:
@@ -196,17 +199,11 @@ def test_get_train_transform_cls__dinov3_ltdetr_routes_to_generic_transform() ->
 
 def test_get_train_model_cls__dinov2_ltdetr_dsp_is_unsupported() -> None:
     # The DSP variant has no equivalent config in the generic pipeline's
-    # LTDETR_MODEL_REGISTRY yet, and DINOv2LTDETRObjectDetectionTrain (standalone) was
-    # never wired up to accept the "-ltdetr-dsp" suffix either. This must keep raising
-    # after removing DINOv2LTDETRObjectDetectionTrain from the training dispatch list.
+    # LTDETR_MODEL_REGISTRY. This must keep raising.
     with pytest.raises(ValueError, match="Unsupported model name"):
         get_train_model_cls(
             model_name="dinov2/vits14-ltdetr-dsp", task="object_detection"
         )
-    # Sanity check the standalone class itself still exists and is constructible
-    # directly (e.g. for loading old checkpoints), it's just no longer reachable via
-    # get_train_model_cls.
-    assert DINOv2LTDETRObjectDetectionTrain.task == "object_detection"
 
 
 def test_get_best_metrics__no_previous_best() -> None:
