@@ -42,6 +42,8 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
         # Only keep keys that are in the union members. Necessary because
         # foreign keys in the YAML file would otherwise cause a validation error.
         value = {name: val for name, val in value.items() if name in data_attributes}
+        # Save the path to the YAML file in the config dict so that it can be used
+        # later for correct resolving of the relative paths.
         if "data_config_file" in data_attributes:
             value["data_config_file"] = data_config_file
     return value
