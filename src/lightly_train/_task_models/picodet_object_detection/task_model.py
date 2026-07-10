@@ -764,7 +764,7 @@ class PicoDetObjectDetection(TaskModel):
 
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
             reference_export_model = _PicoDetExportWrapper(reference_model)
-            reference_outputs = reference_export_model(
+            reference_outputs: tuple[Tensor, ...] = reference_export_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -786,7 +786,7 @@ class PicoDetObjectDetection(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     torch.testing.assert_close(
                         output_onnx,
                         output_model,
