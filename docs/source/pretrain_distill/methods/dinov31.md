@@ -23,8 +23,9 @@ if __name__ == "__main__":
     lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
-        model="dinov2/vits14",  # pretrained DINOv2 ViT-S init (Meta weights)
+        model="dinov2/vits14",
         method="dinov31",
+        checkpoint="dinov2_vits14.ckpt",  # full DINOv2 checkpoint (incl. optimizer); only model weights are loaded
     )
 ```
 ````
@@ -35,7 +36,8 @@ lightly-train pretrain \
     out=out/my_experiment \
     data=my_data_dir \
     model="dinov2/vits14" \
-    method="dinov31"
+    method="dinov31" \
+    checkpoint="dinov2_vits14.ckpt"
 ```
 ````
 
