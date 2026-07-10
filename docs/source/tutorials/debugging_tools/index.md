@@ -2,10 +2,10 @@
 
 # Debugging Training Instability
 
-This tutorial shows how to use LightlyTrain's debugging tools to find and fix
-numerical instability in fine-tuning. We build a small synthetic dataset, train
-a ResNet18 with one intentionally unstable layer, and use gradient norm logging
-and `DebugUnderflowOverflow` to locate the problem.
+This tutorial shows how to use LightlyTrain's debugging tools to find and fix numerical
+instability in fine-tuning. We build a small synthetic dataset, train a ResNet18 with
+one intentionally unstable layer, and use gradient norm logging and
+`DebugUnderflowOverflow` to locate the problem.
 
 ```{note}
 The debugging tools (`debug_args`) are only available in the fine-tuning
@@ -21,8 +21,8 @@ pip install lightly-train torch torchvision matplotlib
 
 ## Generate a Synthetic Dataset
 
-We use a small synthetic dataset so the tutorial is fully reproducible offline
-— no downloads required.
+We use a small synthetic dataset so the tutorial is fully reproducible offline — no
+downloads required.
 
 ```python
 # setup_data.py
@@ -126,10 +126,10 @@ def patched_resnet18(scale: float = 1.0):
 # broken_finetuning.py
 from pathlib import Path
 
-import lightly_train
-
 from broken_model import patched_resnet18
 from setup_data import CLASS_NAMES
+
+import lightly_train
 
 DATA = {
     "train": Path("datasets/debugging_tutorial/train"),
@@ -163,8 +163,8 @@ if __name__ == "__main__":
 python broken_finetuning.py
 ```
 
-`DebugUnderflowOverflow` registers forward hooks on every module and aborts at
-the first `inf`/`nan`:
+`DebugUnderflowOverflow` registers forward hooks on every module and aborts at the first
+`inf`/`nan`:
 
 ```
 ValueError: DebugUnderflowOverflow: inf/nan detected, aborting as there is no
@@ -172,9 +172,8 @@ point running further. Please check the debug log file for the activation
 values prior to this event.
 ```
 
-The frame dump is at
-`out/debugging_broken/debug/underflow_overflow_rank0.log`. The smoking gun is
-at the bottom:
+The frame dump is at `out/debugging_broken/debug/underflow_overflow_rank0.log`. The
+smoking gun is at the bottom:
 
 ```
                   _forward_module.model.backbone._features.layer2.1.relu UnstableReLU
@@ -186,19 +185,18 @@ at the bottom:
 
 ## See It as a Gradient-Norm Problem
 
-`DebugUnderflowOverflow` aborts training. To see the gradient-norm pattern that
-leads there, run the broken model **without** the monitor. We use `scale=0.8`
-so the instability isn't instantaneous — it gives one normal step before
-everything goes NaN.
+`DebugUnderflowOverflow` aborts training. To see the gradient-norm pattern that leads
+there, run the broken model **without** the monitor. We use `scale=0.8` so the
+instability isn't instantaneous — it gives one normal step before everything goes NaN.
 
 ```python
 # broken_diagnostic.py
 from pathlib import Path
 
-import lightly_train
-
 from broken_model import patched_resnet18
 from setup_data import CLASS_NAMES
+
+import lightly_train
 
 DATA = {  # same as broken_finetuning.py
     "train": Path("datasets/debugging_tutorial/train"),
@@ -236,10 +234,9 @@ Train Step  3/10 | train_loss:  nan   | grad_norm:  nan
 Train Step 10/10 | train_loss:  nan   | grad_norm:  nan
 ```
 
-Step 1 looks clean. Step 2 has a **finite loss** but **NaN gradient** — the
-unstable layer overflowed in the **backward pass** (corrupting gradients)
-while the forward pass still produced finite logits. From step 3 onward, every
-step is NaN.
+Step 1 looks clean. Step 2 has a **finite loss** but **NaN gradient** — the unstable
+layer overflowed in the **backward pass** (corrupting gradients) while the forward pass
+still produced finite logits. From step 3 onward, every step is NaN.
 
 ## Compare with a Healthy Run
 
@@ -247,9 +244,9 @@ step is NaN.
 # fixed_finetuning.py
 from pathlib import Path
 
-import lightly_train
-
 from setup_data import CLASS_NAMES
+
+import lightly_train
 
 DATA = {  # same as broken_finetuning.py
     "train": Path("datasets/debugging_tutorial/train"),
@@ -341,8 +338,8 @@ fig.tight_layout()
 fig.savefig("gradient_norm_comparison.png", dpi=120, bbox_inches="tight")
 ```
 
-The broken run contributes one data point (step 1, NaN-filtered); the fixed
-run contributes ten.
+The broken run contributes one data point (step 1, NaN-filtered); the fixed run
+contributes ten.
 
 ![Gradient norm comparison](gradient_norm_comparison.png)
 
@@ -353,8 +350,8 @@ The fix is to use the standard ReLU — i.e. don't enter `patched_resnet18()`.
 - The same `debug_args` shape works for `train_object_detection` and
   `train_instance_segmentation`.
 - For the full `debug_args` reference, see the LightlyTrain API documentation.
-- For implementation details on gradient-norm logging and
-  `DebugUnderflowOverflow`, see `src/lightly_train/_debug/`.
+- For implementation details on gradient-norm logging and `DebugUnderflowOverflow`, see
+  `src/lightly_train/_debug/`.
 
 That's the debugging workflow — gradient norms catch the symptom,
 `DebugUnderflowOverflow` finds the cause. 🎉
