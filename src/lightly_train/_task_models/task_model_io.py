@@ -34,13 +34,17 @@ class TensorSpec(BaseModel):
         ..., description="Indicates whether the tensor appears batched in the model."
     )
 
-    def example_tensor(self) -> Tensor:
+    def example_tensor(self, batch_size: int | None = None) -> Tensor:
         """Generate an example tensor based on the specified shape and dtype.
 
         Returns:
             A tensor with the defined shape and data type.
         """
-        return torch.randn(self.shape, dtype=self.dtype)
+        if batch_size is not None and self.is_batched:
+            shape = (batch_size, *self.shape)
+        else:
+            shape = self.shape
+        return torch.zeros(shape, dtype=self.dtype)
 
 
 class ModelInputSpec(BaseModel):
