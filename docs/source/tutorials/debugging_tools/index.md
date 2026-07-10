@@ -16,7 +16,7 @@ self-supervised `pretrain`. This tutorial uses `train_image_classification`.
 ## Install Dependencies
 
 ```bash
-pip install lightly-train torch torchvision matplotlib
+pip install lightly-train
 ```
 
 ## Generate a Synthetic Dataset
@@ -40,18 +40,19 @@ NUM_TRAIN_PER_CLASS = 32
 NUM_VAL_PER_CLASS = 8
 IMAGE_SIZE = (96, 96)
 
-for split, num_per_class in (("train", NUM_TRAIN_PER_CLASS), ("val", NUM_VAL_PER_CLASS)):
-    split_idx = 0 if split == "train" else 1
-    for class_idx, class_name in enumerate(CLASS_NAMES):
-        split_dir = DATA_DIR / split / class_name
-        for img_idx in range(num_per_class):
-            seed = split_idx * 1_000_000 + class_idx * 10_000 + img_idx
-            rng = np.random.default_rng(seed)
-            pixels = rng.integers(0, 256, size=(*IMAGE_SIZE, 3), dtype=np.uint8)
-            split_dir.mkdir(parents=True, exist_ok=True)
-            Image.fromarray(pixels, mode="RGB").save(split_dir / f"img_{img_idx:04d}.png")
+if __name__ == "__main__":
+    for split, num_per_class in (("train", NUM_TRAIN_PER_CLASS), ("val", NUM_VAL_PER_CLASS)):
+        split_idx = 0 if split == "train" else 1
+        for class_idx, class_name in enumerate(CLASS_NAMES):
+            split_dir = DATA_DIR / split / class_name
+            for img_idx in range(num_per_class):
+                seed = split_idx * 1_000_000 + class_idx * 10_000 + img_idx
+                rng = np.random.default_rng(seed)
+                pixels = rng.integers(0, 256, size=(*IMAGE_SIZE, 3), dtype=np.uint8)
+                split_dir.mkdir(parents=True, exist_ok=True)
+                Image.fromarray(pixels, mode="RGB").save(split_dir / f"img_{img_idx:04d}.png")
 
-print(f"Dataset built at {DATA_DIR.resolve()}.")
+    print(f"Dataset built at {DATA_DIR.resolve()}.")
 ```
 
 ```bash
