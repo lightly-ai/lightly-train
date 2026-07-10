@@ -36,6 +36,26 @@ def model() -> DINOv3EoMTInstanceSegmentation:
     )
 
 
+def test_list_model_names__uses_registry() -> None:
+    names = DINOv3EoMTInstanceSegmentation.list_model_names()
+
+    assert "dinov3/_vittest16-eomt" in names
+    assert "dinov3/vits16-eomt" in names
+    assert "dinov3/vits16-eomt-inst-coco" in names
+    assert "dinov3/convnext-tiny-eomt" not in names
+
+
+def test_parse_model_name__hosted_alias_uses_canonical_model_name() -> None:
+    parsed = DINOv3EoMTInstanceSegmentation.parse_model_name(
+        "dinov3/vits16-eomt-inst-coco"
+    )
+
+    assert parsed == {
+        "model_name": "dinov3/vits16-eomt",
+        "backbone_name": "vits16",
+    }
+
+
 def test_predict_batch__composes_stages_in_order(
     model: DINOv3EoMTInstanceSegmentation, mocker: MockerFixture
 ) -> None:

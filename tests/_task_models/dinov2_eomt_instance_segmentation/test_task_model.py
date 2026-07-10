@@ -32,6 +32,23 @@ def model() -> DINOv2EoMTInstanceSegmentation:
     )
 
 
+def test_list_model_names__uses_registry() -> None:
+    names = DINOv2EoMTInstanceSegmentation.list_model_names()
+
+    assert "dinov2/_vittest14-eomt" in names
+    assert "dinov2/vits14-eomt" in names
+    assert "dinov2/vits14-notpretrained-eomt" in names
+
+
+def test_parse_model_name__uses_registry() -> None:
+    parsed = DINOv2EoMTInstanceSegmentation.parse_model_name("dinov2/vits14-eomt")
+
+    assert parsed == {
+        "model_name": "dinov2/vits14-eomt",
+        "backbone_name": "vits14",
+    }
+
+
 def test_predict_batch__composes_stages_in_order(
     model: DINOv2EoMTInstanceSegmentation, mocker: MockerFixture
 ) -> None:
