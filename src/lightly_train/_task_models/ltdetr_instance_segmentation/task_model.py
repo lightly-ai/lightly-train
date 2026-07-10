@@ -22,6 +22,7 @@ from typing_extensions import Self, override
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
+from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
@@ -550,6 +551,79 @@ class LTDETRInstanceSegmentation(TaskModel):
                         )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    def export_tensorrt(
+        self,
+        out: PathLike,
+        *,
+        precision: Literal["fp32", "fp16"] = "fp32",
+        onnx_args: dict[str, Any] | None = None,
+        max_batchsize: int = 1,
+        opt_batchsize: int = 1,
+        min_batchsize: int = 1,
+        verbose: bool = False,
+    ) -> None:
+        """Build a TensorRT engine from an ONNX model.
+
+        .. note::
+            TensorRT is not part of LightlyTrain’s dependencies and must be installed separately.
+            Installation depends on your OS, Python version, GPU, and NVIDIA driver/CUDA setup.
+            See the [TensorRT documentation](https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/installing.html) for more details.
+            On CUDA 12.x systems you can often install the Python package via `pip install tensorrt-cu12`.
+
+        This loads the ONNX file, parses it with TensorRT, infers the static input
+        shape (C, H, W) from the `"images"` input, and creates an engine with a
+        dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+        Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
+
+        The engine is serialized and written to `out`.
+
+        Args:
+            out:
+                Path where the TensorRT engine will be saved.
+            precision:
+                Precision for ONNX export and TensorRT engine building. Either
+                "fp32" or "fp16".
+            onnx_args:
+                Optional arguments to pass to `export_onnx` when exporting
+                the ONNX model prior to building the TensorRT engine. If None,
+                default arguments are used and the ONNX file is saved alongside
+                the TensorRT engine with the same name but `.onnx` extension.
+            max_batchsize:
+                Maximum supported batch size.
+            opt_batchsize:
+                Batch size TensorRT optimizes for.
+            min_batchsize:
+                Minimum supported batch size.
+            verbose:
+                Enable verbose TensorRT logging.
+
+        Raises:
+            FileNotFoundError: If the ONNX file does not exist.
+            RuntimeError: If the ONNX cannot be parsed or engine building fails.
+            ValueError: If batch size constraints are invalid or H/W are dynamic.
+        """
+        model_dtype = next(self.parameters()).dtype
+
+        onnx_args = dict(onnx_args) if onnx_args is not None else {}
+        onnx_args.setdefault("precision", precision)
+
+        tensorrt_helpers.export_tensorrt(
+            export_onnx_fn=self.export_onnx,
+            out=out,
+            precision=precision,
+            model_dtype=model_dtype,
+            onnx_args=onnx_args,
+            max_batchsize=max_batchsize,
+            opt_batchsize=opt_batchsize,
+            min_batchsize=min_batchsize,
+            # We convert the fp32 attention scores already during ONNX export, so we
+            # build a strongly-typed engine: TensorRT then honors those fp32 Cast nodes
+            # instead of forcing the whole attention into FP16 (which overflows to NaN).
+            fp32_attention_scores=False,
+            strongly_typed=True,
+            verbose=verbose,
+        )
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False
