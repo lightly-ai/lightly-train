@@ -1280,7 +1280,9 @@ def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_
 
     data_arg_helpers.resolve_data_paths(config.data)
 
-    assert Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    assert (
+        Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    )
     assert Path(config.data.val.masks) == (data_yaml.parent / "masks/val").resolve()
     assert isinstance(config.data.classes, dict)
     assert config.data.classes[0].name == "background"
@@ -1382,7 +1384,9 @@ def test_create_train_task_config__panoptic_segmentation_data_yaml(
 
     data_arg_helpers.resolve_data_paths(config.data)
 
-    assert Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    assert (
+        Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    )
     assert (
         Path(config.data.train.annotations)
         == (data_yaml.parent / "annotations/train.json").resolve()
