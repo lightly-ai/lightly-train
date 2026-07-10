@@ -764,7 +764,7 @@ class PicoDetObjectDetection(TaskModel):
 
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
             reference_export_model = _PicoDetExportWrapper(reference_model)
-            reference_outputs = reference_export_model(
+            reference_outputs: tuple[Tensor, ...] = reference_export_model(
                 dummy_input.cpu().to(torch.float32),
             )
 

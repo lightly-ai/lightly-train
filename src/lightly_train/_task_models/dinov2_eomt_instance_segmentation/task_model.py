@@ -1024,7 +1024,7 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
-            reference_outputs = reference_model(
+            reference_outputs: tuple[Tensor, ...] = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
