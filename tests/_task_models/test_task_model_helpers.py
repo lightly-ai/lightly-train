@@ -73,6 +73,23 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
     assert d["ltdetrv2-s-coco"] == d["edgecrafter/ecvitt-ltdetr-coco"]
 
 
+def test_downloadable_model__dinov3_eomt_semantic_aliases_from_registry() -> None:
+    d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
+
+    assert d["dinov3/vits16-eomt-coco"] == (
+        "dinov3_vits16_eomt_coco_260105_11be50b5.pt",
+        "11be50b578251c974b1fdb413c76e2cd7cfe1e154f6118556bd87477ea205d5a",
+    )
+    assert d["dinov3/vits32-eomt-coco"] == (
+        "dinov3_vits32_eomt_coco_260106_06595b53.pt",
+        "06595b53b0ee63032e8f7882a2d1e877c84b996c8313727a6694abf42e871d05",
+    )
+    assert d["dinov3/vitl16-eomt-ade20k"] == (
+        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
+        "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
+    )
+
+
 def test_download_checkpoint__non_hosted_dav2__raises_convert_guidance() -> None:
     model_name = "dinov2/dav2-relative-large"
 

@@ -34,6 +34,9 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
+    DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -119,19 +122,19 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         if self.patch_size == "auto":
             patch_size = model_init_args.get("patch_size", None)
             if patch_size is not None:
-                self.patch_size = patch_size
+                self.patch_size = int(patch_size)
             else:
-                match = re.match(
-                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
-                    model_name,
-                )
-                if match is None:
+                try:
+                    config = DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                        alias=model_name
+                    )()
+                except KeyError:
                     raise ValueError(
                         f"Unknown model name '{model_name}', "
                         "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
                         "for all supported models."
-                    )
-                self.patch_size = int(match.group("patch_size"))
+                    ) from None
+                self.patch_size = config.patch_size
 
         if self.num_queries == "auto":
             num_queries = model_init_args.get("num_queries", 100)
