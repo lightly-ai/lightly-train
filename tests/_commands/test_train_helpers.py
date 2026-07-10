@@ -566,4 +566,3 @@ def test_load_state_dict(tmp_path: Path) -> None:
         embedding_model_2.parameters()
     )
     assert next(model_2.get_model().parameters()) is next(method_2.parameters())
-
