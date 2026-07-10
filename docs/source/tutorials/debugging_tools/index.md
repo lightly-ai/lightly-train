@@ -80,7 +80,7 @@ class UnstableReLU(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Force computation into float16. Without this cast, PyTorch's autocast
         # keeps `torch.exp` in float32 and the layer would NOT overflow in
-        # mixed precision training — a real-world gotcha when porting models.
+        # mixed precision training.
         x_fp16 = x.to(dtype=torch.float16)
         out_fp16 = torch.where(
             x_fp16 > 0,
