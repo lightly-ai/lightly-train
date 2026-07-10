@@ -453,6 +453,40 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     assert out.boxes.shape == (1, 300, 4)
 
 
+def _build_ltdetr_model() -> LTDETRObjectDetection:
+    return LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(224, 224),
+        image_normalize=None,
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        load_weights=False,
+    )
+
+
+def test_is_deploy_mode__false_until_deploy() -> None:
+    model = _build_ltdetr_model()
+    assert model.is_deploy_mode is False
+    model.deploy()
+    assert model.is_deploy_mode is True
+
+
+def test_deploy__is_idempotent() -> None:
+    # deploy() relies on convert_to_deploy(), which is NOT idempotent, so the model
+    # must guard against re-running it. Calling deploy() twice must be a no-op the
+    # second time and leave a working model.
+    model = _build_ltdetr_model()
+    model.deploy()
+    model.deploy()
+    assert model.is_deploy_mode is True
+    with torch.no_grad():
+        out = model(torch.randn(1, 3, 224, 224))
+    assert out.logits.shape == (1, 300, 2)
+    assert out.boxes.shape == (1, 300, 4)
+
+
 @pytest.mark.parametrize(
     ("patch_size", "expected_image_size"),
     [

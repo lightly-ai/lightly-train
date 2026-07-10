@@ -372,12 +372,22 @@ class LTDETRObjectDetection(TaskModel):
         self.backbone.eval()
         self.backbone.requires_grad_(False)
 
+    @property
+    @override
+    def is_deploy_mode(self) -> bool:
+        return self._deployed
+
+    @override
     def deploy(self) -> Self:
         # Reparameterizes modules in place (RepVGG conv fusion, D-FINE layer
         # pruning) for faster inference. This is output-equivalent to the eval-mode
         # forward pass, so it is an optimization rather than a correctness
         # requirement.
         self.eval()
+        if self._deployed:
+            # convert_to_deploy() is NOT idempotent (D-FINE re-slices its layers), so
+            # guard the reparameterization. eval() above still runs every call.
+            return self
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
@@ -441,7 +451,7 @@ class LTDETRObjectDetection(TaskModel):
             A list with one prediction dict per input image.
         """
         self._track_inference()
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
         tensors: list[Tensor] = []
@@ -474,7 +484,7 @@ class LTDETRObjectDetection(TaskModel):
             A task-specific prediction dictionary.
         """
         self._track_inference()
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
         x, metadata = self.preprocessor.preprocess_image(
@@ -529,7 +539,7 @@ class LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
 
         device = next(self.parameters()).device

@@ -25,6 +25,7 @@ from torch import Tensor
 from torch.export import Dim
 from torch.export.dynamic_shapes import _DimHint
 from torch.nn import Module
+from typing_extensions import Self
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._events import tracker
@@ -99,6 +100,22 @@ class TaskModel(Module):
         This is useful for serialization of the model.
         """
         return f"{self.__module__}.{self.__class__.__name__}"
+
+    @property
+    def is_deploy_mode(self) -> bool:
+        """Whether deploy() has been applied.
+
+        Deploy is an irreversible, in-place transform, so this only ever goes
+        False -> True. Defaults to False; task models that support deploy override it.
+        """
+        return False
+
+    def deploy(self) -> Self:
+        """Optimize the model in place for inference (irreversible).
+
+        No-op by default. Task models that reparameterize for deployment override this.
+        """
+        return self
 
     def predict(self, image: PathLike | PILImage | Tensor) -> Any:
         """Returns predictions for the given image.
