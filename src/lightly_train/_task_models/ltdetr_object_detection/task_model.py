@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
 import torch
@@ -28,6 +29,7 @@ from lightly_train._export.onnx_helpers import (
 )
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
@@ -73,6 +75,11 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+LTDETR_DEFAULT_IMAGE_NORMALIZE: dict[str, tuple[float, ...]] = {
+    "mean": (0.0, 0.0, 0.0),
+    "std": (1.0, 1.0, 1.0),
+}
 
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
 _TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
@@ -194,7 +201,11 @@ class LTDETRObjectDetection(TaskModel):
             for internal_class_id, class_name in enumerate(self.classes.values())
         }
 
-        self.image_normalize = image_normalize
+        self.image_normalize = (
+            image_normalize
+            if image_normalize is not None
+            else dict(LTDETR_DEFAULT_IMAGE_NORMALIZE)
+        )
 
         # Resolve the backbone's expected input channel count.
         # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
@@ -203,21 +214,23 @@ class LTDETRObjectDetection(TaskModel):
             self._expected_input_channels = 3
         elif backbone_args is not None and "in_chans" in backbone_args:
             self._expected_input_channels = backbone_args["in_chans"]
-        elif self.image_normalize is not None:
-            self._expected_input_channels = len(self.image_normalize["mean"])
         else:
-            self._expected_input_channels = 3
+            self._expected_input_channels = len(self.image_normalize["mean"])
 
         # Build backbone model args: start from config defaults, then apply overrides.
         backbone_model_args: dict[str, Any] = dict(config.backbone_args)
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
-        if backbone_weights is not None:
+        is_dinov2_backbone = package_name == DINOV2_VIT_PACKAGE.name
+        load_dinov2_backbone_weights = (
+            load_weights and backbone_weights is not None and is_dinov2_backbone
+        )
+        if backbone_weights is not None and not is_dinov2_backbone:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        get_model_kwargs = {}
-        if self.image_normalize is not None:
-            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+        get_model_kwargs = {
+            "num_input_channels": len(self.image_normalize["mean"]),
+        }
 
         package = package_helpers.get_package(package_name)
 
@@ -236,6 +249,9 @@ class LTDETRObjectDetection(TaskModel):
                 ECViTModelWrapper,
             ),
         )
+        if load_dinov2_backbone_weights:
+            assert backbone_weights is not None
+            self.load_backbone_weights(backbone=backbone, path=backbone_weights)
 
         self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
@@ -419,6 +435,21 @@ class LTDETRObjectDetection(TaskModel):
                     name = name[len("model.") :]
                     new_state_dict[name] = param
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+
+    def load_backbone_weights(self, backbone: torch.nn.Module, path: PathLike) -> None:
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
+
+        state_dict = torch.load(path, map_location="cpu", weights_only=False)
+        missing, unexpected = backbone.load_state_dict(state_dict, strict=False)
+
+        if missing:
+            logger.warning(f"Missing keys when loading backbone: {missing}")
+        if unexpected:
+            logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
+        if not missing and not unexpected:
+            logger.info(f"Backbone weights loaded from '{path}'")
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor

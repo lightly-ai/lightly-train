@@ -131,6 +131,8 @@ class DINOSTAs(Module):
         use_sta: bool = True,
         conv_inplane: int = 16,
         hidden_dim: int | None = None,
+        project_features: bool = True,
+        resize_features: bool = True,
     ):
         super().__init__()
 
@@ -140,6 +142,7 @@ class DINOSTAs(Module):
         assert len(interaction_indexes) == 3
         self.interaction_indexes = interaction_indexes
         self.patch_size = model_wrapper.get_model().patch_size
+        self.resize_features = resize_features
 
         if not finetune:
             model_wrapper.eval()
@@ -156,8 +159,18 @@ class DINOSTAs(Module):
         else:
             conv_inplane = 0
 
-        # linear projection
+        self.project_features = project_features
         hidden_dim = hidden_dim if hidden_dim is not None else embed_dim
+        if not self.project_features and (use_sta or hidden_dim != embed_dim):
+            raise ValueError(
+                "project_features=False requires use_sta=False and hidden_dim to match "
+                f"the backbone embed_dim ({embed_dim}), but got hidden_dim={hidden_dim}."
+            )
+
+        # linear projection
+        if not self.project_features:
+            return
+
         self.convs = ModuleList(
             [
                 Conv2d(
@@ -211,6 +224,7 @@ class DINOSTAs(Module):
         for old_prefix_suffix, label in [
             ("dinov3.", "DINOv3STAs"),
             ("dinov2.", "DINOv2STAs"),
+            ("backbone.", "DINOv2STAs"),
         ]:
             old_subprefix = prefix + old_prefix_suffix
             if any(k.startswith(old_subprefix) for k in state_dict):
@@ -236,6 +250,12 @@ class DINOSTAs(Module):
         num_scales = len(sem_feats) - 2
         for i, sem_feat in enumerate(sem_feats):
             feat = sem_feat["features"]
+            if not self.resize_features:
+                # All taps already share the same spatial resolution (H_c, W_c) —
+                # some backbones (e.g. DINOv2ViTSmallNoRegistersLegacy) were trained
+                # on 3 same-resolution feature taps with no synthesized pyramid.
+                resized_feats.append(feat)
+                continue
             resize_H, resize_W = (
                 int(H_c * 2 ** (num_scales - i)),
                 int(W_c * 2 ** (num_scales - i)),
@@ -271,6 +291,9 @@ class DINOSTAs(Module):
                 )
         else:
             fused_feats = resized_feats
+
+        if not self.project_features:
+            return fused_feats[0], fused_feats[1], fused_feats[2]
 
         c2 = self.norms[0](self.convs[0](fused_feats[0]))
         c3 = self.norms[1](self.convs[1](fused_feats[1]))
