@@ -7,18 +7,24 @@
 #
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import torch
+from torch.nn import Module
 from torch.testing import assert_close
 
 from lightly_train._models import _model_helpers
 
 
-def _module(pos_embed: torch.Tensor) -> SimpleNamespace:
+class _PosEmbedModule(Module):
     """A minimal stand-in for a DinoVisionTransformer: the hook only reads
     ``module.pos_embed`` for the target shape."""
-    return SimpleNamespace(pos_embed=pos_embed)
+
+    def __init__(self, pos_embed: torch.Tensor) -> None:
+        super().__init__()
+        self.pos_embed = pos_embed
+
+
+def _module(pos_embed: torch.Tensor) -> _PosEmbedModule:
+    return _PosEmbedModule(pos_embed=pos_embed)
 
 
 class TestInterpolatePosEmbedHook:

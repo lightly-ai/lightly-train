@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import Any, cast
 
 import torch
 from torch import Tensor
@@ -82,7 +82,7 @@ def interpolate_pos_embed_hook(
     value = state_dict.get(key)
     if value is None:
         return
-    target: Tensor = module.pos_embed  # type: ignore[attr-defined]
+    target = cast(Tensor, module.pos_embed)
     if value.shape == target.shape:
         return
     # Expect [1, 1 + n_patches, dim] (cls token + a square patch grid).
