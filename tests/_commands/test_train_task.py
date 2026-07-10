@@ -1006,8 +1006,8 @@ def test_create_train_task_config__data_is_coco_yaml(
     config = config_cls(
         out="out",
         model="some/model",
-        task=task,
-        data=path_type(data_yaml),
+        task=task,  # type: ignore[arg-type]
+        data=path_type(data_yaml),  # type: ignore[arg-type]
     )
     assert isinstance(config.data, expected_data_args_cls)
     assert config.data.format == "coco"
@@ -1059,8 +1059,8 @@ def test_create_train_task_config__data_yaml_defaults_to_yolo(
     config = config_cls(
         out="out",
         model="some/model",
-        task=task,
-        data=path_type(data_yaml),
+        task=task,  # type: ignore[arg-type]
+        data=path_type(data_yaml),  # type: ignore[arg-type]
     )
     assert isinstance(config.data, expected_data_args_cls)
     assert config.data.format == "yolo"
@@ -1079,7 +1079,7 @@ def test_create_train_task_config__direct_data_has_no_data_config_file(
         out="out",
         model="some/model",
         task="object_detection",
-        data={
+        data={  # type: ignore[arg-type]
             "path": str(tmp_path),
             "train": "images/train",
             "val": "images/val",
@@ -1178,7 +1178,7 @@ def test_create_train_task_config__image_classification_csv_aliases(
     config = config_cls(
         out="out",
         model="some/model",
-        data={
+        data={  # type: ignore[arg-type]
             "train_csv": "train.csv",
             "val_csv": "val.csv",
             "classes": {0: "class_a"},
@@ -1199,7 +1199,7 @@ def test_create_train_task_config__image_classification_csv_alias_conflict() -> 
         ImageClassificationMulticlassTrainTaskConfig(
             out="out",
             model="some/model",
-            data={
+            data={  # type: ignore[arg-type]
                 "train": "train",
                 "train_csv": "train.csv",
                 "val": "val",
@@ -1213,7 +1213,7 @@ def test_create_train_task_config__image_classification_csv_alias_conflict() -> 
         ImageClassificationMulticlassTrainTaskConfig(
             out="out",
             model="some/model",
-            data={
+            data={  # type: ignore[arg-type]
                 "train": "train",
                 "val": "val",
                 "val_csv": "val.csv",
@@ -1239,7 +1239,7 @@ def test_create_train_task_config__image_classification_data_yaml_csv_aliases(
     config = ImageClassificationMultilabelTrainTaskConfig(
         out="out",
         model="some/model",
-        data=data_yaml,
+        data=data_yaml,  # type: ignore[arg-type]
     )
 
     assert isinstance(config.data, ImageClassificationMultilabelDataArgs)
@@ -1268,7 +1268,7 @@ def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_
     config = SemanticSegmentationTrainTaskConfig(
         out="out",
         model="some/model",
-        data=data_yaml,
+        data=data_yaml,  # type: ignore[arg-type]
     )
 
     assert isinstance(config.data, MaskSemanticSegmentationDataArgs)
@@ -1280,9 +1280,9 @@ def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_
 
     data_arg_helpers.resolve_data_paths(config.data)
 
-    assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
-    assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
-    assert not isinstance(config.data.classes, Path)
+    assert Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    assert Path(config.data.val.masks) == (data_yaml.parent / "masks/val").resolve()
+    assert isinstance(config.data.classes, dict)
     assert config.data.classes[0].name == "background"
     assert config.data.classes[1].name == "car"
 
@@ -1307,7 +1307,7 @@ def test_create_train_task_config__semantic_segmentation_multihead_data_yaml_wit
     config = SemanticSegmentationMultiheadTrainTaskConfig(
         out="out",
         model="some/model",
-        data=data_yaml,
+        data=data_yaml,  # type: ignore[arg-type]
     )
 
     assert isinstance(config.data, MaskSemanticSegmentationDataArgs)
@@ -1341,7 +1341,7 @@ def test_create_train_task_config__data_yaml_nested_unknown_key_errors(
         SemanticSegmentationTrainTaskConfig(
             out="out",
             model="some/model",
-            data=data_yaml,
+            data=data_yaml,  # type: ignore[arg-type]
         )
 
 
@@ -1371,7 +1371,7 @@ def test_create_train_task_config__panoptic_segmentation_data_yaml(
     config = PanopticSegmentationTrainTaskConfig(
         out="out",
         model="some/model",
-        data=data_yaml,
+        data=data_yaml,  # type: ignore[arg-type]
     )
 
     assert isinstance(config.data, MaskPanopticSegmentationDataArgs)
@@ -1382,9 +1382,9 @@ def test_create_train_task_config__panoptic_segmentation_data_yaml(
 
     data_arg_helpers.resolve_data_paths(config.data)
 
-    assert config.data.train.images == (data_yaml.parent / "images/train").resolve()
+    assert Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
     assert (
-        config.data.train.annotations
+        Path(config.data.train.annotations)
         == (data_yaml.parent / "annotations/train.json").resolve()
     )
     assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
@@ -1409,7 +1409,7 @@ def test_train_task_config_resolve_data_paths__yaml_relative_to_data_config(
         out="out",
         model="some/model",
         task="object_detection",
-        data=data_yaml,
+        data=data_yaml,  # type: ignore[arg-type]
     )
 
     data_arg_helpers.resolve_data_paths(config.data)
@@ -1428,7 +1428,7 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
         out="out",
         model="some/model",
         task="object_detection",
-        data={
+        data={  # type: ignore[arg-type]
             "path": "dataset",
             "train": "images/train",
             "val": "images/val",

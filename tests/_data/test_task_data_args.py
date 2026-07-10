@@ -364,7 +364,7 @@ class TestMaskSemanticSegmentationDataArgs:
         assert data_args.train.masks == (tmp_path / "masks/train").resolve()
         assert data_args.val.images == (tmp_path / "images/val").resolve()
         assert data_args.val.masks == (tmp_path / "masks/val").resolve()
-        assert not isinstance(data_args.classes, Path)
+        assert isinstance(data_args.classes, dict)
         assert data_args.classes[0].name == "background"
         assert data_args.classes[1].name == "car"
 
@@ -393,7 +393,7 @@ class TestMaskSemanticSegmentationDataArgs:
         assert data_args.train.masks == (tmp_path / "configs" / "masks/train").resolve()
         assert data_args.val.images == (tmp_path / "configs" / "images/val").resolve()
         assert data_args.val.masks == (tmp_path / "configs" / "masks/val").resolve()
-        assert not isinstance(data_args.classes, Path)
+        assert isinstance(data_args.classes, dict)
         assert data_args.classes[0].name == "background"
         assert data_args.classes[1].name == "car"
 
