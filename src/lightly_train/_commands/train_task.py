@@ -79,7 +79,7 @@ logger = logging.getLogger(__name__)
 def train_image_classification(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
     steps: int | Literal["auto"] = "auto",
@@ -264,7 +264,7 @@ def train_image_classification(
 def train_image_classification_multihead(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
     steps: int | Literal["auto"] = "auto",
@@ -419,7 +419,7 @@ def train_image_classification_multihead(
 def train_instance_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -588,7 +588,7 @@ def train_instance_segmentation(
 def train_object_detection(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -757,7 +757,7 @@ def train_object_detection(
 def train_panoptic_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -927,7 +927,7 @@ def train_panoptic_segmentation(
 def train_semantic_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -1096,7 +1096,7 @@ def train_semantic_segmentation(
 def train_semantic_segmentation_multihead(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -1233,7 +1233,7 @@ def _train_task(
     *,
     config_cls: type[TrainTaskConfig],
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",

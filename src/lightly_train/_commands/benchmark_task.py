@@ -78,7 +78,7 @@ def benchmark_object_detection(
     *,
     out: PathLike,
     dataset_name: str,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: TaskModel | PathLike,
     batch_size: int = 1,
     threshold: float = 0.0,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, Union
+from typing import ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
@@ -56,6 +56,8 @@ class MultiChannelClassInfo(PydanticConfig):
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
+RawClassInfo = Union[ClassInfo, str, dict[str, object]]
+RawClasses = Union[dict[int | str, RawClassInfo], PathLike]
 
 
 class MaskSemanticSegmentationDataset(TaskDataset):
@@ -374,7 +376,9 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     @field_validator("classes", mode="before")
     @classmethod
-    def validate_classes(cls, classes: Any) -> Any:
+    def validate_classes(cls, classes: RawClasses) -> dict[int, ClassInfo] | Path:
+        # Relative JSON paths may need the data config base_dir, which is only
+        # known later in resolve_data_paths. Keep those paths unresolved here.
         if isinstance(classes, (str, Path)):
             path = Path(classes)
             if path.suffix != ".json":
