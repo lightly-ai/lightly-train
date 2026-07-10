@@ -786,7 +786,7 @@ class PicoDetObjectDetection(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     torch.testing.assert_close(
                         output_onnx,
                         output_model,

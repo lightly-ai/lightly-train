@@ -880,12 +880,12 @@ class LTDETRObjectDetection(TaskModel):
                     # in different order but still valid. To account for this, we sum
                     # over the query dimension before comparing.
                     output_model = output_model.sum(dim=1)
-                    if output_onnx.is_floating_point:
+                    if output_onnx.is_floating_point():
                         # Convert to fp32 to avoid overflow issues when summing in fp16.
                         output_onnx = output_onnx.float()
                     output_onnx = output_onnx.sum(dim=1)
 
-                    if output_model.is_floating_point:
+                    if output_model.is_floating_point():
                         # Absolute and relative tolerances are a bit arbitrary and taken from here:
                         # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                         torch.testing.assert_close(

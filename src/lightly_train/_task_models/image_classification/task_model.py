@@ -584,7 +584,7 @@ class ImageClassification(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     # Absolute and relative tolerances are a bit arbitrary and taken from here:
                     # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                     torch.testing.assert_close(
