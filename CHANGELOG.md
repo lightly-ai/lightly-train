@@ -20,6 +20,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
 - Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
   `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
+- Add a debugging tools tutorial that walks through gradient overflow detection with
+  `underflow_overflow` and gradient norm logging, using the fine-tuning API and a
+  deterministic synthetic dataset.
 
 ### Changed
 
