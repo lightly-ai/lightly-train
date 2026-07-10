@@ -15,12 +15,10 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
+from torchvision.ops import box_convert
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
-from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
-    RTDETRPostProcessor,
-)
 from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train.types import PathLike
 
@@ -90,8 +88,11 @@ class ObjectDetectionPreprocessor(Module):
 class ObjectDetectionPostprocessor(Module):
     """Decodes raw object detection outputs into per-image predictions.
 
-    Wraps an ``RTDETRPostProcessor`` (top-k selection, box decoding and rescaling)
-    and owns the internal-to-user class-id mapping.
+    Performs top-k selection, box decoding and rescaling, and owns the
+    internal-to-user class-id mapping. This is the RT-DETR focal-loss decoding
+    (sigmoid scores + flat top-k over queries and classes), reimplemented in plain
+    eager PyTorch — postprocessing is no longer part of the exported graph, so it
+    needs no deploy/TensorRT-compatible variant.
     """
 
     internal_class_to_class: Tensor
@@ -99,13 +100,13 @@ class ObjectDetectionPostprocessor(Module):
     def __init__(
         self,
         *,
-        rtdetr_postprocessor_cfg: dict[str, Any],
+        num_classes: int,
+        num_top_queries: int,
         internal_class_to_class: Tensor,
     ) -> None:
         super().__init__()
-        self.rtdetr_postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **rtdetr_postprocessor_cfg
-        )
+        self.num_classes = num_classes
+        self.num_top_queries = num_top_queries
         # Registered as buffer to be automatically moved to the correct device.
         self.register_buffer(
             "internal_class_to_class",
@@ -113,24 +114,34 @@ class ObjectDetectionPostprocessor(Module):
             persistent=False,  # No need to save it in the state dict.
         )
 
-    @property
-    def deploy_mode(self) -> bool:
-        return bool(self.rtdetr_postprocessor.deploy_mode)
-
-    def deploy(self) -> ObjectDetectionPostprocessor:
-        self.rtdetr_postprocessor.deploy()  # type: ignore[no-untyped-call]
-        return self
-
     def decode(
         self, raw: ObjectDetectionOutput, orig_target_sizes: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
         """Return per-image ``(labels, boxes, scores)`` with class ids remapped.
 
-        Assumes the underlying postprocessor is in deploy mode (returns tensors).
+        Args:
+            raw:
+                Raw model outputs (``logits`` and normalized ``cxcywh`` boxes).
+            orig_target_sizes:
+                Tensor of shape (B, 2) giving the ``(width, height)`` each image's
+                boxes should be rescaled to.
+
+        Returns:
+            ``(labels, boxes, scores)``, each of shape (B, num_top_queries[, 4]).
+            Boxes are ``xyxy`` in the pixel coordinates of ``orig_target_sizes``.
         """
-        labels, boxes, scores = self.rtdetr_postprocessor(
-            {"pred_logits": raw.logits, "pred_boxes": raw.boxes}, orig_target_sizes
-        )
+        scores = raw.logits.sigmoid()  # (B, num_queries, num_classes)
+        num_classes = scores.shape[-1]
+        # Flat top-k across the (query, class) grid, as in RT-DETR focal-loss decoding.
+        scores, index = scores.flatten(1).topk(self.num_top_queries, dim=-1)
+        labels = index % num_classes
+        query_index = index // num_classes
+
+        boxes = box_convert(raw.boxes, in_fmt="cxcywh", out_fmt="xyxy")
+        boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
+        # Scale normalized boxes to pixel coordinates: (w, h, w, h) per image.
+        boxes = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
+
         labels = self.internal_class_to_class[labels]
         return labels, boxes, scores
 

@@ -78,23 +78,15 @@ class TestObjectDetectionPreprocessor:
 
 
 def _make_postprocessor() -> ObjectDetectionPostprocessor:
-    post = ObjectDetectionPostprocessor(
-        rtdetr_postprocessor_cfg={
-            "num_classes": 2,
-            "use_focal_loss": True,
-            "num_top_queries": 5,
-        },
+    return ObjectDetectionPostprocessor(
+        num_classes=2,
+        num_top_queries=5,
         # Map internal ids {0, 1} to user ids {10, 20}.
         internal_class_to_class=torch.tensor([10, 20], dtype=torch.long),
     )
-    return post.deploy()
 
 
 class TestObjectDetectionPostprocessor:
-    def test_deploy_mode(self) -> None:
-        post = _make_postprocessor()
-        assert post.deploy_mode is True
-
     def test_postprocess__remaps_classes_and_keeps_all(self) -> None:
         post = _make_postprocessor()
         raw = ObjectDetectionOutput(

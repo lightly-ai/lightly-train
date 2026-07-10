@@ -301,17 +301,21 @@ class LTDETRObjectDetection(TaskModel):
                 **transformer_cfg, eval_spatial_size=self.image_size
             )
 
-        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
-        postprocessor_cfg["num_classes"] = len(self.classes)
         self.preprocessor = ObjectDetectionPreprocessor(
             image_size=self.image_size,
             image_normalize=self.image_normalize,
             expected_input_channels=self._expected_input_channels,
         )
         self.postprocessor = ObjectDetectionPostprocessor(
-            rtdetr_postprocessor_cfg=postprocessor_cfg,
+            num_classes=len(self.classes),
+            num_top_queries=config.rtdetr_postprocessor.num_top_queries,
             internal_class_to_class=internal_class_to_class,
         )
+
+        # Tracks whether `deploy()` (in-place reparameterization for faster
+        # inference) has been applied. `predict*` reparameterizes lazily on first
+        # use; correctness does not depend on it.
+        self._deployed = False
 
         if self.backbone_freeze:
             self.freeze_backbone()
@@ -369,11 +373,15 @@ class LTDETRObjectDetection(TaskModel):
         self.backbone.requires_grad_(False)
 
     def deploy(self) -> Self:
+        # Reparameterizes modules in place (RepVGG conv fusion, D-FINE layer
+        # pruning) for faster inference. This is output-equivalent to the eval-mode
+        # forward pass, so it is an optimization rather than a correctness
+        # requirement.
         self.eval()
-        self.postprocessor.deploy()
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
+        self._deployed = True
         return self
 
     def load_train_state_dict(
@@ -433,7 +441,7 @@ class LTDETRObjectDetection(TaskModel):
             A list with one prediction dict per input image.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self._deployed:
             self.deploy()
         first_param = next(self.parameters())
         tensors: list[Tensor] = []
@@ -466,7 +474,7 @@ class LTDETRObjectDetection(TaskModel):
             A task-specific prediction dictionary.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self._deployed:
             self.deploy()
         first_param = next(self.parameters())
         x, metadata = self.preprocessor.preprocess_image(
@@ -521,7 +529,7 @@ class LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self._deployed:
             self.deploy()
 
         device = next(self.parameters()).device
