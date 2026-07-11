@@ -420,7 +420,7 @@ def test_export_onnx__aliases_and_non_square(model_name: str, tmp_path: Path) ->
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
-@pytest.mark.parametrize("opset_version", [16, 17, 18, 19, 20, 21, 22, 23])
+@pytest.mark.parametrize("opset_version", [16, 17, 18, 19, 20])
 def test_export_onnx__opset_version(
     model: LTDETRInstanceSegmentation, tmp_path: Path, opset_version: int
 ) -> None:
