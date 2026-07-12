@@ -336,7 +336,8 @@ class LTDETRObjectDetection(TaskModel):
 
     def forward_backend(self, x: Tensor) -> ObjectDetectionOutput:
         # For backwards compatibility with the benchmark command.
-        return self(x)
+        out: ObjectDetectionOutput = self(x)
+        return out
 
     def forward(self, x: Tensor) -> ObjectDetectionOutput:
         # The raw neural forward pass. Returns the raw decoder outputs:
