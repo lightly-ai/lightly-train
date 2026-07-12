@@ -8,15 +8,14 @@
 from __future__ import annotations
 
 import copy
-import functools
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     Any,
     Literal,
-    cast,
 )
 
 import torch
@@ -29,9 +28,17 @@ from typing_extensions import Self
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._events import tracker
-from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
+from lightly_train._export.onnx_helpers import (
+    check_onnx_dynamo_requirements,
+    fix_topological_order,
+    remove_redundant_casts,
+)
 from lightly_train._task_models import task_model_io
-from lightly_train._task_models.task_model_io import BaseModelOutput, ModelInputSpec
+from lightly_train._task_models.task_model_io import (
+    BaseModelOutput,
+    ModelInputSpec,
+    TensorSpec,
+)
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -201,29 +208,6 @@ class TaskModel(Module):
             pass
 
 
-class DynamoCompileAble(ABC):
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        original = cls.__dict__.get("forward")
-        if original is None:
-            return
-
-        @functools.wraps(original)
-        def checked_forward(self: Any, *args: Any, **kwargs: Any) -> Any:
-            return original(self, *args, **kwargs)
-
-        cls.forward = torch.compile(checked_forward, fullgraph=True)  # type: ignore[method-assign]
-
-    @abstractmethod
-    def forward(self, *args: Tensor) -> BaseModelOutput:
-        """Interface for processors that can be exported to ONNX.
-
-        The processor should take one or more tensors as input and return a subclass of
-        ``BaseModelOutput`` as output.
-        """
-        ...
-
-
 class DynamoExportConfig(PydanticConfig):
     out: str | Path
     precision: Literal["auto", "fp32", "fp16"] = "auto"
@@ -237,10 +221,43 @@ class DynamoExportConfig(PydanticConfig):
     format_args: dict[str, Any] | None = None
 
 
-class ExportMixin(DynamoCompileAble, ABC):
+@dataclass(frozen=True)
+class ONNXExportPrecisionPolicy:
+    """Precision policy for ONNX export.
+
+    Args:
+        fp32_module_names:
+            Fully-qualified module names to keep in FP32 after casting the model to the
+            requested export precision.
+        fp32_module_types:
+            Module classes to keep in FP32 after casting the model to the requested
+            export precision.
+        fp32_onnx_op_types:
+            ONNX operator types to keep in FP32 when converting an exported graph to
+            FP16.
+    """
+
+    fp32_module_names: tuple[str, ...] = ()
+    fp32_module_types: tuple[type[Module], ...] = ()
+    fp32_onnx_op_types: tuple[str, ...] = ()
+
+
+class ExportMixin(ABC):
     @property
     @abstractmethod
     def model_input_spec(self) -> ModelInputSpec: ...
+
+    @property
+    def onnx_export_precision_policy(self) -> ONNXExportPrecisionPolicy:
+        return ONNXExportPrecisionPolicy()
+
+    @abstractmethod
+    def verify_onnx_export_outputs(
+        self,
+        *,
+        torch_outputs: BaseModelOutput,
+        onnx_outputs: BaseModelOutput,
+    ) -> None: ...
 
     def export_onnx(
         self,
@@ -324,9 +341,10 @@ class ExportMixin(DynamoCompileAble, ABC):
 
         check_onnx_dynamo_requirements()
 
-        # This mixin is always combined with a torch.nn.Module subclass.
-        module = cast(Module, self)
-        module.eval()
+        if not isinstance(self, TaskModel):
+            raise TypeError("ExportMixin can only be used with TaskModel subclasses.")
+
+        module: TaskModel = self
 
         first_parameter = next(module.parameters(), None)
         device = (
@@ -346,47 +364,39 @@ class ExportMixin(DynamoCompileAble, ABC):
                 f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
             )
 
-        if dtype is not None:
-            module.to(dtype)
+        module.eval()
+        module.deploy()
+        self._apply_onnx_export_module_precision(
+            module=module,
+            dtype=dtype,
+        )
 
         spec = self.model_input_spec
+        export_spec = self._onnx_export_input_spec(
+            spec=spec,
+            height=height,
+            width=width,
+        )
         default_batch_size = 2 if dynamic_batch_size else 1
         batch = batch_size if batch_size is not None else default_batch_size
 
-        # Build the example inputs from the spec, applying overrides where requested.
-        example_inputs: dict[str, Tensor] = {}
-        for name, tensor_spec in spec.input_specs.items():
-            shape = list(tensor_spec.shape)
-            if len(shape) >= 2:
-                if height is not None:
-                    shape[-2] = height
-                if width is not None:
-                    shape[-1] = width
-            if tensor_spec.is_batched:
-                shape = [batch, *shape]
-
-            tensor_dtype = tensor_spec.dtype
-            if tensor_dtype.is_floating_point:
-                if dtype is not None:
-                    tensor_dtype = dtype
-                example_inputs[name] = torch.randn(
-                    shape, dtype=tensor_dtype, device=device
-                )
-            else:
-                example_inputs[name] = torch.zeros(
-                    shape, dtype=tensor_dtype, device=device
-                )
+        example_inputs = self._onnx_export_example_inputs(
+            spec=export_spec,
+            batch_size=batch,
+            dtype=dtype,
+            device=device,
+        )
 
         # Build the dynamic shapes from the spec, forcing a static batch dim if
         # dynamic batching is disabled.
         dynamic_shapes: dict[str, tuple[_DimHint, ...]] = {}
-        for name, dims in spec.input_dynamic_shapes.items():
+        for name, dims in export_spec.input_dynamic_shapes.items():
             new_dims = list(dims)
-            if not dynamic_batch_size and spec.input_specs[name].is_batched:
+            if not dynamic_batch_size and export_spec.input_specs[name].is_batched:
                 new_dims[0] = Dim.STATIC
             dynamic_shapes[name] = tuple(new_dims)
 
-        input_names = list(spec.input_specs)
+        input_names = list(export_spec.input_specs)
 
         # Derive the output names from the BaseModelOutput returned by forward.
         with torch.no_grad():
@@ -406,6 +416,11 @@ class ExportMixin(DynamoCompileAble, ABC):
             **(format_args or {}),
         )
 
+        self._apply_onnx_export_graph_precision(
+            out=out,
+            precision=precision,
+        )
+
         if simplify:
             import onnxslim  # type: ignore [import-not-found,import-untyped]
 
@@ -418,67 +433,152 @@ class ExportMixin(DynamoCompileAble, ABC):
             )
 
         if verify:
-            logger.info("Verifying ONNX model")
-            import onnx
-            import onnxruntime as ort
-
-            from lightly_train import _torch_testing
-
-            onnx.checker.check_model(str(out), full_check=True)
-
-            # Always run the reference input in float32 and on cpu for consistency.
-            reference_model = copy.deepcopy(module).cpu().to(torch.float32).eval()
-            reference_inputs = {
-                name: (
-                    tensor.detach().cpu().to(torch.float32)
-                    if tensor.is_floating_point()
-                    else tensor.detach().cpu()
-                )
-                for name, tensor in example_inputs.items()
-            }
-            reference_output = reference_model(**reference_inputs)
-            reference_values, _ = task_model_io._model_output_flatten(reference_output)
-
-            # Get outputs from the ONNX model.
-            session = ort.InferenceSession(str(out))
-            input_feed = {
-                name: tensor.detach().cpu().numpy()
-                for name, tensor in example_inputs.items()
-            }
-            outputs_onnx = session.run(output_names=None, input_feed=input_feed)
-            outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
-
-            if len(outputs_onnx) != len(reference_values):
-                raise AssertionError(
-                    f"Number of onnx outputs should be {len(reference_values)} but is "
-                    f"{len(outputs_onnx)}"
-                )
-            for output_onnx, output_model, output_name in zip(
-                outputs_onnx, reference_values, output_names
-            ):
-
-                def msg(s: str) -> str:
-                    return f'ONNX validation failed for output "{output_name}": {s}'
-
-                if output_model.is_floating_point():
-                    # Absolute and relative tolerances are a bit arbitrary and taken from:
-                    # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
-                    torch.testing.assert_close(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                        equal_nan=True,
-                        check_device=False,
-                        check_dtype=False,
-                        check_layout=False,
-                        atol=5e-3,
-                        rtol=1e-1,
-                    )
-                else:
-                    _torch_testing.assert_most_equal(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                    )
+            self._verify_onnx_export(
+                out=out,
+                module=module,
+                example_inputs=example_inputs,
+            )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
+
+    def _onnx_export_input_spec(
+        self,
+        *,
+        spec: ModelInputSpec,
+        height: int | None,
+        width: int | None,
+    ) -> ModelInputSpec:
+        """Return a concrete export input spec with export-time spatial overrides."""
+        input_specs: dict[str, TensorSpec] = {}
+        for name, tensor_spec in spec.input_specs.items():
+            shape = list(tensor_spec.shape)
+            if len(shape) >= 2:
+                if height is not None:
+                    shape[-2] = height
+                if width is not None:
+                    shape[-1] = width
+            input_specs[name] = tensor_spec.model_copy(update={"shape": tuple(shape)})
+        return spec.model_copy(update={"input_specs": input_specs})
+
+    def _onnx_export_example_inputs(
+        self,
+        *,
+        spec: ModelInputSpec,
+        batch_size: int,
+        dtype: torch.dtype | None,
+        device: torch.device,
+    ) -> dict[str, Tensor]:
+        """Build tracing inputs from a concrete export input spec."""
+        example_inputs: dict[str, Tensor] = {}
+        for name, tensor_spec in spec.input_specs.items():
+            tensor = tensor_spec.example_tensor(batch_size=batch_size)
+            if tensor.is_floating_point():
+                tensor_dtype = dtype if dtype is not None else tensor.dtype
+                tensor = torch.randn(
+                    tensor.shape,
+                    dtype=tensor_dtype,
+                    device=device,
+                )
+            else:
+                tensor = tensor.to(device=device)
+            example_inputs[name] = tensor
+        return example_inputs
+
+    def _apply_onnx_export_module_precision(
+        self,
+        *,
+        module: Module,
+        dtype: torch.dtype | None,
+    ) -> None:
+        """Apply the requested module precision and FP32 module overrides."""
+        if dtype is not None:
+            module.to(dtype)
+        if dtype != torch.float16:
+            return
+        policy = self.onnx_export_precision_policy
+        for name, child_module in module.named_modules():
+            if name in policy.fp32_module_names or isinstance(
+                child_module, policy.fp32_module_types
+            ):
+                child_module.to(torch.float32)
+
+    def _apply_onnx_export_graph_precision(
+        self,
+        *,
+        out: str | Path,
+        precision: Literal["auto", "fp32", "fp16"],
+    ) -> None:
+        """Apply ONNX graph precision policy after export."""
+        policy = self.onnx_export_precision_policy
+        if precision != "fp16" or not policy.fp32_onnx_op_types:
+            return
+
+        import onnx
+        from onnxruntime.transformers import float16 as ort_float16
+
+        model_onnx = onnx.load(str(out))
+        op_block_list = list(ort_float16.DEFAULT_OP_BLOCK_LIST) + list(
+            policy.fp32_onnx_op_types
+        )
+        model_fp16 = ort_float16.convert_float_to_float16(
+            model_onnx,
+            op_block_list=op_block_list,
+        )
+        remove_redundant_casts(model_fp16)
+        fix_topological_order(model_fp16)
+        onnx.save(model_fp16, str(out))
+
+    def _verify_onnx_export(
+        self,
+        *,
+        out: str | Path,
+        module: Module,
+        example_inputs: dict[str, Tensor],
+    ) -> None:
+        """Validate the ONNX file and compare ONNX Runtime outputs to PyTorch."""
+        logger.info("Verifying ONNX model")
+        import onnx
+        import onnxruntime as ort
+
+        onnx.checker.check_model(str(out), full_check=True)
+
+        # Always run the reference input in float32 and on cpu for consistency.
+        reference_model = copy.deepcopy(module).cpu().to(torch.float32).eval()
+        if isinstance(reference_model, TaskModel):
+            reference_model.deploy()
+        reference_inputs = {
+            name: (
+                tensor.detach().cpu().to(torch.float32)
+                if tensor.is_floating_point()
+                else tensor.detach().cpu()
+            )
+            for name, tensor in example_inputs.items()
+        }
+        reference_output: BaseModelOutput = reference_model(**reference_inputs)
+        reference_values, context = task_model_io._model_output_flatten(
+            reference_output
+        )
+
+        # Get outputs from the ONNX model.
+        session = ort.InferenceSession(str(out))
+        input_feed = {
+            name: tensor.detach().cpu().numpy()
+            for name, tensor in example_inputs.items()
+        }
+        outputs_onnx = session.run(output_names=None, input_feed=input_feed)
+        onnx_values = [torch.from_numpy(y) for y in outputs_onnx]
+
+        if len(onnx_values) != len(reference_values):
+            raise AssertionError(
+                f"Number of onnx outputs should be {len(reference_values)} but is "
+                f"{len(onnx_values)}"
+            )
+        onnx_output = task_model_io._model_output_unflatten(
+            onnx_values,
+            context,
+            output_type=type(reference_output),
+        )
+        self.verify_onnx_export_outputs(
+            torch_outputs=reference_output,
+            onnx_outputs=onnx_output,
+        )
