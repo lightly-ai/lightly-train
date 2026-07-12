@@ -351,6 +351,10 @@ class LTDETRObjectDetection(TaskModel):
     def get_export_output_names(self) -> list[str]:
         return ["logits", "boxes"]
 
+    def forward_backend(self, x: Tensor) -> ObjectDetectionOutput:
+        # For backwards compatibility with the benchmark command.
+        return self.forward(x)
+
     def forward(self, x: Tensor) -> ObjectDetectionOutput:
         # The raw neural forward pass. Returns the raw decoder outputs:
         #   logits: (B, num_queries, num_classes)
