@@ -16,7 +16,7 @@ from typing import (
 import torch
 from pydantic import BaseModel, ConfigDict, Field
 from torch import Tensor
-from torch.export.dynamic_shapes import _DimHint
+from torch.export.dynamic_shapes import Dim, _DimHint
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +50,12 @@ class TensorSpec(BaseModel):
 class ModelInputSpec(BaseModel):
     """Specification of the model's inputs."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     input_specs: dict[str, TensorSpec] = Field(
         ..., description="Mapping of input names to their corresponding TensorSpec."
     )
-    input_dynamic_shapes: dict[str, tuple[_DimHint, ...]] = Field(
+    input_dynamic_shapes: dict[str, tuple[_DimHint | Dim, ...]] = Field(
         ...,
         description=(
             "Mapping of input names to tuples of Dim enums, indicating which dimensions "

@@ -199,9 +199,13 @@ def test_export_onnx__module_precision_policy(tmp_path: Path, monkeypatch: Any) 
     )
 
     class PrecisionModel(_ExportModel):
+        def __init__(self) -> None:
+            super().__init__()
+            self.block = torch.nn.Sequential(torch.nn.Linear(1, 1))
+
         @property
         def onnx_export_precision_policy(self) -> ONNXExportPrecisionPolicy:
-            return ONNXExportPrecisionPolicy(fp32_module_names=("proj",))
+            return ONNXExportPrecisionPolicy(fp32_module_names=("block",))
 
     def export_spy(
         module: Module,
@@ -219,6 +223,7 @@ def test_export_onnx__module_precision_policy(tmp_path: Path, monkeypatch: Any) 
         record["input_dtype"] = kwargs["images"].dtype
         record["weight_dtype"] = module.weight.dtype
         record["proj_dtype"] = module.proj.weight.dtype
+        record["block_child_dtype"] = module.block[0].weight.dtype
 
     monkeypatch.setattr(torch.onnx, "export", export_spy)
 
@@ -233,7 +238,8 @@ def test_export_onnx__module_precision_policy(tmp_path: Path, monkeypatch: Any) 
     assert record == {
         "input_dtype": torch.float16,
         "weight_dtype": torch.float16,
-        "proj_dtype": torch.float32,
+        "proj_dtype": torch.float16,
+        "block_child_dtype": torch.float32,
     }
 
 

@@ -22,6 +22,7 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.export import Dim
+from torch.export.dynamic_shapes import Dim as ExportDim
 from torch.export.dynamic_shapes import _DimHint
 from torch.nn import Module
 from typing_extensions import Self
@@ -227,8 +228,8 @@ class ONNXExportPrecisionPolicy:
 
     Args:
         fp32_module_names:
-            Fully-qualified module names to keep in FP32 after casting the model to the
-            requested export precision.
+            Fully-qualified module names or module name prefixes to keep in FP32 after
+            casting the model to the requested export precision.
         fp32_module_types:
             Module classes to keep in FP32 after casting the model to the requested
             export precision.
@@ -366,6 +367,7 @@ class ExportMixin(ABC):
 
         module.eval()
         module.deploy()
+
         self._apply_onnx_export_module_precision(
             module=module,
             dtype=dtype,
@@ -389,7 +391,7 @@ class ExportMixin(ABC):
 
         # Build the dynamic shapes from the spec, forcing a static batch dim if
         # dynamic batching is disabled.
-        dynamic_shapes: dict[str, tuple[_DimHint, ...]] = {}
+        dynamic_shapes: dict[str, tuple[_DimHint | ExportDim, ...]] = {}
         for name, dims in export_spec.input_dynamic_shapes.items():
             new_dims = list(dims)
             if not dynamic_batch_size and export_spec.input_specs[name].is_batched:
@@ -497,10 +499,23 @@ class ExportMixin(ABC):
             return
         policy = self.onnx_export_precision_policy
         for name, child_module in module.named_modules():
-            if name in policy.fp32_module_names or isinstance(
-                child_module, policy.fp32_module_types
-            ):
+            if self._is_onnx_export_fp32_module_name(
+                name=name,
+                fp32_module_names=policy.fp32_module_names,
+            ) or isinstance(child_module, policy.fp32_module_types):
                 child_module.to(torch.float32)
+
+    @staticmethod
+    def _is_onnx_export_fp32_module_name(
+        *,
+        name: str,
+        fp32_module_names: tuple[str, ...],
+    ) -> bool:
+        """Return whether ``name`` is a configured FP32 module or descendant."""
+        return any(
+            name == fp32_name or name.startswith(f"{fp32_name}.")
+            for fp32_name in fp32_module_names
+        )
 
     def _apply_onnx_export_graph_precision(
         self,
@@ -561,10 +576,18 @@ class ExportMixin(ABC):
 
         # Get outputs from the ONNX model.
         session = ort.InferenceSession(str(out))
-        input_feed = {
-            name: tensor.detach().cpu().numpy()
-            for name, tensor in example_inputs.items()
+        get_session_inputs = getattr(session, "get_inputs", lambda: [])
+        session_input_types = {
+            input_.name: input_.type for input_ in get_session_inputs()
         }
+        input_feed = {}
+        for name, tensor in example_inputs.items():
+            tensor = tensor.detach().cpu()
+            if tensor.is_floating_point() and session_input_types.get(name) == (
+                "tensor(float16)"
+            ):
+                tensor = tensor.half()
+            input_feed[name] = tensor.numpy()
         outputs_onnx = session.run(output_names=None, input_feed=input_feed)
         onnx_values = [torch.from_numpy(y) for y in outputs_onnx]
 

@@ -746,6 +746,77 @@ def test_predict_sahi__composes_stages_in_order(mocker: MockerFixture) -> None:
     assert result is postprocess_spy.spy_return
 
 
+def test_model_input_spec__uses_channels_and_image_size() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 320),
+        image_normalize={
+            "mean": (0.0,),
+            "std": (1.0,),
+        },
+        backbone_args={"in_chans": 1},
+        load_weights=False,
+    )
+
+    spec = model.model_input_spec
+
+    assert "export_onnx" not in LTDETRObjectDetection.__dict__
+    assert list(spec.input_specs) == ["images"]
+    assert spec.input_specs["images"].shape == (1, 256, 320)
+    assert spec.input_specs["images"].dtype == torch.float32
+    assert spec.input_specs["images"].is_batched is True
+
+
+@pytest.mark.parametrize(
+    ("decoder_name", "fp32_module_names"),
+    [
+        ("rtdetrv2", ("decoder.dec_bbox_head",)),
+        (
+            "dfine",
+            (
+                "decoder.dec_bbox_head",
+                "decoder.pre_bbox_head",
+                "decoder.dec_score_head",
+                "decoder.decoder.lqe_layers",
+            ),
+        ),
+    ],
+)
+def test_onnx_export_precision_policy__keeps_decoder_fp32_modules(
+    decoder_name: Literal["rtdetrv2", "dfine"],
+    fp32_module_names: tuple[str, ...],
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        decoder_name=decoder_name,
+        load_weights=False,
+    )
+
+    policy = model.onnx_export_precision_policy
+
+    assert not hasattr(policy, "trace_fp16_in_fp32")
+    assert policy.fp32_module_names == fp32_module_names
+    assert policy.fp32_onnx_op_types == ("Softmax", "MatMul")
+
+    model._apply_onnx_export_module_precision(module=model, dtype=torch.float16)
+
+    named_modules = dict(model.named_modules())
+    for name in fp32_module_names:
+        module = named_modules[name]
+        params = list(module.parameters())
+        assert params
+        assert all(param.dtype == torch.float32 for param in params)
+
+    if decoder_name == "rtdetrv2":
+        assert all(
+            param.dtype == torch.float16
+            for param in model.decoder.dec_score_head.parameters()
+        )
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
@@ -800,6 +871,8 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
 )
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
+    import onnx
+
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
@@ -811,6 +884,26 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model.export_onnx(
         out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
     )
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_value == 3
+
+
+def test_export_onnx__custom_height_width_raises() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    with pytest.raises(ValueError, match="does not support custom height/width"):
+        model._onnx_export_input_spec(
+            spec=model.model_input_spec,
+            height=128,
+            width=160,
+        )
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
@@ -831,6 +924,7 @@ def test_export_onnx__fp16(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
         image_size=(256, 256),
+        decoder_name=decoder_name,
         load_weights=False,
     )
 
