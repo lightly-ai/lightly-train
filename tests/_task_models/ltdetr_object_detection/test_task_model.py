@@ -705,6 +705,47 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     assert result is postprocess_spy.spy_return
 
 
+def test_predict_sahi__composes_stages_in_order(mocker: MockerFixture) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    preprocess_spy = mocker.spy(model.preprocessor, "preprocess_sahi_image")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_spy = mocker.spy(model.postprocessor, "postprocess_sahi")
+
+    result = model.predict_sahi(
+        image=torch.rand(3, 300, 400),
+        threshold=0.7,
+        overlap=0.25,
+        nms_iou_threshold=0.4,
+        global_local_iou_threshold=0.2,
+    )
+
+    assert preprocess_spy.call_count == 1
+    assert preprocess_spy.call_args.kwargs["overlap"] == 0.25
+
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
+    assert forward_in is preprocess_spy.spy_return[0]
+
+    assert postprocess_spy.call_count == 1
+    raw_in, metadata = postprocess_spy.call_args.args
+    assert raw_in is forward_spy.spy_return
+    assert metadata is preprocess_spy.spy_return[1]
+    assert postprocess_spy.call_args.kwargs == {
+        "threshold": 0.7,
+        "nms_iou_threshold": 0.4,
+        "global_local_iou_threshold": 0.2,
+        "tile_size": (256, 256),
+    }
+
+    assert result is postprocess_spy.spy_return
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

@@ -19,6 +19,7 @@ from torchvision.ops import box_convert
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
+from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train.types import PathLike
 
@@ -60,6 +61,40 @@ class ObjectDetectionPreprocessor(Module):
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
+        x = self._validate_channels(x)
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def preprocess_sahi_image(
+        self,
+        image: PathLike | PILImage | Tensor,
+        *,
+        device: torch.device,
+        dtype: torch.dtype,
+        overlap: float,
+    ) -> tuple[Tensor, dict[str, Any]]:
+        x = file_helpers.as_image_tensor(image).to(device)
+        orig_h, orig_w = x.shape[-2:]
+
+        x = self._validate_channels(x)
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+
+        tiles, tiles_coordinates = tiling_utils.tile_image(
+            x, overlap=overlap, tile_size=self.image_size
+        )
+
+        x_global = transforms_functional.resize(x, self.image_size).unsqueeze(0)
+        batch = torch.cat([x_global, tiles], dim=0)
+        batch = self.preprocess_batch(batch)
+
+        return batch, {
+            "orig_h": orig_h,
+            "orig_w": orig_w,
+            "tiles_coordinates": tiles_coordinates,
+        }
+
+    def _validate_channels(self, x: Tensor) -> Tensor:
         # Expand grayscale to the expected channel count so images can be stacked.
         # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
         # 1-channel expansion is a convenience inherited from RGB-only models.
@@ -70,10 +105,7 @@ class ObjectDetectionPreprocessor(Module):
             raise ValueError(
                 f"Image has {x.shape[-3]} channels but model expects {expected_c}."
             )
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.resize(x, self.image_size)
-        return x, {"orig_h": image_h, "orig_w": image_w}
+        return x
 
     def preprocess_batch(self, batch: Tensor) -> Tensor:
         if self.image_normalize is not None:
@@ -171,3 +203,64 @@ class ObjectDetectionPostprocessor(Module):
                 }
             )
         return out
+
+    def postprocess_sahi(
+        self,
+        raw: ObjectDetectionOutput,
+        metadata: dict[str, Any],
+        *,
+        threshold: float,
+        nms_iou_threshold: float,
+        global_local_iou_threshold: float,
+        tile_size: tuple[int, int],
+    ) -> dict[str, Tensor]:
+        device = self.internal_class_to_class.device
+        tile_h, tile_w = tile_size
+        orig_h = int(metadata["orig_h"])
+        orig_w = int(metadata["orig_w"])
+        tiles_coordinates = metadata["tiles_coordinates"].to(device)
+
+        # Decoder expects (W, H). The first entry is the global image; all remaining
+        # entries are fixed-size tiles.
+        orig_target_sizes = torch.tensor(
+            [[orig_w, orig_h], *[[tile_w, tile_h] for _ in range(len(tiles_coordinates))]],
+            dtype=torch.int64,
+            device=device,
+        )
+        labels, boxes, scores = self.decode(raw, orig_target_sizes)
+
+        tiles_coordinates = (
+            tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1)
+        )
+        boxes[1:] += tiles_coordinates
+
+        boxes_global = boxes[0].view(-1, 4)
+        boxes_tiles = boxes[1:].view(-1, 4)
+        labels_global = labels[0].flatten()
+        labels_tiles = labels[1:].flatten()
+        scores_global = scores[0].flatten()
+        scores_tiles = scores[1:].flatten()
+
+        keep_global = scores_global > threshold
+        keep_tiles = scores_tiles > threshold
+
+        labels, boxes, scores = tiling_utils.combine_object_detection_tiles(
+            pred_global={
+                "labels": labels_global[keep_global],
+                "bboxes": boxes_global[keep_global],
+                "scores": scores_global[keep_global],
+            },
+            pred_tiles={
+                "labels": labels_tiles[keep_tiles],
+                "bboxes": boxes_tiles[keep_tiles],
+                "scores": scores_tiles[keep_tiles],
+            },
+            nms_iou_threshold=nms_iou_threshold,
+            global_local_iou_threshold=global_local_iou_threshold,
+        )
+
+        return {
+            "labels": labels,
+            "bboxes": boxes,
+            "scores": scores,
+        }

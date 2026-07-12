@@ -16,12 +16,10 @@ from typing import Any, Callable, Literal, Union, cast
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self, override
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
-from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
     check_onnx_dynamo_requirements,
@@ -65,7 +63,6 @@ from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper 
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
-from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
     DFINETransformer,
 )
@@ -532,80 +529,22 @@ class LTDETRObjectDetection(TaskModel):
         if self.training or not self.is_deploy_mode:
             self.deploy()
 
-        device = next(self.parameters()).device
-        x = file_helpers.as_image_tensor(image).to(device)
-
-        # Tile the image.
-        tiles, tiles_coordinates = tiling_utils.tile_image(x, overlap, self.image_size)
-
-        # Prepare the full image tile
-        h, w = x.shape[-2:]
-        x = transforms_functional.resize(x, self.image_size)
-        x = x.unsqueeze(0)
-        tiles = torch.cat([x, tiles], dim=0)
-
-        # Normalize the tiles and the image together.
-        tiles = transforms_functional.to_dtype(tiles, dtype=torch.float32, scale=True)
-
-        # Normalize the tiles.
-        if self.image_normalize is not None:
-            tiles = transforms_functional.normalize(
-                tiles,
-                mean=self.image_normalize["mean"],
-                std=self.image_normalize["std"],
-            )
-
-        # Prepare the image/tiles sizes.
-        orig_target_sizes = torch.tensor([self.image_size], device=device).repeat(
-            len(tiles), 1
+        first_param = next(self.parameters())
+        batch, metadata = self.preprocessor.preprocess_sahi_image(
+            image,
+            device=first_param.device,
+            dtype=first_param.dtype,
+            overlap=overlap,
         )
-        orig_target_sizes[0, 0] = h
-        orig_target_sizes[0, 1] = w
-
-        # Feed the tiles in parallel to the model, then postprocess to get
-        # top-k predictions with boxes rescaled to each tile's pixel coordinates.
-        raw = self.forward(tiles)
-        labels, boxes, scores = self.postprocessor.decode(raw, orig_target_sizes)
-
-        # Add coordinates of the tiles to the boxes.
-        tiles_coordinates = (
-            tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1)
-        )
-        boxes[1:] += tiles_coordinates
-
-        # Reorganize the predictions.
-        boxes_global = boxes[0].view(-1, 4)
-        boxes_tiles = boxes[1:].view(-1, 4)
-        labels_global = labels[0].flatten()
-        labels_tiles = labels[1:].flatten()
-        scores_global = scores[0].flatten()
-        scores_tiles = scores[1:].flatten()
-
-        # Discard low-confidence predictions.
-        keep_global = scores_global > threshold
-        keep_tiles = scores_tiles > threshold
-
-        # Combine global and tiles predictions.
-        labels, boxes, scores = tiling_utils.combine_object_detection_tiles(
-            pred_global={
-                "labels": labels_global[keep_global],
-                "bboxes": boxes_global[keep_global],
-                "scores": scores_global[keep_global],
-            },
-            pred_tiles={
-                "labels": labels_tiles[keep_tiles],
-                "bboxes": boxes_tiles[keep_tiles],
-                "scores": scores_tiles[keep_tiles],
-            },
+        raw = self.forward(batch)
+        return self.postprocessor.postprocess_sahi(
+            raw,
+            metadata,
+            threshold=threshold,
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
+            tile_size=self.image_size,
         )
-
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
 
     @torch.no_grad()
     def export_onnx(
