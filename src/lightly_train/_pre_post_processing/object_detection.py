@@ -223,7 +223,10 @@ class ObjectDetectionPostprocessor(Module):
         # Decoder expects (W, H). The first entry is the global image; all remaining
         # entries are fixed-size tiles.
         orig_target_sizes = torch.tensor(
-            [[orig_w, orig_h], *[[tile_w, tile_h] for _ in range(len(tiles_coordinates))]],
+            [
+                [orig_w, orig_h],
+                *[[tile_w, tile_h] for _ in range(len(tiles_coordinates))],
+            ],
             dtype=torch.int64,
             device=device,
         )

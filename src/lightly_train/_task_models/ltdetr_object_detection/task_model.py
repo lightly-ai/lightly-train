@@ -336,7 +336,7 @@ class LTDETRObjectDetection(TaskModel):
 
     def forward_backend(self, x: Tensor) -> ObjectDetectionOutput:
         # For backwards compatibility with the benchmark command.
-        return self.forward(x)
+        return self(x)
 
     def forward(self, x: Tensor) -> ObjectDetectionOutput:
         # The raw neural forward pass. Returns the raw decoder outputs:
@@ -451,7 +451,7 @@ class LTDETRObjectDetection(TaskModel):
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
         batch = self.preprocessor.preprocess_batch(batch)
-        raw = self.forward(batch)
+        raw = self(batch)
         return self.postprocessor.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
@@ -478,7 +478,7 @@ class LTDETRObjectDetection(TaskModel):
             image, device=first_param.device, dtype=first_param.dtype
         )
         batch = self.preprocessor.preprocess_batch(x.unsqueeze(0))
-        raw = self.forward(batch)
+        raw = self(batch)
         return self.postprocessor.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
@@ -536,7 +536,7 @@ class LTDETRObjectDetection(TaskModel):
             dtype=first_param.dtype,
             overlap=overlap,
         )
-        raw = self.forward(batch)
+        raw = self(batch)
         return self.postprocessor.postprocess_sahi(
             raw,
             metadata,
