@@ -87,7 +87,7 @@ class TorchBackend(ObjectDetectionBackend):
             self.model.eval()
 
         if backend_args.compile:
-            self._forward_fn = torch.compile(self._forward_fn)
+            self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
 
     @override
     def run_batch(
