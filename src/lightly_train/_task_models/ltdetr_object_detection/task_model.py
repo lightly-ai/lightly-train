@@ -16,7 +16,6 @@ from typing import Any, Callable, Literal, Union, cast
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import Module
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self, override
 
@@ -25,6 +24,7 @@ from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
+    check_onnx_dynamo_requirements,
     fix_topological_order,
     remove_redundant_casts,
 )
@@ -115,20 +115,6 @@ def _resolve_transformer_config(
             "Expected one of 'rtdetrv2' or 'dfine'."
         )
     return config_factory()
-
-
-class _RawForwardTupleWrapper(Module):
-    """Adapts a model whose ``forward`` returns a ``BaseModelOutput`` into one that
-    returns a plain tuple of tensors, for the legacy TorchScript ONNX exporter
-    (which cannot flatten dataclass outputs)."""
-
-    def __init__(self, model: Module) -> None:
-        super().__init__()
-        self.model = model
-
-    def forward(self, x: Tensor) -> tuple[Tensor, ...]:
-        values, _ = task_model_io._model_output_flatten(self.model(x))
-        return tuple(values)
 
 
 class LTDETRObjectDetection(TaskModel):
@@ -722,9 +708,14 @@ class LTDETRObjectDetection(TaskModel):
                         "num_channels must be provided for ONNX export if it cannot be inferred."
                     )
 
+        check_onnx_dynamo_requirements()
+
         if dynamic_batch_size:
             batch_size = 2
-        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+            batch_dim = torch.export.Dim("batch_size", min=1, max=2**31 - 1)
+            dynamic_shapes = ({0: batch_dim},)
+        else:
+            dynamic_shapes = None
 
         # Create dummy input using same device and dtype as the model.
         dummy_input = torch.randn(
@@ -745,23 +736,15 @@ class LTDETRObjectDetection(TaskModel):
         input_names = ["images"]
         output_names = self.get_export_output_names()
 
-        # `forward` returns a BaseModelOutput dataclass, which the legacy
-        # TorchScript ONNX exporter cannot flatten. Wrap the model so the exported
-        # graph exposes a plain tuple of tensors (in the same field order).
-        # Keep it in eval mode: the legacy exporter restores the module's original
-        # training flag afterwards, and a fresh wrapper would otherwise flip the
-        # wrapped model back to train mode (breaking the deployed decoder path).
-        export_module = _RawForwardTupleWrapper(self).eval()
-
         torch.onnx.export(
-            export_module,
+            self,
             (dummy_input,),
             str(out),
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
+            dynamo=True,
+            dynamic_shapes=dynamic_shapes,
             **(format_args or {}),
         )
 
@@ -827,10 +810,10 @@ class LTDETRObjectDetection(TaskModel):
                     task_model_io._model_output_flatten(reference_output)[0]
                 )
 
-                # Get outputs from the ONNX model. Load from bytes to avoid
-                # ORT errors about missing external data when weights are inline.
-                with open(out, "rb") as f:
-                    session = ort.InferenceSession(f.read())
+                # Get outputs from the ONNX model. Dynamo export may write external
+                # tensor data next to the ONNX file, so load by path to preserve
+                # that directory context.
+                session = ort.InferenceSession(str(out))
                 onnx_input = dummy_input.cpu()
                 if precision == "fp16":
                     onnx_input = onnx_input.half()

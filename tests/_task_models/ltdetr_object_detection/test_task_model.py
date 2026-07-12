@@ -21,6 +21,10 @@ from torch.optim.lr_scheduler import LinearLR
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DYNAMO_AVAILABLE,
+    _TORCH_DYNAMO_MIN_VERSION,
+)
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
@@ -705,6 +709,9 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
     import onnx
@@ -722,7 +729,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
+    assert input_batch_dim.dim_param == "batch_size"
 
     import torch
 
@@ -748,6 +755,9 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
@@ -765,6 +775,9 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
 )
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
