@@ -28,8 +28,7 @@ from lightly_train.types import PathLike
 class ObjectDetectionOutput(BaseModelOutput):
     """Raw object detection outputs returned by the model's ``forward``.
 
-    The field order defines the ONNX output names (``logits``, ``boxes``); see
-    ``task_model_io.output_names_from_model_output``.
+    The field order defines the ONNX output names (``logits``, ``boxes``).
     """
 
     logits: Tensor  # (B, num_queries, num_classes)

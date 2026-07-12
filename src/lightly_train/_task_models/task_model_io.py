@@ -149,18 +149,3 @@ def _model_output_unflatten(
     field_values = {name: value for name, value in zip(context, values)}
     return output_type(**field_values)
 
-
-def output_names_from_model_output(output: BaseModelOutput) -> list[str]:
-    """Derive ONNX output names from a BaseModelOutput.
-
-    The dataclass field names of a ``BaseModelOutput`` (in declaration order) are used
-    as the ONNX output names. This is the same source of truth used by the pytree
-    flattening (`_model_output_flatten`), so the output order is guaranteed to match.
-
-    Args:
-        output: A ``BaseModelOutput`` instance returned by the model's forward.
-
-    Returns:
-        The field names of the output dataclass, in declaration order.
-    """
-    return [field.name for field in fields(output)]

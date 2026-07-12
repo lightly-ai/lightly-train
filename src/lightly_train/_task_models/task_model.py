@@ -11,7 +11,7 @@ import copy
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import (
     Any,
@@ -400,10 +400,9 @@ class ExportMixin(ABC):
 
         input_names = list(export_spec.input_specs)
 
-        # Derive the output names from the BaseModelOutput returned by forward.
         with torch.no_grad():
             example_output = module(**example_inputs)
-        output_names = task_model_io.output_names_from_model_output(example_output)
+        output_names = [field.name for field in fields(example_output)]
 
         torch.onnx.export(
             module,
