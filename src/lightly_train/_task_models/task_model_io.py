@@ -14,7 +14,7 @@ from typing import (
 )
 
 import torch
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor
 from torch.export.dynamic_shapes import Dim, _DimHint
 
@@ -63,11 +63,34 @@ class ModelInputSpec(BaseModel):
         ),
     )
 
-    def example_inputs(self) -> dict[str, Tensor]:
+    @model_validator(mode="after")
+    def _validate_input_dynamic_shapes(self) -> "ModelInputSpec":
+        for name, spec in self.input_specs.items():
+            dynamic_shapes = self.input_dynamic_shapes[name]
+            expected_rank = len(spec.shape) + int(spec.is_batched)
+            if len(dynamic_shapes) != expected_rank:
+                raise ValueError(
+                    f"input_dynamic_shapes for '{name}' has rank "
+                    f"{len(dynamic_shapes)}, expected {expected_rank}."
+                )
+
+            for dim_index, dim in enumerate(dynamic_shapes):
+                if spec.is_batched and dim_index == 0:
+                    continue
+                if not self._is_static_dim(dim):
+                    raise ValueError(
+                        f"input_dynamic_shapes for '{name}' contains a dynamic "
+                        f"dimension at index {dim_index}. Only the batch dimension "
+                        "may be dynamic."
+                    )
+
+        return self
+
+    def example_inputs(self, batch_size: int | None = None) -> dict[str, Tensor]:
         """Generate example inputs based on the specified input specs.
 
-        If an input is marked as batched, the example tensor will be unsqueezed at the
-        0-th dimension to simulate a batch of size 1.
+        If an input is marked as batched, the example tensor uses the given batch
+        size or the minimum dynamic batch size if available.
 
         Returns:
             A dictionary mapping input names to example tensors.
@@ -75,10 +98,25 @@ class ModelInputSpec(BaseModel):
         inputs = {}
         for name, spec in self.input_specs.items():
             if spec.is_batched:
-                inputs[name] = spec.example_tensor().unsqueeze(0)
+                inputs[name] = spec.example_tensor(
+                    batch_size=(
+                        batch_size
+                        if batch_size is not None
+                        else self._default_batch_size(name)
+                    )
+                )
             else:
                 inputs[name] = spec.example_tensor()
         return inputs
+
+    @staticmethod
+    def _is_static_dim(dim: _DimHint | Dim) -> bool:
+        return isinstance(dim, _DimHint) and dim.type.name == "STATIC"
+
+    def _default_batch_size(self, name: str) -> int:
+        batch_dim = self.input_dynamic_shapes[name][0]
+        minimum = getattr(batch_dim, "min", None)
+        return 1 if minimum is None else minimum
 
 
 @dataclass

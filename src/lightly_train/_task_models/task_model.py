@@ -472,8 +472,7 @@ class ExportMixin(ABC):
     ) -> dict[str, Tensor]:
         """Build tracing inputs from a concrete export input spec."""
         example_inputs: dict[str, Tensor] = {}
-        for name, tensor_spec in spec.input_specs.items():
-            tensor = tensor_spec.example_tensor(batch_size=batch_size)
+        for name, tensor in spec.example_inputs(batch_size=batch_size).items():
             if tensor.is_floating_point():
                 tensor_dtype = dtype if dtype is not None else tensor.dtype
                 tensor = torch.randn(

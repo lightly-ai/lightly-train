@@ -13,9 +13,10 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
 
+import pytest
 import torch
 from torch import Tensor
-from torch.export.dynamic_shapes import _DimHint
+from torch.export.dynamic_shapes import Dim, _DimHint
 from torch.nn import Module
 
 from lightly_train._task_models import task_model as task_model_module
@@ -135,6 +136,91 @@ def test_model_input_spec__example_inputs_uses_declared_specs() -> None:
     assert inputs["images"].dtype == torch.float32
     assert inputs["indices"].shape == (4,)
     assert inputs["indices"].dtype == torch.int64
+
+
+def test_model_input_spec__example_inputs_uses_dynamic_batch_min() -> None:
+    spec = ModelInputSpec(
+        input_specs={
+            "images": TensorSpec(
+                shape=(3, 8, 8),
+                dtype=torch.float32,
+                is_batched=True,
+            ),
+        },
+        input_dynamic_shapes={
+            "images": (
+                Dim("batch_size", min=4, max=8),
+                _STATIC_DIM,
+                _STATIC_DIM,
+                _STATIC_DIM,
+            ),
+        },
+    )
+
+    inputs = spec.example_inputs()
+
+    assert inputs["images"].shape == (4, 3, 8, 8)
+
+
+def test_model_input_spec__example_inputs_batch_size_overrides_default() -> None:
+    spec = ModelInputSpec(
+        input_specs={
+            "images": TensorSpec(
+                shape=(3, 8, 8),
+                dtype=torch.float32,
+                is_batched=True,
+            ),
+        },
+        input_dynamic_shapes={
+            "images": (
+                Dim("batch_size", min=4, max=8),
+                _STATIC_DIM,
+                _STATIC_DIM,
+                _STATIC_DIM,
+            ),
+        },
+    )
+
+    inputs = spec.example_inputs(batch_size=2)
+
+    assert inputs["images"].shape == (2, 3, 8, 8)
+
+
+def test_model_input_spec__rejects_dynamic_non_batch_dimension() -> None:
+    with pytest.raises(ValueError, match="Only the batch dimension may be dynamic"):
+        ModelInputSpec(
+            input_specs={
+                "images": TensorSpec(
+                    shape=(3, 8, 8),
+                    dtype=torch.float32,
+                    is_batched=True,
+                ),
+            },
+            input_dynamic_shapes={
+                "images": (
+                    _DYNAMIC_DIM,
+                    _STATIC_DIM,
+                    _DYNAMIC_DIM,
+                    _STATIC_DIM,
+                ),
+            },
+        )
+
+
+def test_model_input_spec__rejects_dynamic_unbatched_dimension() -> None:
+    with pytest.raises(ValueError, match="Only the batch dimension may be dynamic"):
+        ModelInputSpec(
+            input_specs={
+                "indices": TensorSpec(
+                    shape=(4,),
+                    dtype=torch.int64,
+                    is_batched=False,
+                ),
+            },
+            input_dynamic_shapes={
+                "indices": (_DYNAMIC_DIM,),
+            },
+        )
 
 
 def test_export_onnx__uses_model_input_spec_names_and_deploy(
