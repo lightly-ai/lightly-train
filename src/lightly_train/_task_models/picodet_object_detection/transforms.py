@@ -40,7 +40,9 @@ def _get_default_image_size(model_name: str | None) -> tuple[int, int]:
     if model_name is None:
         return (416, 416)
     try:
-        return PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get(alias=model_name)().image_size
+        return PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get(
+            alias=model_name
+        )().image_size
     except KeyError:
         return (416, 416)
 

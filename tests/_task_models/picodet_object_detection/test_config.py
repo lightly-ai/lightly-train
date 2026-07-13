@@ -43,9 +43,7 @@ def test_picodet_coco_alias_metadata() -> None:
     }
 
     for alias, expected_checkpoint in aliases.items():
-        checkpoint = (
-            PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get_alias_metadata(
-                alias
-            ).downloadable_checkpoint
-        )
+        checkpoint = PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get_alias_metadata(
+            alias
+        ).downloadable_checkpoint
         assert (checkpoint.url, checkpoint.sha256) == expected_checkpoint

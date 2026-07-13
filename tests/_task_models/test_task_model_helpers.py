@@ -104,11 +104,9 @@ def test_downloadable_model__picodet_aliases_from_registry() -> None:
     aliases = ["picodet-s-coco", "picodet-l-coco"]
 
     for alias in aliases:
-        checkpoint = (
-            PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get_alias_metadata(
-                alias
-            ).downloadable_checkpoint
-        )
+        checkpoint = PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get_alias_metadata(
+            alias
+        ).downloadable_checkpoint
         assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
             checkpoint.url,
             checkpoint.sha256,

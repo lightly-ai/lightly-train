@@ -25,9 +25,9 @@ class PicoDetObjectDetectionConfig(PydanticConfig):
     head_feat_channels: int
 
 
-PICODET_OBJECT_DETECTION_MODEL_REGISTRY: ModelRegistry[
-    PicoDetObjectDetectionConfig
-] = ModelRegistry()
+PICODET_OBJECT_DETECTION_MODEL_REGISTRY: ModelRegistry[PicoDetObjectDetectionConfig] = (
+    ModelRegistry()
+)
 
 _PICODET_S_COCO_URL = "picodet_s_coco_416_260303_23022a45.pt"
 _PICODET_S_COCO_SHA256 = (
