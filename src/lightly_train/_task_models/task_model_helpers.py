@@ -27,6 +27,9 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import 
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
 )
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -79,15 +82,6 @@ def _get_downloadable_model_url_and_hashes(
 # 3. Add an entry to the DOWNLOADABLE_MODEL_URL_AND_HASH dictionary below including the
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
-    #### Object Detection
-    "picodet-s-coco": (
-        "picodet_s_coco_416_260303_23022a45.pt",
-        "23022a456b2583246288041762a1a66d8d59820d5e775912cb4eb366d3a0cd68",
-    ),
-    "picodet-l-coco": (
-        "picodet_l_coco_640_260303_b1a16990.pt",
-        "b1a16990fe4f86fe60aefb2dcb4bf97ead9cc616f6c14ce4638aa2b838351fff",
-    ),
     #### Panoptic Segmentation
     # Trained with 4x schedule (360k steps and the masking schedule of 90K steps)
     "dinov3/vitt16-eomt-panoptic-coco": (
@@ -203,6 +197,9 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "d59577016e01635c285fac76f44685d7a0878545e0b8d560da45c0cf4d058548",
     ),
 }
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(PICODET_OBJECT_DETECTION_MODEL_REGISTRY)
+)
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
     _get_downloadable_model_url_and_hashes(
         DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY
