@@ -10,7 +10,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
+import torch
 from pydantic import Field
+from torch.export import Dim
 from typing_extensions import Annotated
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
@@ -19,6 +21,7 @@ from lightly_train._configs.model_registry import (
     ModelAlias,
     ModelRegistry,
 )
+from lightly_train._task_models.task_model_io import ModelInputSpec, TensorSpec
 
 logger = logging.getLogger(__name__)
 
@@ -649,6 +652,34 @@ class DetectorConfig(PydanticConfig):
         self.backbone_wrapper.resolve_auto(patch_size=patch_size)
         self.hybrid_encoder.resolve_auto(patch_size=patch_size)
         self.transformer.resolve_auto(patch_size=patch_size)
+
+    def model_input_spec(
+        self,
+        *,
+        image_size: tuple[int, int],
+        input_channels: int,
+    ) -> ModelInputSpec:
+        return ModelInputSpec(
+            input_specs={
+                "images": TensorSpec(
+                    shape=(
+                        input_channels,
+                        image_size[0],
+                        image_size[1],
+                    ),
+                    dtype=torch.float32,
+                    is_batched=True,
+                )
+            },
+            input_dynamic_shapes={
+                "images": (
+                    Dim("batch_size", min=1, max=2**31 - 1),
+                    Dim.STATIC,
+                    Dim.STATIC,
+                    Dim.STATIC,
+                )
+            },
+        )
 
 
 class LTDETRBaseConfig(ConfigsNamespace):

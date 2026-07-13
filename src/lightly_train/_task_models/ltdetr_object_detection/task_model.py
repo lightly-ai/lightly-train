@@ -15,7 +15,6 @@ from typing import Any, Callable, Literal, Union, cast
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.export import Dim
 from typing_extensions import Self, override
 
 from lightly_train._export import tensorrt_helpers
@@ -73,7 +72,6 @@ from lightly_train._task_models.task_model import (
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
-    TensorSpec,
 )
 from lightly_train.types import PathLike
 
@@ -165,6 +163,7 @@ class LTDETRObjectDetection(TaskModel, ExportMixin):
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        self._config: DetectorConfig = config
         transformer_config = _resolve_transformer_config(
             config=config, decoder_name=decoder_name
         )
@@ -339,26 +338,9 @@ class LTDETRObjectDetection(TaskModel, ExportMixin):
     @property
     @override
     def model_input_spec(self) -> ModelInputSpec:
-        return ModelInputSpec(
-            input_specs={
-                "images": TensorSpec(
-                    shape=(
-                        self._expected_input_channels,
-                        self.image_size[0],
-                        self.image_size[1],
-                    ),
-                    dtype=torch.float32,
-                    is_batched=True,
-                )
-            },
-            input_dynamic_shapes={
-                "images": (
-                    Dim("batch_size", min=1, max=2**31 - 1),
-                    Dim.STATIC,
-                    Dim.STATIC,
-                    Dim.STATIC,
-                )
-            },
+        return self._config.model_input_spec(
+            image_size=self.image_size,
+            input_channels=self._expected_input_channels,
         )
 
     @property
