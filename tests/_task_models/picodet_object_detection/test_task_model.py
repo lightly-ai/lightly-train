@@ -72,35 +72,34 @@ def test_task_model_forward_shapes() -> None:
     assert cls_logits.shape == (1, num_preds, 80)
 
 
-def test_train_args_resolve_auto__adds_config_image_size() -> None:
-    model_init_args: dict[str, object] = {}
-    train_args = PicoDetObjectDetectionTrainArgs()
-    train_args.resolve_auto(
-        total_steps=1000,
-        gradient_accumulation_steps=1,
-        train_num_batches=100,
-        model_name="picodet/l-640",
-        model_init_args=model_init_args,
-        data_args=YOLOObjectDetectionDataArgs(
-            path=Path("/tmp/data"),
-            train=Path("train") / "images",
-            val=Path("val") / "images",
-            names={0: "class_0"},
-        ),
-    )
+@pytest.mark.parametrize(
+    "transform_args",
+    [
+        PicoDetObjectDetectionTrainTransformArgs(),
+        PicoDetObjectDetectionValTransformArgs(),
+    ],
+)
+def test_transform_args_resolve_auto__uses_model_config_image_size(
+    transform_args: PicoDetObjectDetectionTrainTransformArgs
+    | PicoDetObjectDetectionValTransformArgs,
+) -> None:
+    transform_args.resolve_auto(model_init_args={"model_name": "picodet/l-640"})
 
-    assert model_init_args["image_size"] == (640, 640)
+    assert transform_args.image_size == (640, 640)
 
 
 @pytest.mark.parametrize(
     "transform_args",
-    [PicoDetObjectDetectionTrainTransformArgs(), PicoDetObjectDetectionValTransformArgs()],
+    [
+        PicoDetObjectDetectionTrainTransformArgs(),
+        PicoDetObjectDetectionValTransformArgs(),
+    ],
 )
 def test_transform_args_resolve_auto__requires_config_image_size(
     transform_args: PicoDetObjectDetectionTrainTransformArgs
     | PicoDetObjectDetectionValTransformArgs,
 ) -> None:
-    with pytest.raises(ValueError, match="requires 'image_size' in model_init_args"):
+    with pytest.raises(ValueError, match="requires 'model_name' in model_init_args"):
         transform_args.resolve_auto(model_init_args={})
 
 
