@@ -512,6 +512,12 @@ class LTDETRInstanceSegmentation(TaskModel):
                     # outputs may be in a different order but still valid. To
                     # compare in an order-invariant way we reduce along the query
                     # dimension before comparing.
+                    # TODO(yutong, 07/2026): Reducing each output independently
+                    # only checks per-field marginals, so it cannot detect an
+                    # export that swaps labels or masks between boxes (the sums
+                    # and label multiset stay identical). Match detections per
+                    # image by box location and compare the full
+                    # (label, box, mask, score) tuples together instead.
                     if output_model.is_floating_point():
                         # Float outputs (boxes, masks, scores): sum over the query
                         # dimension. Convert the ONNX output to fp32 first to avoid
