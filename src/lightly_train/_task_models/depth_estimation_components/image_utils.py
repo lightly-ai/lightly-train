@@ -23,9 +23,9 @@ matches input order.
 The per-image stage returns a float RGB tensor in [0, 255] of shape ``(3, H, W)``,
 resized per one of ``RESIZE_METHODS``:
   - ``upper_bound_resize``: longest side to ``process_res``, aspect preserved, both sides
-    rounded to a multiple of ``PATCH_SIZE``.
+    rounded to a multiple of ``patch_size``.
   - ``lower_bound_resize``: shortest side to ``process_res``, aspect preserved, both sides
-    rounded to a multiple of ``PATCH_SIZE``.
+    rounded to a multiple of ``patch_size``.
   - ``square_resize``: resize to exactly ``(process_res, process_res)``.
 
 Resizing uses torchvision bilinear interpolation (the codebase-standard preprocessing
@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 
 NORMALIZE_MEAN = (0.485, 0.456, 0.406)
 NORMALIZE_STD = (0.229, 0.224, 0.225)
-PATCH_SIZE = 14
 ResizeMethod = Literal[
     "upper_bound_resize",
     "lower_bound_resize",
@@ -63,6 +62,7 @@ def process_image(
     img: Tensor,
     *,
     process_res: int,
+    patch_size: int,
     process_res_method: ResizeMethod = "square_resize",
 ) -> Tensor:
     """Preprocesses one image for Depth Anything depth inference.
@@ -74,11 +74,13 @@ def process_image(
         img: Image of shape ``(C, H, W)``. Uint8 is read as [0, 255], float as [0, 1];
             other dtypes raise.
         process_res: Target resolution for the resize.
+        patch_size: The aspect-preserving methods round both output dimensions to the
+            nearest multiple of this value.
         process_res_method: One of ``RESIZE_METHODS``:
             ``"upper_bound_resize"`` scales the longest side to ``process_res``,
             ``"lower_bound_resize"`` scales the shortest side to ``process_res`` (both
             preserve the aspect ratio and round each side to a multiple of
-            ``PATCH_SIZE``), and ``"square_resize"`` resizes to exactly
+            ``patch_size``), and ``"square_resize"`` resizes to exactly
             ``(process_res, process_res)``.
 
     Returns:
@@ -93,7 +95,7 @@ def process_image(
     if process_res_method == "square_resize":
         return _resize(image, new_h=process_res, new_w=process_res)
     image = _resize_bound(image, target_size=process_res, method=process_res_method)
-    image = _resize_to_patch_multiple(image, patch=PATCH_SIZE)
+    image = _resize_to_patch_multiple(image, patch=patch_size)
     return image
 
 
