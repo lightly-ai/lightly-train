@@ -131,13 +131,8 @@ def _predict_task_from_config(config: PredictTaskConfig) -> None:
         model=config.model,
     )
 
-    transform = predict_task_helpers.get_transform(
-        model=model,
-    )
-
     dataset = predict_task_helpers.get_dataset(
         data=config.data,
-        transform=transform,
         num_channels=config.num_channels,
     )
 
