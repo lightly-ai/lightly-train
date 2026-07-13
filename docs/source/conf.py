@@ -17,7 +17,7 @@ version = lightly_train.__version__
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "myst_parser",  # Markdown support
+    "myst_nb",  # MyST-NB support (includes myst_parser for Markdown)
     "sphinx.ext.autodoc",  # Automatic Python documentation
     "sphinx.ext.intersphinx",  # Link to class from type hints
     "sphinx_copybutton",  # Copy button for code blocks
@@ -28,7 +28,17 @@ extensions = [
 
 autodoc_class_signature = "separated"  # Show __init__ signature separately from class.
 
+# Suppress warnings for bash commands in Jupyter notebooks (e.g., !pip install)
+suppress_warnings = [
+    "misc.highlighting_failure",
+]
+
 googleanalytics_id = "G-9ZFQ8ZQS6H"
+
+# Include files outside the source directory (for notebooks in examples/notebooks)
+include_pages = [
+    "../../examples/notebooks/**",
+]
 templates_path = ["_templates"]
 exclude_patterns = []
 
@@ -73,3 +83,25 @@ myst_enable_extensions = [
     "colon_fence",  # Allows to use markdown within directives, see https://myst-parser.readthedocs.io/en/latest/syntax/optional.html#code-fences-using-colons
 ]
 myst_heading_anchors = 4  # Creates anchors for headings up to level 4
+
+# -- Myst-NB Configuration -------------------------------------------------
+# https://myst-nb.readthedocs.io/en/latest/configuration.html
+
+# Disable execution during build (faster, no runtime dependencies)
+nb_execution_mode = "off"
+nb_execution_allow_errors = False  # If errors occur, raise an exception
+
+# Configure the "Run in Colab" button using binder URL
+nb_cell_metadata_key = "all"  # Render all cell types (code, markdown, raw)
+
+# Set up Colab binder button
+# This will add a "Run in Colab" button to each notebook page
+nb_binder_url_from_env = False  # Don't read from environment
+nb_binder = {
+    "use_jupyterlab_viewer": False,  # Use the classic notebook viewer
+    "notebook_execution_mode": "off",
+    " Binder": (
+        "https://colab.research.google.com/github/lightly-ai/lightly-train"
+        "?branch=main&filepath=examples/notebooks/{file_name}"
+    ),
+}
