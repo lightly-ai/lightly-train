@@ -35,6 +35,9 @@ from lightly_train._task_models.object_detection_components.utils import (
     _denormalize_xyxy_boxes,
     _yolo_to_xyxy,
 )
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.picodet_object_detection.losses import (
     DistributionFocalLoss,
     GIoULoss,
@@ -116,6 +119,24 @@ class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
     simota_iou_weight: float = 6.0
     ema_momentum: float = 0.9998
     ema_warmup_steps: int = 2000
+
+    def resolve_auto(
+        self,
+        total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+        data_args: YOLOObjectDetectionDataArgs,
+    ) -> None:
+        try:
+            config = PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get(alias=model_name)()
+        except KeyError as error:
+            raise ValueError(
+                f"Unknown model name '{model_name}'. "
+                f"Available: {list(PICODET_OBJECT_DETECTION_MODEL_REGISTRY.list_aliases())}"
+            ) from error
+        model_init_args["image_size"] = config.image_size
 
 
 class PicoDetObjectDetectionTrain(TrainModel):
