@@ -18,7 +18,7 @@ from typing import Literal
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDatasetArgs
@@ -37,12 +37,30 @@ class COCOObjectDetectionDataArgs(TaskDataArgs):
     to the annotation file's parent directory, optionally under ``images``.
     """
 
-    # TODO: (Lionel, 08/25): Handle test set.
+    # Task training currently consumes only train and val splits.
     format: Literal["coco"] = "coco"
     train: SplitArgs
     val: SplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_annotations_missing: bool = False
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.annotations = data_helpers.resolve_path(
+            self.train.annotations, base_dir=base_dir
+        )
+        self.val.annotations = data_helpers.resolve_path(
+            self.val.annotations, base_dir=base_dir
+        )
+        if self.train.images is not None:
+            train_images = Path(self.train.images)
+            self.train.images = (
+                train_images.resolve() if train_images.is_absolute() else train_images
+            )
+        if self.val.images is not None:
+            val_images = Path(self.val.images)
+            self.val.images = (
+                val_images.resolve() if val_images.is_absolute() else val_images
+            )
 
     @functools.cached_property
     def _classes(self) -> dict[int, str]:
