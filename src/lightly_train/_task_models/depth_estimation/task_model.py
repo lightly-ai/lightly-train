@@ -257,6 +257,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "image_size": 504,
         "activation": "exp",
         "use_sky_head": True,
+        "sky_activation": "sigmoid",
         "align_corners": False,
         "scale_mode": "none",
         "model_args": {
@@ -276,6 +277,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "image_size": 504,
         "activation": "exp",
         "use_sky_head": True,
+        "sky_activation": "sigmoid",
         "align_corners": False,
         "scale_mode": "focal",
         "model_args": {
