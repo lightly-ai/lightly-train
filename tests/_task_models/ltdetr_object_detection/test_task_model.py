@@ -714,6 +714,7 @@ def test_predict_sahi__composes_stages_in_order(mocker: MockerFixture) -> None:
     )
 
     preprocess_spy = mocker.spy(model.preprocessor, "preprocess_sahi_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_sahi_batch")
     forward_spy = mocker.spy(model, "forward")
     postprocess_spy = mocker.spy(model.postprocessor, "postprocess_sahi")
 
@@ -728,9 +729,13 @@ def test_predict_sahi__composes_stages_in_order(mocker: MockerFixture) -> None:
     assert preprocess_spy.call_count == 1
     assert preprocess_spy.call_args.kwargs["overlap"] == 0.25
 
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert batch_in is preprocess_spy.spy_return[0]
+
     assert forward_spy.call_count == 1
     (forward_in,) = forward_spy.call_args.args
-    assert forward_in is preprocess_spy.spy_return[0]
+    assert forward_in is preprocess_batch_spy.spy_return
 
     assert postprocess_spy.call_count == 1
     raw_in, metadata = postprocess_spy.call_args.args
@@ -744,6 +749,96 @@ def test_predict_sahi__composes_stages_in_order(mocker: MockerFixture) -> None:
     }
 
     assert result is postprocess_spy.spy_return
+
+
+def test_predict_sahi_batch__composes_stages_in_order(
+    mocker: MockerFixture,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_sahi_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_sahi_batch")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_outputs = [
+        {
+            "labels": torch.tensor([0]),
+            "bboxes": torch.zeros(1, 4),
+            "scores": torch.ones(1),
+        },
+        {
+            "labels": torch.tensor([1]),
+            "bboxes": torch.ones(1, 4),
+            "scores": torch.ones(1),
+        },
+    ]
+    postprocess_mock = mocker.patch.object(
+        model.postprocessor, "postprocess_sahi", side_effect=postprocess_outputs
+    )
+
+    result = model.predict_sahi_batch(
+        images=[torch.rand(3, 300, 400), torch.rand(3, 256, 256)],
+        threshold=0.7,
+        overlap=0.25,
+        nms_iou_threshold=0.4,
+        global_local_iou_threshold=0.2,
+    )
+
+    assert preprocess_image_spy.call_count == 2
+    assert [call.kwargs["overlap"] for call in preprocess_image_spy.call_args_list] == [
+        0.25,
+        0.25,
+    ]
+    image_outputs = preprocess_image_spy.spy_return_list
+    image_batches = [image_output[0] for image_output in image_outputs]
+    metadata = [image_output[1] for image_output in image_outputs]
+    batch_sizes = [image_batch.shape[0] for image_batch in image_batches]
+
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert batch_in.shape[0] == sum(batch_sizes)
+    torch.testing.assert_close(batch_in, torch.cat(image_batches, dim=0))
+
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
+    assert forward_in is preprocess_batch_spy.spy_return
+
+    assert postprocess_mock.call_count == 2
+    raw = forward_spy.spy_return
+    start = 0
+    for i, call in enumerate(postprocess_mock.call_args_list):
+        raw_in, meta = call.args
+        end = start + batch_sizes[i]
+        torch.testing.assert_close(raw_in.logits, raw.logits[start:end])
+        torch.testing.assert_close(raw_in.boxes, raw.boxes[start:end])
+        assert meta is metadata[i]
+        assert call.kwargs == {
+            "threshold": 0.7,
+            "nms_iou_threshold": 0.4,
+            "global_local_iou_threshold": 0.2,
+            "tile_size": (256, 256),
+        }
+        start = end
+
+    assert len(result) == 2
+    assert result[0] is postprocess_outputs[0]
+    assert result[1] is postprocess_outputs[1]
+
+
+def test_predict_sahi_batch__raises_on_empty_input() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    with pytest.raises(ValueError, match="at least one image"):
+        model.predict_sahi_batch(images=[])
 
 
 def test_model_input_spec__uses_channels_and_image_size() -> None:

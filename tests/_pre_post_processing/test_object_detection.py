@@ -89,7 +89,7 @@ class TestObjectDetectionPreprocessor:
 
         assert batch.shape == (10, 3, 4, 6)
         assert batch.dtype == torch.float32
-        torch.testing.assert_close(batch, torch.full_like(batch, -1.0))
+        torch.testing.assert_close(batch, torch.zeros_like(batch))
         assert meta["orig_h"] == 8
         assert meta["orig_w"] == 10
         assert meta["tiles_coordinates"].shape == (9, 2)
@@ -113,6 +113,19 @@ class TestObjectDetectionPreprocessor:
                 dtype=torch.float32,
                 overlap=0.0,
             )
+
+    def test_preprocess_sahi_batch__applies_batch_preprocessing(self) -> None:
+        pre = ObjectDetectionPreprocessor(
+            image_size=(4, 6),
+            image_normalize={"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)},
+            expected_input_channels=3,
+        )
+        batch = torch.zeros(12, 3, 4, 6)
+        out = pre.preprocess_sahi_batch(batch)
+
+        assert out.shape == (12, 3, 4, 6)
+        assert out.dtype == torch.float32
+        torch.testing.assert_close(out, torch.full_like(batch, -1.0))
 
 
 def _make_postprocessor() -> ObjectDetectionPostprocessor:

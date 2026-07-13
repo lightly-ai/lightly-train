@@ -89,16 +89,17 @@ class ObjectDetectionPreprocessor(Module):
         tiles, tiles_coordinates = tiling_utils.tile_image(
             x, overlap=overlap, tile_size=self.image_size
         )
-
         x_global = transforms_functional.resize(x, self.image_size).unsqueeze(0)
         batch = torch.cat([x_global, tiles], dim=0)
-        batch = self.preprocess_batch(batch)
 
         return batch, {
             "orig_h": orig_h,
             "orig_w": orig_w,
             "tiles_coordinates": tiles_coordinates,
         }
+
+    def preprocess_sahi_batch(self, batch: Tensor) -> Tensor:
+        return self.preprocess_batch(batch)
 
     def _validate_channels(self, x: Tensor) -> Tensor:
         # Expand grayscale to the expected channel count so images can be stacked.

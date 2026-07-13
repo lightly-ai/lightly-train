@@ -148,4 +148,3 @@ def _model_output_unflatten(
 ) -> BaseModelOutput:
     field_values = {name: value for name, value in zip(context, values)}
     return output_type(**field_values)
-

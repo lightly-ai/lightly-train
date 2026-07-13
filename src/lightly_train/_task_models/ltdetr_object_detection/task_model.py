@@ -645,6 +645,7 @@ class LTDETRObjectDetection(TaskModel, ExportMixin):
             dtype=first_param.dtype,
             overlap=overlap,
         )
+        batch = self.preprocessor.preprocess_sahi_batch(batch)
         raw = self(batch)
         return self.postprocessor.postprocess_sahi(
             raw,
@@ -654,6 +655,81 @@ class LTDETRObjectDetection(TaskModel, ExportMixin):
             global_local_iou_threshold=global_local_iou_threshold,
             tile_size=self.image_size,
         )
+
+    @torch.no_grad()
+    def predict_sahi_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+        overlap: float = 0.2,
+        nms_iou_threshold: float = 0.3,
+        global_local_iou_threshold: float = 0.1,
+    ) -> list[dict[str, Tensor]]:
+        """Run Slicing Aided Hyper Inference (SAHI) on a batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold for filtering low-confidence predictions.
+            overlap:
+                Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
+            nms_iou_threshold:
+                IoU threshold used for non-maximum suppression when merging
+                predictions from tiles and global image.
+            global_local_iou_threshold:
+                Minimum IoU required to consider a tile prediction as matching a
+                global prediction when combining them.
+
+        Returns:
+            A list with one prediction dictionary per input image.
+        """
+        self._track_inference()
+        if len(images) == 0:
+            raise ValueError("images must contain at least one image.")
+        if self.training or not self.is_deploy_mode:
+            self.deploy()
+
+        first_param = next(self.parameters())
+        batches: list[Tensor] = []
+        metadata: list[ObjectDetectionMetadata] = []
+        batch_sizes: list[int] = []
+        for image in images:
+            image_batch, image_metadata = self.preprocessor.preprocess_sahi_image(
+                image,
+                device=first_param.device,
+                dtype=first_param.dtype,
+                overlap=overlap,
+            )
+            batches.append(image_batch)
+            metadata.append(image_metadata)
+            batch_sizes.append(image_batch.shape[0])
+
+        batch = torch.cat(batches, dim=0)
+        batch = self.preprocessor.preprocess_sahi_batch(batch)
+        raw = self(batch)
+
+        out: list[dict[str, Tensor]] = []
+        start = 0
+        for meta, batch_size in zip(metadata, batch_sizes):
+            end = start + batch_size
+            raw_image = ObjectDetectionOutput(
+                logits=raw.logits[start:end],
+                boxes=raw.boxes[start:end],
+            )
+            out.append(
+                self.postprocessor.postprocess_sahi(
+                    raw_image,
+                    meta,
+                    threshold=threshold,
+                    nms_iou_threshold=nms_iou_threshold,
+                    global_local_iou_threshold=global_local_iou_threshold,
+                    tile_size=self.image_size,
+                )
+            )
+            start = end
+        return out
 
     def export_tensorrt(
         self,
