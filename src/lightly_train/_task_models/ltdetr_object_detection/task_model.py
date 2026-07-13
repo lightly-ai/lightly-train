@@ -733,6 +733,11 @@ class LTDETRObjectDetection(TaskModel):
         model_device = next(self.parameters()).device
 
         # Try to infer num_channels if not provided.
+        # TODO(yutong, 07/2026): Inferring channels from the normalization stats
+        # is wrong when they don't match the backbone input (e.g. single-channel
+        # stats for a 3-channel model that expands grayscale before batching).
+        # Prefer self._expected_input_channels, as done in the LT-DETR instance
+        # segmentation export.
         if num_channels is None:
             if self.image_normalize is not None:
                 num_channels = len(self.image_normalize["mean"])
@@ -879,6 +884,12 @@ class LTDETRObjectDetection(TaskModel):
                     # Due to the presence of top-k operations in the model, the outputs may be
                     # in different order but still valid. To account for this, we sum
                     # over the query dimension before comparing.
+                    # TODO(yutong, 07/2026): Summing each output over the query
+                    # dimension only checks per-field marginals: it cannot detect
+                    # an export that swaps labels between boxes, and summing the
+                    # integer labels is weaker still (e.g. [0, 2] matches [1, 1]).
+                    # Match detections per image by box location and compare the
+                    # full (label, box, score) tuples together instead.
                     output_model = output_model.sum(dim=1)
                     if output_onnx.is_floating_point():
                         # Convert to fp32 to avoid overflow issues when summing in fp16.
