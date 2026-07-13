@@ -31,6 +31,7 @@ autodoc_class_signature = "separated"  # Show __init__ signature separately from
 # Suppress warnings for bash commands in Jupyter notebooks (e.g., !pip install)
 suppress_warnings = [
     "misc.highlighting_failure",
+    "myst-nb.lexer",  # Ignore warnings about missing lexers for notebook cells
 ]
 
 googleanalytics_id = "G-9ZFQ8ZQS6H"
