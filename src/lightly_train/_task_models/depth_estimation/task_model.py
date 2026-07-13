@@ -254,6 +254,24 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "use_sky_head": True,
         },
     },
+    "dinov2/dav3-metric-small": {
+        "canonical_name": "dinov2/dav3-metric-small",
+        "backbone_name": "vits14-noreg",
+        "image_size": 504,
+        "activation": "exp",
+        "use_sky_head": True,
+        "align_corners": False,
+        "scale_mode": "focal",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 64,
+            "out_channels": (48, 96, 192, 384),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
 }
 
 
