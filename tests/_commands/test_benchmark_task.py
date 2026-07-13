@@ -361,6 +361,50 @@ class TestBenchmarkObjectDetectionE2E:
         assert "# Benchmark Report" in summary
         assert "mAP" in summary
 
+    def test_benchmark_with_yaml_resolves_paths_relative_to_yaml(
+        self, tmp_path: Path
+    ) -> None:
+        helpers.create_coco_object_detection_dataset(
+            tmp_path / "dataset",
+            num_files=2,
+            height=128,
+            width=128,
+            num_classes=2,
+            annotations_per_image=[
+                [{"category_id": 0, "bbox": [10, 10, 30, 40]}],
+                [{"category_id": 1, "bbox": [5, 5, 25, 35]}],
+            ],
+        )
+        config_dir = tmp_path / "configs"
+        config_dir.mkdir()
+        data_yaml = config_dir / "data.yaml"
+        with data_yaml.open("w") as file:
+            yaml.safe_dump(
+                {
+                    "format": "coco",
+                    "train": {
+                        "annotations": "../dataset/train.json",
+                        "images": "train",
+                    },
+                    "val": {
+                        "annotations": "../dataset/val.json",
+                        "images": "val",
+                    },
+                },
+                file,
+            )
+
+        result = benchmark_object_detection(
+            out=str(tmp_path / "out"),
+            dataset_name="test-coco-yaml",
+            data=data_yaml,
+            model=_FakeObjectDetectionModel(),
+            batch_size=2,
+            overwrite=True,
+        )
+
+        assert result.num_images == 2
+
     def test_output_dir_not_empty_raises(self, tmp_path: Path) -> None:
         data_dict = _create_coco_data_dict(tmp_path)
         out_dir = tmp_path / "out"

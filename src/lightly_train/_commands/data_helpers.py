@@ -12,6 +12,8 @@ from typing import Any, Union, get_args, get_origin
 
 import fsspec
 import yaml
+from pydantic import AliasChoices, AliasPath
+from typing_extensions import Annotated
 
 
 def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
@@ -32,22 +34,56 @@ def load_data_yaml_if_path(value: Any, data_annotation: Any) -> Any:
             ``cls.model_fields["data"].annotation``.
     """
     if isinstance(value, (str, Path)):
+        data_config_file = Path(value).resolve()
         with fsspec.open(value, "r") as file:
             value = yaml.safe_load(file)
-        if get_origin(data_annotation) is Union:
-            members = get_args(data_annotation)
-        else:
-            members = (data_annotation,)
+
+        members = _data_model_members(data_annotation)
+        # data_attributes is the set of all accepted top-level input keys of all
+        # union members, including Pydantic validation aliases.
+        # This filtering happens before Pydantic validates the data model, so aliases
+        # such as train_csv/val_csv must be kept here or their validators never run.
         data_attributes = {
             name
-            for m in members
-            for name in m.model_fields  # type: ignore[attr-defined]
+            for member in members
+            for field_name, field in member.model_fields.items()
+            for name in _field_input_keys(field_name, field.validation_alias)
         }
+        # Only keep keys that are in the union members. Necessary because
+        # foreign keys in the YAML file would otherwise cause a validation error.
         value = {name: val for name, val in value.items() if name in data_attributes}
+        # Save the path to the YAML file in the config dict so that it can be used
+        # later for correct resolving of the relative paths.
+        if "data_config_file" in data_attributes:
+            value["data_config_file"] = data_config_file
     return value
 
 
-def set_default_data_format(value: Any, default: str = "yolo") -> Any:
+def _data_model_members(data_annotation: Any) -> tuple[Any, ...]:
+    origin = get_origin(data_annotation)
+    if origin is Annotated:
+        return _data_model_members(get_args(data_annotation)[0])
+    if origin is Union:
+        return get_args(data_annotation)
+    return (data_annotation,)
+
+
+def _field_input_keys(field_name: str, validation_alias: Any) -> tuple[str, ...]:
+    if validation_alias is None:
+        return (field_name,)
+    if isinstance(validation_alias, str):
+        return (field_name, validation_alias)
+    if isinstance(validation_alias, AliasChoices):
+        aliases = tuple(
+            choice for choice in validation_alias.choices if isinstance(choice, str)
+        )
+        return (field_name, *aliases)
+    if isinstance(validation_alias, AliasPath):
+        return (field_name,)
+    return (field_name,)
+
+
+def set_default_data_format(value: Any, default: str) -> Any:
     """Sets a default ``format`` on a data config dict if none is given.
 
     Returns ``value`` unchanged if it is not a dict or already has a ``format`` key.
