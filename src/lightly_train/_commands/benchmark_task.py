@@ -43,6 +43,7 @@ from lightly_train._commands.benchmark_types import (
     TorchBackendArgs,
 )
 from lightly_train._configs import validate
+from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -160,6 +161,7 @@ def _benchmark_object_detection_from_config(
     transform_args = _build_val_transform_args(model=model)
 
     # Set up validation data.
+    data_arg_helpers.resolve_data_paths(config.data)
     data_args = config.data
     num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers, num_devices_per_node=1
