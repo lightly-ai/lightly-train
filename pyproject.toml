@@ -278,6 +278,11 @@ name = "pytorch-cu118"
 url = "https://download.pytorch.org/whl/cu118"
 explicit = true
 
+[tool.uv.workspace]
+members = [
+    "deploy/lightlytrain-deploy-py",
+]
+
 [tool.pytest.ini_options]
 # Make pytest discover all files in the tests directory. This is usuful for showing
 # detailed assertion errors outside of the test file, for example when using a helper
