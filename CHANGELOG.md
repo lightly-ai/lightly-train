@@ -9,6 +9,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3 EoMT semantic segmentation training `model_args.patch_size` option.
+  The patch size is now determined by the selected model name; use a
+  `dinov3/vit*32-eomt` model, such as `dinov3/vits32-eomt-coco`, to train with patch
+  size 32.
+
+### Fixed
+
+- Fix ONNX export verification for task models: `Tensor.is_floating_point` was
+  referenced without calling it, so the always-truthy bound method forced integer
+  outputs (e.g. labels) through the float comparison path instead of the intended
+  exact-match check.
+
+### Security
+
+## [0.16.2] - 2026-07-10
+
+### Added
+
 - Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
   gradients during training, save a self-contained capture (model state dict +
   TrainModel class/init kwargs + the step's microbatches + RNG state) to
@@ -32,13 +56,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Deprecated
 
-- Removes the `DINOv3LTDETRObjectDetection` class in favor of the new
-  `LTDETRObjectDetection` class. For the user, this changes nothing, since they don't
-  use the class directly, but only its methods, which will remain available.
-
 ### Removed
 
+- Removes the `DINOv3LTDETRObjectDetection` and `DINOv2LTDETRObjectDetection` classes in
+  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing,
+  since they don't use the class directly, but only its methods, which will remain
+  available.
+
 ### Fixed
+
+- Fixed an issue with legacy LT-DETR checkpoints that used a [0,1] normalization instead
+  of the now-default ImageNet normalization.
 
 ### Security
 

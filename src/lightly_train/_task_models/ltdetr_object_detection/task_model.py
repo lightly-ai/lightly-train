@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
 import torch
@@ -28,6 +29,7 @@ from lightly_train._export.onnx_helpers import (
 )
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
+from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
@@ -73,6 +75,11 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+LTDETR_DEFAULT_IMAGE_NORMALIZE: dict[str, tuple[float, ...]] = {
+    "mean": (0.0, 0.0, 0.0),
+    "std": (1.0, 1.0, 1.0),
+}
 
 _LTDETRDecoderName = Literal["rtdetrv2", "dfine"]
 _TransformerConfig = Union[RTDETRTransformerv2Config, DFINETransformerConfig]
@@ -194,7 +201,11 @@ class LTDETRObjectDetection(TaskModel):
             for internal_class_id, class_name in enumerate(self.classes.values())
         }
 
-        self.image_normalize = image_normalize
+        self.image_normalize = (
+            image_normalize
+            if image_normalize is not None
+            else dict(LTDETR_DEFAULT_IMAGE_NORMALIZE)
+        )
 
         # Resolve the backbone's expected input channel count.
         # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
@@ -203,21 +214,23 @@ class LTDETRObjectDetection(TaskModel):
             self._expected_input_channels = 3
         elif backbone_args is not None and "in_chans" in backbone_args:
             self._expected_input_channels = backbone_args["in_chans"]
-        elif self.image_normalize is not None:
-            self._expected_input_channels = len(self.image_normalize["mean"])
         else:
-            self._expected_input_channels = 3
+            self._expected_input_channels = len(self.image_normalize["mean"])
 
         # Build backbone model args: start from config defaults, then apply overrides.
         backbone_model_args: dict[str, Any] = dict(config.backbone_args)
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
-        if backbone_weights is not None:
+        is_dinov2_backbone = package_name == DINOV2_VIT_PACKAGE.name
+        load_dinov2_backbone_weights = (
+            load_weights and backbone_weights is not None and is_dinov2_backbone
+        )
+        if backbone_weights is not None and not is_dinov2_backbone:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        get_model_kwargs = {}
-        if self.image_normalize is not None:
-            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+        get_model_kwargs = {
+            "num_input_channels": len(self.image_normalize["mean"]),
+        }
 
         package = package_helpers.get_package(package_name)
 
@@ -236,6 +249,9 @@ class LTDETRObjectDetection(TaskModel):
                 ECViTModelWrapper,
             ),
         )
+        if load_dinov2_backbone_weights:
+            assert backbone_weights is not None
+            self.load_backbone_weights(backbone=backbone, path=backbone_weights)
 
         self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
@@ -419,6 +435,21 @@ class LTDETRObjectDetection(TaskModel):
                     name = name[len("model.") :]
                     new_state_dict[name] = param
         return self.load_state_dict(new_state_dict, strict=strict, assign=assign)
+
+    def load_backbone_weights(self, backbone: torch.nn.Module, path: PathLike) -> None:
+        path = Path(path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Backbone weights file not found: '{path}'")
+
+        state_dict = torch.load(path, map_location="cpu", weights_only=False)
+        missing, unexpected = backbone.load_state_dict(state_dict, strict=False)
+
+        if missing:
+            logger.warning(f"Missing keys when loading backbone: {missing}")
+        if unexpected:
+            logger.warning(f"Unexpected keys when loading backbone: {unexpected}")
+        if not missing and not unexpected:
+            logger.info(f"Backbone weights loaded from '{path}'")
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
@@ -702,6 +733,11 @@ class LTDETRObjectDetection(TaskModel):
         model_device = next(self.parameters()).device
 
         # Try to infer num_channels if not provided.
+        # TODO(yutong, 07/2026): Inferring channels from the normalization stats
+        # is wrong when they don't match the backbone input (e.g. single-channel
+        # stats for a 3-channel model that expands grayscale before batching).
+        # Prefer self._expected_input_channels, as done in the LT-DETR instance
+        # segmentation export.
         if num_channels is None:
             if self.image_normalize is not None:
                 num_channels = len(self.image_normalize["mean"])
@@ -816,7 +852,7 @@ class LTDETRObjectDetection(TaskModel):
                 # Always run the reference input in float32 and on cpu for consistency.
                 reference_model = deepcopy(self).cpu().to(torch.float32).eval()
                 reference_model.deploy()
-                reference_outputs = reference_model(
+                reference_outputs: tuple[Tensor, ...] = reference_model(
                     dummy_input.cpu().to(torch.float32),
                 )
 
@@ -848,13 +884,19 @@ class LTDETRObjectDetection(TaskModel):
                     # Due to the presence of top-k operations in the model, the outputs may be
                     # in different order but still valid. To account for this, we sum
                     # over the query dimension before comparing.
+                    # TODO(yutong, 07/2026): Summing each output over the query
+                    # dimension only checks per-field marginals: it cannot detect
+                    # an export that swaps labels between boxes, and summing the
+                    # integer labels is weaker still (e.g. [0, 2] matches [1, 1]).
+                    # Match detections per image by box location and compare the
+                    # full (label, box, score) tuples together instead.
                     output_model = output_model.sum(dim=1)
-                    if output_onnx.is_floating_point:
+                    if output_onnx.is_floating_point():
                         # Convert to fp32 to avoid overflow issues when summing in fp16.
                         output_onnx = output_onnx.float()
                     output_onnx = output_onnx.sum(dim=1)
 
-                    if output_model.is_floating_point:
+                    if output_model.is_floating_point():
                         # Absolute and relative tolerances are a bit arbitrary and taken from here:
                         # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                         torch.testing.assert_close(
