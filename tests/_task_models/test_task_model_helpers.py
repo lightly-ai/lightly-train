@@ -20,6 +20,9 @@ from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import (
     DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
 )
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
+    DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
 )
@@ -77,6 +80,25 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
     # identical file regardless of which name the user passes.
     d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
     assert d["ltdetrv2-s-coco"] == d["edgecrafter/ecvitt-ltdetr-coco"]
+
+
+def test_downloadable_model__dinov3_eomt_semantic_aliases_from_registry() -> None:
+    aliases = [
+        "dinov3/vits16-eomt-coco",
+        "dinov3/vits32-eomt-coco",
+        "dinov3/vitl16-eomt-ade20k",
+    ]
+
+    for alias in aliases:
+        checkpoint = (
+            DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get_alias_metadata(
+                alias
+            ).downloadable_checkpoint
+        )
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
 
 
 def test_downloadable_model__dinov3_eomt_instance_aliases_from_registry() -> None:

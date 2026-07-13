@@ -32,6 +32,10 @@ from lightly_train._models.dinov3.dinov3_src.layers.attention import (
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
+    DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+    EoMTSemanticSegmentationConfig,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
 )
@@ -109,8 +113,11 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
         super().__init__(
             locals(), ignore_args={"backbone_weights", "backbone_url", "load_weights"}
         )
-        parsed_name = self.parse_model_name(model_name=model_name)
-        self.model_name = parsed_name["model_name"]
+        config = self._get_config(model_name=model_name)
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        self.model_name = f"{package_name}/{backbone_name}-{self.model_suffix}"
         self.classes = classes
         self.class_ignore_index = class_ignore_index
         self.image_size = image_size
@@ -145,7 +152,9 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
-        backbone_model_args: dict[str, Any] = {}
+        # The registry config is the single, typed source of truth for the backbone
+        # args (e.g. patch size). Caller-provided backbone_args override the defaults.
+        backbone_model_args: dict[str, Any] = config.backbone_args.model_dump()
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
         if backbone_url is not None:
@@ -157,7 +166,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         # Get the backbone.
         backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
+            model_name=backbone_name,
             num_input_channels=len(self.image_normalize["mean"]),
             model_args=backbone_model_args,
             load_weights=load_weights,
@@ -222,52 +231,24 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
-        ]
+        return list(DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases())
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
+        return model in DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases()
 
     @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
+    def _get_config(cls, model_name: str) -> EoMTSemanticSegmentationConfig:
+        try:
+            return DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                alias=model_name
+            )()
+        except KeyError:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}. See the documentation for "
                 "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
-            )
-
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
-        return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
+            ) from None
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
