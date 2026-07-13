@@ -745,7 +745,8 @@ class DepthAnythingDepthEstimation(TaskModel):
         The export uses a dummy input of shape (batch_size, 3, H, W). The spatial size
         (H, W) is fixed in the ONNX graph: it defaults to the model's processing
         resolution (``self.image_size`` on both sides) but can be overridden via
-        ``height``/``width`` (both must be multiples of the patch size, 14). If
+        ``height``/``width`` (both must be multiples of the patch size,
+        ``self.patch_size``). If
         ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch dimension.
 
         The graph outputs the raw depth map at processing resolution, plus a sky map for
