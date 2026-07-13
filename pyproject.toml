@@ -71,7 +71,7 @@ dev = [
 
     # Docs
     "furo>=2024.04.27",
-    "myst_nb>=1.1.0",           # Jupyter notebook support
+    "myst_nb>=1.1.0; python_version>='3.9'",           # Jupyter notebook support (requires Python >=3.9)
     "myst_parser>=3.0",
     "sphinx-autoapi>=3.0",
     "sphinx-copybutton>=0.5.2",
