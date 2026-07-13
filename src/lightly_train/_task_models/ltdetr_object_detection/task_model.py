@@ -34,6 +34,7 @@ from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
     ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPreprocessor,
@@ -550,7 +551,7 @@ class LTDETRObjectDetection(TaskModel, ExportMixin):
             self.deploy()
         first_param = next(self.parameters())
         tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
+        metadata: list[ObjectDetectionMetadata] = []
         for image in images:
             x, meta = self.preprocessor.preprocess_image(
                 image, device=first_param.device, dtype=first_param.dtype

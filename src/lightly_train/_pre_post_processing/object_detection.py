@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 import torch
 from PIL.Image import Image as PILImage
@@ -17,6 +17,7 @@ from torch import Tensor
 from torch.nn import Module
 from torchvision.ops import box_convert
 from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import NotRequired
 
 from lightly_train._data import file_helpers
 from lightly_train._task_models.object_detection_components import tiling_utils
@@ -33,6 +34,12 @@ class ObjectDetectionOutput(BaseModelOutput):
 
     logits: Tensor  # (B, num_queries, num_classes)
     boxes: Tensor  # (B, num_queries, 4) in normalized cxcywh format
+
+
+class ObjectDetectionMetadata(TypedDict):
+    orig_h: int
+    orig_w: int
+    tiles_coordinates: NotRequired[Tensor]
 
 
 class ObjectDetectionPreprocessor(Module):
@@ -56,7 +63,7 @@ class ObjectDetectionPreprocessor(Module):
         *,
         device: torch.device,
         dtype: torch.dtype,
-    ) -> tuple[Tensor, dict[str, Any]]:
+    ) -> tuple[Tensor, ObjectDetectionMetadata]:
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
@@ -72,7 +79,7 @@ class ObjectDetectionPreprocessor(Module):
         device: torch.device,
         dtype: torch.dtype,
         overlap: float,
-    ) -> tuple[Tensor, dict[str, Any]]:
+    ) -> tuple[Tensor, ObjectDetectionMetadata]:
         x = file_helpers.as_image_tensor(image).to(device)
         orig_h, orig_w = x.shape[-2:]
 
@@ -179,7 +186,7 @@ class ObjectDetectionPostprocessor(Module):
     def postprocess(
         self,
         raw: ObjectDetectionOutput,
-        metadata: Sequence[dict[str, Any]],
+        metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[dict[str, Tensor]]:
         device = self.internal_class_to_class.device
@@ -206,7 +213,7 @@ class ObjectDetectionPostprocessor(Module):
     def postprocess_sahi(
         self,
         raw: ObjectDetectionOutput,
-        metadata: dict[str, Any],
+        metadata: ObjectDetectionMetadata,
         *,
         threshold: float,
         nms_iou_threshold: float,
