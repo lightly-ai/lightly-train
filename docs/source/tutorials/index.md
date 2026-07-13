@@ -2,8 +2,8 @@
 
 # Tutorials
 
-In the following, some tutorials using LightlyTrain can be found. The tutorials are a
-good starting point to learn about LightlyTrain.
+In the following, some tutorials using LightlyTrain can be found. The
+tutorials are a good starting point to learn about LightlyTrain.
 
 ```{toctree}
 ---
@@ -17,9 +17,9 @@ embedding/index
 
 ## Interactive Notebooks
 
-The following Jupyter notebooks demonstrate how to use LightlyTrain for various
-computer vision tasks. Each notebook can be viewed directly in the documentation
-or opened in Google Colab for interactive execution.
+The following Jupyter notebooks demonstrate how to use LightlyTrain for
+various computer vision tasks. Each notebook can be viewed directly in the
+documentation or opened in Google Colab for interactive execution.
 
 ```{toctree}
 ---
