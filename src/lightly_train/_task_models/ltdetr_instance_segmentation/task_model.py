@@ -374,28 +374,16 @@ class LTDETRInstanceSegmentation(TaskModel):
         self.deploy()
         model_device = next(self.parameters()).device
 
-        # Try to infer num_channels if not provided.
+        # Infer num_channels if not provided. The model always consumes
+        # ``self._expected_input_channels`` channels (grayscale inputs are
+        # expanded to this count before batching), so use it rather than the
+        # normalization stats, whose length may not match the backbone's input.
         if num_channels is None:
-            if self.image_normalize is not None:
-                num_channels = len(self.image_normalize["mean"])
-                logger.info(
-                    f"Inferred num_channels={num_channels} from image_normalize."
-                )
-            else:
-                for module in self.modules():
-                    if isinstance(module, torch.nn.Conv2d):
-                        num_channels = module.in_channels
-                        logger.info(
-                            f"Inferred num_channels={num_channels} from first Conv. layer."
-                        )
-                        break
-                if num_channels is None:
-                    logger.error(
-                        "Could not infer num_channels. Please provide it explicitly."
-                    )
-                    raise ValueError(
-                        "num_channels must be provided for ONNX export if it cannot be inferred."
-                    )
+            num_channels = self._expected_input_channels
+            logger.info(
+                f"Inferred num_channels={num_channels} from the model's expected "
+                "input channels."
+            )
 
         if dynamic_batch_size:
             batch_size = 2
@@ -520,16 +508,16 @@ class LTDETRInstanceSegmentation(TaskModel):
                     def msg(s: str) -> str:
                         return f'ONNX validation failed for output "{output_name}": {s}'
 
-                    # Due to the presence of top-k operations in the model, the outputs may be
-                    # in different order but still valid. To account for this, we sum
-                    # over the query dimension before comparing.
-                    output_model = output_model.sum(dim=1)
-                    if output_onnx.is_floating_point():
-                        # Convert to fp32 to avoid overflow issues when summing in fp16.
-                        output_onnx = output_onnx.float()
-                    output_onnx = output_onnx.sum(dim=1)
-
+                    # Due to the presence of top-k operations in the model, the
+                    # outputs may be in a different order but still valid. To
+                    # compare in an order-invariant way we reduce along the query
+                    # dimension before comparing.
                     if output_model.is_floating_point():
+                        # Float outputs (boxes, masks, scores): sum over the query
+                        # dimension. Convert the ONNX output to fp32 first to avoid
+                        # overflow when summing in fp16.
+                        output_model = output_model.sum(dim=1)
+                        output_onnx = output_onnx.float().sum(dim=1)
                         # Absolute and relative tolerances are a bit arbitrary and taken from here:
                         # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                         torch.testing.assert_close(
@@ -544,9 +532,18 @@ class LTDETRInstanceSegmentation(TaskModel):
                             rtol=1e-1,
                         )
                     else:
+                        # Integer outputs (labels): compare as order-invariant
+                        # multisets by sorting along the query dimension. Summing
+                        # would let an incorrect set such as [0, 2] match [1, 1].
+                        # Require an exact match (min_fraction=1.0): once sorted
+                        # there is no ordering slack to allow, and the default
+                        # 0.99 would let a few wrong class labels pass silently.
+                        output_model = output_model.sort(dim=1).values
+                        output_onnx = output_onnx.sort(dim=1).values
                         _torch_testing.assert_most_equal(
                             output_onnx,
                             output_model,
+                            min_fraction=1.0,
                             msg=msg,
                         )
 
