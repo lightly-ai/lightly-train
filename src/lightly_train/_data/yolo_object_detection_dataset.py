@@ -16,7 +16,7 @@ from typing import Literal
 import pydantic
 from pydantic import Field
 
-from lightly_train._data import file_helpers, label_helpers, yolo_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDatasetArgs
@@ -24,15 +24,19 @@ from lightly_train.types import PathLike
 
 
 class YOLOObjectDetectionDataArgs(TaskDataArgs):
-    # TODO: (Lionel, 08/25): Handle test set.
     format: Literal["yolo"] = "yolo"
     path: PathLike
     train: PathLike
     val: PathLike
+    # Accepted for compatibility with YOLO data configs. Task training currently
+    # consumes only train and val splits.
     test: PathLike | None = None
     names: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.path = data_helpers.resolve_path(self.path, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
         return str(
