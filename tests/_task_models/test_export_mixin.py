@@ -19,12 +19,12 @@ from torch import Tensor
 from torch.export import ExportedProgram
 from torch.export.dynamic_shapes import Dim, _DimHint
 
-from lightly_train._task_models import task_model as task_model_module
-from lightly_train._task_models.task_model import (
-    ExportMixin,
+from lightly_train._export import export_onnx as export_onnx_module
+from lightly_train._export.export_onnx import (
+    ONNXExportMixin,
     ONNXExportPrecisionPolicy,
-    TaskModel,
 )
+from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
@@ -40,7 +40,7 @@ class _Output(BaseModelOutput):
     scores: Tensor
 
 
-class _ExportModel(TaskModel, ExportMixin):
+class _ExportModel(TaskModel, ONNXExportMixin):
     def __init__(self) -> None:
         super().__init__(init_args={"self": self, "__class__": self.__class__})
         self.weight = torch.nn.Parameter(torch.ones(()))
@@ -321,12 +321,12 @@ def test_export_onnx__graph_precision_policy(tmp_path: Path, monkeypatch: Any) -
         fake_float16,
     )
     monkeypatch.setattr(
-        task_model_module,
+        export_onnx_module,
         "remove_redundant_casts",
         lambda model: calls.append(("remove_casts", model)),
     )
     monkeypatch.setattr(
-        task_model_module,
+        export_onnx_module,
         "fix_topological_order",
         lambda model: calls.append(("fix_order", model)),
     )

@@ -18,6 +18,10 @@ from torch import Tensor
 from typing_extensions import Self, override
 
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.export_onnx import (
+    ONNXExportMixin,
+    ONNXExportPrecisionPolicy,
+)
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
@@ -64,11 +68,7 @@ from lightly_train._task_models.object_detection_components.hybrid_encoder impor
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
-from lightly_train._task_models.task_model import (
-    ExportMixin,
-    ONNXExportPrecisionPolicy,
-    TaskModel,
-)
+from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
@@ -114,7 +114,7 @@ def _resolve_transformer_config(
     return config_factory()
 
 
-class LTDETRObjectDetection(TaskModel, ExportMixin):
+class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
     model_suffix = "ltdetr"
 
     def __init__(
