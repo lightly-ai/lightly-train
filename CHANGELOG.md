@@ -17,6 +17,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix ONNX export verification for task models: `Tensor.is_floating_point` was
+  referenced without calling it, so the always-truthy bound method forced integer
+  outputs (e.g. labels) through the float comparison path instead of the intended
+  exact-match check.
+
 ### Security
 
 ## [0.16.2] - 2026-07-10
