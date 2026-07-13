@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 from abc import abstractmethod
 from collections.abc import Callable
@@ -24,6 +25,7 @@ from lightly_train._export.export import ExportMixin
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_redundant_casts,
+    write_onnx_metadata,
 )
 from lightly_train._task_models import task_model_io
 from lightly_train._task_models.task_model import TaskModel
@@ -76,6 +78,33 @@ class ONNXExportMixin(ExportMixin):
         torch_outputs: BaseModelOutput,
         onnx_outputs: BaseModelOutput,
     ) -> None: ...
+
+    def onnx_export_metadata(self) -> dict[str, str]:
+        """String metadata embedded into the exported ONNX (``metadata_props``).
+
+        This mirrors the information stored in training checkpoints so the ONNX
+        model is self-describing. Override to add or customize entries.
+
+        ``image_size`` is intentionally omitted: it is already readable from the
+        static height/width of the ONNX input tensor's shape.
+        """
+        from lightly_train import __version__  # lazy: avoid import cycle
+        from lightly_train._license import LICENSE_INFO
+
+        metadata: dict[str, str] = {
+            "lightly_train_version": __version__,
+            "license_info": LICENSE_INFO,
+        }
+        image_normalize = getattr(self, "image_normalize", None)
+        if image_normalize is not None:
+            metadata["image_normalize"] = json.dumps(image_normalize, sort_keys=True)
+        classes = getattr(self, "classes", None)
+        if classes is not None:
+            metadata["classes"] = json.dumps(classes, sort_keys=True)
+        model_name = getattr(self, "init_args", {}).get("model_name")
+        if model_name is not None:
+            metadata["model_name"] = str(model_name)
+        return metadata
 
     def export_onnx(
         self,
@@ -213,6 +242,10 @@ class ONNXExportMixin(ExportMixin):
                 # quite a lot.
                 skip_optimizations=["constant_folding"],
             )
+
+        # Write metadata last: the graph-precision conversion and onnxslim both
+        # rewrite the file and can drop metadata_props, so this must run after them.
+        write_onnx_metadata(out=config.out, metadata=self.onnx_export_metadata())
 
         if config.verify:
             self._verify_onnx_export(

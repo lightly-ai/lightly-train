@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -243,6 +244,61 @@ def test_export_onnx__uses_model_input_spec_names_and_deploy(tmp_path: Path) -> 
     dims = onnx_model.graph.input[0].type.tensor_type.shape.dim
     # The batch dimension is dynamic (named), the spatial dims come from the spec.
     assert dims[0].dim_param != ""
+    assert [d.dim_value for d in dims[1:]] == [3, 8, 8]
+
+
+def test_write_onnx_metadata__merges_and_preserves(tmp_path: Path) -> None:
+    import onnx
+
+    from lightly_train._export.onnx_helpers import write_onnx_metadata
+
+    out = tmp_path / "model.onnx"
+    _ExportModel().export_onnx(out, simplify=False, verify=False)
+
+    write_onnx_metadata(out, {"a": "1", "b": "2"})
+    # Overlapping keys override; existing keys are preserved.
+    write_onnx_metadata(out, {"b": "22", "c": "3"})
+
+    onnx_model = onnx.load(str(out))
+    metadata = {entry.key: entry.value for entry in onnx_model.metadata_props}
+    assert metadata["a"] == "1"
+    assert metadata["b"] == "22"
+    assert metadata["c"] == "3"
+
+
+class _MetadataModel(_ExportModel):
+    def __init__(self) -> None:
+        super().__init__()
+        self.image_normalize = {"mean": (0.1, 0.2, 0.3), "std": (0.4, 0.5, 0.6)}
+        self.classes = {0: "cat", 1: "dog"}
+        self._init_args["model_name"] = "dummy/model-ltdetr"
+
+
+def test_export_onnx__embeds_metadata(tmp_path: Path) -> None:
+    import onnx
+
+    from lightly_train import __version__
+    from lightly_train._license import LICENSE_INFO
+
+    model = _MetadataModel()
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out, simplify=False, verify=False)
+
+    onnx_model = onnx.load(str(out))
+    metadata = {entry.key: entry.value for entry in onnx_model.metadata_props}
+
+    assert metadata["lightly_train_version"] == __version__
+    assert metadata["license_info"] == LICENSE_INFO
+    assert json.loads(metadata["image_normalize"]) == {
+        "mean": [0.1, 0.2, 0.3],
+        "std": [0.4, 0.5, 0.6],
+    }
+    assert json.loads(metadata["classes"]) == {"0": "cat", "1": "dog"}
+    assert metadata["model_name"] == "dummy/model-ltdetr"
+
+    # image_size is not duplicated: it stays readable from the input shape header.
+    assert "image_size" not in metadata
+    dims = onnx_model.graph.input[0].type.tensor_type.shape.dim
     assert [d.dim_value for d in dims[1:]] == [3, 8, 8]
 
 

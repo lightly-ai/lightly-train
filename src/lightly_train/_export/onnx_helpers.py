@@ -12,6 +12,7 @@ import contextvars
 import logging
 from collections.abc import Iterator
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -63,6 +64,26 @@ def precalculate_for_onnx_export() -> Iterator[None]:
         yield
     finally:
         _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
+
+
+def write_onnx_metadata(out: str | Path, metadata: dict[str, str]) -> None:
+    """Merge string key/value pairs into an ONNX model's metadata_props in-place.
+
+    Existing metadata entries are preserved; keys in ``metadata`` override entries
+    with the same key. The model is loaded from ``out`` and saved back to it.
+    """
+    import onnx
+
+    model = onnx.load(str(out))
+    merged = {entry.key: entry.value for entry in model.metadata_props}
+    merged.update({str(key): str(value) for key, value in metadata.items()})
+
+    del model.metadata_props[:]
+    for key, value in merged.items():
+        entry = model.metadata_props.add()
+        entry.key = key
+        entry.value = value
+    onnx.save(model, str(out))
 
 
 def remove_redundant_casts(model: onnx.ModelProto) -> None:

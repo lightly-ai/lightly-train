@@ -61,6 +61,7 @@ from lightly_train._debug.debug_args import DebugArgs
 from lightly_train._debug.nan_capture import NaNCaptureMonitor
 from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
 from lightly_train._events import tracker
+from lightly_train._license import LICENSE_INFO
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
@@ -1618,16 +1619,6 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                 if config.overwrite:
                     hyperparams["overwrite"] = True
                 logger_instance.log_hyperparams(hyperparams)
-
-            LICENSE_INFO = (
-                "LightlyTrain License Notice\n"
-                "\n"
-                "Model training and inference in commercial settings require a valid Commercial License.\n"
-                "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
-                "please ensure your usage complies with the respective terms.\n"
-                "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
-                "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
-            )
 
             # TODO(Guarin, 02/26): Add best metric to state?
             best_agg_metric_values: BestAggregatedMetricValues | None = None
