@@ -31,8 +31,6 @@ def export_onnx(
     out: PathLike,
     checkpoint: PathLike,
     batch_size: int = 1,
-    height: int | None = None,
-    width: int | None = None,
     precision: Literal["32-true", "16-true"] = "32-true",
     simplify: bool = True,
     verify: bool = True,
@@ -48,10 +46,6 @@ def export_onnx(
             Path to the LightlyTrain checkpoint file to export the model from.
         batch_size:
             Batch size of the input tensor.
-        height:
-            Height of the input tensor.
-        width:
-            Width of the input tensor.
         precision:
             "32-true" for float32 precision or "16-true" for float16 precision. Choosing "16-true" can lead
             to less memory consumption and faster inference times on GPUs but might lead to slightly more inaccuracies.
@@ -74,8 +68,6 @@ def _export_task(
     checkpoint: PathLike,
     format: Literal["onnx"],
     batch_size: int = 1,
-    height: int | None = None,
-    width: int | None = None,
     precision: Literal["32-true", "16-true"] = "32-true",
     simplify: bool = True,
     verify: bool = True,
@@ -93,12 +85,6 @@ def _export_task(
             Format to save the model in.
         batch_size:
             Batch size of the input tensor.
-        height:
-            Height of the input tensor. If not specified it will be the same height that the model was trained in.
-            For efficiency reasons we recommend this to be the same as width.
-        width:
-            Width of the input tensor. If not specified it will be the same width that the model was trained in.
-            For efficiency reasons we recommend this to be the same as height.
         precision:
             OnnxPrecision.F32_TRUE for float32 precision or OnnxPrecision.F16_TRUE for float16 precision.
         simplify:
@@ -134,15 +120,11 @@ def _export_task_from_config(config: ExportTaskConfig) -> None:
     task_model = task_model_helpers.load_model(model=checkpoint_path)
     task_model.eval()
 
-    height = config.height
-    width = config.width
+    # The export resolution follows the model's image_size.
+    height = cast(int, task_model.image_size[0])  # type: ignore
+    width = cast(int, task_model.image_size[1])  # type: ignore
     # TODO we might also use task_model.backbone.in_chans
     num_channels = len(task_model.image_normalize["mean"])  # type: ignore[index]
-
-    if height is None:
-        height = cast(int, task_model.image_size[0])  # type: ignore
-    if width is None:
-        width = cast(int, task_model.image_size[1])  # type: ignore
 
     # Export the model to ONNX format
     # TODO(Yutong, 07/25): support more formats (may use ONNX as the intermediate format)
@@ -251,8 +233,6 @@ class ExportTaskConfig(PydanticConfig):
     checkpoint: PathLike
     format: Literal["onnx"]
     batch_size: int = 1
-    height: int | None = None
-    width: int | None = None
     precision: ONNXPrecision = ONNXPrecision.F32_TRUE
     simplify: bool = True
     verify: bool = True

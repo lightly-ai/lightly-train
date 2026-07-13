@@ -21,9 +21,7 @@ from typing import (
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.export import Dim
-from torch.export.dynamic_shapes import Dim as ExportDim
-from torch.export.dynamic_shapes import _DimHint
+from torch.export import ExportedProgram
 from torch.nn import Module
 from typing_extensions import Self
 
@@ -38,7 +36,6 @@ from lightly_train._task_models import task_model_io
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
-    TensorSpec,
 )
 from lightly_train.types import PathLike
 
@@ -214,8 +211,6 @@ class DynamoExportConfig(PydanticConfig):
     precision: Literal["auto", "fp32", "fp16"] = "auto"
     batch_size: int | None = None
     dynamic_batch_size: bool = True
-    height: int | None = None
-    width: int | None = None
     opset_version: int | None = None
     simplify: bool = True
     verify: bool = True
@@ -260,6 +255,79 @@ class ExportMixin(ABC):
         onnx_outputs: BaseModelOutput,
     ) -> None: ...
 
+    def export(
+        self,
+        *,
+        batch_size: int | None = None,
+        dynamic_batch_size: bool = True,
+    ) -> ExportedProgram:
+        """Trace the model into a ``torch.export.ExportedProgram``.
+
+        Example inputs and dynamic shapes are derived from ``self.model_input_spec``.
+        The model is traced in its current precision and configuration; cast or
+        deploy it beforehand (as ``export_onnx`` does) to change those.
+
+        Args:
+            batch_size:
+                Batch size used for tracing. If None, defaults to 2 when
+                ``dynamic_batch_size`` is True, otherwise 1.
+            dynamic_batch_size:
+                If True, the batch dimension stays dynamic (as declared in the spec).
+                If False, the batch dimension is fixed to ``batch_size``.
+
+        Returns:
+            The traced ``ExportedProgram``.
+        """
+        check_onnx_dynamo_requirements()
+
+        if not isinstance(self, TaskModel):
+            raise TypeError("ExportMixin can only be used with TaskModel subclasses.")
+
+        module: TaskModel = self
+        module.eval()
+
+        first_parameter = next(module.parameters(), None)
+        device = (
+            first_parameter.device
+            if first_parameter is not None
+            else torch.device("cpu")
+        )
+        dtype = first_parameter.dtype if first_parameter is not None else None
+
+        spec = self.model_input_spec
+        batch = (
+            batch_size if batch_size is not None else (2 if dynamic_batch_size else 1)
+        )
+        example_inputs = spec.example_inputs(
+            batch_size=batch, device=device, dtype=dtype
+        )
+        dynamic_shapes = spec.dynamic_shapes(dynamic_batch_size=dynamic_batch_size)
+
+        # Capture the ExportedProgram using the same fallback chain as torch.onnx's
+        # dynamo exporter (non-strict -> strict -> draft_export). Each strategy
+        # handles dynamic (and 0/1) dimensions and refines the dynamic shapes from
+        # torch's suggested fixes, so this matches the behavior of the previous
+        # torch.onnx.export(..., dynamo=True) call.
+        from torch.onnx._internal.exporter import _capture_strategies
+
+        program = None
+        first_exception: Exception | None = None
+        with torch.no_grad():
+            for strategy_class in _capture_strategies.CAPTURE_STRATEGIES:
+                result = strategy_class(verbose=False)(
+                    module, (), example_inputs, dynamic_shapes=dynamic_shapes
+                )
+                if result.success:
+                    program = result.exported_program
+                    break
+                if first_exception is None:
+                    first_exception = result.exception
+
+        if program is None:
+            assert first_exception is not None
+            raise first_exception
+        return program
+
     def export_onnx(
         self,
         out: str | Path,
@@ -267,8 +335,6 @@ class ExportMixin(ABC):
         precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int | None = None,
         dynamic_batch_size: bool = True,
-        height: int | None = None,
-        width: int | None = None,
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
@@ -278,8 +344,7 @@ class ExportMixin(ABC):
 
         The export is driven by ``self.model_input_spec``: example inputs, input names
         and dynamic shapes are all derived from the spec, and the output names are
-        derived from the ``BaseModelOutput`` returned by ``forward``. Every argument
-        defaults to "auto" (``None`` / spec-derived) and can be overridden.
+        derived from the ``BaseModelOutput`` returned by ``forward``.
 
         Args:
             out:
@@ -293,12 +358,6 @@ class ExportMixin(ABC):
             dynamic_batch_size:
                 If True, the batch dimension stays dynamic (as declared in the spec).
                 If False, the batch dimension is fixed to ``batch_size``.
-            height:
-                Overrides the height (second-to-last dim) of every spatial input. If
-                None, the spec shape is used.
-            width:
-                Overrides the width (last dim) of every spatial input. If None, the
-                spec shape is used.
             opset_version:
                 ONNX opset version to target. If None, PyTorch's default opset is used.
             simplify:
@@ -321,86 +380,66 @@ class ExportMixin(ABC):
             precision=precision,
             batch_size=batch_size,
             dynamic_batch_size=dynamic_batch_size,
-            height=height,
-            width=width,
             opset_version=opset_version,
             simplify=simplify,
             verify=verify,
             format_args=format_args,
         )
-        check_onnx_dynamo_requirements()
 
         if not isinstance(self, TaskModel):
             raise TypeError("ExportMixin can only be used with TaskModel subclasses.")
 
         module: TaskModel = self
+        module.eval()
+        module.deploy()
 
+        # Cast the module to the requested precision before tracing.
+        if config.precision == "fp32":
+            precision_dtype: torch.dtype | None = torch.float32
+        elif config.precision == "fp16":
+            precision_dtype = torch.float16
+        else:  # "auto"
+            precision_dtype = None
+        self._apply_onnx_export_module_precision(module=module, dtype=precision_dtype)
+
+        program = self.export(
+            batch_size=config.batch_size,
+            dynamic_batch_size=config.dynamic_batch_size,
+        )
+
+        # Derive the ONNX naming and verification inputs from the model input spec,
+        # matching the module's current (post-cast) dtype/device.
         first_parameter = next(module.parameters(), None)
         device = (
             first_parameter.device
             if first_parameter is not None
             else torch.device("cpu")
         )
-
-        if config.precision == "fp32":
-            dtype: torch.dtype | None = torch.float32
-        elif config.precision == "fp16":
-            dtype = torch.float16
-        elif config.precision == "auto":
-            dtype = None
-        else:
-            raise ValueError(
-                f"Invalid precision '{config.precision}'. Must be one of 'auto', 'fp32', 'fp16'."
-            )
-
-        module.eval()
-        module.deploy()
-
-        self._apply_onnx_export_module_precision(
-            module=module,
-            dtype=dtype,
-        )
+        dtype = first_parameter.dtype if first_parameter is not None else None
 
         spec = self.model_input_spec
-        export_spec = self._onnx_export_input_spec(
-            spec=spec,
-            height=config.height,
-            width=config.width,
-        )
-        default_batch_size = 2 if config.dynamic_batch_size else 1
         batch = (
-            config.batch_size if config.batch_size is not None else default_batch_size
+            config.batch_size
+            if config.batch_size is not None
+            else (2 if config.dynamic_batch_size else 1)
         )
-
-        example_inputs = self._onnx_export_example_inputs(
-            spec=export_spec,
-            batch_size=batch,
-            dtype=dtype,
-            device=device,
+        example_inputs = spec.example_inputs(
+            batch_size=batch, device=device, dtype=dtype
         )
-
-        # Build the dynamic shapes from the spec, forcing a static batch dim if
-        # dynamic batching is disabled.
-        dynamic_shapes: dict[str, tuple[_DimHint | ExportDim, ...]] = {}
-        for name, dims in export_spec.input_dynamic_shapes.items():
-            new_dims = list(dims)
-            if (
-                not config.dynamic_batch_size
-                and export_spec.input_specs[name].is_batched
-            ):
-                new_dims[0] = Dim.STATIC
-            dynamic_shapes[name] = tuple(new_dims)
-
-        input_names = list(export_spec.input_specs)
+        input_names = list(spec.input_specs)
+        dynamic_shapes = spec.dynamic_shapes(
+            dynamic_batch_size=config.dynamic_batch_size
+        )
 
         with torch.no_grad():
             example_output = module(**example_inputs)
         output_names = [field.name for field in fields(example_output)]
 
+        # When passing an ExportedProgram, torch ignores args/kwargs for tracing
+        # (already baked into the program) but still applies the input/output names
+        # and uses ``dynamic_shapes`` to name the dynamic ONNX axes.
         torch.onnx.export(
-            module,
-            args=(),
-            kwargs=example_inputs,
+            program,
             f=str(config.out),
             input_names=input_names,
             output_names=output_names,
@@ -434,48 +473,6 @@ class ExportMixin(ABC):
             )
 
         logger.info(f"Successfully exported ONNX model to '{config.out}'")
-
-    def _onnx_export_input_spec(
-        self,
-        *,
-        spec: ModelInputSpec,
-        height: int | None,
-        width: int | None,
-    ) -> ModelInputSpec:
-        """Return a concrete export input spec with export-time spatial overrides."""
-        input_specs: dict[str, TensorSpec] = {}
-        for name, tensor_spec in spec.input_specs.items():
-            shape = list(tensor_spec.shape)
-            if len(shape) >= 2:
-                if height is not None:
-                    shape[-2] = height
-                if width is not None:
-                    shape[-1] = width
-            input_specs[name] = tensor_spec.model_copy(update={"shape": tuple(shape)})
-        return spec.model_copy(update={"input_specs": input_specs})
-
-    def _onnx_export_example_inputs(
-        self,
-        *,
-        spec: ModelInputSpec,
-        batch_size: int,
-        dtype: torch.dtype | None,
-        device: torch.device,
-    ) -> dict[str, Tensor]:
-        """Build tracing inputs from a concrete export input spec."""
-        example_inputs: dict[str, Tensor] = {}
-        for name, tensor in spec.example_inputs(batch_size=batch_size).items():
-            if tensor.is_floating_point():
-                tensor_dtype = dtype if dtype is not None else tensor.dtype
-                tensor = torch.randn(
-                    tensor.shape,
-                    dtype=tensor_dtype,
-                    device=device,
-                )
-            else:
-                tensor = tensor.to(device=device)
-            example_inputs[name] = tensor
-        return example_inputs
 
     def _apply_onnx_export_module_precision(
         self,

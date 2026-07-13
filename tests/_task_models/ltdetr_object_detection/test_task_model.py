@@ -985,22 +985,6 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     assert input_batch_dim.dim_value == 3
 
 
-def test_export_onnx__custom_height_width_raises() -> None:
-    model = LTDETRObjectDetection(
-        model_name="dinov3/vitt16-notpretrained-ltdetr",
-        classes={0: "car", 1: "person"},
-        image_size=(256, 256),
-        load_weights=False,
-    )
-
-    with pytest.raises(ValueError, match="does not support custom height/width"):
-        model._onnx_export_input_spec(
-            spec=model.model_input_spec,
-            height=128,
-            width=160,
-        )
-
-
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

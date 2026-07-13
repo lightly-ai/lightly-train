@@ -405,25 +405,6 @@ class LTDETRObjectDetection(TaskModel, ExportMixin):
                 rtol=1e-1,
             )
 
-    @override
-    def _onnx_export_input_spec(
-        self,
-        *,
-        spec: ModelInputSpec,
-        height: int | None,
-        width: int | None,
-    ) -> ModelInputSpec:
-        export_height = self.image_size[0] if height is None else height
-        export_width = self.image_size[1] if width is None else width
-        if (export_height, export_width) != self.image_size:
-            raise ValueError(
-                "LTDETRObjectDetection ONNX export does not support custom "
-                "height/width values because decoder anchors are tied to image_size. "
-                f"Expected height={self.image_size[0]} and width={self.image_size[1]}, "
-                f"got height={export_height} and width={export_width}."
-            )
-        return super()._onnx_export_input_spec(spec=spec, height=height, width=width)
-
     def forward_backend(self, images: Tensor) -> ObjectDetectionOutput:
         # For backwards compatibility with the benchmark command.
         out: ObjectDetectionOutput = self(images)

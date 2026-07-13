@@ -16,8 +16,8 @@ from typing import Any
 import pytest
 import torch
 from torch import Tensor
+from torch.export import ExportedProgram
 from torch.export.dynamic_shapes import Dim, _DimHint
-from torch.nn import Module
 
 from lightly_train._task_models import task_model as task_model_module
 from lightly_train._task_models.task_model import (
@@ -223,67 +223,39 @@ def test_model_input_spec__rejects_dynamic_unbatched_dimension() -> None:
         )
 
 
-def test_export_onnx__uses_model_input_spec_names_and_deploy(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
-    record: dict[str, Any] = {}
-
-    monkeypatch.setattr(
-        task_model_module, "check_onnx_dynamo_requirements", lambda: None
-    )
-
-    def export_spy(
-        module: Module,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Tensor],
-        f: str,
-        input_names: list[str],
-        output_names: list[str],
-        opset_version: int | None,
-        dynamo: bool,
-        dynamic_shapes: dict[str, tuple[Any, ...]],
-        **format_args: Any,
-    ) -> None:
-        record.update(
-            args=args,
-            kwargs=kwargs,
-            input_names=input_names,
-            output_names=output_names,
-            dynamo=dynamo,
-            dynamic_shapes=dynamic_shapes,
-            format_args=format_args,
-        )
-
-    monkeypatch.setattr(torch.onnx, "export", export_spy)
+def test_export_onnx__uses_model_input_spec_names_and_deploy(tmp_path: Path) -> None:
+    import onnx
 
     model = _ExportModel()
+    out = tmp_path / "model.onnx"
     model.export_onnx(
-        tmp_path / "model.onnx",
-        height=10,
-        width=12,
+        out,
         simplify=False,
         verify=False,
-        format_args={"fallback": True},
     )
 
     assert model.events == ["deploy"]
-    assert record["args"] == ()
-    assert list(record["kwargs"]) == ["images"]
-    assert record["kwargs"]["images"].shape == (2, 3, 10, 12)
-    assert record["input_names"] == ["images"]
-    assert record["output_names"] == ["scores"]
-    assert record["dynamo"] is True
-    assert record["dynamic_shapes"]["images"][0] == _DYNAMIC_DIM
-    assert record["format_args"] == {"fallback": True}
+
+    onnx_model = onnx.load(str(out))
+    assert [inp.name for inp in onnx_model.graph.input] == ["images"]
+    assert [out_.name for out_ in onnx_model.graph.output] == ["scores"]
+
+    dims = onnx_model.graph.input[0].type.tensor_type.shape.dim
+    # The batch dimension is dynamic (named), the spatial dims come from the spec.
+    assert dims[0].dim_param != ""
+    assert [d.dim_value for d in dims[1:]] == [3, 8, 8]
 
 
-def test_export_onnx__module_precision_policy(tmp_path: Path, monkeypatch: Any) -> None:
-    record: dict[str, Any] = {}
+def test_export__returns_exported_program() -> None:
+    model = _ExportModel()
+    program = model.export()
+    assert isinstance(program, ExportedProgram)
 
-    monkeypatch.setattr(
-        task_model_module, "check_onnx_dynamo_requirements", lambda: None
-    )
+    images = program.example_inputs[1]["images"]
+    assert images.shape == (2, 3, 8, 8)
 
+
+def test_export_onnx__module_precision_policy(tmp_path: Path) -> None:
     class PrecisionModel(_ExportModel):
         def __init__(self) -> None:
             super().__init__()
@@ -293,26 +265,6 @@ def test_export_onnx__module_precision_policy(tmp_path: Path, monkeypatch: Any) 
         def onnx_export_precision_policy(self) -> ONNXExportPrecisionPolicy:
             return ONNXExportPrecisionPolicy(fp32_module_names=("block",))
 
-    def export_spy(
-        module: Module,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Tensor],
-        f: str,
-        input_names: list[str],
-        output_names: list[str],
-        opset_version: int | None,
-        dynamo: bool,
-        dynamic_shapes: dict[str, tuple[Any, ...]],
-        **format_args: Any,
-    ) -> None:
-        assert isinstance(module, PrecisionModel)
-        record["input_dtype"] = kwargs["images"].dtype
-        record["weight_dtype"] = module.weight.dtype
-        record["proj_dtype"] = module.proj.weight.dtype
-        record["block_child_dtype"] = module.block[0].weight.dtype
-
-    monkeypatch.setattr(torch.onnx, "export", export_spy)
-
     model = PrecisionModel()
     model.export_onnx(
         tmp_path / "model.onnx",
@@ -321,12 +273,11 @@ def test_export_onnx__module_precision_policy(tmp_path: Path, monkeypatch: Any) 
         verify=False,
     )
 
-    assert record == {
-        "input_dtype": torch.float16,
-        "weight_dtype": torch.float16,
-        "proj_dtype": torch.float16,
-        "block_child_dtype": torch.float32,
-    }
+    # export_onnx casts the module to fp16 in place, but keeps modules listed in the
+    # precision policy in fp32.
+    assert model.weight.dtype == torch.float16
+    assert model.proj.weight.dtype == torch.float16
+    assert model.block[0].weight.dtype == torch.float32
 
 
 def test_export_onnx__graph_precision_policy(tmp_path: Path, monkeypatch: Any) -> None:

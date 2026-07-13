@@ -86,28 +86,62 @@ class ModelInputSpec(BaseModel):
 
         return self
 
-    def example_inputs(self, batch_size: int | None = None) -> dict[str, Tensor]:
+    def example_inputs(
+        self,
+        batch_size: int | None = None,
+        *,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> dict[str, Tensor]:
         """Generate example inputs based on the specified input specs.
 
         If an input is marked as batched, the example tensor uses the given batch
-        size or the minimum dynamic batch size if available.
+        size or the minimum dynamic batch size if available. Floating-point inputs
+        are filled with random values in ``dtype`` (or the spec dtype if not given);
+        integer inputs keep their spec values. Tensors are placed on ``device`` when
+        provided.
 
         Returns:
             A dictionary mapping input names to example tensors.
         """
-        inputs = {}
+        inputs: dict[str, Tensor] = {}
         for name, spec in self.input_specs.items():
-            if spec.is_batched:
-                inputs[name] = spec.example_tensor(
-                    batch_size=(
-                        batch_size
-                        if batch_size is not None
-                        else self._default_batch_size(name)
-                    )
+            example_batch_size = (
+                (
+                    batch_size
+                    if batch_size is not None
+                    else self._default_batch_size(name)
                 )
-            else:
-                inputs[name] = spec.example_tensor()
+                if spec.is_batched
+                else None
+            )
+            tensor = spec.example_tensor(batch_size=example_batch_size)
+            if tensor.is_floating_point():
+                tensor = torch.randn(
+                    tensor.shape,
+                    dtype=dtype if dtype is not None else tensor.dtype,
+                    device=device,
+                )
+            elif device is not None:
+                tensor = tensor.to(device=device)
+            inputs[name] = tensor
         return inputs
+
+    def dynamic_shapes(
+        self, *, dynamic_batch_size: bool = True
+    ) -> dict[str, tuple[_DimHint | Dim, ...]]:
+        """Return the dynamic shapes, forcing a static batch dim if requested.
+
+        If ``dynamic_batch_size`` is False, the batch dimension of every batched
+        input is set to static.
+        """
+        result: dict[str, tuple[_DimHint | Dim, ...]] = {}
+        for name, dims in self.input_dynamic_shapes.items():
+            new_dims = list(dims)
+            if not dynamic_batch_size and self.input_specs[name].is_batched:
+                new_dims[0] = Dim.STATIC
+            result[name] = tuple(new_dims)
+        return result
 
     @staticmethod
     def _is_static_dim(dim: _DimHint | Dim) -> bool:
