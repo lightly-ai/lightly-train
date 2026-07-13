@@ -114,8 +114,10 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
             locals(), ignore_args={"backbone_weights", "backbone_url", "load_weights"}
         )
         config = self._get_config(model_name=model_name)
-        parsed_name = self._resolve_model_name(model_name=model_name)
-        self.model_name = parsed_name["model_name"]
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
+        self.model_name = f"{package_name}/{backbone_name}-{self.model_suffix}"
         self.classes = classes
         self.class_ignore_index = class_ignore_index
         self.image_size = image_size
@@ -164,7 +166,7 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
 
         # Get the backbone.
         backbone = DINOV3_PACKAGE.get_model(
-            model_name=parsed_name["backbone_name"],
+            model_name=backbone_name,
             num_input_channels=len(self.image_normalize["mean"]),
             model_args=backbone_model_args,
             load_weights=load_weights,
@@ -247,23 +249,6 @@ class DINOv3EoMTSemanticSegmentation(TaskModel):
                 f"models are: {cls.list_model_names()}. See the documentation for "
                 "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
             ) from None
-
-    @classmethod
-    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
-        config = cls._get_config(model_name=model_name)
-
-        package_name, backbone_name = package_helpers.parse_model_name(
-            config.backbone_name
-        )
-
-        return {
-            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
-            "backbone_name": backbone_name,
-        }
-
-    @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        return cls._resolve_model_name(model_name=model_name)
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:

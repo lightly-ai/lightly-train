@@ -58,17 +58,10 @@ def test_is_supported_model__uses_registry() -> None:
         "dinov3/convnext-tiny-eomt"
     )
 
-    parsed = DINOv3EoMTSemanticSegmentation._resolve_model_name(
-        "dinov3/vits16-eomt-coco"
-    )
-    assert parsed == {
-        "model_name": "dinov3/vits16-eomt",
-        "backbone_name": "vits16",
-    }
-
 
 def test_init__uses_registry_patch_size(model: DINOv3EoMTSemanticSegmentation) -> None:
     # The patch size comes from the registry config, not from the train model.
+    assert model.model_name == "dinov3/_vittest16-eomt"
     assert model.patch_size == 16
     assert model.backbone.patch_size == 16
 
