@@ -315,8 +315,7 @@ class ExportMixin(ABC):
         Raises:
             pydantic.ValidationError: If any of the passed arguments are invalid.
         """
-        # Validate the passed arguments via the config (strict, forbids extras) and
-        # read the validated values back from it.
+        # Validate the passed arguments via the config (strict, forbids extras).
         config = DynamoExportConfig(
             out=out,
             precision=precision,
@@ -329,17 +328,6 @@ class ExportMixin(ABC):
             verify=verify,
             format_args=format_args,
         )
-        out = config.out
-        precision = config.precision
-        batch_size = config.batch_size
-        dynamic_batch_size = config.dynamic_batch_size
-        height = config.height
-        width = config.width
-        opset_version = config.opset_version
-        simplify = config.simplify
-        verify = config.verify
-        format_args = config.format_args
-
         check_onnx_dynamo_requirements()
 
         if not isinstance(self, TaskModel):
@@ -354,15 +342,15 @@ class ExportMixin(ABC):
             else torch.device("cpu")
         )
 
-        if precision == "fp32":
+        if config.precision == "fp32":
             dtype: torch.dtype | None = torch.float32
-        elif precision == "fp16":
+        elif config.precision == "fp16":
             dtype = torch.float16
-        elif precision == "auto":
+        elif config.precision == "auto":
             dtype = None
         else:
             raise ValueError(
-                f"Invalid precision '{precision}'. Must be one of 'auto', 'fp32', 'fp16'."
+                f"Invalid precision '{config.precision}'. Must be one of 'auto', 'fp32', 'fp16'."
             )
 
         module.eval()
@@ -376,11 +364,13 @@ class ExportMixin(ABC):
         spec = self.model_input_spec
         export_spec = self._onnx_export_input_spec(
             spec=spec,
-            height=height,
-            width=width,
+            height=config.height,
+            width=config.width,
         )
-        default_batch_size = 2 if dynamic_batch_size else 1
-        batch = batch_size if batch_size is not None else default_batch_size
+        default_batch_size = 2 if config.dynamic_batch_size else 1
+        batch = (
+            config.batch_size if config.batch_size is not None else default_batch_size
+        )
 
         example_inputs = self._onnx_export_example_inputs(
             spec=export_spec,
@@ -394,7 +384,10 @@ class ExportMixin(ABC):
         dynamic_shapes: dict[str, tuple[_DimHint | ExportDim, ...]] = {}
         for name, dims in export_spec.input_dynamic_shapes.items():
             new_dims = list(dims)
-            if not dynamic_batch_size and export_spec.input_specs[name].is_batched:
+            if (
+                not config.dynamic_batch_size
+                and export_spec.input_specs[name].is_batched
+            ):
                 new_dims[0] = Dim.STATIC
             dynamic_shapes[name] = tuple(new_dims)
 
@@ -408,39 +401,39 @@ class ExportMixin(ABC):
             module,
             args=(),
             kwargs=example_inputs,
-            f=str(out),
+            f=str(config.out),
             input_names=input_names,
             output_names=output_names,
-            opset_version=opset_version,
+            opset_version=config.opset_version,
             dynamo=True,
             dynamic_shapes=dynamic_shapes,
-            **(format_args or {}),
+            **(config.format_args or {}),
         )
 
         self._apply_onnx_export_graph_precision(
-            out=out,
-            precision=precision,
+            out=config.out,
+            precision=config.precision,
         )
 
-        if simplify:
+        if config.simplify:
             import onnxslim  # type: ignore [import-not-found,import-untyped]
 
             onnxslim.slim(
-                model=str(out),
-                output_model=str(out),
+                model=str(config.out),
+                output_model=str(config.out),
                 # We skip constant folding as this currently increases the model size by
                 # quite a lot.
                 skip_optimizations=["constant_folding"],
             )
 
-        if verify:
+        if config.verify:
             self._verify_onnx_export(
-                out=out,
+                out=config.out,
                 module=module,
                 example_inputs=example_inputs,
             )
 
-        logger.info(f"Successfully exported ONNX model to '{out}'")
+        logger.info(f"Successfully exported ONNX model to '{config.out}'")
 
     def _onnx_export_input_spec(
         self,
