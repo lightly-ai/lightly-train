@@ -19,7 +19,11 @@ from typing import Any, Literal, NoReturn
 import torch
 
 from lightly_train._commands import common_helpers
+from lightly_train._configs.model_registry import ModelRegistry
 from lightly_train._env import Env
+from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import (
+    DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
 )
@@ -52,11 +56,13 @@ _GENERIC_LTDETR_OBJECT_DETECTION_CLASS_PATH = (
 )
 
 
-def _get_ltdetr_downloadable_model_url_and_hashes() -> dict[str, tuple[str, str]]:
+def _get_downloadable_model_url_and_hashes(
+    registry: ModelRegistry[Any],
+) -> dict[str, tuple[str, str]]:
     downloadable_model_url_and_hashes = {}
-    for alias in LTDETR_MODEL_REGISTRY.list_aliases():
+    for alias in registry.list_aliases():
         try:
-            checkpoint = LTDETR_MODEL_REGISTRY.get_alias_metadata(
+            checkpoint = registry.get_alias_metadata(
                 alias=alias
             ).downloadable_checkpoint
         except KeyError:
@@ -81,27 +87,6 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "picodet-l-coco": (
         "picodet_l_coco_640_260303_b1a16990.pt",
         "b1a16990fe4f86fe60aefb2dcb4bf97ead9cc616f6c14ce4638aa2b838351fff",
-    ),
-    #### Instance Segmentation
-    "dinov3/vitt16-eomt-inst-coco": (  # 6x schedule
-        "dinov3_vitt16_eomt_inst_coco_260109_45e0aff8.pt",
-        "45e0aff8c5c8054a3240fcbc368b4e7f87e8066c1e100e3ef9d9c60c7d949a17",
-    ),
-    "dinov3/vitt16plus-eomt-inst-coco": (  # 6x schedule
-        "dinov3_vitt16plus_eomt_inst_coco_260109_0e20aa05.pt",
-        "0e20aa05ef15003d7d9462400d32ecc671e7a8d256ae061d42dd4f8978feb621",
-    ),
-    "dinov3/vits16-eomt-inst-coco": (
-        "/dinov3_eomt/dinov3_vits16_eomt_inst_coco.pt",
-        "b54dafb12d550958cc5c9818b061fba0d8b819423581d02080221d0199e1cc37",
-    ),
-    "dinov3/vitb16-eomt-inst-coco": (
-        "/dinov3_eomt/dinov3_vitb16_eomt_inst_coco.pt",
-        "a57b5e7afd5cd64422d74d400f30693f80f96fa63184960250fb0878afd3c7f6",
-    ),
-    "dinov3/vitl16-eomt-inst-coco": (
-        "/dinov3_eomt/dinov3_vitl16_eomt_inst_coco.pt",
-        "1aac5ac16dcbc1a12cc6f8d4541bea5e7940937a49f0b1dcea7394956b6e46e5",
     ),
     #### Panoptic Segmentation
     # Trained with 4x schedule (360k steps and the masking schedule of 90K steps)
@@ -218,7 +203,14 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "d59577016e01635c285fac76f44685d7a0878545e0b8d560da45c0cf4d058548",
     ),
 }
-DOWNLOADABLE_MODEL_URL_AND_HASH.update(_get_ltdetr_downloadable_model_url_and_hashes())
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(
+        DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY
+    )
+)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(LTDETR_MODEL_REGISTRY)
+)
 
 
 def load_model(

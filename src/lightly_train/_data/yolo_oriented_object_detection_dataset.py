@@ -17,7 +17,7 @@ import torch
 import torchvision.tv_tensors as tv_tensors
 from pydantic import Field
 
-from lightly_train._data import file_helpers, label_helpers, yolo_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.oriented_object_detection_transform import (
@@ -159,14 +159,18 @@ class YOLOOrientedObjectDetectionDataset(TaskDataset):
 
 
 class YOLOOrientedObjectDetectionDataArgs(TaskDataArgs):
-    # TODO: (Lionel, 08/25): Handle test set.
     path: PathLike
     train: PathLike
     val: PathLike
+    # Accepted for compatibility with YOLO data configs. Task training currently
+    # consumes only train and val splits.
     test: PathLike | None = None
     names: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.path = data_helpers.resolve_path(self.path, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
         return str(
