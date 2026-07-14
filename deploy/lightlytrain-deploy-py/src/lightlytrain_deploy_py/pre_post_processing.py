@@ -153,9 +153,7 @@ class ObjectDetectionPostprocessor:
         query_index = index // num_classes
 
         boxes_xyxy = _cxcywh_to_xyxy(boxes)
-        gather_index = np.broadcast_to(
-            query_index[:, :, None], (batch_size, k, 4)
-        )
+        gather_index = np.broadcast_to(query_index[:, :, None], (batch_size, k, 4))
         top_boxes = np.take_along_axis(boxes_xyxy, gather_index, axis=1)
 
         # Scale normalized boxes to pixel coordinates: (w, h, w, h) per image.

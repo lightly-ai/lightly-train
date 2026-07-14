@@ -10,6 +10,7 @@
 The notice is embedded into training checkpoints and into exported ONNX models so
 that both carry the same license terms.
 """
+
 from __future__ import annotations
 
 LICENSE_INFO = (
