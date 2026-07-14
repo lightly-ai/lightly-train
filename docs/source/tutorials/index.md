@@ -13,6 +13,7 @@ resnet/index
 yolo/index
 depth_estimation/index
 embedding/index
+debugging_tools/index
 ```
 
 ## Interactive Notebooks
