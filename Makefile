@@ -73,7 +73,7 @@ format-check:
 # run type check
 .PHONY: type-check
 type-check:
-	uv run --frozen mypy src tests deploy/lightlytrain-deploy-py docs/format_code.py
+	uv run --frozen mypy src tests docs/format_code.py
 
 # adding the license header to all files
 .PHONY: add-header
