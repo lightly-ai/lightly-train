@@ -72,6 +72,37 @@ def test_task_model_forward_shapes() -> None:
     assert cls_logits.shape == (1, num_preds, 80)
 
 
+@pytest.mark.parametrize(
+    "transform_args",
+    [
+        PicoDetObjectDetectionTrainTransformArgs(),
+        PicoDetObjectDetectionValTransformArgs(),
+    ],
+)
+def test_transform_args_resolve_auto__uses_model_config_image_size(
+    transform_args: PicoDetObjectDetectionTrainTransformArgs
+    | PicoDetObjectDetectionValTransformArgs,
+) -> None:
+    transform_args.resolve_auto(model_init_args={"model_name": "picodet/l-640"})
+
+    assert transform_args.image_size == (640, 640)
+
+
+@pytest.mark.parametrize(
+    "transform_args",
+    [
+        PicoDetObjectDetectionTrainTransformArgs(),
+        PicoDetObjectDetectionValTransformArgs(),
+    ],
+)
+def test_transform_args_resolve_auto__requires_config_image_size(
+    transform_args: PicoDetObjectDetectionTrainTransformArgs
+    | PicoDetObjectDetectionValTransformArgs,
+) -> None:
+    with pytest.raises(ValueError, match="requires 'model_name' in model_init_args"):
+        transform_args.resolve_auto(model_init_args={})
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"

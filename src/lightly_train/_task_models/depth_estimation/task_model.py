@@ -22,6 +22,8 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
+from lightly_train._models.package import Package
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.depth_estimation_components import image_utils
 from lightly_train._task_models.depth_estimation_components.dpt import DPT
@@ -37,8 +39,10 @@ logger = logging.getLogger(__name__)
 _METRIC_SCALE_FACTOR = 300.0
 
 _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
+    # Depth Anything V2 relative-depth models (DINOv2 backbone).
     "dinov2/dav2-relative-small": {
         "canonical_name": "dinov2/dav2-relative-small",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
         "activation": "relu",
@@ -56,6 +60,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-relative-base": {
         "canonical_name": "dinov2/dav2-relative-base",
+        "backbone_package": "dinov2",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
         "activation": "relu",
@@ -73,6 +78,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-relative-large": {
         "canonical_name": "dinov2/dav2-relative-large",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
         "activation": "relu",
@@ -88,12 +94,12 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "output_dim": 1,
         },
     },
-    # The official Depth Anything V2 metric models are trained per domain with a fixed
-    # maximum depth that the sigmoid head output is scaled by: 20 m for the indoor
-    # Hypersim models and 80 m for the outdoor Virtual KITTI 2 models. The per-size
-    # backbone and DPT arguments are identical to the relative models.
+    # Depth Anything V2 metric-depth models (DINOv2 backbone): per-domain sigmoid head
+    # scaled by a fixed max depth (20 m indoor Hypersim, 80 m outdoor Virtual KITTI 2);
+    # backbone and DPT arguments match the relative models.
     "dinov2/dav2-metric-small-hypersim": {
         "canonical_name": "dinov2/dav2-metric-small-hypersim",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
         "activation": "sigmoid",
@@ -112,6 +118,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-base-hypersim": {
         "canonical_name": "dinov2/dav2-metric-base-hypersim",
+        "backbone_package": "dinov2",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
         "activation": "sigmoid",
@@ -130,6 +137,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-large-hypersim": {
         "canonical_name": "dinov2/dav2-metric-large-hypersim",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
         "activation": "sigmoid",
@@ -148,6 +156,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-small-vkitti": {
         "canonical_name": "dinov2/dav2-metric-small-vkitti",
+        "backbone_package": "dinov2",
         "backbone_name": "vits14-noreg",
         "image_size": 518,
         "activation": "sigmoid",
@@ -166,6 +175,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-base-vkitti": {
         "canonical_name": "dinov2/dav2-metric-base-vkitti",
+        "backbone_package": "dinov2",
         "backbone_name": "vitb14-noreg",
         "image_size": 518,
         "activation": "sigmoid",
@@ -184,6 +194,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav2-metric-large-vkitti": {
         "canonical_name": "dinov2/dav2-metric-large-vkitti",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 518,
         "activation": "sigmoid",
@@ -200,8 +211,10 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "max_depth": 80.0,
         },
     },
+    # Depth Anything V3 models (DINOv2 backbone): sky head; metric uses focal scaling.
     "dinov2/dav3-relative-large": {
         "canonical_name": "dinov2/dav3-relative-large",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 504,
         "activation": "exp",
@@ -220,6 +233,7 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "dinov2/dav3-metric-large": {
         "canonical_name": "dinov2/dav3-metric-large",
+        "backbone_package": "dinov2",
         "backbone_name": "vitl14-noreg",
         "image_size": 504,
         "activation": "exp",
@@ -236,6 +250,124 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "use_sky_head": True,
         },
     },
+    "dinov2/dav3-relative-small": {
+        "canonical_name": "dinov2/dav3-relative-small",
+        "backbone_package": "dinov2",
+        "backbone_name": "vits14-noreg",
+        "image_size": 504,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 64,
+            "out_channels": (48, 96, 192, 384),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    "dinov2/dav3-metric-small": {
+        "canonical_name": "dinov2/dav3-metric-small",
+        "backbone_package": "dinov2",
+        "backbone_name": "vits14-noreg",
+        "image_size": 504,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "focal",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 64,
+            "out_channels": (48, 96, 192, 384),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    # Depth Anything V3 Tiny models (DINOv3 backbone): sigmoid sky head; metric uses
+    # focal scaling.
+    "dinov3/dav3-relative-tiny": {
+        "canonical_name": "dinov3/dav3-relative-tiny",
+        "backbone_package": "dinov3",
+        "backbone_name": "vitt16",
+        "image_size": 576,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "patch_size": 16,
+            "features": 32,
+            "out_channels": (24, 48, 96, 192),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    "dinov3/dav3-relative-tiny-plus": {
+        "canonical_name": "dinov3/dav3-relative-tiny-plus",
+        "backbone_package": "dinov3",
+        "backbone_name": "vitt16plus",
+        "image_size": 576,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "patch_size": 16,
+            "features": 32,
+            "out_channels": (24, 48, 96, 192),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    "dinov3/dav3-metric-tiny": {
+        "canonical_name": "dinov3/dav3-metric-tiny",
+        "backbone_package": "dinov3",
+        "backbone_name": "vitt16",
+        "image_size": 576,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "focal",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "patch_size": 16,
+            "features": 32,
+            "out_channels": (24, 48, 96, 192),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    "dinov3/dav3-metric-tiny-plus": {
+        "canonical_name": "dinov3/dav3-metric-tiny-plus",
+        "backbone_package": "dinov3",
+        "backbone_name": "vitt16plus",
+        "image_size": 576,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "focal",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "patch_size": 16,
+            "features": 32,
+            "out_channels": (24, 48, 96, 192),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
 }
 
 
@@ -243,7 +375,7 @@ class DepthAnythingDepthEstimation(TaskModel):
     """Depth Anything V2/V3 relative- and metric-depth inference model.
 
     A single class serving all Depth Anything depth variants. The variant is selected by
-    ``model_name`` (see ``list_model_names``); the DINOv2 backbone, DPT head and
+    ``model_name`` (see ``list_model_names``); the ViT backbone, DPT head and
     pre/post-processing are configured per variant from the model registry.
     """
 
@@ -270,9 +402,9 @@ class DepthAnythingDepthEstimation(TaskModel):
                 e.g. ``out_layers``, ``features``, ``out_channels``, ``output_dim``,
                 ``use_sky_head`` (V3) or ``max_depth`` (V2 metric).
             backbone_args:
-                Additional arguments passed to the DINOv2 backbone construction (see
-                ``DINOV2_VIT_PACKAGE.get_model``), e.g. ``in_chans`` or
-                ``drop_path_rate``. These override the Depth Anything defaults.
+                Additional arguments passed to the backbone package construction, e.g.
+                ``in_chans`` or ``drop_path_rate``. These override the Depth Anything
+                defaults.
             load_weights:
                 If True, load the converted Depth Anything weights (backbone and DPT
                 head) so the model is a ready-to-use depth predictor; a local
@@ -315,27 +447,44 @@ class DepthAnythingDepthEstimation(TaskModel):
         # per-config value as the default to stay reconstructable from old checkpoints.
         activation = str(net_args.get("activation", config["activation"]))
         use_sky_head = bool(net_args.get("use_sky_head", config["use_sky_head"]))
+        # The official V3 sky head is ReLU-activated (the DPT default). Trainable configs
+        # override this to "sigmoid" so the sky output is a [0, 1] confidence map matching
+        # the `sky < 0.3` threshold in postprocessing.
+        sky_activation = str(
+            net_args.get("sky_activation", config.get("sky_activation", "relu"))
+        )
         if self._scale_mode == "max_depth":
             # Fixed maximum depth in meters that the sigmoid head output is scaled by.
             self.max_depth = float(net_args["max_depth"])
 
-        # Reproduce the plain (register-free, unchunked, MLP-FFN) ViT that Depth Anything
-        # is built on so the state dict keys match the checkpoint; `block_chunks=0` keeps
-        # the `blocks.{i}.` key layout. The backbone is built without weights: when
-        # `load_weights` is True the converted checkpoint is loaded below instead.
-        backbone_model_args: dict[str, Any] = {
-            "img_size": int(net_args["image_size"]),
-            "ffn_layer": "mlp",
-            "block_chunks": 0,
-            "drop_path_rate": 0.0,
-            "init_values": 1.0,
-            "num_register_tokens": 0,
-            "interpolate_antialias": False,
-            "interpolate_offset": 0.1,
-        }
+        # Reproduce the backbone variant expected by each depth config, built without
+        # weights: when `load_weights` is True the converted checkpoint is loaded below
+        # instead. DINOv2 Depth Anything checkpoints use a plain register-free, unchunked
+        # MLP-FFN ViT so the state dict keys match; DINOv3 Tiny students use the package
+        # defaults plus the selected patch size (RoPE handles arbitrary resolution).
+        backbone_package = str(config["backbone_package"])
+        backbone_model_args: dict[str, Any]
+        backbone_package_obj: Package
+        if backbone_package == "dinov2":
+            backbone_model_args = {
+                "img_size": int(net_args["image_size"]),
+                "ffn_layer": "mlp",
+                "block_chunks": 0,
+                "drop_path_rate": 0.0,
+                "init_values": 1.0,
+                "num_register_tokens": 0,
+                "interpolate_antialias": False,
+                "interpolate_offset": 0.1,
+            }
+            backbone_package_obj = DINOV2_VIT_PACKAGE
+        elif backbone_package == "dinov3":
+            backbone_model_args = {"patch_size": patch_size}
+            backbone_package_obj = DINOV3_PACKAGE
+        else:
+            raise ValueError(f"Unknown backbone package '{backbone_package}'.")
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
-        self.backbone = DINOV2_VIT_PACKAGE.get_model(
+        self.backbone = backbone_package_obj.get_model(
             model_name=config["backbone_name"],
             model_args=backbone_model_args,
             load_weights=False,
@@ -348,6 +497,7 @@ class DepthAnythingDepthEstimation(TaskModel):
             out_channels=tuple(net_args["out_channels"]),
             activation=activation,
             use_sky_head=use_sky_head,
+            sky_activation=sky_activation,
         )
 
         if load_weights:
@@ -500,6 +650,7 @@ class DepthAnythingDepthEstimation(TaskModel):
             x,
             process_res=self.image_size,
             process_res_method=process_res_method,
+            patch_size=self.patch_size,
         )
         device = next(self.parameters()).device
         return x.to(device=device), {"orig_h": image_h, "orig_w": image_w}
@@ -594,7 +745,8 @@ class DepthAnythingDepthEstimation(TaskModel):
         The export uses a dummy input of shape (batch_size, 3, H, W). The spatial size
         (H, W) is fixed in the ONNX graph: it defaults to the model's processing
         resolution (``self.image_size`` on both sides) but can be overridden via
-        ``height``/``width`` (both must be multiples of the patch size, 14). If
+        ``height``/``width`` (both must be multiples of the patch size,
+        ``self.patch_size``). If
         ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch dimension.
 
         The graph outputs the raw depth map at processing resolution, plus a sky map for
