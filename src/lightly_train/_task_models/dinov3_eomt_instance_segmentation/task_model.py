@@ -23,7 +23,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
-from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
+from lightly_train._export.onnx_helpers import check_torch_dynamo_requirements
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -920,7 +920,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
-        check_onnx_dynamo_requirements()
+        check_torch_dynamo_requirements()
 
         if dynamic_batch_size:
             batch_size = 2

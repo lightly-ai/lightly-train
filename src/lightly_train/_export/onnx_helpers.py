@@ -27,12 +27,12 @@ _TORCH_DYNAMO_MIN_VERSION = "2.5.0"
 _TORCH_DYNAMO_AVAILABLE = RequirementCache(f"torch>={_TORCH_DYNAMO_MIN_VERSION}")
 
 
-def check_onnx_dynamo_requirements() -> None:
+def check_torch_dynamo_requirements() -> None:
     """Raise if the installed torch version does not support dynamo ONNX export."""
     if not _TORCH_DYNAMO_AVAILABLE:
         raise RuntimeError(
-            f"ONNX export for this model requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
-            f"(dynamo export), but found torch {torch.__version__}."
+            f"Dynamo support requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
+            f", but found torch {torch.__version__}."
         )
 
 

@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 import torch
 from torch.export import ExportedProgram
 
-from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
+from lightly_train._export.onnx_helpers import check_torch_dynamo_requirements
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.task_model_io import ModelInputSpec
 
@@ -48,7 +48,7 @@ class ExportMixin(ABC):
         Returns:
             The traced ``ExportedProgram``.
         """
-        check_onnx_dynamo_requirements()
+        check_torch_dynamo_requirements()
 
         if not isinstance(self, TaskModel):
             raise TypeError("ExportMixin can only be used with TaskModel subclasses.")
