@@ -50,6 +50,9 @@ def export_tensorrt(
     This loads the ONNX file, parses it with TensorRT, infers the static input
     shape (C, H, W) from the `"images"` input, and creates an engine with a
     dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+    Any additional inputs (e.g. `"orig_target_size"`) that have a dynamic batch
+    dimension get a matching optimization profile over the same batch range; a
+    dynamic non-batch dimension on such an input is not supported and raises.
     Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
 
     The engine is serialized and written to `out`.
@@ -229,6 +232,23 @@ def export_tensorrt(
         opt=(opt_batchsize, C, H, W),
         max=(max_batchsize, C, H, W),
     )
+    for i in range(network.num_inputs):
+        inp = network.get_input(i)
+        if inp.name == "images":
+            continue
+        input_shape = tuple(inp.shape)
+        if -1 not in input_shape:
+            continue
+        if any(dim == -1 for dim in input_shape[1:]):
+            raise ValueError(
+                f"Dynamic non-batch dimensions are not supported yet for input '{inp.name}'."
+            )
+        profile.set_shape(
+            inp.name,
+            min=(min_batchsize, *input_shape[1:]),
+            opt=(opt_batchsize, *input_shape[1:]),
+            max=(max_batchsize, *input_shape[1:]),
+        )
     config.add_optimization_profile(profile)
 
     logger.info("Building TensorRT engine...")
