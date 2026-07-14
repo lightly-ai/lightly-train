@@ -20,6 +20,10 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 # - Added EdgeCrafter instance segmentation mask output support.
 # - Kept encoder auxiliary outputs box/class-only (matching EdgeCrafter, whose
 #   ``enc_aux_outputs`` carry no masks).
+# - Added a deploy-only deferred mask path (``convert_to_deploy`` sets
+#   ``_deploy_masks``) that emits the mask-head operands instead of the full
+#   mask tensor; training and validation keep the materialized-mask path so the
+#   mask-aware matcher and mask losses still receive per-query masks.
 from __future__ import annotations
 
 from typing import Any
@@ -55,6 +59,13 @@ class ECSegTransformer(DFINETransformer):
         kwargs["eval_spatial_size"] = eval_spatial_size
         super().__init__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
+        # The deferred-einsum mask path is deploy-only. Training and validation
+        # both run ``_forward_train`` (validation in eval mode) and need
+        # materialized ``pred_masks`` for the mask-aware matcher and the mask
+        # losses; gating on ``self.training`` would wrongly drop masks during
+        # validation. ``TaskModel.deploy()`` flips this via ``convert_to_deploy``.
+        self._deploy_masks = False
+
         # The mask head consumes one decoder query state per block. The decoder
         # can only emit ``hidden_dim``-width query states; wider post-``eval_idx``
         # layers (``layer_scale > 1`` with ``eval_idx < num_layers - 1``) are
@@ -83,6 +94,13 @@ class ECSegTransformer(DFINETransformer):
             image_size=eval_spatial_size,
             layer_scale_init_value=mask_layer_scale_init_value,
         )
+
+    def convert_to_deploy(self) -> None:
+        # Invoked by ``TaskModel.deploy()`` (ONNX/TensorRT export and inference).
+        # Enables the deferred-einsum mask path; training/validation keep the
+        # materialized-mask path.
+        super().convert_to_deploy()  # type: ignore[no-untyped-call]
+        self._deploy_masks = True
 
     def forward(
         self,
@@ -154,6 +172,25 @@ class ECSegTransformer(DFINETransformer):
             dn_meta=dn_meta,
             return_query_states=True,
         )
+
+        if self._deploy_masks:
+            # Deploy only: defer the mask einsum to the postprocessor so it can
+            # gather the selected queries (a small (B, Q, C) gather) instead of
+            # gathering the full (B, Q, Hm, Wm) mask tensor. Produces identical
+            # masks because the per-query einsum commutes with the query gather.
+            # Training and validation keep the materialized-mask path below so
+            # the matcher and criterion still see ``pred_masks``.
+            final_query = query_states.unbind(0)[-1]
+            mask_spatial, mask_query = self.mask_head.forward_deploy(
+                spatial_feat, final_query
+            )
+            return {
+                "pred_logits": out_logits[-1],
+                "pred_boxes": out_bboxes[-1],
+                "pred_mask_spatial": mask_spatial,
+                "pred_mask_query": mask_query,
+                "pred_mask_bias": self.mask_head.bias,
+            }
 
         mask_logits = torch.stack(
             self.mask_head(
