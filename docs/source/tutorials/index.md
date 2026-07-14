@@ -64,11 +64,3 @@ caption: Advanced
 ---
 distillation
 ```
-
-```{toctree}
----
-maxdepth: 1
-caption: Google Colab
----
-colab/index
-```
