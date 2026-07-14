@@ -64,4 +64,5 @@ maxdepth: 1
 caption: Advanced
 ---
 distillation
+pca_feature_visualization
 ```
