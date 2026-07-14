@@ -308,7 +308,11 @@ class LTDETRObjectDetection(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return list(LTDETR_MODEL_REGISTRY.list_aliases())
+        return [
+            name
+            for name in LTDETR_MODEL_REGISTRY.list_aliases()
+            if not name.startswith("_")
+        ]
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
