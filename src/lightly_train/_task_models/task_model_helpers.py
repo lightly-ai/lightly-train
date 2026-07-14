@@ -140,6 +140,14 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_dav3_relative_tiny_plus_260713_5bff49b8.pt",
         "5bff49b8b07810cd0b6f1551a5be85538a2eab1d0aaf9f2a34ab3bb2124a48d0",
     ),
+    "dinov3/dav3-metric-tiny-plus": (
+        "dinov3_dav3_metric_tiny_plus_260714_c7b1e414.pt",
+        "c7b1e4143d63c73eb0bbdf40e3d94d77f1cc4af027fe223fdeb6f97256d7f964",
+    ),
+    "dinov3/dav3-relative-tiny": (
+        "dinov3_dav3_relative_tiny_260714_90a26f4b.pt",
+        "90a26f4bfadc24d30192094c3f4dc52852c70a7f15ceec95b9d303cec3ea1647",
+    ),
     # Only the Apache-2.0 Depth Anything V2 models are hosted. The CC-BY-NC-4.0 models
     # (relative base/large and the non-small metric variants) are not redistributed:
     # convert them locally with convert_checkpoint_dav2 and pass the result via
