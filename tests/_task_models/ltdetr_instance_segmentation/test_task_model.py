@@ -7,14 +7,19 @@
 #
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 from torch import nn
 
 from lightly_train._task_models.ltdetr_instance_segmentation.task_model import (
     LTDETRInstanceSegmentation,
 )
+
+from ...helpers import assert_onnx_outputs_close
 
 
 def _is_module_frozen(m: nn.Module) -> bool:
@@ -265,3 +270,248 @@ def test_freeze_backbone_on_init() -> None:
 
     assert _is_module_frozen(model.backbone)
     assert not model.backbone.training
+
+
+def _run_seg_onnx(path: Path, images: object, orig_target_size: object) -> list:  # type: ignore[type-arg]
+    """Run the exported segmentation graph in ONNX Runtime on CPU."""
+    import onnxruntime as ort
+
+    session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+    outputs: list = session.run(  # type: ignore[type-arg]
+        None, {"images": images, "orig_target_size": orig_target_size}
+    )
+    return outputs
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__dynamic_batch_size(
+    model: LTDETRInstanceSegmentation, tmp_path: Path
+) -> None:
+    import numpy as np
+    import onnx
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_param == "N"
+
+    # Use a batch size (3) different from the one used during tracing (2).
+    inputs = np.random.randn(3, 3, 256, 256).astype(np.float32)
+    orig_target_size = np.array([[256, 256]] * 3, dtype=np.int64)
+
+    onnx_outputs = _run_seg_onnx(out, inputs, orig_target_size)
+
+    with torch.no_grad():
+        torch_outputs = model(
+            torch.from_numpy(inputs), torch.from_numpy(orig_target_size)
+        )
+
+    assert_onnx_outputs_close(onnx_outputs, torch_outputs)
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__static_batch_size(
+    model: LTDETRInstanceSegmentation, tmp_path: Path
+) -> None:
+    import onnx
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(
+        out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
+    )
+
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_value == 3
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+def test_export_onnx__fp16(model: LTDETRInstanceSegmentation, tmp_path: Path) -> None:
+    import onnx
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, precision="fp16", simplify=True, verify=True)
+
+    model_onnx = onnx.load(str(out))
+    # Verify the model has fp16 tensors.
+    has_fp16 = any(
+        init.data_type == onnx.TensorProto.FLOAT16
+        for init in model_onnx.graph.initializer
+    )
+    assert has_fp16
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__simplify_matches_unsimplified(
+    model: LTDETRInstanceSegmentation, tmp_path: Path
+) -> None:
+    # onnxslim rewrites the graph in-place; the simplified model must produce
+    # the same outputs as the unsimplified one for the same input.
+    import numpy as np
+
+    simplified = tmp_path / "simplified.onnx"
+    unsimplified = tmp_path / "unsimplified.onnx"
+    model.export_onnx(out=simplified, simplify=True, verify=True)
+    model.export_onnx(out=unsimplified, simplify=False, verify=True)
+
+    inputs = np.random.randn(2, 3, 256, 256).astype(np.float32)
+    orig_target_size = np.array([[256, 256]] * 2, dtype=np.int64)
+
+    simplified_outputs = _run_seg_onnx(simplified, inputs, orig_target_size)
+    unsimplified_outputs = _run_seg_onnx(unsimplified, inputs, orig_target_size)
+
+    assert_onnx_outputs_close(
+        simplified_outputs,
+        tuple(torch.from_numpy(o) for o in unsimplified_outputs),
+    )
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.parametrize("model_name", LTDETR_V2_SEG_ALIAS_MODEL_NAMES)
+def test_export_onnx__aliases_and_non_square(model_name: str, tmp_path: Path) -> None:
+    # Every registered alias (s/m/l/x uses a different encoder/transformer
+    # config) must export at a non-square, non-default image size.
+    import numpy as np
+
+    image_size = (192, 256)
+    model = LTDETRInstanceSegmentation(
+        model_name=model_name,
+        classes={0: "background", 1: "car"},
+        image_size=image_size,
+        patch_size=16,
+        image_normalize={"mean": (0.485, 0.456, 0.406), "std": (0.229, 0.224, 0.225)},
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=True)
+
+    height, width = image_size
+    inputs = np.random.randn(1, 3, height, width).astype(np.float32)
+    orig_target_size = np.array([[height, width]], dtype=np.int64)
+
+    onnx_outputs = _run_seg_onnx(out, inputs, orig_target_size)
+    with torch.no_grad():
+        torch_outputs = model(
+            torch.from_numpy(inputs), torch.from_numpy(orig_target_size)
+        )
+    assert_onnx_outputs_close(onnx_outputs, torch_outputs)
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.parametrize("opset_version", [16, 17, 18, 19, 20])
+def test_export_onnx__opset_version(
+    model: LTDETRInstanceSegmentation, tmp_path: Path, opset_version: int
+) -> None:
+    # The graph uses scaled_dot_product_attention (needs opset >= 14) and
+    # grid_sampler (needs opset >= 16), so opset 16 is the minimum supported.
+    import numpy as np
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, opset_version=opset_version, simplify=False, verify=True)
+    inputs = np.random.randn(1, 3, 256, 256).astype(np.float32)
+    orig_target_size = np.array([[256, 256]], dtype=np.int64)
+    onnx_outputs = _run_seg_onnx(out, inputs, orig_target_size)
+    with torch.no_grad():
+        torch_outputs = model(
+            torch.from_numpy(inputs), torch.from_numpy(orig_target_size)
+        )
+    assert_onnx_outputs_close(onnx_outputs, torch_outputs)
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+def test_export_onnx__matches_predict(
+    model: LTDETRInstanceSegmentation, tmp_path: Path
+) -> None:
+    # The exported graph omits the normalization done in ``preprocess_batch`` and
+    # the mask upsampling / binarization / thresholding done in ``postprocess``.
+    # This test verifies that feeding a normalized input to the ONNX graph and
+    # replaying that documented post-processing reproduces ``predict``.
+    #
+    # Top-k ordering is not stable across backends for near-tied random scores,
+    # so the two prediction sets are compared order-invariantly.
+    import numpy as np
+    import torch.nn.functional as F
+    from torchvision.transforms.v2 import functional as transforms_functional
+
+    assert model.image_normalize is not None
+    threshold = 0.0  # Keep all queries so the comparison is deterministic.
+
+    # Reference prediction. The image already matches ``image_size`` so
+    # ``predict`` performs no resize and ``orig`` equals ``image_size``.
+    image = torch.rand(3, 256, 256)
+    prediction = model.predict(image, threshold=threshold)
+
+    out = tmp_path / "model.onnx"
+    model.export_onnx(out=out, simplify=False, verify=False)
+
+    # Replicate ``preprocess_batch``: the graph expects an already-normalized
+    # image (``preprocess_image`` already scaled it to ``[0, 1]``).
+    normalized = transforms_functional.normalize(
+        image,
+        mean=list(model.image_normalize["mean"]),
+        std=list(model.image_normalize["std"]),
+    )
+    inputs = normalized.unsqueeze(0).numpy().astype(np.float32)
+    orig_target_size = np.array([[256, 256]], dtype=np.int64)
+
+    labels, boxes, masks, scores = (
+        torch.from_numpy(o) for o in _run_seg_onnx(out, inputs, orig_target_size)
+    )
+
+    # Replicate ``postprocess``: threshold, upsample masks to the original size,
+    # and binarize.
+    keep = scores[0] > threshold
+    onnx_masks = (
+        F.interpolate(
+            masks[0][keep].unsqueeze(1),
+            size=(256, 256),
+            mode="bilinear",
+            align_corners=False,
+        ).squeeze(1)
+        > 0.0
+    )
+
+    # Same number of predictions and matching (order-invariant) score/label sets.
+    assert int(keep.sum()) == prediction["scores"].numel()
+    torch.testing.assert_close(
+        torch.sort(scores[0][keep]).values,
+        torch.sort(prediction["scores"]).values,
+        atol=2e-2,
+        rtol=1e-1,
+    )
+    assert torch.equal(
+        torch.sort(labels[0][keep]).values,
+        torch.sort(prediction["labels"]).values,
+    )
+    # Masks have the original resolution, are boolean, and cover the same area
+    # (order-invariant proxy for per-instance agreement).
+    assert onnx_masks.shape == prediction["masks"].shape
+    assert onnx_masks.dtype == torch.bool == prediction["masks"].dtype
+    onnx_area = int(onnx_masks.sum())
+    predict_area = int(prediction["masks"].sum())
+    assert abs(onnx_area - predict_area) <= max(1, round(0.01 * predict_area))

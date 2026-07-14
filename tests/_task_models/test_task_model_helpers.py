@@ -29,6 +29,9 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
 )
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
+)
 
 
 @pytest.mark.skipif(
@@ -113,6 +116,19 @@ def test_downloadable_model__dinov3_eomt_instance_aliases_from_registry() -> Non
                 alias
             ).downloadable_checkpoint
         )
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
+
+
+def test_downloadable_model__picodet_aliases_from_registry() -> None:
+    aliases = ["picodet-s-coco", "picodet-l-coco"]
+
+    for alias in aliases:
+        checkpoint = PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get_alias_metadata(
+            alias
+        ).downloadable_checkpoint
         assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
             checkpoint.url,
             checkpoint.sha256,

@@ -53,6 +53,8 @@ from lightly_train._task_models.object_detection_components.rtdetrv2_decoder imp
     RTDETRTransformerv2,
 )
 
+from ...helpers import assert_onnx_outputs_close
+
 
 def _is_module_frozen(m: nn.Module) -> bool:
     return all(not param.requires_grad for param in m.parameters())
@@ -701,13 +703,10 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     with torch.no_grad():
         torch_outputs = model(torch.from_numpy(inputs))
 
-    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
-        onnx_tensor = torch.from_numpy(onnx_out)
-        if torch_out.is_floating_point():
-            close = torch.isclose(onnx_tensor, torch_out, atol=2e-2, rtol=1e-1)
-            assert close.float().mean() > 0.95
-        else:
-            assert (onnx_tensor == torch_out).float().mean() > 0.95
+    # Compare via the shared helper: it sums over the query dim before comparing
+    # floats (order-invariant, since the postprocessor's top-k can reorder
+    # queries across backends) and treats labels as sorted multisets.
+    assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
