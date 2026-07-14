@@ -18,7 +18,7 @@ from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-def
 from lightning_fabric.strategies.strategy import Strategy
 from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
-from typing_extensions import Annotated
+from typing_extensions import Annotated, override
 
 from lightly_train import (
     _float32_matmul_precision,
@@ -33,6 +33,7 @@ from lightly_train._commands.train_task_helpers import BestAggregatedMetricValue
 from lightly_train._configs import validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
+from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -79,7 +80,7 @@ logger = logging.getLogger(__name__)
 def train_image_classification(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
     steps: int | Literal["auto"] = "auto",
@@ -264,7 +265,7 @@ def train_image_classification(
 def train_image_classification_multihead(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     classification_task: Literal["multiclass", "multilabel"] = "multiclass",
     steps: int | Literal["auto"] = "auto",
@@ -419,7 +420,7 @@ def train_image_classification_multihead(
 def train_instance_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -588,7 +589,7 @@ def train_instance_segmentation(
 def train_object_detection(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -757,7 +758,7 @@ def train_object_detection(
 def train_panoptic_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -927,7 +928,7 @@ def train_panoptic_segmentation(
 def train_semantic_segmentation(
     *,
     out: PathLike,
-    data: dict[str, Any],
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -1096,7 +1097,7 @@ def train_semantic_segmentation(
 def train_semantic_segmentation_multihead(
     *,
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -1233,7 +1234,7 @@ def _train_task(
     *,
     config_cls: type[TrainTaskConfig],
     out: PathLike,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: str,
     steps: int | Literal["auto"] = "auto",
     batch_size: int | Literal["auto"] = "auto",
@@ -1322,6 +1323,8 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             float32_matmul_precision=config.float32_matmul_precision,
         )
     )
+
+    data_arg_helpers.resolve_data_paths(config.data)
 
     config.save_checkpoint_args = helpers.get_save_checkpoint_args(
         checkpoint_args=config.save_checkpoint_args,
@@ -2064,10 +2067,14 @@ class InstanceSegmentationTrainTaskConfig(TrainTaskConfig):
     ]
     task: Literal["instance_segmentation"] = "instance_segmentation"
 
+    @override
     @field_validator("data", mode="before")
     @classmethod
-    def _set_default_format(cls, v: Any) -> Any:
-        return data_helpers.set_default_data_format(v)
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        data_dict = data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
+        return data_helpers.set_default_data_format(data_dict, default="yolo")
 
 
 class PanopticSegmentationTrainTaskConfig(TrainTaskConfig):
@@ -2082,10 +2089,14 @@ class ObjectDetectionTrainTaskConfig(TrainTaskConfig):
     ]
     task: Literal["object_detection"] = "object_detection"
 
+    @override
     @field_validator("data", mode="before")
     @classmethod
-    def _set_default_format(cls, v: Any) -> Any:
-        return data_helpers.set_default_data_format(v)
+    def _load_yaml_if_path(cls, v: Any) -> Any:
+        data_dict = data_helpers.load_data_yaml_if_path(
+            v, cls.model_fields["data"].annotation
+        )
+        return data_helpers.set_default_data_format(data_dict, default="yolo")
 
 
 class SemanticSegmentationTrainTaskConfig(TrainTaskConfig):
