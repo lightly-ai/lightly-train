@@ -75,6 +75,15 @@ class MockUnknownModel(TaskModel):
         super().__init__(init_args=locals())
 
 
+def test_deploy__base_default_is_noop() -> None:
+    """Task models that don't override deploy() inherit a no-op default."""
+    model = MockUnknownModel()
+    assert model.is_deploy_mode is False
+    assert model.deploy() is model
+    # No-op default does not flip the flag.
+    assert model.is_deploy_mode is False
+
+
 def test_track_inference__object_detection(mock_events_enabled: None) -> None:
     """Test that _track_inference correctly identifies object detection models."""
     model = MockObjectDetectionModel(model_name="dinov3/vits16-ltdetr-coco")

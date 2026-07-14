@@ -12,6 +12,7 @@ import contextvars
 import logging
 from collections.abc import Iterator
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -26,12 +27,12 @@ _TORCH_DYNAMO_MIN_VERSION = "2.5.0"
 _TORCH_DYNAMO_AVAILABLE = RequirementCache(f"torch>={_TORCH_DYNAMO_MIN_VERSION}")
 
 
-def check_onnx_dynamo_requirements() -> None:
+def check_torch_dynamo_requirements() -> None:
     """Raise if the installed torch version does not support dynamo ONNX export."""
     if not _TORCH_DYNAMO_AVAILABLE:
         raise RuntimeError(
-            f"ONNX export for this model requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
-            f"(dynamo export), but found torch {torch.__version__}."
+            f"Dynamo support requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
+            f", but found torch {torch.__version__}."
         )
 
 
@@ -63,6 +64,26 @@ def precalculate_for_onnx_export() -> Iterator[None]:
         yield
     finally:
         _PRECALCULATE_FOR_ONNX_EXPORT.reset(token)
+
+
+def write_onnx_metadata(out: str | Path, metadata: dict[str, str]) -> None:
+    """Merge string key/value pairs into an ONNX model's metadata_props in-place.
+
+    Existing metadata entries are preserved; keys in ``metadata`` override entries
+    with the same key. The model is loaded from ``out`` and saved back to it.
+    """
+    import onnx
+
+    model = onnx.load(str(out))
+    merged = {entry.key: entry.value for entry in model.metadata_props}
+    merged.update({str(key): str(value) for key, value in metadata.items()})
+
+    del model.metadata_props[:]
+    for key, value in merged.items():
+        entry = model.metadata_props.add()
+        entry.key = key
+        entry.value = value
+    onnx.save(model, str(out))
 
 
 def remove_redundant_casts(model: onnx.ModelProto) -> None:

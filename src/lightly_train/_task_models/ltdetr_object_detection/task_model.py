@@ -9,23 +9,18 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self, override
 
-from lightly_train import _logging, _torch_testing
-from lightly_train._commands import _warnings
-from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
-from lightly_train._export.onnx_helpers import (
-    fix_topological_order,
-    remove_redundant_casts,
+from lightly_train._export.export_onnx import (
+    ONNXExportMixin,
+    ONNXExportPrecisionPolicy,
 )
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
@@ -41,6 +36,12 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
+    ObjectDetectionOutput,
+    ObjectDetectionPostprocessor,
+    ObjectDetectionPreprocessor,
+)
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
@@ -58,20 +59,20 @@ from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper 
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
-from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
     DFINETransformer,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
 )
-from lightly_train._task_models.object_detection_components.rtdetr_postprocessor import (
-    RTDETRPostProcessor,
-)
 from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
     RTDETRTransformerv2,
 )
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._task_models.task_model_io import (
+    BaseModelOutput,
+    ModelInputSpec,
+)
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ def _resolve_transformer_config(
     return config_factory()
 
 
-class LTDETRObjectDetection(TaskModel):
+class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
     model_suffix = "ltdetr"
 
     def __init__(
@@ -162,6 +163,7 @@ class LTDETRObjectDetection(TaskModel):
         super().__init__(init_args=locals(), ignore_args={"load_weights"})
 
         config: DetectorConfig = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        self._config: DetectorConfig = config
         transformer_config = _resolve_transformer_config(
             config=config, decoder_name=decoder_name
         )
@@ -185,16 +187,10 @@ class LTDETRObjectDetection(TaskModel):
         config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
-        # This list maps the internal class id to the class id in `classes`.
-        internal_class_to_class = list(self.classes.keys())
-
-        # Efficient lookup for converting internal class IDs to class IDs.
-        # Registered as buffer to be automatically moved to the correct device.
-        self.internal_class_to_class: Tensor
-        self.register_buffer(
-            "internal_class_to_class",
-            torch.tensor(internal_class_to_class, dtype=torch.long),
-            persistent=False,  # No need to save it in the state dict.
+        # This tensor maps the internal class id to the class id in `classes`. It is
+        # owned by the postprocessor (constructed below).
+        internal_class_to_class = torch.tensor(
+            list(self.classes.keys()), dtype=torch.long
         )
         self.included_classes: dict[int, str] = {
             internal_class_id: class_name
@@ -289,11 +285,21 @@ class LTDETRObjectDetection(TaskModel):
                 **transformer_cfg, eval_spatial_size=self.image_size
             )
 
-        postprocessor_cfg = config.rtdetr_postprocessor.model_dump()
-        postprocessor_cfg["num_classes"] = len(self.classes)
-        self.postprocessor: RTDETRPostProcessor = RTDETRPostProcessor(
-            **postprocessor_cfg
+        self.preprocessor = ObjectDetectionPreprocessor(
+            image_size=self.image_size,
+            image_normalize=self.image_normalize,
+            expected_input_channels=self._expected_input_channels,
         )
+        self.postprocessor = ObjectDetectionPostprocessor(
+            num_classes=len(self.classes),
+            num_top_queries=config.rtdetr_postprocessor.num_top_queries,
+            internal_class_to_class=internal_class_to_class,
+        )
+
+        # Tracks whether `deploy()` (in-place reparameterization for faster
+        # inference) has been applied. `predict*` reparameterizes lazily on first
+        # use; correctness does not depend on it.
+        self._deployed = False
 
         if self.backbone_freeze:
             self.freeze_backbone()
@@ -327,39 +333,93 @@ class LTDETRObjectDetection(TaskModel):
         }
 
     def get_export_output_names(self) -> list[str]:
-        return ["labels", "boxes", "scores"]
+        return ["logits", "boxes"]
 
-    def forward_backend(self, x: Tensor) -> Any:
-        x = self.backbone(x)
-        x = self.encoder(x)
-        return self.decoder(x)
-
-    def forward(
-        self, x: Tensor, orig_target_size: Tensor | None = None
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Function used for ONNX export
-        if orig_target_size is None:
-            h, w = x.shape[-2:]
-            orig_target_size_ = torch.tensor([[w, h]]).to(x.device)
-        else:
-            # Flip from (H, W) to (W, H).
-            orig_target_size = orig_target_size[:, [1, 0]]
-
-            # Move to device.
-            orig_target_size_ = orig_target_size.to(device=x.device, dtype=torch.int64)
-
-        # Forward the image through the model.
-        x = self.forward_backend(x)
-
-        result: list[dict[str, Tensor]] | tuple[Tensor, Tensor, Tensor] = (
-            self.postprocessor(x, orig_target_size_)
+    @property
+    @override
+    def model_input_spec(self) -> ModelInputSpec:
+        return self._config.model_input_spec(
+            image_size=self.image_size,
+            input_channels=self._expected_input_channels,
         )
-        # Postprocessor must be in deploy mode at this point. It returns only tuples
-        # during deploy mode.
-        assert isinstance(result, tuple)
-        labels, boxes, scores = result
-        labels = self.internal_class_to_class[labels]
-        return (labels, boxes, scores)
+
+    @property
+    @override
+    def onnx_export_precision_policy(self) -> ONNXExportPrecisionPolicy:
+        # Keep modules called from disabled-autocast decoder regions in FP32 for
+        # FP16 export. Keep attention-adjacent ONNX ops in FP32 as large Softmax
+        # inputs can otherwise overflow to NaN, and blocking MatMul preserves the
+        # Cast nodes that keep TensorRT strongly typed.
+        fp32_module_names = ["decoder.dec_bbox_head"]
+        if isinstance(self.decoder, DFINETransformer):
+            fp32_module_names.extend(
+                [
+                    "decoder.pre_bbox_head",
+                    "decoder.dec_score_head",
+                    "decoder.decoder.lqe_layers",
+                ]
+            )
+        return ONNXExportPrecisionPolicy(
+            fp32_module_names=tuple(fp32_module_names),
+            fp32_onnx_op_types=("Softmax", "MatMul"),
+        )
+
+    @override
+    def verify_onnx_export_outputs(
+        self,
+        *,
+        torch_outputs: BaseModelOutput,
+        onnx_outputs: BaseModelOutput,
+    ) -> None:
+        if not isinstance(torch_outputs, ObjectDetectionOutput) or not isinstance(
+            onnx_outputs, ObjectDetectionOutput
+        ):
+            raise TypeError(
+                "LTDETRObjectDetection ONNX verification expects "
+                "ObjectDetectionOutput instances."
+            )
+
+        for output_name in ("logits", "boxes"):
+            output_model = getattr(torch_outputs, output_name)
+            output_onnx = getattr(onnx_outputs, output_name)
+
+            def msg(s: str) -> str:
+                return f'ONNX validation failed for output "{output_name}": {s}'
+
+            # Query order can differ across backends while preserving equivalent
+            # predictions, so compare the query-reduced tensors.
+            output_model = output_model.sum(dim=1)
+            if output_onnx.is_floating_point():
+                output_onnx = output_onnx.float()
+            output_onnx = output_onnx.sum(dim=1)
+
+            torch.testing.assert_close(
+                output_onnx,
+                output_model,
+                msg=msg,
+                equal_nan=True,
+                check_device=False,
+                check_dtype=False,
+                check_layout=False,
+                atol=5e-3,
+                rtol=1e-1,
+            )
+
+    def forward_backend(self, images: Tensor) -> ObjectDetectionOutput:
+        # For backwards compatibility with the benchmark command.
+        out: ObjectDetectionOutput = self(images)
+        return out
+
+    def forward(self, images: Tensor) -> ObjectDetectionOutput:
+        # The raw neural forward pass. Returns the raw decoder outputs:
+        #   logits: (B, num_queries, num_classes)
+        #   boxes:  (B, num_queries, 4) in normalized cxcywh format
+        # Top-k selection, thresholding, NMS and rescaling to original image
+        # coordinates are left to the caller (see `postprocess`/`predict*`).
+        x = self.backbone(images)
+        x = self.encoder(x)
+        out = self.decoder(x)
+        return ObjectDetectionOutput(logits=out["pred_logits"], boxes=out["pred_boxes"])
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
@@ -367,51 +427,30 @@ class LTDETRObjectDetection(TaskModel):
         x = self.decoder(feats=x, targets=targets)
         return x
 
-    def postprocess(  # type: ignore[override]
-        self,
-        raw_outputs: Any | dict[str, Tensor],
-        metadata: Sequence[dict[str, Any]],
-        threshold: float,
-    ) -> list[dict[str, Tensor]]:
-        if not isinstance(raw_outputs, dict):
-            raise ValueError(
-                f"Expected raw_outputs to be a dict, got {type(raw_outputs).__name__}."
-            )
-        device = next(self.parameters()).device
-        # Postprocessor expects (W, H) per image.
-        orig_target_size = torch.tensor(
-            [[m["orig_w"], m["orig_h"]] for m in metadata],
-            dtype=torch.int64,
-            device=device,
-        )
-        postprocessor_out: tuple[Tensor, Tensor, Tensor] = self.postprocessor(
-            raw_outputs, orig_target_size
-        )
-        out: list[dict[str, Tensor]] = []
-        labels_batch, boxes_batch, scores_batch = postprocessor_out
-
-        labels_batch = self.internal_class_to_class[labels_batch]
-        for i in range(len(metadata)):
-            keep = scores_batch[i] > threshold
-            out.append(
-                {
-                    "labels": labels_batch[i][keep],
-                    "bboxes": boxes_batch[i][keep],
-                    "scores": scores_batch[i][keep],
-                }
-            )
-        return out
-
     def freeze_backbone(self) -> None:
         self.backbone.eval()
         self.backbone.requires_grad_(False)
 
+    @property
+    @override
+    def is_deploy_mode(self) -> bool:
+        return self._deployed
+
+    @override
     def deploy(self) -> Self:
+        # Reparameterizes modules in place (RepVGG conv fusion, D-FINE layer
+        # pruning) for faster inference. This is output-equivalent to the eval-mode
+        # forward pass, so it is an optimization rather than a correctness
+        # requirement.
         self.eval()
-        self.postprocessor.deploy()  # type: ignore[no-untyped-call]
+        if self._deployed:
+            # convert_to_deploy() is NOT idempotent (D-FINE re-slices its layers), so
+            # guard the reparameterization. eval() above still runs every call.
+            return self
         for m in self.modules():
             if hasattr(m, "convert_to_deploy"):
                 m.convert_to_deploy()  # type: ignore[operator]
+        self._deployed = True
         return self
 
     def load_train_state_dict(
@@ -451,39 +490,6 @@ class LTDETRObjectDetection(TaskModel):
         if not missing and not unexpected:
             logger.info(f"Backbone weights loaded from '{path}'")
 
-    def preprocess_image(
-        self, image: PathLike | PILImage | Tensor
-    ) -> tuple[Tensor, dict[str, Any]]:
-        first_param = next(self.parameters())
-        device, dtype = first_param.device, first_param.dtype
-
-        x = file_helpers.as_image_tensor(image).to(device)
-        image_h, image_w = x.shape[-2:]
-
-        # Expand grayscale to the expected channel count so images can be stacked.
-        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
-        # 1-channel expansion is a convenience inherited from RGB-only models.
-        expected_c = self._expected_input_channels
-        if x.shape[-3] == 1 and expected_c > 1:
-            x = x.expand(expected_c, -1, -1)
-        elif x.shape[-3] != expected_c:
-            raise ValueError(
-                f"Image has {x.shape[-3]} channels but model expects {expected_c}."
-            )
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.resize(x, self.image_size)
-        return x, {"orig_h": image_h, "orig_w": image_w}
-
-    def preprocess_batch(self, batch: Tensor) -> Tensor:
-        if self.image_normalize is not None:
-            batch = transforms_functional.normalize(
-                batch,
-                mean=list(self.image_normalize["mean"]),
-                std=list(self.image_normalize["std"]),
-            )
-        return batch
-
     @torch.no_grad()
     def predict_batch(
         self,
@@ -504,18 +510,21 @@ class LTDETRObjectDetection(TaskModel):
             A list with one prediction dict per input image.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
+        first_param = next(self.parameters())
         tensors: list[Tensor] = []
-        metadata: list[dict[str, Any]] = []
+        metadata: list[ObjectDetectionMetadata] = []
         for image in images:
-            x, meta = self.preprocess_image(image)
+            x, meta = self.preprocessor.preprocess_image(
+                image, device=first_param.device, dtype=first_param.dtype
+            )
             tensors.append(x)
             metadata.append(meta)
         batch = torch.stack(tensors, dim=0)
-        batch = self.preprocess_batch(batch)
-        raw = self.forward_backend(batch)
-        return self.postprocess(raw, metadata, threshold=threshold)
+        batch = self.preprocessor.preprocess_batch(batch)
+        raw = self(batch)
+        return self.postprocessor.postprocess(raw, metadata, threshold=threshold)
 
     @torch.no_grad()
     def predict(
@@ -534,12 +543,15 @@ class LTDETRObjectDetection(TaskModel):
             A task-specific prediction dictionary.
         """
         self._track_inference()
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
-        x, metadata = self.preprocess_image(image)
-        batch = self.preprocess_batch(x.unsqueeze(0))
-        raw = self.forward_backend(batch)
-        return self.postprocess(raw, [metadata], threshold=threshold)[0]
+        first_param = next(self.parameters())
+        x, metadata = self.preprocessor.preprocess_image(
+            image, device=first_param.device, dtype=first_param.dtype
+        )
+        batch = self.preprocessor.preprocess_batch(x.unsqueeze(0))
+        raw = self(batch)
+        return self.postprocessor.postprocess(raw, [metadata], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
@@ -586,338 +598,101 @@ class LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
-        if self.training or not self.postprocessor.deploy_mode:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
 
-        device = next(self.parameters()).device
-        x = file_helpers.as_image_tensor(image).to(device)
-
-        # Tile the image.
-        tiles, tiles_coordinates = tiling_utils.tile_image(x, overlap, self.image_size)
-
-        # Prepare the full image tile
-        h, w = x.shape[-2:]
-        x = transforms_functional.resize(x, self.image_size)
-        x = x.unsqueeze(0)
-        tiles = torch.cat([x, tiles], dim=0)
-
-        # Normalize the tiles and the image together.
-        tiles = transforms_functional.to_dtype(tiles, dtype=torch.float32, scale=True)
-
-        # Normalize the tiles.
-        if self.image_normalize is not None:
-            tiles = transforms_functional.normalize(
-                tiles,
-                mean=self.image_normalize["mean"],
-                std=self.image_normalize["std"],
-            )
-
-        # Prepare the image/tiles sizes.
-        orig_target_sizes = torch.tensor([self.image_size], device=device).repeat(
-            len(tiles), 1
+        first_param = next(self.parameters())
+        batch, metadata = self.preprocessor.preprocess_sahi_image(
+            image,
+            device=first_param.device,
+            dtype=first_param.dtype,
+            overlap=overlap,
         )
-        orig_target_sizes[0, 0] = h
-        orig_target_sizes[0, 1] = w
-
-        # Feed the tiles in parallel to the model.
-        labels, boxes, scores = self(tiles, orig_target_size=orig_target_sizes)
-
-        # Add coordinates of the tiles to the boxes.
-        tiles_coordinates = (
-            tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1)
-        )
-        boxes[1:] += tiles_coordinates
-
-        # Reorganize the predictions.
-        boxes_global = boxes[0].view(-1, 4)
-        boxes_tiles = boxes[1:].view(-1, 4)
-        labels_global = labels[0].flatten()
-        labels_tiles = labels[1:].flatten()
-        scores_global = scores[0].flatten()
-        scores_tiles = scores[1:].flatten()
-
-        # Discard low-confidence predictions.
-        keep_global = scores_global > threshold
-        keep_tiles = scores_tiles > threshold
-
-        # Combine global and tiles predictions.
-        labels, boxes, scores = tiling_utils.combine_object_detection_tiles(
-            pred_global={
-                "labels": labels_global[keep_global],
-                "bboxes": boxes_global[keep_global],
-                "scores": scores_global[keep_global],
-            },
-            pred_tiles={
-                "labels": labels_tiles[keep_tiles],
-                "bboxes": boxes_tiles[keep_tiles],
-                "scores": scores_tiles[keep_tiles],
-            },
+        batch = self.preprocessor.preprocess_sahi_batch(batch)
+        raw = self(batch)
+        return self.postprocessor.postprocess_sahi(
+            raw,
+            metadata,
+            threshold=threshold,
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
+            tile_size=self.image_size,
         )
-
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
 
     @torch.no_grad()
-    def export_onnx(
+    def predict_sahi_batch(
         self,
-        out: PathLike,
-        *,
-        precision: Literal["fp32", "fp16"] = "fp32",
-        batch_size: int = 1,
-        dynamic_batch_size: bool = True,
-        opset_version: int | None = None,
-        simplify: bool = True,
-        verify: bool = True,
-        format_args: dict[str, Any] | None = None,
-        num_channels: int | None = None,
-    ) -> None:
-        """Exports the model to ONNX for inference.
-
-        The export uses a dummy input of shape (batch_size, C, H, W) where C is
-        inferred from the first model parameter and (H, W) come from
-        `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
-        have a dynamic batch dimension for the input. The graph output names are provided by the concrete task model.
-
-        Optionally simplifies the exported model in-place using onnxslim and
-        verifies numerical closeness against a float32 CPU reference via
-        ONNX Runtime.
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.6,
+        overlap: float = 0.2,
+        nms_iou_threshold: float = 0.3,
+        global_local_iou_threshold: float = 0.1,
+    ) -> list[dict[str, Tensor]]:
+        """Run Slicing Aided Hyper Inference (SAHI) on a batch of images.
 
         Args:
-            out:
-                Path where the ONNX model will be written.
-            precision:
-                Precision for the ONNX model. Either "fp32", or "fp16".
-            batch_size:
-                Batch size for the ONNX input.
-            dynamic_batch_size:
-                If True, the ONNX graph will have a dynamic batch dimension for the
-                input. If False, the batch dimension is fixed to `batch_size`.
-            opset_version:
-                ONNX opset version to target. If None, PyTorch's default opset is used.
-            simplify:
-                If True, run onnxslim to simplify and overwrite the exported model.
-            verify:
-                If True, validate the ONNX file and compare outputs to a float32 CPU
-                reference forward pass.
-            format_args:
-                Optional extra keyword arguments forwarded to `torch.onnx.export`.
-            num_channels:
-                Number of input channels. If None, will be inferred.
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                Score threshold for filtering low-confidence predictions.
+            overlap:
+                Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
+            nms_iou_threshold:
+                IoU threshold used for non-maximum suppression when merging
+                predictions from tiles and global image.
+            global_local_iou_threshold:
+                Minimum IoU required to consider a tile prediction as matching a
+                global prediction when combining them.
 
         Returns:
-            None. Writes the ONNX model to `out`.
-
+            A list with one prediction dictionary per input image.
         """
-        # Set up logging.
-        _warnings.filter_export_warnings()
-        _logging.set_up_console_logging()
+        self._track_inference()
+        if len(images) == 0:
+            raise ValueError("images must contain at least one image.")
+        if self.training or not self.is_deploy_mode:
+            self.deploy()
 
-        # Set the model in eval and deploy mode.
-        self.eval()
-
-        if precision not in ("fp32", "fp16"):
-            raise ValueError(
-                f"Invalid precision '{precision}'. Must be one of 'fp32', 'fp16'."
+        first_param = next(self.parameters())
+        batches: list[Tensor] = []
+        metadata: list[ObjectDetectionMetadata] = []
+        batch_sizes: list[int] = []
+        for image in images:
+            image_batch, image_metadata = self.preprocessor.preprocess_sahi_image(
+                image,
+                device=first_param.device,
+                dtype=first_param.dtype,
+                overlap=overlap,
             )
+            batches.append(image_batch)
+            metadata.append(image_metadata)
+            batch_sizes.append(image_batch.shape[0])
 
-        # Always trace in fp32 to avoid dtype mismatches in the decoder's
-        # autocast(enabled=False) blocks. fp16 conversion is applied
-        # post-export via onnxruntime.transformers.
-        self.to(torch.float32)
-        self.deploy()
-        model_device = next(self.parameters()).device
+        batch = torch.cat(batches, dim=0)
+        batch = self.preprocessor.preprocess_sahi_batch(batch)
+        raw = self(batch)
 
-        # Try to infer num_channels if not provided.
-        # TODO(yutong, 07/2026): Inferring channels from the normalization stats
-        # is wrong when they don't match the backbone input (e.g. single-channel
-        # stats for a 3-channel model that expands grayscale before batching).
-        # Prefer self._expected_input_channels, as done in the LT-DETR instance
-        # segmentation export.
-        if num_channels is None:
-            if self.image_normalize is not None:
-                num_channels = len(self.image_normalize["mean"])
-                logger.info(
-                    f"Inferred num_channels={num_channels} from image_normalize."
-                )
-            else:
-                # Try to find the number of channels from the first convolutional layer.
-                for module in self.modules():
-                    if isinstance(module, torch.nn.Conv2d):
-                        num_channels = module.in_channels
-                        logger.info(
-                            f"Inferred num_channels={num_channels} from first Conv. layer."
-                        )
-                        break
-                if num_channels is None:
-                    logger.error(
-                        "Could not infer num_channels. Please provide it explicitly."
-                    )
-                    raise ValueError(
-                        "num_channels must be provided for ONNX export if it cannot be inferred."
-                    )
-
-        if dynamic_batch_size:
-            batch_size = 2
-        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
-
-        # Create dummy input using same device and dtype as the model.
-        dummy_input = torch.randn(
-            batch_size,
-            num_channels,
-            self.image_size[
-                0
-            ],  # TODO(Thomas, 12/25): Allow passing different image size.
-            self.image_size[1],
-            requires_grad=False,
-            device=model_device,
-            dtype=torch.float32,
-        )
-
-        # TODO(Thomas, 12/25): Add warm-up forward if needed.
-
-        # Set the input/output names.
-        input_names = ["images"]
-        output_names = self.get_export_output_names()
-
-        # TODO(Nauryzbay, 05/2026): When refactoring forward() to use forward_backend(),
-        # expose orig_target_size as a second ONNX input to rescale boxes to original
-        # image coordinates inside the graph.
-        torch.onnx.export(
-            self,
-            (dummy_input,),
-            str(out),
-            input_names=input_names,
-            output_names=output_names,
-            opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
-            **(format_args or {}),
-        )
-
-        if precision == "fp16":
-            # convert_float_to_float16 creates nodes with duplicate names. In order to avoid downstream issues
-            # we require simplify to be True, as this correctly renames nodes.
-            if not simplify:
-                raise ValueError("fp16 precision requires simplify=True.")
-
-            import onnx
-            from onnxruntime.transformers import float16 as ort_float16
-
-            model_onnx = onnx.load(str(out))
-            # If the input to Softmax are too large the output of Softmax will be NaN values. Therefore we run
-            #  the Softmax computation in fp32. The nodes before Softmax are always MatMul.
-            # TODO (simon, 05/26) Ideally we would only block operators were a Matmul directly feeds into a Softmax.
-            op_block_list = list(ort_float16.DEFAULT_OP_BLOCK_LIST) + [
-                "Softmax",
-                "MatMul",
-            ]
-            model_fp16 = ort_float16.convert_float_to_float16(
-                model_onnx, op_block_list=op_block_list
+        out: list[dict[str, Tensor]] = []
+        start = 0
+        for meta, batch_size in zip(metadata, batch_sizes):
+            end = start + batch_size
+            raw_image = ObjectDetectionOutput(
+                logits=raw.logits[start:end],
+                boxes=raw.boxes[start:end],
             )
-            # Using the op blocklist on a graph that looks like Softmax -> MatMul creates a graph that looks like
-            #  Cast32 -> MatMul -> Cast16 -> Cast32 -> Softmax -> Cast16. Therefore, we need to remove the middle
-            #  Cast16 -> Cast32.
-            remove_redundant_casts(model_fp16)
-            fix_topological_order(model_fp16)
-            onnx.save(model_fp16, str(out))
-
-        if simplify:
-            import onnxslim  # type: ignore [import-not-found,import-untyped]
-
-            onnxslim.slim(
-                str(out),
-                output_model=out,
+            out.append(
+                self.postprocessor.postprocess_sahi(
+                    raw_image,
+                    meta,
+                    threshold=threshold,
+                    nms_iou_threshold=nms_iou_threshold,
+                    global_local_iou_threshold=global_local_iou_threshold,
+                    tile_size=self.image_size,
+                )
             )
-
-        if verify:
-            logger.info("Verifying ONNX model")
-            import onnx
-            import onnxruntime as ort
-
-            onnx.checker.check_model(out, full_check=True)
-
-            providers = ort.get_available_providers()
-            if precision == "fp16" and "CUDAExecutionProvider" not in providers:
-                logger.warning(
-                    "Skipping ONNX runtime verification for fp16 model because "
-                    "CUDAExecutionProvider is not available in onnxruntime. "
-                    "Install onnxruntime-gpu to enable full verification."
-                )
-            else:
-                # Always run the reference input in float32 and on cpu for consistency.
-                reference_model = deepcopy(self).cpu().to(torch.float32).eval()
-                reference_model.deploy()
-                reference_outputs: tuple[Tensor, ...] = reference_model(
-                    dummy_input.cpu().to(torch.float32),
-                )
-
-                # Get outputs from the ONNX model. Load from bytes to avoid
-                # ORT errors about missing external data when weights are inline.
-                with open(out, "rb") as f:
-                    session = ort.InferenceSession(f.read())
-                onnx_input = dummy_input.cpu()
-                if precision == "fp16":
-                    onnx_input = onnx_input.half()
-                input_feed = {
-                    "images": onnx_input.numpy(),
-                }
-                outputs_onnx = session.run(output_names=None, input_feed=input_feed)
-                outputs_onnx = tuple(torch.from_numpy(y) for y in outputs_onnx)
-
-                # Verify that the outputs from both models are close.
-                if len(outputs_onnx) != len(reference_outputs):
-                    raise AssertionError(
-                        f"Number of onnx outputs should be {len(reference_outputs)} but is {len(outputs_onnx)}"
-                    )
-                for output_onnx, output_model, output_name in zip(
-                    outputs_onnx, reference_outputs, output_names
-                ):
-
-                    def msg(s: str) -> str:
-                        return f'ONNX validation failed for output "{output_name}": {s}'
-
-                    # Due to the presence of top-k operations in the model, the outputs may be
-                    # in different order but still valid. To account for this, we sum
-                    # over the query dimension before comparing.
-                    # TODO(yutong, 07/2026): Summing each output over the query
-                    # dimension only checks per-field marginals: it cannot detect
-                    # an export that swaps labels between boxes, and summing the
-                    # integer labels is weaker still (e.g. [0, 2] matches [1, 1]).
-                    # Match detections per image by box location and compare the
-                    # full (label, box, score) tuples together instead.
-                    output_model = output_model.sum(dim=1)
-                    if output_onnx.is_floating_point():
-                        # Convert to fp32 to avoid overflow issues when summing in fp16.
-                        output_onnx = output_onnx.float()
-                    output_onnx = output_onnx.sum(dim=1)
-
-                    if output_model.is_floating_point():
-                        # Absolute and relative tolerances are a bit arbitrary and taken from here:
-                        # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
-                        torch.testing.assert_close(
-                            output_onnx,
-                            output_model,
-                            msg=msg,
-                            equal_nan=True,
-                            check_device=False,
-                            check_dtype=False,
-                            check_layout=False,
-                            atol=5e-3,
-                            rtol=1e-1,
-                        )
-                    else:
-                        _torch_testing.assert_most_equal(
-                            output_onnx,
-                            output_model,
-                            msg=msg,
-                        )
-
-        logger.info(f"Successfully exported ONNX model to '{out}'")
+            start = end
+        return out
 
     def export_tensorrt(
         self,

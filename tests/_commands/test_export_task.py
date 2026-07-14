@@ -84,13 +84,10 @@ def dinov2_vittest14_eomt_4_channels_checkpoint(
 
 
 onnx_export_testset = [
-    (1, 3, 42, 154, ONNXPrecision.F32_TRUE),
-    (1, 4, 154, 42, ONNXPrecision.F32_TRUE),
-    (2, 3, 14, 14, ONNXPrecision.F32_TRUE),
-    (2, 4, None, None, ONNXPrecision.F32_TRUE),
-    (3, 3, 140, None, ONNXPrecision.F16_TRUE),
-    (4, 3, None, 28, ONNXPrecision.F16_TRUE),
-    (4, 4, None, 28, ONNXPrecision.F16_TRUE),
+    (1, 3, ONNXPrecision.F32_TRUE),
+    (2, 3, ONNXPrecision.F32_TRUE),
+    (3, 3, ONNXPrecision.F16_TRUE),
+    (4, 4, ONNXPrecision.F16_TRUE),
 ]
 
 
@@ -98,9 +95,7 @@ onnx_export_testset = [
     sys.platform.startswith("win"),
     reason=("Fails on Windows because of potential memory issues"),
 )
-@pytest.mark.parametrize(
-    "batch_size,num_channels,height,width,precision", onnx_export_testset
-)
+@pytest.mark.parametrize("batch_size,num_channels,precision", onnx_export_testset)
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
@@ -113,8 +108,6 @@ onnx_export_testset = [
 def test_onnx_export(
     batch_size: int,
     num_channels: int,
-    height: int | None,
-    width: int | None,
     precision: ONNXPrecision,
     dinov2_vittest14_eomt_checkpoint: Path,
     dinov2_vittest14_eomt_4_channels_checkpoint: Path,
@@ -132,10 +125,9 @@ def test_onnx_export(
         4: dinov2_vittest14_eomt_4_channels_checkpoint,
     }[num_channels]
     model = lightly_train.load_model(checkpoint, device="cpu")
-    if height is None:
-        height = cast(int, model.image_size[0])  # type: ignore
-    if width is None:
-        width = cast(int, model.image_size[1])  # type: ignore
+    # The export resolution follows the model's image_size.
+    height = cast(int, model.image_size[0])  # type: ignore
+    width = cast(int, model.image_size[1])  # type: ignore
     onnx_path = tmp_path / "model.onnx"
     validation_input = torch.randn(
         batch_size,
@@ -155,8 +147,6 @@ def test_onnx_export(
     lightly_train.export_onnx(
         out=onnx_path,
         checkpoint=checkpoint,
-        height=height,
-        width=width,
         precision=precision.value,
         batch_size=batch_size,
         overwrite=True,
@@ -177,84 +167,4 @@ def test_onnx_export(
     for ort_y, expected_y in zip(ort_outputs, expected_outputs):
         torch.testing.assert_close(
             ort_y, expected_y, check_dtype=False, rtol=rtol, atol=atol
-        )
-
-
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
-def test_onnx_export__height_not_patch_size_multiple_fails(
-    dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
-) -> None:
-    # arrange
-    model = lightly_train.load_model(dinov2_vittest14_eomt_checkpoint, device="cpu")
-    onnx_path = tmp_path / "model.onnx"
-    patch_size: int = model.backbone.patch_size  # type: ignore
-    height = patch_size - 1
-    width = patch_size
-
-    # act
-    with pytest.raises(
-        ValueError,
-        match=(
-            f"Height {height} and width {width} must be a multiple of patch size {patch_size}."
-        ),
-    ):
-        lightly_train.export_onnx(
-            out=onnx_path,
-            checkpoint=dinov2_vittest14_eomt_checkpoint,
-            height=height,
-            width=width,
-            batch_size=1,
-            overwrite=True,
-        )
-
-
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
-def test_onnx_export__width_not_patch_size_multiple_fails(
-    dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
-) -> None:
-    # arrange
-    model = lightly_train.load_model(dinov2_vittest14_eomt_checkpoint, device="cpu")
-    onnx_path = tmp_path / "model.onnx"
-    patch_size: int = model.backbone.patch_size  # type: ignore
-    height = patch_size
-    width = patch_size - 1
-
-    # actf
-    with pytest.raises(
-        ValueError,
-        match=(
-            f"Height {height} and width {width} must be a multiple of patch size {patch_size}."
-        ),
-    ):
-        lightly_train.export_onnx(
-            out=onnx_path,
-            checkpoint=dinov2_vittest14_eomt_checkpoint,
-            height=height,
-            width=width,
-            batch_size=1,
-            overwrite=True,
         )

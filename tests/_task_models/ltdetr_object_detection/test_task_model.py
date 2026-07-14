@@ -21,6 +21,10 @@ from torch.optim.lr_scheduler import LinearLR
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DYNAMO_AVAILABLE,
+    _TORCH_DYNAMO_MIN_VERSION,
+)
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
@@ -450,10 +454,43 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     model.eval()
     model.deploy()
     with torch.no_grad():
-        labels, boxes, scores = model(torch.randn(1, 3, 224, 224))
-    assert labels.shape == (1, 300)
-    assert boxes.shape == (1, 300, 4)
-    assert scores.shape == (1, 300)
+        out = model(torch.randn(1, 3, 224, 224))
+    assert out.logits.shape == (1, 300, 2)  # num_classes = 2
+    assert out.boxes.shape == (1, 300, 4)
+
+
+def _build_ltdetr_model() -> LTDETRObjectDetection:
+    return LTDETRObjectDetection(
+        model_name="dinov2/vits14-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(224, 224),
+        image_normalize=None,
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        load_weights=False,
+    )
+
+
+def test_is_deploy_mode__false_until_deploy() -> None:
+    model = _build_ltdetr_model()
+    assert model.is_deploy_mode is False
+    model.deploy()
+    assert model.is_deploy_mode is True
+
+
+def test_deploy__is_idempotent() -> None:
+    # deploy() relies on convert_to_deploy(), which is NOT idempotent, so the model
+    # must guard against re-running it. Calling deploy() twice must be a no-op the
+    # second time and leave a working model.
+    model = _build_ltdetr_model()
+    model.deploy()
+    model.deploy()
+    assert model.is_deploy_mode is True
+    with torch.no_grad():
+        out = model(torch.randn(1, 3, 224, 224))
+    assert out.logits.shape == (1, 300, 2)
+    assert out.boxes.shape == (1, 300, 4)
 
 
 @pytest.mark.parametrize(
@@ -639,10 +676,10 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
         load_weights=False,
     )
 
-    preprocess_image_spy = mocker.spy(model, "preprocess_image")
-    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
-    forward_backend_spy = mocker.spy(model, "forward_backend")
-    postprocess_spy = mocker.spy(model, "postprocess")
+    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
@@ -655,24 +692,234 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    # forward_backend receives the output of preprocess_batch.
-    assert forward_backend_spy.call_count == 1
-    (forward_in,) = forward_backend_spy.call_args.args
+    # forward (the raw neural pass) receives the output of preprocess_batch.
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
     assert forward_in is preprocess_batch_spy.spy_return
 
-    # postprocess receives forward_backend's output and per-image metadata.
+    # postprocess receives forward's output and per-image metadata.
     assert postprocess_spy.call_count == 1
     raw_in, metadata = postprocess_spy.call_args.args
-    assert raw_in is forward_backend_spy.spy_return
+    assert raw_in is forward_spy.spy_return
     assert len(metadata) == 2
 
     # predict_batch returns whatever postprocess produced.
     assert result is postprocess_spy.spy_return
 
 
+def test_predict_sahi__composes_stages_in_order(mocker: MockerFixture) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    preprocess_spy = mocker.spy(model.preprocessor, "preprocess_sahi_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_sahi_batch")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_spy = mocker.spy(model.postprocessor, "postprocess_sahi")
+
+    result = model.predict_sahi(
+        image=torch.rand(3, 300, 400),
+        threshold=0.7,
+        overlap=0.25,
+        nms_iou_threshold=0.4,
+        global_local_iou_threshold=0.2,
+    )
+
+    assert preprocess_spy.call_count == 1
+    assert preprocess_spy.call_args.kwargs["overlap"] == 0.25
+
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert batch_in is preprocess_spy.spy_return[0]
+
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
+    assert forward_in is preprocess_batch_spy.spy_return
+
+    assert postprocess_spy.call_count == 1
+    raw_in, metadata = postprocess_spy.call_args.args
+    assert raw_in is forward_spy.spy_return
+    assert metadata is preprocess_spy.spy_return[1]
+    assert postprocess_spy.call_args.kwargs == {
+        "threshold": 0.7,
+        "nms_iou_threshold": 0.4,
+        "global_local_iou_threshold": 0.2,
+        "tile_size": (256, 256),
+    }
+
+    assert result is postprocess_spy.spy_return
+
+
+def test_predict_sahi_batch__composes_stages_in_order(
+    mocker: MockerFixture,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_sahi_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_sahi_batch")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_outputs = [
+        {
+            "labels": torch.tensor([0]),
+            "bboxes": torch.zeros(1, 4),
+            "scores": torch.ones(1),
+        },
+        {
+            "labels": torch.tensor([1]),
+            "bboxes": torch.ones(1, 4),
+            "scores": torch.ones(1),
+        },
+    ]
+    postprocess_mock = mocker.patch.object(
+        model.postprocessor, "postprocess_sahi", side_effect=postprocess_outputs
+    )
+
+    result = model.predict_sahi_batch(
+        images=[torch.rand(3, 300, 400), torch.rand(3, 256, 256)],
+        threshold=0.7,
+        overlap=0.25,
+        nms_iou_threshold=0.4,
+        global_local_iou_threshold=0.2,
+    )
+
+    assert preprocess_image_spy.call_count == 2
+    assert [call.kwargs["overlap"] for call in preprocess_image_spy.call_args_list] == [
+        0.25,
+        0.25,
+    ]
+    image_outputs = preprocess_image_spy.spy_return_list
+    image_batches = [image_output[0] for image_output in image_outputs]
+    metadata = [image_output[1] for image_output in image_outputs]
+    batch_sizes = [image_batch.shape[0] for image_batch in image_batches]
+
+    assert preprocess_batch_spy.call_count == 1
+    (batch_in,) = preprocess_batch_spy.call_args.args
+    assert batch_in.shape[0] == sum(batch_sizes)
+    torch.testing.assert_close(batch_in, torch.cat(image_batches, dim=0))
+
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
+    assert forward_in is preprocess_batch_spy.spy_return
+
+    assert postprocess_mock.call_count == 2
+    raw = forward_spy.spy_return
+    start = 0
+    for i, call in enumerate(postprocess_mock.call_args_list):
+        raw_in, meta = call.args
+        end = start + batch_sizes[i]
+        torch.testing.assert_close(raw_in.logits, raw.logits[start:end])
+        torch.testing.assert_close(raw_in.boxes, raw.boxes[start:end])
+        assert meta is metadata[i]
+        assert call.kwargs == {
+            "threshold": 0.7,
+            "nms_iou_threshold": 0.4,
+            "global_local_iou_threshold": 0.2,
+            "tile_size": (256, 256),
+        }
+        start = end
+
+    assert len(result) == 2
+    assert result[0] is postprocess_outputs[0]
+    assert result[1] is postprocess_outputs[1]
+
+
+def test_predict_sahi_batch__raises_on_empty_input() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    with pytest.raises(ValueError, match="at least one image"):
+        model.predict_sahi_batch(images=[])
+
+
+def test_model_input_spec__uses_channels_and_image_size() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 320),
+        image_normalize={
+            "mean": (0.0,),
+            "std": (1.0,),
+        },
+        backbone_args={"in_chans": 1},
+        load_weights=False,
+    )
+
+    spec = model.model_input_spec
+
+    assert "export_onnx" not in LTDETRObjectDetection.__dict__
+    assert list(spec.input_specs) == ["images"]
+    assert spec.input_specs["images"].shape == (1, 256, 320)
+    assert spec.input_specs["images"].dtype == torch.float32
+    assert spec.input_specs["images"].is_batched is True
+
+
+@pytest.mark.parametrize(
+    ("decoder_name", "fp32_module_names"),
+    [
+        ("rtdetrv2", ("decoder.dec_bbox_head",)),
+        (
+            "dfine",
+            (
+                "decoder.dec_bbox_head",
+                "decoder.pre_bbox_head",
+                "decoder.dec_score_head",
+                "decoder.decoder.lqe_layers",
+            ),
+        ),
+    ],
+)
+def test_onnx_export_precision_policy__keeps_decoder_fp32_modules(
+    decoder_name: Literal["rtdetrv2", "dfine"],
+    fp32_module_names: tuple[str, ...],
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        decoder_name=decoder_name,
+        load_weights=False,
+    )
+
+    policy = model.onnx_export_precision_policy
+
+    assert not hasattr(policy, "trace_fp16_in_fp32")
+    assert policy.fp32_module_names == fp32_module_names
+    assert policy.fp32_onnx_op_types == ("Softmax", "MatMul")
+
+    model._apply_onnx_export_module_precision(module=model, dtype=torch.float16)
+
+    named_modules = dict(model.named_modules())
+    for name in fp32_module_names:
+        module = named_modules[name]
+        params = list(module.parameters())
+        assert params
+        assert all(param.dtype == torch.float32 for param in params)
+
+    if decoder_name == "rtdetrv2":
+        assert all(
+            param.dtype == torch.float16
+            for param in model.decoder.dec_score_head.parameters()
+        )
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
 )
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
@@ -691,7 +938,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
+    assert input_batch_dim.dim_param == "batch_size"
 
     import torch
 
@@ -701,7 +948,8 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     onnx_outputs = session.run(None, {"images": inputs})
 
     with torch.no_grad():
-        torch_outputs = model(torch.from_numpy(inputs))
+        torch_output = model(torch.from_numpy(inputs))
+    torch_outputs = (torch_output.logits, torch_output.boxes)
 
     # Compare via the shared helper: it sums over the query dim before comparing
     # floats (order-invariant, since the postprocessor's top-k can reorder
@@ -713,7 +961,12 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
+)
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
+    import onnx
+
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
@@ -726,10 +979,17 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
         out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
     )
 
+    onnx_model = onnx.load(out)
+    input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
+    assert input_batch_dim.dim_value == 3
+
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.skipif(
+    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
 )
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
@@ -742,6 +1002,7 @@ def test_export_onnx__fp16(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "car", 1: "person"},
         image_size=(256, 256),
+        decoder_name=decoder_name,
         load_weights=False,
     )
 

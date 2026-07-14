@@ -54,6 +54,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "lightlytrain-deploy-py",
     "licenseheaders>=0.8.8",
     "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
     "mdformat-myst>=0.3.0; python_version>='3.10'", # MyST support for mdformat
@@ -83,10 +84,6 @@ dist = [
     "build>=1.2.2",
     "twine>=6.1.0",
     "wheel>=0.45.1",
-]
-benchmarks = [
-    "onnxruntime-gpu==1.25.1; python_version>='3.11' and platform_system == 'Linux'",
-    "tensorrt-cu13==10.16.1.11; platform_system == 'Linux'",
 ]
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
@@ -262,6 +259,8 @@ conflicts = [
 ]
 
 [tool.uv.sources]
+lightlytrain-deploy-py = { workspace = true }
+
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [
@@ -277,6 +276,11 @@ torchvision = [
 name = "pytorch-cu118"
 url = "https://download.pytorch.org/whl/cu118"
 explicit = true
+
+[tool.uv.workspace]
+members = [
+    "deploy/lightlytrain-deploy-py",
+]
 
 [tool.pytest.ini_options]
 # Make pytest discover all files in the tests directory. This is usuful for showing
