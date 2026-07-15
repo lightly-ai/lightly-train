@@ -365,26 +365,14 @@ class LTDETRObjectDetectionCollateFunction(TaskCollateFunction):
             # size so the threshold is in the same units as the boxes at this
             # stage.
             img = item["image"]
-            if (
-                isinstance(img, torch.Tensor)
-                and item["bboxes"].size > 0
-                and float(self.transform_args.min_bbox_size_px) > 0.0
-            ):
-                if img.ndim == 3:
-                    out_height, out_width = int(img.shape[1]), int(img.shape[2])
-                elif img.ndim == 2:
-                    out_height, out_width = int(img.shape[0]), int(img.shape[1])
-                else:
-                    out_height, out_width = 0, 0
-                if out_height > 0 and out_width > 0:
-                    item["bboxes"], item["class_labels"], _ = (
-                        filter_boxes_below_min_size(
-                            bboxes=item["bboxes"],
-                            class_labels=item["class_labels"],
-                            image_size=(out_height, out_width),
-                            min_size_px=float(self.transform_args.min_bbox_size_px),
-                        )
-                    )
+            if isinstance(img, torch.Tensor):
+                height, width = int(img.shape[-2]), int(img.shape[-1])
+                item["bboxes"], item["class_labels"], _ = filter_boxes_below_min_size(
+                    bboxes=item["bboxes"],
+                    class_labels=item["class_labels"],
+                    image_size=(height, width),
+                    min_size_px=float(self.transform_args.min_bbox_size_px),
+                )
 
         image = torch.stack([item["image"] for item in augment_batch])  # type: ignore
         # Albumentations ToTensorV2 only converts images/masks to tensors. We have to

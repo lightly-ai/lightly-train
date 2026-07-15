@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import Any, overload
 
 import numpy as np
 from albumentations import (
@@ -305,6 +305,26 @@ def filter_degenerate_yolo_boxes(
     return bboxes[valid], class_labels[valid], indices[valid]
 
 
+@overload
+def filter_boxes_below_min_size(
+    bboxes: NDArrayBBoxes,
+    class_labels: NDArrayClasses,
+    image_size: tuple[int, int],
+    min_size_px: float = ...,
+    indices: np.ndarray = ...,
+) -> tuple[NDArrayBBoxes, NDArrayClasses, np.ndarray]: ...
+
+
+@overload
+def filter_boxes_below_min_size(
+    bboxes: NDArrayBBoxes,
+    class_labels: NDArrayClasses,
+    image_size: tuple[int, int],
+    min_size_px: float = ...,
+    indices: None = ...,
+) -> tuple[NDArrayBBoxes, NDArrayClasses, None]: ...
+
+
 def filter_boxes_below_min_size(
     bboxes: NDArrayBBoxes,
     class_labels: NDArrayClasses,
@@ -315,19 +335,16 @@ def filter_boxes_below_min_size(
     """Drop YOLO boxes whose pixel-side width/height is below ``min_size_px``.
 
     Boxes are expected in normalized YOLO ``(cx, cy, w, h)`` format with
-    ``w, h`` in [0, 1]. ``image_size`` is the spatial ``(H, W)`` of the current
-    image the boxes were just produced for; ``w_px = bboxes[:, 2] * W`` and
-    ``h_px = bboxes[:, 3] * H``. Boxes outside the image (negative width or
-    height) are also dropped.
+    ``w, h`` in [0, 1]. ``image_size`` is the spatial ``(H, W)`` of the
+    current image, so ``w_px = bboxes[:, 2] * W`` and ``h_px = bboxes[:, 3] * H``.
 
-    ``indices`` (if provided) is filtered in lockstep with the boxes so the
-    instance segmentation transform can keep masks aligned with their boxes.
+    Pass ``min_size_px <= 0`` to disable filtering. ``indices`` (if provided)
+    is filtered in lockstep with the boxes so the instance segmentation
+    transform can keep masks aligned with their boxes.
     """
     if min_size_px <= 0.0 or len(bboxes) == 0:
         return bboxes, class_labels, indices
     height, width = image_size
-    if height <= 0 or width <= 0:
-        return bboxes, class_labels, indices
     w_px = bboxes[:, 2] * float(width)
     h_px = bboxes[:, 3] * float(height)
     valid = (w_px >= float(min_size_px)) & (h_px >= float(min_size_px))

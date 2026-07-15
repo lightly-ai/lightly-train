@@ -167,20 +167,6 @@ class TestFilterBoxesBelowMinSize:
         np.testing.assert_array_equal(out_bboxes, bboxes)
         np.testing.assert_array_equal(out_labels, class_labels)
 
-    def test_zero_image_dimensions_is_noop(self) -> None:
-        bboxes = np.array([[0.5, 0.5, 0.5, 0.5]], dtype=np.float64)
-        class_labels = np.array([1], dtype=np.int64)
-
-        out_bboxes, out_labels, _ = filter_boxes_below_min_size(
-            bboxes=bboxes,
-            class_labels=class_labels,
-            image_size=(0, 0),
-            min_size_px=4.0,
-        )
-
-        np.testing.assert_array_equal(out_bboxes, bboxes)
-        np.testing.assert_array_equal(out_labels, class_labels)
-
     def test_empty_input(self) -> None:
         bboxes = np.zeros((0, 4), dtype=np.float64)
         class_labels = np.zeros((0,), dtype=np.int64)

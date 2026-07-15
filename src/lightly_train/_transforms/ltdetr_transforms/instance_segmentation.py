@@ -252,12 +252,7 @@ class LTDETRInstanceSegmentationTransform(TaskTransform):
             image_size=(height, width),
             min_size_px=float(self.transform_args.min_bbox_size_px),
         )
-        if indices_out is None:
-            # ``indices_out`` should never come back as None from
-            # ``filter_boxes_below_min_size`` because we passed ``indices`` in,
-            # but fall back defensively.
-            kept_binary_masks = binary_masks_out
-        elif len(indices_out) == 0:
+        if len(indices_out) == 0:
             kept_binary_masks = image_out.new_zeros(0, height, width, dtype=torch.int)
         else:
             kept_binary_masks = binary_masks_out[torch.from_numpy(indices_out).long()]
