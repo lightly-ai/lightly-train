@@ -372,7 +372,7 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
 ```
 
-The Weights & Biases logger can be configured with the following arguments:
+Configure Weights & Biases under the `wandb` logger key:
 
 ````{tab} Python
 ```python
@@ -407,12 +407,20 @@ Disable the Weights & Biases logger with:
 
 ````{tab} Python
 ```python
-loggers={"wandb": None}
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.pretrain(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="torchvision/resnet50",
+        loggers={"wandb": None},
+    )
 ````
 
 ````{tab} Command Line
 ```bash
-loggers.wandb=null
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.wandb=null
 ````
 
 ## Resume Training
