@@ -26,15 +26,15 @@ Three distillation versions are available. Choose based on your downstream task:
 
 ## Default Teacher by Version
 
-Each distillation version ships with a default teacher so you can start training
-without specifying `method_args={"teacher": ...}`. Override the default via
-{ref}`method-args` if you want a different teacher.
+Each distillation version ships with a default teacher so you can start training without
+specifying `method_args={"teacher": ...}`. Override the default via {ref}`method-args`
+if you want a different teacher.
 
-| Method                | Default teacher      | License          | Notes                                   |
-| --------------------- | -------------------- | ---------------- | --------------------------------------- |
-| `distillation` / `distillationv3` | `dinov3/vitb16` | DINOv3 (research) | Recommended default since LightlyTrain 0.15.0. |
-| `distillationv1`      | `dinov2/vitb14-noreg` | Apache 2.0       | Global tasks (e.g. classification).     |
-| `distillationv2`      | `dinov2/vitb14-noreg` | Apache 2.0       | Dense tasks; DINOv2 teacher only.       |
+| Method                            | Default teacher       | License           | Notes                                          |
+| --------------------------------- | --------------------- | ----------------- | ---------------------------------------------- |
+| `distillation` / `distillationv3` | `dinov3/vitb16`       | DINOv3 (research) | Recommended default since LightlyTrain 0.15.0. |
+| `distillationv1`                  | `dinov2/vitb14-noreg` | Apache 2.0        | Global tasks (e.g. classification).            |
+| `distillationv2`                  | `dinov2/vitb14-noreg` | Apache 2.0        | Dense tasks; DINOv2 teacher only.              |
 
 ```{tip}
 If you need a permissive Apache 2.0 license, switch the teacher to a DINOv2 model
@@ -47,9 +47,9 @@ list of supported teachers.
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb)
 
-The example below uses LightlyTrain's default teacher (`dinov3/vitb16`, DINOv3
-ViT-B/16 — see {ref}`methods-distillation-default-teacher`) and a
-`torchvision/resnet18` model as the student:
+The example below uses LightlyTrain's default teacher (`dinov3/vitb16`, DINOv3 ViT-B/16
+— see {ref}`methods-distillation-default-teacher`) and a `torchvision/resnet18` model as
+the student:
 
 ```{note}
 DINOv3 models are released under the [DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md). 
@@ -204,9 +204,8 @@ For distillation v1/v2, the following models for `teacher` are supported:
 
 For distillationv3, any model supported by LightlyTrain can be used (including custom
 models). The **default** is `dinov3/vitb16` (DINOv3 ViT-B/16) — see
-{ref}`methods-distillation-default-teacher` for the full per-version default
-table. You can find the full list of supported models on the [Models](#models)
-page.
+{ref}`methods-distillation-default-teacher` for the full per-version default table. You
+can find the full list of supported models on the [Models](#models) page.
 
 ## What's under the Hood
 
