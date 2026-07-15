@@ -214,6 +214,26 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_convnext_base_eupe_lvd1689.pth",
         list=True,
     ),
+    # LingBot Vision models (Robbyant, built on DINOv3 and pretrained with masked
+    # boundary modeling).
+    "vits16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vits16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16_lingbot.pth",
+        local_path="dinov3_vits16_lingbot.pth",
+        list=True,
+    ),
+    "vitb16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitb16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitb16_lingbot.pth",
+        local_path="dinov3_vitb16_lingbot.pth",
+        list=True,
+    ),
+    "vitl16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitl16,
+        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_lingbot.pth",
+        local_path="dinov3_vitl16_lingbot.pth",
+        list=True,
+    ),
 }
 
 

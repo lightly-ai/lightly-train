@@ -82,8 +82,14 @@ and are under the
 EUPE models are pretrained by Meta using the
 [EUPE method](https://github.com/facebookresearch/EUPE) and are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
-The ViT-T/16 models, except the EUPE one, are trained by Lightly using knowledge
-distillation from DINOv3 ViT-L/16.
+The LingBot Vision models are pretrained by Robbyant using
+[masked boundary modeling](https://github.com/Robbyant/lingbot-vision) for dense spatial
+perception. They are released under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
+As they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models and weights. The ViT-T/16 models, except the EUPE one, are trained
+by Lightly using knowledge distillation from DINOv3 ViT-L/16.
 
 - ViT-T (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K)
   - `dinov3/vitt16` — distillationv2 weights; recommended for dense tasks (object
@@ -100,13 +106,19 @@ distillation from DINOv3 ViT-L/16.
 - ViT-S (Meta, LVD-1689M)
   - `dinov3/vits16`
   - `dinov3/vits16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
+  - `dinov3/vits16-lingbot` -
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
   - `dinov3/vits16plus`
 - ViT-B (Meta, LVD-1689M)
   - `dinov3/vitb16`
   - `dinov3/vitb16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
+  - `dinov3/vitb16-lingbot` -
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - ViT-L (Meta)
   - `dinov3/vitl16` (LVD-1689M)
   - `dinov3/vitl16-sat493m` (SAT-493M)
+  - `dinov3/vitl16-lingbot` -
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - ViT-H (Meta, LVD-1689M)
   - `dinov3/vith16plus`
 - ViT-7B (Meta)
