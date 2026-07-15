@@ -86,6 +86,14 @@ lightly_train.pretrain(
 ```
 
 ```{note}
+If you omit `method_args={"teacher": ...}`, LightlyTrain uses its default teacher for
+the chosen distillation version. For `distillation` / `distillationv3` that default is
+`dinov3/vitb16` (DINOv3 ViT-B/16). See
+{ref}`methods-distillation-default-teacher` for the per-version defaults and how to
+switch to a DINOv2 teacher.
+```
+
+```{note}
 This is a minimal example for illustration purposes. In practice you would want to use a
 larger dataset (>=10'000 images), more epochs (>=100, ideally ~1000), and a larger
 batch size (>=128). For pretraining larger models than `dinov3/vitt16` we also recommend

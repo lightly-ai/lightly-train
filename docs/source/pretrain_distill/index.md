@@ -435,8 +435,8 @@ if __name__ == "__main__":
         data="my_data_dir",                 # Directory with images
         model="torchvision/resnet18",       # Model to train
         method="distillation",              # Pretraining method
-        method_args={                       # Override the default teacher model
-            "teacher": "dinov2/vitl14",
+        method_args={                       # Override the default teacher model (default: dinov3/vitb16)
+            "teacher": "dinov3/vitl16",
         },
     )
 ```
@@ -444,9 +444,16 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2/vitl14"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov3/vitl16"
 ```
 ````
+
+```{tip}
+The default teacher for `distillation` / `distillationv3` is `dinov3/vitb16`. See
+{ref}`methods-distillation-default-teacher` for the per-version default table
+and the full list of supported teachers. Use a DINOv2 teacher (e.g.
+`dinov2/vitl14`) for a permissive Apache 2.0 license.
+```
 
 Each pretraining method has its own set of arguments that can be configured.
 LightlyTrain provides sensible defaults that are adjusted depending on the dataset and
