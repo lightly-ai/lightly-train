@@ -21,6 +21,7 @@ Licensed under the Apache License, Version 2.0 [see LICENSE for details]
 # - Added ``forward_deploy`` returning the mask-einsum operands (projected
 #   spatial and query features) so the postprocessor can gather the selected
 #   queries before the einsum instead of gathering the full mask tensor.
+# - Applied all spatial feature blocks instead of only the first block.
 
 from __future__ import annotations
 
@@ -214,7 +215,8 @@ class EdgeCrafterInstanceSegmentationHead(nn.Module):
             mode="bilinear",
             align_corners=False,
         )
-        spatial_features = self.blocks[0](spatial_features)
+        for block in self.blocks:
+            spatial_features = block(spatial_features)
         spatial_features_proj = self.spatial_features_proj(spatial_features)
         query_feature = self.query_features_proj(
             self.query_features_block(query_feature)
