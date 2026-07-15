@@ -27,6 +27,8 @@ DOCS_DIR = THIS_DIR / "source"
 PROJECT_ROOT = THIS_DIR.parent
 SOURCE_AUTO_DIR = DOCS_DIR / "_auto"
 METHODS_AUTO_ARGS_DIR = DOCS_DIR / "pretrain_distill" / "methods" / "_auto"
+TUTORIALS_DIR = DOCS_DIR / "tutorials"
+NOTEBOOKS_DIR = PROJECT_ROOT / "examples" / "notebooks"
 
 
 # inspired by https://github.com/pydantic/pydantic/blob/6f31f8f68ef011f84357330186f603ff295312fd/docs/plugins/main.py#L102-L103
@@ -157,8 +159,44 @@ def dump_method_args(dest_dir: Path) -> None:
             f.write("```\n")
 
 
+def create_notebook_symlinks() -> None:
+    """Creates symlinks for all notebooks from examples/notebooks/ to docs/source/tutorials/."""
+    TUTORIALS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Get all notebooks in the source directory
+    notebook_files = list(NOTEBOOKS_DIR.glob("*.ipynb"))
+    notebook_names = {nb.name for nb in notebook_files}
+
+    # Create symlinks for each notebook
+    for notebook in notebook_files:
+        target_symlink = TUTORIALS_DIR / notebook.name
+        relative_target = Path("../../../examples/notebooks") / notebook.name
+
+        # Check if symlink already exists and points to the correct target
+        if target_symlink.is_symlink():
+            try:
+                current_target = target_symlink.resolve()
+                expected_target = (NOTEBOOKS_DIR / notebook.name).resolve()
+                if current_target == expected_target:
+                    continue  # Skip if correct symlink already exists
+                else:
+                    target_symlink.unlink()  # Remove incorrect symlink
+            except OSError:
+                target_symlink.unlink()  # Remove broken symlink
+
+        # Create the symlink
+        target_symlink.symlink_to(relative_target)
+
+    # Clean up orphaned symlinks (symlinks pointing to deleted notebooks)
+    for symlink in TUTORIALS_DIR.glob("*.ipynb"):
+        if symlink.is_symlink():
+            if symlink.name not in notebook_names:
+                symlink.unlink()  # Remove symlink for deleted notebook
+
+
 def main(source_dir: Path) -> None:
     build_changelog_html(source_dir=source_dir)
+    create_notebook_symlinks()
     # Methods
     dump_transform_args_for_methods(dest_dir=METHODS_AUTO_ARGS_DIR)
     dump_method_args(dest_dir=METHODS_AUTO_ARGS_DIR)
