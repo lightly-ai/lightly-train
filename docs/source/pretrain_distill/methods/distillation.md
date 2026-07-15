@@ -24,7 +24,7 @@ Three distillation versions are available. Choose based on your downstream task:
 
 (methods-distillation-default-teacher)=
 
-### Default Teacher by Version
+## Default Teacher by Version
 
 Each distillation version ships with a default teacher so you can start training
 without specifying `method_args={"teacher": ...}`. Override the default via
