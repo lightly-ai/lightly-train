@@ -17,6 +17,8 @@ Modules to compute the matching cost and solve the corresponding LSAP.
 Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
+from __future__ import annotations
+
 from typing import Dict
 
 import torch
@@ -61,7 +63,13 @@ class HungarianMatcher(nn.Module):
         )
 
     @torch.no_grad()
-    def forward(self, outputs: Dict[str, torch.Tensor], targets):
+    def forward(
+        self,
+        outputs: Dict[str, torch.Tensor],
+        targets,
+        image_size: tuple[int, int] | None = None,
+        min_bbox_size_px: float = 0.0,
+    ):
         """Performs the matching
 
         Params:
@@ -73,6 +81,11 @@ class HungarianMatcher(nn.Module):
                  "labels": Tensor of dim [num_target_boxes] (where num_target_boxes is the number of ground-truth
                            objects in the target) containing the class labels
                  "boxes": Tensor of dim [num_target_boxes, 4] containing the target box coordinates
+
+            image_size: Optional ``(H, W)`` of the model input. When given together
+                with ``min_bbox_size_px``, predicted and target boxes are clamped so
+                that neither side falls below ``min_bbox_size_px`` pixels. This is
+                the LT-DETR training-codepath guard for sub-4 px boxes.
 
         Returns:
             A list of size batch_size, containing tuples of (index_i, index_j) where:
@@ -92,11 +105,16 @@ class HungarianMatcher(nn.Module):
             )  # [batch_size * num_queries, num_classes]
 
         out_bbox = outputs["pred_boxes"].flatten(0, 1)  # [batch_size * num_queries, 4]
-        out_bbox = sanitize_boxes_cxcywh_normalized(out_bbox)
+        out_bbox = sanitize_boxes_cxcywh_normalized(
+            out_bbox, image_size=image_size, min_size_px=min_bbox_size_px
+        )
 
         # Also concat the target labels and boxes
         tgt_ids = torch.cat([v["labels"] for v in targets])
         tgt_bbox = torch.cat([v["boxes"] for v in targets])
+        tgt_bbox = sanitize_boxes_cxcywh_normalized(
+            tgt_bbox, image_size=image_size, min_size_px=min_bbox_size_px
+        )
 
         # Compute the classification cost. Contrary to the loss, we don't use the NLL,
         # but approximate it in 1 - proba[target class].

@@ -95,6 +95,11 @@ _RTDETRV2_LOSS_WEIGHT_DICT: dict[str, float] = {
 _RTDETRV2_LOSSES: list[str] = ["vfl", "boxes"]
 _RTDETRV2_LOSS_NAMES: list[str] = ["loss", *_RTDETRV2_LOSS_WEIGHT_DICT]
 
+# LT-DETR training-codepath guard (TRN-2312): enforce a minimum bbox size in
+# pixels on the LTDETR training code path so that degenerate targets /
+# predictions do not destabilize the matcher and losses.
+_LTDETR_MIN_BBOX_SIZE_PX: float = 4.0
+
 _DFINE_EXTRA_LOSS_WEIGHT_DICT: dict[str, float] = {"loss_fgl": 0.15, "loss_ddf": 1.5}
 _DFINE_EXTRA_LOSSES: list[str] = ["local"]
 _DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT_DICT]
@@ -565,6 +570,8 @@ class LTDETRObjectDetectionTrain(TrainModel):
 
         # Additional kwargs are anyway ignored in RTDETRCriterionv2.
         # The loss expects gt boxes in cxcywh format normalized in [0,1].
+        # ``image_size`` matches the model's input resolution so the criterion can
+        # enforce the minimum bbox size guard on the LTDETR training codepath.
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -572,6 +579,8 @@ class LTDETRObjectDetectionTrain(TrainModel):
             step=None,
             global_step=None,
             world_size=fabric.world_size,
+            image_size=self.model.image_size,
+            min_bbox_size_px=_LTDETR_MIN_BBOX_SIZE_PX,
         )
         total_loss = sum(loss_dict.values())
 
@@ -653,6 +662,8 @@ class LTDETRObjectDetectionTrain(TrainModel):
                 step=None,
                 global_step=None,
                 world_size=fabric.world_size,
+                image_size=self.model.image_size,
+                min_bbox_size_px=_LTDETR_MIN_BBOX_SIZE_PX,
             )
 
         total_loss = sum(loss_dict.values())

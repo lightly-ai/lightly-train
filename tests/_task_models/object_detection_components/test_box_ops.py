@@ -71,3 +71,54 @@ def test_sanitize_boxes_cxcywh_normalized_warns_only_once(
         sanitize_boxes_cxcywh_normalized(boxes)
 
     assert len(caplog.records) == 1
+
+
+def test_sanitize_boxes_cxcywh_normalized_enforces_min_size_px() -> None:
+    # 4 px on a 64 px image == 4/64 = 0.0625 in normalized units.
+    image_size = (64, 64)
+    boxes = torch.tensor(
+        [
+            # Sub-minimum width: w must clamp up to 4 px.
+            [0.5, 0.5, 3 / 64, 4 / 64],
+            # Sub-minimum height: h must clamp up to 4 px.
+            [0.5, 0.5, 4 / 64, 3 / 64],
+            # Already at the limit: untouched.
+            [0.5, 0.5, 4 / 64, 4 / 64],
+            # Well above the limit: untouched.
+            [0.5, 0.5, 32 / 64, 32 / 64],
+        ],
+        dtype=torch.float32,
+    )
+
+    sanitized = sanitize_boxes_cxcywh_normalized(
+        boxes, image_size=image_size, min_size_px=4.0
+    )
+
+    expected = torch.tensor(
+        [
+            [0.5, 0.5, 4 / 64, 4 / 64],
+            [0.5, 0.5, 4 / 64, 4 / 64],
+            [0.5, 0.5, 4 / 64, 4 / 64],
+            [0.5, 0.5, 32 / 64, 32 / 64],
+        ],
+        dtype=torch.float32,
+    )
+    torch.testing.assert_close(sanitized, expected)
+
+
+def test_sanitize_boxes_cxcywh_normalized_min_size_px_clamps_to_unit() -> None:
+    # If min_size_px exceeds the image dimension, the clamp saturates at 1.0.
+    sanitized = sanitize_boxes_cxcywh_normalized(
+        torch.tensor([[0.5, 0.5, 0.01, 0.01]]),
+        image_size=(8, 8),
+        min_size_px=64.0,
+    )
+    torch.testing.assert_close(sanitized, torch.tensor([[0.5, 0.5, 1.0, 1.0]]))
+
+
+def test_sanitize_boxes_cxcywh_normalized_min_size_px_zero_is_noop() -> None:
+    boxes = torch.tensor([[0.5, 0.5, 0.001, 0.001]], dtype=torch.float32)
+    sanitized = sanitize_boxes_cxcywh_normalized(
+        boxes, image_size=(640, 640), min_size_px=0.0
+    )
+    torch.testing.assert_close(sanitized, boxes)
