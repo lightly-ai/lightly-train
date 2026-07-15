@@ -94,11 +94,6 @@ _LTDETR_SEG_VAL_LOSS_NAMES: list[str] = [
 ]
 _LTDETR_SEG_TRAIN_LOSS_NAMES: list[str] = ["loss", *_LTDETR_SEG_LOSS_WEIGHT_DICT]
 
-# LT-DETR training-codepath guard (TRN-2312): enforce a minimum bbox size in
-# pixels on the LTDETR training code path so that degenerate targets /
-# predictions do not destabilize the matcher and losses.
-_LTDETR_MIN_BBOX_SIZE_PX: float = 4.0
-
 
 class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
     """Training args for LTDETR (EdgeCrafter/ECViT) instance segmentation.
@@ -386,8 +381,6 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
         ]
         outputs = self.model._forward_train(x=samples, targets=targets)
 
-        # ``image_size`` matches the model's input resolution so the criterion can
-        # enforce the minimum bbox size guard on the LTDETR training code path.
         loss_dict = self.criterion(
             outputs=outputs,
             targets=targets,
@@ -395,8 +388,6 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
             step=None,
             global_step=None,
             world_size=fabric.world_size,
-            image_size=self.model.image_size,
-            min_bbox_size_px=_LTDETR_MIN_BBOX_SIZE_PX,
         )
         total_loss = sum(loss_dict.values())
 
@@ -475,8 +466,6 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
                 step=None,
                 global_step=None,
                 world_size=fabric.world_size,
-                image_size=self.model.image_size,
-                min_bbox_size_px=_LTDETR_MIN_BBOX_SIZE_PX,
             )
 
         total_loss = sum(loss_dict.values())

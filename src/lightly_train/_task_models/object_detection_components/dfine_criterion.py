@@ -107,28 +107,14 @@ class DFINECriterion(nn.Module):
 
         return {"loss_focal": loss}
 
-    def loss_labels_vfl(
-        self,
-        outputs,
-        targets,
-        indices,
-        num_boxes,
-        values=None,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def loss_labels_vfl(self, outputs, targets, indices, num_boxes, values=None):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         if values is None:
             src_boxes = outputs["pred_boxes"][idx]
-            src_boxes = sanitize_boxes_cxcywh_normalized(
-                src_boxes, image_size=image_size, min_size_px=min_bbox_size_px
-            )
+            src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
             target_boxes = torch.cat(
                 [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-            )
-            target_boxes = sanitize_boxes_cxcywh_normalized(
-                target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
             )
             ious, _ = box_iou(
                 box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)
@@ -163,16 +149,7 @@ class DFINECriterion(nn.Module):
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         return {"loss_vfl": loss}
 
-    def loss_boxes(
-        self,
-        outputs,
-        targets,
-        indices,
-        num_boxes,
-        boxes_weight=None,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def loss_boxes(self, outputs, targets, indices, num_boxes, boxes_weight=None):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
         targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
         The target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
@@ -180,14 +157,9 @@ class DFINECriterion(nn.Module):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs["pred_boxes"][idx]
-        src_boxes = sanitize_boxes_cxcywh_normalized(
-            src_boxes, image_size=image_size, min_size_px=min_bbox_size_px
-        )
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-        )
-        target_boxes = sanitize_boxes_cxcywh_normalized(
-            target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
         )
         losses = {}
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none")
@@ -203,16 +175,7 @@ class DFINECriterion(nn.Module):
 
         return losses
 
-    def loss_local(
-        self,
-        outputs,
-        targets,
-        indices,
-        num_boxes,
-        T=5,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def loss_local(self, outputs, targets, indices, num_boxes, T=5):
         """Compute Fine-Grained Localization (FGL) Loss
         and Decoupled Distillation Focal (DDF) Loss."""
 
@@ -221,9 +184,6 @@ class DFINECriterion(nn.Module):
             idx = self._get_src_permutation_idx(indices)
             target_boxes = torch.cat(
                 [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-            )
-            target_boxes = sanitize_boxes_cxcywh_normalized(
-                target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
             )
 
             pred_corners = outputs["pred_corners"][idx].reshape(-1, (self.reg_max + 1))
@@ -253,11 +213,7 @@ class DFINECriterion(nn.Module):
             ious = torch.diag(
                 box_iou(
                     box_cxcywh_to_xyxy(
-                        sanitize_boxes_cxcywh_normalized(
-                            outputs["pred_boxes"][idx],
-                            image_size=image_size,
-                            min_size_px=min_bbox_size_px,
-                        )
+                        sanitize_boxes_cxcywh_normalized(outputs["pred_boxes"][idx])
                     ),
                     box_cxcywh_to_xyxy(target_boxes),
                 )[0]
@@ -384,31 +340,17 @@ class DFINECriterion(nn.Module):
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(
-        self,
-        outputs,
-        targets,
-        world_size,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-        **kwargs,
-    ):
+    def forward(self, outputs, targets, world_size, **kwargs):
         """This performs the loss computation.
-
-        ``image_size`` and ``min_bbox_size_px`` enable the LT-DETR
-        training-codepath guard: when set, predicted and target boxes are
-        clamped so that neither side falls below ``min_bbox_size_px`` pixels.
-        ``image_size`` must be the ``(H, W)`` the inputs were resized to.
+        Parameters:
+             outputs: dict of tensors, see the output specification of the model for the format
+             targets: list of dicts, such that len(targets) == batch_size.
+                      The expected keys in each dict depends on the losses applied, see each loss' doc
         """
         outputs_without_aux = {k: v for k, v in outputs.items() if "aux" not in k}
 
         # Retrieve the matching between the outputs of the last layer and the targets
-        indices = self.matcher(
-            outputs_without_aux,
-            targets,
-            image_size=image_size,
-            min_bbox_size_px=min_bbox_size_px,
-        )["indices"]
+        indices = self.matcher(outputs_without_aux, targets)["indices"]
         self._clear_cache()
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
@@ -424,21 +366,11 @@ class DFINECriterion(nn.Module):
         if "aux_outputs" in outputs:
             indices_aux_list, cached_indices, cached_indices_enc = [], [], []
             for aux_outputs in outputs["aux_outputs"] + [outputs["pre_outputs"]]:
-                indices_aux = self.matcher(
-                    aux_outputs,
-                    targets,
-                    image_size=image_size,
-                    min_bbox_size_px=min_bbox_size_px,
-                )["indices"]
+                indices_aux = self.matcher(aux_outputs, targets)["indices"]
                 cached_indices.append(indices_aux)
                 indices_aux_list.append(indices_aux)
             for aux_outputs in outputs["enc_aux_outputs"]:
-                indices_enc = self.matcher(
-                    aux_outputs,
-                    targets,
-                    image_size=image_size,
-                    min_bbox_size_px=min_bbox_size_px,
-                )["indices"]
+                indices_enc = self.matcher(aux_outputs, targets)["indices"]
                 cached_indices_enc.append(indices_enc)
                 indices_aux_list.append(indices_enc)
             indices_go = self._get_go_indices(indices, indices_aux_list)
@@ -461,23 +393,9 @@ class DFINECriterion(nn.Module):
         for loss in self.losses:
             indices_in = indices_go if loss in ["boxes", "local"] else indices
             num_boxes_in = num_boxes_go if loss in ["boxes", "local"] else num_boxes
-            meta = self.get_loss_meta_info(
-                loss,
-                outputs,
-                targets,
-                indices_in,
-                image_size=image_size,
-                min_bbox_size_px=min_bbox_size_px,
-            )
+            meta = self.get_loss_meta_info(loss, outputs, targets, indices_in)
             l_dict = self.get_loss(
-                loss,
-                outputs,
-                targets,
-                indices_in,
-                num_boxes_in,
-                image_size=image_size,
-                min_bbox_size_px=min_bbox_size_px,
-                **meta,
+                loss, outputs, targets, indices_in, num_boxes_in, **meta
             )
             l_dict = {
                 k: l_dict[k] * self.weight_dict[k]
@@ -501,22 +419,10 @@ class DFINECriterion(nn.Module):
                         num_boxes_go if loss in ["boxes", "local"] else num_boxes
                     )
                     meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices_in,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
+                        loss, aux_outputs, targets, indices_in
                     )
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices_in,
-                        num_boxes_in,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, targets, indices_in, num_boxes_in, **meta
                     )
 
                     l_dict = {
@@ -535,23 +441,9 @@ class DFINECriterion(nn.Module):
                     indices_go if loss in ["boxes", "local"] else cached_indices[-1]
                 )
                 num_boxes_in = num_boxes_go if loss in ["boxes", "local"] else num_boxes
-                meta = self.get_loss_meta_info(
-                    loss,
-                    aux_outputs,
-                    targets,
-                    indices_in,
-                    image_size=image_size,
-                    min_bbox_size_px=min_bbox_size_px,
-                )
+                meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_in)
                 l_dict = self.get_loss(
-                    loss,
-                    aux_outputs,
-                    targets,
-                    indices_in,
-                    num_boxes_in,
-                    image_size=image_size,
-                    min_bbox_size_px=min_bbox_size_px,
-                    **meta,
+                    loss, aux_outputs, targets, indices_in, num_boxes_in, **meta
                 )
 
                 l_dict = {
@@ -582,22 +474,10 @@ class DFINECriterion(nn.Module):
                     )
                     num_boxes_in = num_boxes_go if loss == "boxes" else num_boxes
                     meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        enc_targets,
-                        indices_in,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
+                        loss, aux_outputs, enc_targets, indices_in
                     )
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        enc_targets,
-                        indices_in,
-                        num_boxes_in,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, enc_targets, indices_in, num_boxes_in, **meta
                     )
                     l_dict = {
                         k: l_dict[k] * self.weight_dict[k]
@@ -625,22 +505,10 @@ class DFINECriterion(nn.Module):
                 )
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices_dn,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
+                        loss, aux_outputs, targets, indices_dn
                     )
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices_dn,
-                        dn_num_boxes,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, targets, indices_dn, dn_num_boxes, **meta
                     )
                     l_dict = {
                         k: l_dict[k] * self.weight_dict[k]
@@ -655,22 +523,10 @@ class DFINECriterion(nn.Module):
                 aux_outputs = outputs["dn_pre_outputs"]
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices_dn,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
+                        loss, aux_outputs, targets, indices_dn
                     )
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices_dn,
-                        dn_num_boxes,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, targets, indices_dn, dn_num_boxes, **meta
                     )
                     l_dict = {
                         k: l_dict[k] * self.weight_dict[k]
@@ -684,27 +540,14 @@ class DFINECriterion(nn.Module):
         losses = {k: torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}
         return losses
 
-    def get_loss_meta_info(
-        self,
-        loss,
-        outputs,
-        targets,
-        indices,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def get_loss_meta_info(self, loss, outputs, targets, indices):
         if self.boxes_weight_format is None:
             return {}
 
         src_boxes = outputs["pred_boxes"][self._get_src_permutation_idx(indices)]
-        src_boxes = sanitize_boxes_cxcywh_normalized(
-            src_boxes, image_size=image_size, min_size_px=min_bbox_size_px
-        )
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][j] for t, (_, j) in zip(targets, indices)], dim=0
-        )
-        target_boxes = sanitize_boxes_cxcywh_normalized(
-            target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
         )
 
         if self.boxes_weight_format == "iou":

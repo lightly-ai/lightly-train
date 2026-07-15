@@ -15,8 +15,6 @@
 https://github.com/facebookresearch/detr/blob/main/util/box_ops.py
 """
 
-from __future__ import annotations
-
 import logging
 
 import torch
@@ -39,22 +37,13 @@ def box_xyxy_to_cxcywh(x: Tensor) -> Tensor:
     return torch.stack(b, dim=-1)
 
 
-def sanitize_boxes_cxcywh_normalized(
-    boxes: Tensor,
-    image_size: tuple[int, int] | None = None,
-    min_size_px: float = 0.0,
-) -> Tensor:
+def sanitize_boxes_cxcywh_normalized(boxes: Tensor) -> Tensor:
     """Sanitize normalized ``cxcywh`` boxes predicted by the decoder.
 
     The RT-DETR matcher and criterion operate on boxes normalized by image
     size. We therefore map NaN to ``0``, ``-inf`` to ``0``, ``+inf`` to ``1``,
     and clamp all coordinates to ``[0, 1]`` before downstream L1/IoU/GIoU
     computations.
-
-    When ``image_size`` (H, W) and a positive ``min_size_px`` are provided,
-    the per-side width and height are additionally clamped up to at least
-    ``min_size_px`` pixels. This is the LT-DETR training-codepath guard that
-    keeps degenerate boxes from destabilizing the matcher and losses.
     """
     global _invalid_bbox_warning_emitted
 
@@ -69,28 +58,7 @@ def sanitize_boxes_cxcywh_normalized(
             _invalid_bbox_warning_emitted = True
 
     boxes = torch.nan_to_num(boxes, nan=0.0, posinf=1.0, neginf=0.0)
-    boxes = boxes.clamp(min=0.0, max=1.0)
-
-    if image_size is not None and min_size_px > 0.0:
-        height, width = image_size
-        if height > 0 and width > 0:
-            min_w = min(float(min_size_px) / float(width), 1.0)
-            min_h = min(float(min_size_px) / float(height), 1.0)
-            # Clamp width and height up to the per-side minimum. Build a fresh
-            # tensor rather than mutating ``boxes`` in-place because callers pass
-            # slices of autograd-tracked prediction tensors whose storage must
-            # stay intact for backward.
-            boxes = torch.stack(
-                [
-                    boxes[..., 0],
-                    boxes[..., 1],
-                    boxes[..., 2].clamp(min=min_w),
-                    boxes[..., 3].clamp(min=min_h),
-                ],
-                dim=-1,
-            )
-
-    return boxes
+    return boxes.clamp(min=0.0, max=1.0)
 
 
 # modified from torchvision to also return the union

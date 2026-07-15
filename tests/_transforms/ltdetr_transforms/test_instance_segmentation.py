@@ -411,3 +411,54 @@ class TestLTDETRInstanceSegmentationCollateFunction:
         assert collate_fn.requires_dataloader_reinitialization() is True
         collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
+
+
+class TestLTDETRInstanceSegmentationTransformBboxFilter:
+    """Behavior tests for the end-of-transform ``min_bbox_size_px`` filter."""
+
+    def test_drops_sub_min_size_boxes_and_aligns_masks(self) -> None:
+        # 64x64 image, 4 px threshold -> drop boxes whose normalized
+        # width or height is below 4/64 ≈ 0.0625.
+        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            mosaic=None,
+            mixup=None,
+            min_bbox_size_px=4.0,
+        )
+        transform_args.resolve_auto(model_init_args={})
+        transform = LTDETRInstanceSegmentationTransform(transform_args)
+
+        image: NDArray[np.uint8] = np.full((64, 64, 3), 127, dtype=np.uint8)
+        bboxes = np.array(
+            [
+                [0.3, 0.3, 0.2, 0.2],  # 13x13 -> kept
+                [0.7, 0.7, 0.0001, 0.2],  # width too small -> dropped
+                [0.2, 0.7, 0.2, 0.0001],  # height too small -> dropped
+            ],
+            dtype=np.float64,
+        )
+        class_labels = np.array([1, 2, 3], dtype=np.int64)
+        binary_masks = np.zeros((3, 64, 64), dtype=np.uint8)
+        # Give each instance a distinct mask region so we can detect misalignment.
+        binary_masks[0, 5:15, 5:15] = 1
+        binary_masks[1, 30:35, 5:15] = 2
+        binary_masks[2, 5:15, 30:35] = 3
+
+        tr_output = transform(
+            {
+                "image": image,
+                "binary_masks": binary_masks,
+                "bboxes": bboxes,
+                "class_labels": class_labels,
+            }
+        )
+
+        # One box survives: only the 13x13 box has both pixel sides >= 4 px.
+        # The two sub-minimum boxes (clamped to ~0.006 px on one side) are dropped.
+        assert tr_output["bboxes"].shape[0] == 1
+        assert tr_output["class_labels"].tolist() == [1]
+        assert tr_output["binary_masks"].shape[0] == 1
+        assert tr_output["binary_masks"].shape[-2:] == (64, 64)
+        # Surviving instance mask is the original mask for instance 0.
+        assert tr_output["binary_masks"][0].sum().item() == 100

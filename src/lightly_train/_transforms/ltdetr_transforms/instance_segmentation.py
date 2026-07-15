@@ -21,6 +21,7 @@ from lightly_train._transforms.ltdetr_transforms.components import (
     StepScheduledCompose,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
+    filter_boxes_below_min_size,
     filter_degenerate_yolo_boxes,
 )
 from lightly_train._transforms.task_transform import (
@@ -93,6 +94,7 @@ class LTDETRInstanceSegmentationTransformArgs(TaskTransformArgs):
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
     normalize: NormalizeArgs | Literal["auto"] | None
+    min_bbox_size_px: float = 4.0
 
     # Necessary for BboxParams, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -194,6 +196,12 @@ class LTDETRInstanceSegmentationTransform(TaskTransform):
                 bboxes_out = bboxes_out.reshape(0, 4)
             if isinstance(class_labels_out, list):
                 class_labels_out = np.array(class_labels_out)
+            bboxes_out, class_labels_out, _ = filter_boxes_below_min_size(
+                bboxes=bboxes_out,
+                class_labels=class_labels_out,
+                image_size=(height, width),
+                min_size_px=float(self.transform_args.min_bbox_size_px),
+            )
             return {
                 "image": image_out,
                 "binary_masks": image_out.new_zeros(0, height, width, dtype=torch.int),
@@ -234,9 +242,29 @@ class LTDETRInstanceSegmentationTransform(TaskTransform):
         else:
             binary_masks_out = torch.stack(kept_masks).to(dtype=torch.int)
 
+        # Drop boxes whose final pixel-side width/height is below the configured
+        # threshold; re-index masks with the same filtered indices so the three
+        # arrays stay aligned.
+        bboxes_out, class_labels_out, indices_out = filter_boxes_below_min_size(
+            bboxes=bboxes_out,
+            class_labels=class_labels_out,
+            indices=indices_out,
+            image_size=(height, width),
+            min_size_px=float(self.transform_args.min_bbox_size_px),
+        )
+        if indices_out is None:
+            # ``indices_out`` should never come back as None from
+            # ``filter_boxes_below_min_size`` because we passed ``indices`` in,
+            # but fall back defensively.
+            kept_binary_masks = binary_masks_out
+        elif len(indices_out) == 0:
+            kept_binary_masks = image_out.new_zeros(0, height, width, dtype=torch.int)
+        else:
+            kept_binary_masks = binary_masks_out[torch.from_numpy(indices_out).long()]
+
         return {
             "image": image_out,
-            "binary_masks": binary_masks_out,
+            "binary_masks": kept_binary_masks,
             "bboxes": bboxes_out,
             "class_labels": class_labels_out,
         }

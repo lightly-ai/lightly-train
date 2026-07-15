@@ -15,8 +15,6 @@
 # Modifications Copyright 2026 Lightly AG:
 # - Introduce sanitize_boxes_cxcywh_normalized function to ensure boxes are in the expected format
 
-from __future__ import annotations
-
 import copy
 
 import torch
@@ -95,28 +93,14 @@ class RTDETRCriterionv2(nn.Module):
 
         return {"loss_focal": loss}
 
-    def loss_labels_vfl(
-        self,
-        outputs,
-        targets,
-        indices,
-        num_boxes,
-        values=None,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def loss_labels_vfl(self, outputs, targets, indices, num_boxes, values=None):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         if values is None:
             src_boxes = outputs["pred_boxes"][idx]
-            src_boxes = sanitize_boxes_cxcywh_normalized(
-                src_boxes, image_size=image_size, min_size_px=min_bbox_size_px
-            )
+            src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
             target_boxes = torch.cat(
                 [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-            )
-            target_boxes = sanitize_boxes_cxcywh_normalized(
-                target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
             )
             ious, _ = box_iou(
                 box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)
@@ -151,16 +135,7 @@ class RTDETRCriterionv2(nn.Module):
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         return {"loss_vfl": loss}
 
-    def loss_boxes(
-        self,
-        outputs,
-        targets,
-        indices,
-        num_boxes,
-        boxes_weight=None,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def loss_boxes(self, outputs, targets, indices, num_boxes, boxes_weight=None):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
         targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
         The target boxes are expected in format (center_x, center_y, w, h), normalized by the image size.
@@ -168,14 +143,9 @@ class RTDETRCriterionv2(nn.Module):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs["pred_boxes"][idx]
-        src_boxes = sanitize_boxes_cxcywh_normalized(
-            src_boxes, image_size=image_size, min_size_px=min_bbox_size_px
-        )
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-        )
-        target_boxes = sanitize_boxes_cxcywh_normalized(
-            target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
         )
 
         losses = {}
@@ -216,21 +186,12 @@ class RTDETRCriterionv2(nn.Module):
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
-    def forward(
-        self,
-        outputs,
-        targets,
-        world_size,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-        **kwargs,
-    ):
+    def forward(self, outputs, targets, world_size, **kwargs):
         """This performs the loss computation.
-
-        ``image_size`` and ``min_bbox_size_px`` enable the LT-DETR
-        training-codepath guard: when set, predicted and target boxes are
-        clamped so that neither side falls below ``min_bbox_size_px`` pixels.
-        ``image_size`` must be the ``(H, W)`` the inputs were resized to.
+        Parameters:
+             outputs: dict of tensors, see the output specification of the model for the format
+             targets: list of dicts, such that len(targets) == batch_size.
+                      The expected keys in each dict depends on the losses applied, see each loss' doc
         """
         outputs_without_aux = {k: v for k, v in outputs.items() if "aux" not in k}
 
@@ -244,35 +205,14 @@ class RTDETRCriterionv2(nn.Module):
         num_boxes = torch.clamp(num_boxes / world_size, min=1).item()
 
         # Retrieve the matching between the outputs of the last layer and the targets
-        matched = self.matcher(
-            outputs_without_aux,
-            targets,
-            image_size=image_size,
-            min_bbox_size_px=min_bbox_size_px,
-        )
+        matched = self.matcher(outputs_without_aux, targets)
         indices = matched["indices"]
 
         # Compute all the requested losses
         losses = {}
         for loss in self.losses:
-            meta = self.get_loss_meta_info(
-                loss,
-                outputs,
-                targets,
-                indices,
-                image_size=image_size,
-                min_bbox_size_px=min_bbox_size_px,
-            )
-            l_dict = self.get_loss(
-                loss,
-                outputs,
-                targets,
-                indices,
-                num_boxes,
-                image_size=image_size,
-                min_bbox_size_px=min_bbox_size_px,
-                **meta,
-            )
+            meta = self.get_loss_meta_info(loss, outputs, targets, indices)
+            l_dict = self.get_loss(loss, outputs, targets, indices, num_boxes, **meta)
             l_dict = {
                 k: l_dict[k] * self.weight_dict[k]
                 for k in l_dict
@@ -284,31 +224,12 @@ class RTDETRCriterionv2(nn.Module):
         if "aux_outputs" in outputs:
             for i, aux_outputs in enumerate(outputs["aux_outputs"]):
                 if not self.share_matched_indices:
-                    matched = self.matcher(
-                        aux_outputs,
-                        targets,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                    )
+                    matched = self.matcher(aux_outputs, targets)
                     indices = matched["indices"]
                 for loss in self.losses:
-                    meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                    )
+                    meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices)
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices,
-                        num_boxes,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, targets, indices, num_boxes, **meta
                     )
                     l_dict = {
                         k: l_dict[k] * self.weight_dict[k]
@@ -326,23 +247,9 @@ class RTDETRCriterionv2(nn.Module):
             dn_num_boxes = 1 if dn_num_boxes == 0 else dn_num_boxes
             for i, aux_outputs in enumerate(outputs["dn_aux_outputs"]):
                 for loss in self.losses:
-                    meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                    )
+                    meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices)
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        targets,
-                        indices,
-                        dn_num_boxes,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, targets, indices, dn_num_boxes, **meta
                     )
                     l_dict = {
                         k: l_dict[k] * self.weight_dict[k]
@@ -366,31 +273,14 @@ class RTDETRCriterionv2(nn.Module):
                 enc_targets = targets
 
             for i, aux_outputs in enumerate(outputs["enc_aux_outputs"]):
-                matched = self.matcher(
-                    aux_outputs,
-                    targets,
-                    image_size=image_size,
-                    min_bbox_size_px=min_bbox_size_px,
-                )
+                matched = self.matcher(aux_outputs, targets)
                 indices = matched["indices"]
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(
-                        loss,
-                        aux_outputs,
-                        enc_targets,
-                        indices,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
+                        loss, aux_outputs, enc_targets, indices
                     )
                     l_dict = self.get_loss(
-                        loss,
-                        aux_outputs,
-                        enc_targets,
-                        indices,
-                        num_boxes,
-                        image_size=image_size,
-                        min_bbox_size_px=min_bbox_size_px,
-                        **meta,
+                        loss, aux_outputs, enc_targets, indices, num_boxes, **meta
                     )
                     l_dict = {
                         k: l_dict[k] * self.weight_dict[k]
@@ -405,27 +295,14 @@ class RTDETRCriterionv2(nn.Module):
 
         return losses
 
-    def get_loss_meta_info(
-        self,
-        loss,
-        outputs,
-        targets,
-        indices,
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
-    ):
+    def get_loss_meta_info(self, loss, outputs, targets, indices):
         if self.boxes_weight_format is None:
             return {}
 
         src_boxes = outputs["pred_boxes"][self._get_src_permutation_idx(indices)]
-        src_boxes = sanitize_boxes_cxcywh_normalized(
-            src_boxes, image_size=image_size, min_size_px=min_bbox_size_px
-        )
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][j] for t, (_, j) in zip(targets, indices)], dim=0
-        )
-        target_boxes = sanitize_boxes_cxcywh_normalized(
-            target_boxes, image_size=image_size, min_size_px=min_bbox_size_px
         )
 
         if self.boxes_weight_format == "iou":

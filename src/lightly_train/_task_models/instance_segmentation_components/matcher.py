@@ -108,8 +108,6 @@ class MaskAwareHungarianMatcher(HungarianMatcher):  # type: ignore[misc]
         self,
         outputs: dict[str, Tensor],
         targets: list[dict[str, Tensor]],
-        image_size: tuple[int, int] | None = None,
-        min_bbox_size_px: float = 0.0,
     ) -> dict[str, list[tuple[Tensor, Tensor]]]:
         """Performs mask-aware bipartite matching.
 
@@ -153,15 +151,8 @@ class MaskAwareHungarianMatcher(HungarianMatcher):  # type: ignore[misc]
         )
         # LightlyTrain sanitizes boxes before matching to stay consistent with the
         # box/GIoU losses in DFINECriterion (upstream skips this step).
-        out_bbox = sanitize_boxes_cxcywh_normalized(
-            outputs["pred_boxes"].flatten(0, 1),
-            image_size=image_size,
-            min_size_px=min_bbox_size_px,
-        )
+        out_bbox = sanitize_boxes_cxcywh_normalized(outputs["pred_boxes"].flatten(0, 1))
         tgt_bbox = torch.cat([target["boxes"] for target in targets])
-        tgt_bbox = sanitize_boxes_cxcywh_normalized(
-            tgt_bbox, image_size=image_size, min_size_px=min_bbox_size_px
-        )
         cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
         cost_giou = -generalized_box_iou(  # type: ignore[no-untyped-call]
             box_cxcywh_to_xyxy(out_bbox),

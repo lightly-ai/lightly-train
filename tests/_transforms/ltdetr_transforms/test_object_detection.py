@@ -371,3 +371,92 @@ class TestObjectDetectionCollateFunction:
         assert collate_fn.requires_dataloader_reinitialization() is True
         collate_fn.mark_dataloader_as_reinitialized()
         assert collate_fn.requires_dataloader_reinitialization() is False
+
+
+class TestObjectDetectionTransformBboxFilter:
+    """Behavior tests for the end-of-transform ``min_bbox_size_px`` filter."""
+
+    def test_drops_sub_min_size_boxes_for_resized_image(self) -> None:
+        # 64x64 input image, default 4 px threshold -> drop boxes whose
+        # normalized width or height is below 4/64 ≈ 0.0625.
+        transform_args = LTDETRObjectDetectionTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            scale_jitter=None,
+            mosaic=None,
+            min_bbox_size_px=4.0,
+        )
+        transform_args.resolve_auto(model_init_args={})
+        transform = LTDETRObjectDetectionTransform(transform_args)
+
+        # Two valid (>= 4 px) boxes plus two sub-minimum boxes (1 px on either side).
+        # Boxes are normalized to the original 128x128 image.
+        bboxes = np.array(
+            [
+                [0.2, 0.2, 0.3, 0.3],  # ~38x38 -> kept
+                [0.5, 0.5, 0.0001, 0.3],  # ~0x38 -> dropped (sub-min width)
+                [0.8, 0.8, 0.3, 0.0001],  # 38x0 -> dropped (sub-min height)
+                [0.5, 0.5, 0.2, 0.2],  # 25x25 -> kept
+            ],
+            dtype=np.float64,
+        )
+        class_labels = np.array([1, 2, 3, 4], dtype=np.int64)
+
+        tr_input: LTDETRObjectDetectionTransformInput = {
+            "image": np.full((128, 128, 3), 127, dtype=np.uint8),
+            "bboxes": bboxes,
+            "class_labels": class_labels,
+        }
+        tr_output = transform(tr_input)
+
+        assert tr_output["bboxes"].shape[0] == 2
+        assert tr_output["class_labels"].tolist() == [1, 4]
+
+
+class TestObjectDetectionCollateBboxFilter:
+    """Behavior tests for the post-batch-transform bbox size filter."""
+
+    def test_filters_sub_min_size_after_scale_jitter(self) -> None:
+        # After scale_jitter downsamples images to ~480x480, boxes with
+        # normalized width/height < 4/480 are dropped.
+        transform_args = LTDETRObjectDetectionTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+            scale_jitter=LTDETRObjectDetectionScaleJitterArgs(
+                sizes=[(480, 480)],
+                min_scale=None,
+                max_scale=None,
+                num_scales=None,
+                prob=1.0,
+                divisible_by=None,
+                step_stop=None,
+            ),
+            mosaic=None,
+            min_bbox_size_px=4.0,
+        )
+        transform_args.resolve_auto(model_init_args={})
+        collate_fn = LTDETRObjectDetectionCollateFunction(
+            split="train",
+            transform_args=transform_args,
+        )
+
+        sample: ObjectDetectionDatasetItem = {
+            "image_path": "img.png",
+            "image": np.full((128, 128, 3), 127, dtype=np.uint8),
+            # Valid 25x25 box and two sub-min 1 px boxes after 480 resize.
+            "bboxes": np.array(
+                [
+                    [0.5, 0.5, 0.2, 0.2],
+                    [0.2, 0.2, 0.0001, 0.0001],
+                    [0.8, 0.8, 0.0001, 0.0001],
+                ]
+            ),
+            "classes": np.array([1, 2, 3], dtype=np.int64),
+            "original_size": (128, 128),
+        }
+
+        out = collate_fn([sample])
+
+        # Only the 25x25 box stays: 1/480 and 0.01/480 are both below 4 px.
+        assert out["bboxes"][0].shape[0] == 1
+        assert out["classes"][0].tolist() == [1]  # type: ignore[union-attr]  # numpy fancy-index.
