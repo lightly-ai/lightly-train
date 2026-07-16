@@ -56,6 +56,10 @@ class TestDINOv3Package:
             ("dinov3/convnext-small", True),
             ("dinov3/convnext-base", True),
             ("dinov3/convnext-large", True),
+            # LingBot Vision models (Robbyant).
+            ("dinov3/vits16-lingbot", True),
+            ("dinov3/vitb16-lingbot", True),
+            ("dinov3/vitl16-lingbot", True),
         ],
     )
     def test_list_model_names(self, model_name: str, listed: bool) -> None:
