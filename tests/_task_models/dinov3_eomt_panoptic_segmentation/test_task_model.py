@@ -21,6 +21,9 @@ from lightly_train._export.onnx_helpers import (
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.task_model import (
     DINOv3EoMTPanopticSegmentation,
 )
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model import (
+    DINOv3EoMTPanopticSegmentationTrainArgs,
+)
 
 
 @pytest.fixture()
@@ -35,6 +38,86 @@ def model() -> DINOv3EoMTPanopticSegmentation:
         num_joint_blocks=1,
         load_weights=False,
     )
+
+
+def test_list_model_names__uses_registry() -> None:
+    names = DINOv3EoMTPanopticSegmentation.list_model_names()
+
+    assert "dinov3/_vittest16-eomt" in names
+    assert "dinov3/vits16-eomt" in names
+    assert "dinov3/vits16-eomt-panoptic-coco" in names
+    assert "dinov3/vits32-eomt" in names
+    assert "dinov3/vitl16-eomt-panoptic-coco-1280" in names
+    assert "dinov3/vitt16-eupe-eomt" in names
+    assert "dinov3/convnext-tiny-eomt" not in names
+
+
+def test_is_supported_model__uses_registry() -> None:
+    assert DINOv3EoMTPanopticSegmentation.is_supported_model("dinov3/vits16-eomt")
+    assert DINOv3EoMTPanopticSegmentation.is_supported_model(
+        "dinov3/vits16-eomt-panoptic-coco"
+    )
+    assert DINOv3EoMTPanopticSegmentation.is_supported_model("dinov3/vits32-eomt")
+    assert DINOv3EoMTPanopticSegmentation.is_supported_model(
+        "dinov3/vitl16-eomt-panoptic-coco-1280"
+    )
+    assert not DINOv3EoMTPanopticSegmentation.is_supported_model(
+        "dinov3/convnext-tiny-eomt"
+    )
+
+
+def test_resolve_model_name__hosted_alias_canonicalizes() -> None:
+    parsed = DINOv3EoMTPanopticSegmentation._resolve_model_name(
+        "dinov3/vitl16-eomt-panoptic-coco-1280"
+    )
+
+    assert parsed == {
+        "model_name": "dinov3/vitl16-eomt",
+        "backbone_name": "vitl16",
+    }
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_num_joint_blocks"),
+    [
+        ("dinov3/vitt16-eomt", 3),
+        ("dinov3/vits16-eomt-panoptic-coco", 3),
+        ("dinov3/vits32-eomt", 3),
+        ("dinov3/vitl16-eomt-panoptic-coco-1280", 4),
+        ("dinov3/vith16plus-eomt", 5),
+        ("dinov3/vit7b16-sat493m-eomt", 5),
+    ],
+)
+def test_train_args_resolve_auto__uses_registry_num_joint_blocks(
+    model_name: str, expected_num_joint_blocks: int
+) -> None:
+    args = DINOv3EoMTPanopticSegmentationTrainArgs()
+
+    args.resolve_auto(
+        total_steps=90_000,
+        gradient_accumulation_steps=1,
+        train_num_batches=10,
+        model_name=model_name,
+        model_init_args={},
+        data_args=None,  # type: ignore[arg-type]
+    )
+
+    assert args.num_joint_blocks == expected_num_joint_blocks
+
+
+def test_train_args_resolve_auto__model_init_args_override_registry() -> None:
+    args = DINOv3EoMTPanopticSegmentationTrainArgs()
+
+    args.resolve_auto(
+        total_steps=90_000,
+        gradient_accumulation_steps=1,
+        train_num_batches=10,
+        model_name="dinov3/vit7b16-eomt",
+        model_init_args={"num_joint_blocks": 2},
+        data_args=None,  # type: ignore[arg-type]
+    )
+
+    assert args.num_joint_blocks == 2
 
 
 def test_predict_batch__composes_stages_in_order(
