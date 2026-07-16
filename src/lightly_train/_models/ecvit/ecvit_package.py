@@ -15,7 +15,6 @@ import torch
 
 from lightly_train._env import Env
 from lightly_train._models.ecvit.ecvit import (
-    ECVIT_PRESETS,
     ECVIT_PRETRAINED_URLS,
     ECViTModelWrapper,
 )
@@ -121,11 +120,6 @@ class EdgeCrafterPackage(Package):
         model_name = cls.parse_model_name(model_name=model_name)
         model_info = MODEL_NAME_TO_INFO[model_name]
         preset_name = model_info["preset_name"]
-        if preset_name not in ECVIT_PRESETS:
-            raise ValueError(
-                f"Unknown ECViT preset: '{preset_name}'. Available presets: "
-                f"{list(ECVIT_PRESETS)}."
-            )
 
         weights_path: PathLike | None = None
         if load_weights and model_info["default_weights"] is not None:
