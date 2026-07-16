@@ -166,7 +166,7 @@ lightly-train = "lightly_train._cli:_cli_entrypoint"
 package-dir = {""= "src"}
 
 [tool.setuptools.data-files]
-licenses = ["licences/NVIDIA_OPEN_MODEL_LICENSE.pdf"]
+licenses = ["licences/*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "lightly_train.__version__"}
