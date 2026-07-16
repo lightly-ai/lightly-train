@@ -217,6 +217,10 @@ LightlyTrain supports the following model and workflow combinations.
 | YOLOv12                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)              |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)    |
 | Custom PyTorch Model                       |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html)           | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
 
+*In the "Pretraining" column, the model is paired with the matching training method
+(e.g. the DINOv2 model with the DINOv2 method, `method="dinov2"`). In the "Distillation"
+column, the model instead serves as a teacher for the `distillation` method.*
+
 [Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 
 ## Usage Events

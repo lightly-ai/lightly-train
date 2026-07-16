@@ -96,10 +96,10 @@ LightlyTrain offers several advantages over other self-supervised learning (SSL)
 - **Seamless workflow**: LightlyTrain automatically pretrains the correct layers and exports 
   models in the right format for fine-tuning, reducing risks when moving from pretraining to 
   fine-tuning.
-- **DINOv2 distillation**: Lightly has developed a unique distillation method that allows
-  you to pretrain smaller models with the knowledge of larger DINOv2 models without the need for
-  large compute resources.
-- **DINOv2 pretraining**: LightlyTrain supports DINOv2 pretraining out of the box,
+- **Distillation**: Lightly has developed a unique distillation method that allows
+  you to pretrain smaller models with the knowledge of larger DINOv2 or DINOv3 models
+  without the need for large compute resources.
+- **DINOv2 method**: LightlyTrain supports the DINOv2 training method out of the box,
   allowing you to train state-of-the-art vision foundation models on your own datasets.
 ```
 
@@ -355,8 +355,8 @@ appropriate for your downstream task.
 
 ```{dropdown} <h6>Which pretraining methods are supported?<a class="headerlink" id="which-pretraining-methods-are-supported" href="#which-pretraining-methods-are-supported" title="Link to this heading">¶</a></h6>
 LightlyTrain supports different methods such as:
-- DINOv2 distillation
-- DINOv2
+- Distillation (with a DINOv2 or DINOv3 teacher)
+- DINOv2 (self-supervised training method)
 - DINO
 - SimCLR
 
@@ -392,16 +392,18 @@ the same computational resources for training.
 ```
 
 ```{dropdown} <h6>What is DINOv2?<a class="headerlink" id="what-is-dinov2" href="#what-is-dinov2" title="Link to this heading">¶</a></h6>
-DINOv2 is a self-supervised learning method developed by Facebook AI Research (FAIR) that produces 
-state-of-the-art visual representations. It builds upon the original DINO (Self-Distillation with 
-No Labels) method and uses a Vision Transformer (ViT) architecture.
+DINOv2 is a self-supervised **training method** developed by Facebook AI Research (FAIR)
+that produces state-of-the-art visual representations. It builds upon the original DINO
+(Self-Distillation with No Labels) method and uses a Vision Transformer (ViT)
+architecture.
 
-DINOv2 models are pretrained on a diverse set of image data and have shown remarkable performance 
-across various visual tasks, from classification to dense prediction tasks. The resulting 
-representations exhibit strong semantic understanding and work well for zero-shot and few-shot 
-learning scenarios.
+Models pretrained with the DINOv2 method are called DINOv2 models. They are pretrained
+on a diverse set of image data and have shown remarkable performance across various
+visual tasks, from classification to dense prediction tasks. The resulting
+representations exhibit strong semantic understanding and work well for zero-shot and
+few-shot learning scenarios.
 
-In LightlyTrain, DINOv2-pretrained ViT models serve as teacher models for the distillation method, 
+In LightlyTrain, DINOv2 models serve as teacher models for the distillation method,
 transferring their knowledge to your chosen backbone architecture.
 ```
 
