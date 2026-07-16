@@ -18,6 +18,10 @@ Licensed under the Apache License, Version 2.0 [see LICENSE for details]
 # - Added typed interfaces.
 # - Renamed the head to EdgeCrafterInstanceSegmentationHead.
 # - Removed exporting.
+# - Added ``forward_deploy`` returning the mask-einsum operands (projected
+#   spatial and query features) so the postprocessor can gather the selected
+#   queries before the einsum instead of gathering the full mask tensor.
+# - Applied all spatial feature blocks instead of only the first block.
 
 from __future__ import annotations
 
@@ -185,3 +189,36 @@ class EdgeCrafterInstanceSegmentationHead(nn.Module):
                 + self.bias
             )
         return mask_logits
+
+    def forward_deploy(
+        self,
+        spatial_features: Tensor,
+        query_feature: Tensor,
+    ) -> tuple[Tensor, Tensor]:
+        """Returns the mask-einsum operands for the deployed single-query path.
+
+        Instead of computing the full ``(B, Q, Hm, Wm)`` mask tensor, this returns
+        the projected spatial features ``(B, Ci, Hm, Wm)`` and projected query
+        features ``(B, Q, Ci)``. The postprocessor gathers the selected query rows
+        (a cheap ``(B, Q, Ci)`` gather) and only then runs the einsum, avoiding a
+        ``GatherElements`` over the full-resolution mask tensor. This reproduces
+        the deployed ``forward`` path (final query paired with the first block),
+        because the per-query einsum commutes with the query gather.
+        """
+        target_size = (
+            self.image_size[0] // self.downsample_ratio,
+            self.image_size[1] // self.downsample_ratio,
+        )
+        spatial_features = F.interpolate(
+            spatial_features,
+            size=target_size,
+            mode="bilinear",
+            align_corners=False,
+        )
+        for block in self.blocks:
+            spatial_features = block(spatial_features)
+        spatial_features_proj = self.spatial_features_proj(spatial_features)
+        query_feature = self.query_features_proj(
+            self.query_features_block(query_feature)
+        )
+        return spatial_features_proj, query_feature
