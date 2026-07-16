@@ -5,6 +5,130 @@ All notable changes to Lightly**Train** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
+  `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3 EoMT semantic segmentation training `model_args.patch_size` option.
+  The patch size is now determined by the selected model name; use a
+  `dinov3/vit*32-eomt` model, such as `dinov3/vits32-eomt-coco`, to train with patch
+  size 32.
+
+### Fixed
+
+- Fix ONNX export verification for task models: `Tensor.is_floating_point` was
+  referenced without calling it, so the always-truthy bound method forced integer
+  outputs (e.g. labels) through the float comparison path instead of the intended
+  exact-match check.
+
+### Security
+
+## [0.16.2] - 2026-07-10
+
+### Added
+
+- Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
+  gradients during training, save a self-contained capture (model state dict +
+  TrainModel class/init kwargs + the step's microbatches + RNG state) to
+  `out_dir/debug/nan_capture/rank{R}/nan_capture.pt` and halt training. Replay via
+  `lightly_train._debug.nan_capture.load_nan_capture(dir).replay()` to deterministically
+  reproduce the failure in a notebook/REPL. Enable with
+  `debug_args.nancapture.enabled=True`.
+- Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
+  `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
+- Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
+  `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
+- Add a debugging tools tutorial that walks through gradient overflow detection with
+  `underflow_overflow` and gradient norm logging, using the fine-tuning API and a
+  deterministic synthetic dataset.
+
+### Changed
+
+- Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
+  single config-driven `DepthAnythingDepthEstimation` model.
+- Depth estimation `predict`/`predict_batch` now default to `square_resize` (previously
+  aspect-preserving upper/lower-bound per model), changing default depth outputs. Pass
+  `process_res_method="upper_bound_resize"`/`"lower_bound_resize"` to restore the
+  previous geometry.
+
+### Deprecated
+
+### Removed
+
+- Removes the `DINOv3LTDETRObjectDetection` and `DINOv2LTDETRObjectDetection` classes in
+  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing,
+  since they don't use the class directly, but only its methods, which will remain
+  available.
+
+### Fixed
+
+- Fixed an issue with legacy LT-DETR checkpoints that used a [0,1] normalization instead
+  of the now-default ImageNet normalization.
+
+### Security
+
+## [0.16.1] - 2026-06-26
+
+### Added
+
+- Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
+  console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
+  Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
+  enabled and the total gradient norm computed without clipping otherwise.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix checkpoint loading with `load_model` for legacy checkpoints of LT-DETR.
+
+### Security
+
+## [0.16.0] - 2026-06-25
+
+### Added
+
+- Add **LTDETRv2**, an improved object detection model that reaches 50.7
+  mAP<sub>50:95</sub> on the COCO 2017 validation set (+1 mAP<sub>50:95</sub> over the
+  previous LTDETR with a 55% shorter training schedule) and 5.4ms latency on an NVIDIA
+  T4 (TensorRT, FP16, batch size 1, 640x640). Use the compact `ltdetrv2-s/m/l/x` models,
+  which are built on [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECViT backbones.
+- Add depth estimation inference with Depth Anything V2 and V3 models, covering both
+  relative and metric depth (`dinov2/dav2-relative-*`, `dinov2/dav2-metric-*`,
+  `dinov2/dav3-relative-large`, `dinov2/dav3-metric-large`). Checkpoints are converted
+  to the LightlyTrain format; the Apache-2.0 models are hosted for download, while the
+  CC-BY-NC-4.0 Depth Anything V2 variants must be converted locally with
+  `convert_checkpoint_dav2`.
+- Add the `benchmark_object_detection` command (**beta**) to measure inference
+  performance of an object detection model on a validation dataset. It reports detection
+  accuracy (mAP/mAR, including per-class mAP) and timing statistics (latency and
+  throughput), and writes a JSON result and a human-readable Markdown report. This is
+  useful to compare inference backends and precisions before deployment. See the
+  [benchmarking documentation](https://docs.lightly.ai/train/stable/object_detection.html#benchmarking)
+  for details.
+- Add Slicing Aided Hyper Inference (SAHI) for EoMT instance segmentation to improve
+  small instance recall at inference via `model.predict_sahi()` method.
+
+### Changed
+
+- Update LTDETRv2 training defaults: the default `batch_size` is now `32` (was `16`),
+  the default training schedule is `266_112` steps (6x ECDet-S, ~72 epochs at batch size
+  32), `backbone_lr_factor` is now `0.05` (was `1e-2`), and `lr_warmup_steps` defaults
+  to `"auto"` so short runs no longer warm up for longer than they train.
+
 ## [0.15.1] - 2026-05-28
 
 ### Added
@@ -28,9 +152,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix ONNX export for DINOv3 EoMT panoptic, semantic, and instance segmentation models
+  by switching to dynamo-based export. Requires torch >= 2.5.0.
 - Fix PicoDet fine-tuning with mismatched `num_classes`.
 - Fix DINOv3 LT-DETR patch size precedence so `model_args.patch_size` overrides the
   backbone default.
+- Fix TensorRT export with LT-DETR ViT-S, which caused overflows due to non-enforcement
+  of "strongly-typed" option in the TensorRT exporter.
 
 ### Security
 

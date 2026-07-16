@@ -28,17 +28,24 @@ import torch
 from pydantic import Field
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers, label_helpers, yolo_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers, yolo_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
-from lightly_train._transforms.instance_segmentation_transform import (
-    InstanceSegmentationCollateFunction,
-    InstanceSegmentationTransform,
-    InstanceSegmentationTransformArgs,
-    InstanceSegmentationTransformInput,
-    InstanceSegmentationTransformOutput,
+from lightly_train._transforms.eomt_transforms.instance_segmentation import (
+    EoMTInstanceSegmentationCollateFunction,
+    EoMTInstanceSegmentationTransform,
+    EoMTInstanceSegmentationTransformArgs,
+    EoMTInstanceSegmentationTransformInput,
+    EoMTInstanceSegmentationTransformOutput,
+)
+from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
+    LTDETRInstanceSegmentationCollateFunction,
+    LTDETRInstanceSegmentationTransform,
+    LTDETRInstanceSegmentationTransformArgs,
+    LTDETRInstanceSegmentationTransformInput,
+    LTDETRInstanceSegmentationTransformOutput,
 )
 from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import (
@@ -145,16 +152,14 @@ class InstanceSegmentationDataset(TaskDataset):
         COCOInstanceSegmentationDatasetArgs | YOLOInstanceSegmentationDatasetArgs
     )
 
-    batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        InstanceSegmentationCollateFunction
-    )
-
     def __init__(
         self,
         dataset_args: COCOInstanceSegmentationDatasetArgs
         | YOLOInstanceSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: InstanceSegmentationTransform | None = None,
+        transform: EoMTInstanceSegmentationTransform
+        | LTDETRInstanceSegmentationTransform
+        | None = None,
     ) -> None:
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
@@ -164,12 +169,30 @@ class InstanceSegmentationDataset(TaskDataset):
 
     def set_transform(self, transform: TaskTransform) -> None:
         super().set_transform(transform)
-        assert isinstance(transform, InstanceSegmentationTransform)
+        assert isinstance(
+            transform,
+            (EoMTInstanceSegmentationTransform, LTDETRInstanceSegmentationTransform),
+        )
         self._init_image_mode(transform)
 
-    def _init_image_mode(self, transform: InstanceSegmentationTransform) -> None:
+    def get_batch_collate_fn_cls(self) -> type[TaskCollateFunction]:
+        if isinstance(self.transform, LTDETRInstanceSegmentationTransform):
+            return LTDETRInstanceSegmentationCollateFunction
+        return EoMTInstanceSegmentationCollateFunction
+
+    def _init_image_mode(
+        self,
+        transform: EoMTInstanceSegmentationTransform
+        | LTDETRInstanceSegmentationTransform,
+    ) -> None:
         transform_args = transform.transform_args
-        assert isinstance(transform_args, InstanceSegmentationTransformArgs)
+        assert isinstance(
+            transform_args,
+            (
+                EoMTInstanceSegmentationTransformArgs,
+                LTDETRInstanceSegmentationTransformArgs,
+            ),
+        )
 
         image_mode = (
             None
@@ -230,7 +253,10 @@ class InstanceSegmentationDataset(TaskDataset):
             np.stack(mask_list) if mask_list else np.zeros((0, h, w), dtype=np.bool_)
         )
 
-        transform_input: InstanceSegmentationTransformInput = {
+        transform_input: (
+            EoMTInstanceSegmentationTransformInput
+            | LTDETRInstanceSegmentationTransformInput
+        ) = {
             "image": image_np,
             # Shape (n_instances, H, W)
             "binary_masks": binary_masks_np.astype(np.uint8),
@@ -238,9 +264,10 @@ class InstanceSegmentationDataset(TaskDataset):
             "class_labels": class_labels_np,  # Shape (n_instances,)
         }
 
-        transformed: InstanceSegmentationTransformOutput = self.transform(
-            transform_input
-        )
+        transformed: (
+            EoMTInstanceSegmentationTransformOutput
+            | LTDETRInstanceSegmentationTransformOutput
+        ) = self.transform(transform_input)
 
         image = transformed["image"]
         # Some albumentations versions return lists of tuples instead of arrays.
@@ -272,12 +299,16 @@ class YOLOInstanceSegmentationDataArgs(TaskDataArgs):
     path: PathLike
     train: PathLike
     val: PathLike
-    # TODO(Guarin, 10/25): Handle test set.
+    # Accepted for compatibility with YOLO data configs. Task training currently
+    # consumes only train and val splits.
     test: PathLike | None = None
     # "names" instead of "classes" to match YOLO convention.
     names: dict[int, str]
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.path = data_helpers.resolve_path(self.path, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
         return str(
@@ -435,6 +466,24 @@ class COCOInstanceSegmentationDataArgs(TaskDataArgs):
     val: COCOSplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_annotations_missing: bool = False
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.annotations = data_helpers.resolve_path(
+            self.train.annotations, base_dir=base_dir
+        )
+        self.val.annotations = data_helpers.resolve_path(
+            self.val.annotations, base_dir=base_dir
+        )
+        if self.train.images is not None:
+            train_images = Path(self.train.images)
+            self.train.images = (
+                train_images.resolve() if train_images.is_absolute() else train_images
+            )
+        if self.val.images is not None:
+            val_images = Path(self.val.images)
+            self.val.images = (
+                val_images.resolve() if val_images.is_absolute() else val_images
+            )
 
     @functools.cached_property
     def _classes(self) -> dict[int, str]:

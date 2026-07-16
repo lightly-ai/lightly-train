@@ -24,6 +24,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -31,6 +32,10 @@ from lightly_train._models.dinov3.dinov3_src.layers.attention import (
 )
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
+)
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.config import (
+    DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+    EoMTPanopticSegmentationConfig,
 )
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scale_block import (
     ScaleBlock,
@@ -102,7 +107,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 If False, then no pretrained weights are loaded.
         """
         super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
+        parsed_name = self._resolve_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.thing_classes = thing_classes
         self.stuff_classes = stuff_classes
@@ -233,50 +238,33 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
-        ]
+        return list(DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases())
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
+        return model in DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases()
 
     @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
+    def _get_config(cls, model_name: str) -> EoMTPanopticSegmentationConfig:
+        try:
+            return DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                alias=model_name
+            )()
+        except KeyError:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}. See the documentation for "
                 "more information: https://docs.lightly.ai/train/stable/panoptic_segmentation.html"
-            )
+            ) from None
 
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
+    @classmethod
+    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
+        config = cls._get_config(model_name=model_name)
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
         return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
 
@@ -1084,12 +1072,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         input_names = ["images"]
         output_names = ["masks", "segment_ids", "scores"]
 
-        # Define dynamic axes.
-        dynamic_axes = {
-            "masks": {1: "num_segments"},
-            "segment_ids": {1: "num_segments"},
-            "scores": {1: "num_segments"},
-        }
+        check_onnx_dynamo_requirements()
 
         torch.onnx.export(
             self,
@@ -1098,8 +1081,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
+            dynamo=True,
             **(format_args or {}),
         )
 
@@ -1121,7 +1103,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
-            reference_outputs = reference_model(
+            reference_outputs: tuple[Tensor, ...] = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -1145,7 +1127,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     # Absolute and relative tolerances are a bit arbitrary and taken from here:
                     # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                     torch.testing.assert_close(

@@ -100,11 +100,16 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
+		-x src/lightly_train/_models/ecvit/ecvit.py \
+		-x src/lightly_train/_debug/huggingface_debug_utils.py \
 		-x src/lightly_train/_task_models/object_detection_components \
 		-x src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/esnet.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/losses.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/pico_head.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/dpt.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d tests
 
@@ -130,11 +135,15 @@ add-header:
 		   src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
+		   src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
+		   src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 
-	# Apply Lightly's header to tiling_utils.py
+	# Apply Lightly's header to tiling_utils.py and LT-DETR files
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl \
 		-f src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
+		src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
+		src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to D-FINE derived files
@@ -154,8 +163,18 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
 	uv run --frozen licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-f src/lightly_train/_task_models/ltdetr_object_detection/dino_vit_wrapper.py \
 		src/lightly_train/_task_models/object_detection_components/flat_cosine.py \
+		-E py
+
+	# Apply the Apache 2.0 license header to EdgeCrafter derived files
+	uv run --frozen licenseheaders -t dev_tools/edgecrafter_licenseheader.tmpl \
+		-f src/lightly_train/_models/ecvit/ecvit.py \
+		-E py
+
+	# Apply the Apache 2.0 license header to HuggingFace Transformers derived files
+	uv run --frozen licenseheaders -t dev_tools/huggingface_licenseheader.tmpl \
+		-f src/lightly_train/_debug/huggingface_debug_utils.py \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files
@@ -183,6 +202,13 @@ add-header:
 	# Apply the DINOv3 license header to the DINOv3 derived files
 	uv run --frozen licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
 		-d src/lightly_train/_models/dinov3/dinov3_src \
+		-E py
+
+	# Apply the Apache 2.0 license header to Depth Anything V3 derived files
+	uv run --frozen licenseheaders -t dev_tools/depth_anything_3_licenseheader.tmpl \
+		-f src/lightly_train/_task_models/depth_estimation_components/dpt.py \
+		src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
+		src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 
 
@@ -267,7 +293,7 @@ DOCKER_EXTRAS := [mlflow,tensorboard,timm,wandb,rfdetr]
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2026-05-18"
+EXCLUDE_NEWER_DATE := "2026-05-19"
 
 export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
 export LIGHTLY_TRAIN_POSTHOG_KEY := ""

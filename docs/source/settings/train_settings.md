@@ -10,7 +10,7 @@ please refer to the [](pretrain-settings) page.
 | ----------------------------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`out`](#out)                                   | `str`<br>`Path`               | —              | Output directory where checkpoints, logs, and exported models are written.                                                                                          |
 | [`data`](#data)                                 | `dict`<br>`str`               | —              | Dataset configuration dict, or path to a YAML file containing the dataset configuration.                                                                            |
-| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"dinov3/vitt16-ltdetr-coco"`) or path to a local checkpoint to fine-tune from.                                                              |
+| [`model`](#model)                               | `str`<br>`Path`               | —              | Model identifier (e.g. `"ltdetrv2-s-coco"`) or path to a local checkpoint to fine-tune from.                                                                        |
 | [`model_args`](#model_args)                     | `dict`                        | `None`         | Task/model-specific training hyperparameters.                                                                                                                       |
 | [`steps`](#steps)                               | `int`                         | `"auto"`       | Number of training steps. `"auto"` selects a model-dependent default.                                                                                               |
 | [`precision`](#precision)                       | `str`                         | `"bf16-mixed"` | Numeric precision mode (e.g. `"16-true"`, `"32-true"`, `"bf16-mixed"`).                                                                                             |
@@ -28,6 +28,7 @@ please refer to the [](pretrain-settings) page.
 | [`metric_args`](#metric_args)                   | `dict`                        | `None`         | Metric configuration dict. `None` uses defaults; keys configure or disable individual metrics.                                                                      |
 | [`save_checkpoint_args`](#save_checkpoint_args) | `dict`                        | `None`         | Checkpoint saving configuration (e.g. save frequency).                                                                                                              |
 | [`torch_compile_args`](#torch_compile_args)     | `dict`                        | `None`         | Torch compile configuration dict. `None` uses defaults; keys configure or disable torch.compile options.                                                            |
+| [`debug_args`](#debug_args)                     | `dict`                        | `None`         | Debug configuration. See [Debug](#train-settings-debug) for the supported keys (`underflow_overflow`, `nancapture`).                                                |
 
 ```{tip}
 LightlyTrain automatically selects suitable default values based on the chosen model,
@@ -89,8 +90,8 @@ CPU cores.
 
 ### `model`
 
-Model identifier (for example `"dinov3/vitt16-ltdetr-coco"`) or the path to a checkpoint
-or exported model file. LightlyTrain automatically downloads weights if needed.
+Model identifier (for example `"ltdetrv2-s-coco"`) or the path to a checkpoint or
+exported model file. LightlyTrain automatically downloads weights if needed.
 
 To resume from a crashed or interrupted run, use the
 [`resume_interrupted`](#resume_interrupted) setting instead of pointing `model` to a
@@ -171,7 +172,7 @@ import lightly_train
 
 lightly_train.train_object_detection(
     ...,
-    model="dinov3/vitt16-ltdetr-coco",  # Loads built-in fine-tuned model.
+    model="ltdetrv2-s-coco",  # Loads built-in fine-tuned model.
     model_args={
         "backbone_weights": "/path/to/backbone_weights.ckpt",  # Ignored when loading built-in model.
     },
@@ -594,6 +595,23 @@ lightly_train.train_object_detection(
 )
 ```
 
+#### Logged metrics
+
+In addition to task-specific metrics, LightlyTrain logs the following values for
+training steps, at the cadence set by [`log_every_num_steps`](#log_every_num_steps):
+
+- `gradient_norm`: Total gradient norm computed after backpropagation, before the
+  optimizer step. If gradient clipping is enabled (`gradient_clip_val > 0`) this is the
+  pre-clipping norm; otherwise it is the total gradient norm computed without applying
+  gradient clipping. Use it to spot exploding or vanishing gradients during training. It
+  is also shown in the console progress line as `grad_norm`. See
+  [Model Instability Debugging](../debugging/model_instability.md) for how to interpret
+  this value and diagnose unstable training.
+- `learning_rate`: Current learning rate after scheduler scaling.
+
+Both are written to all configured loggers (`metrics.jsonl`, TensorBoard, MLflow,
+Weights & Biases).
+
 (train-settings-transforms)=
 
 ## Transforms
@@ -945,6 +963,137 @@ compilation is disabled for most models.
 | Key       | Type   | Description                                                        |
 | --------- | ------ | ------------------------------------------------------------------ |
 | `disable` | `bool` | Disable model compilation. If `True`, `torch.compile` is not used. |
+
+(train-settings-debug)=
+
+## Debug
+
+### `debug_args`
+
+Dictionary that enables and configures debugging utilities. `None` disables all
+debugging. Two complementary tools are supported and may be enabled independently:
+
+- [`underflow_overflow`](#debug-underflow-overflow): detects inf/nan values in
+  activations and weights during forward passes by attaching forward hooks to every
+  model module. Useful when you want to pinpoint the *module* where values first
+  explode.
+- [`nancapture`](#debug-nancapture): captures a replayable snapshot of the training step
+  that produced non-finite parameter gradients, then halts training before the optimizer
+  step. Useful when you want to *reproduce* a bad batch outside of training.
+
+```{important}
+Both debug tools add significant per-step overhead. `underflow_overflow` runs an
+absolute `min`/`max` reduction on every weight, input and output on each forward
+pass and can make training roughly **3× slower** in fine-tuning workloads.
+`nancapture` clones every microbatch to CPU, snapshots the RNG each step, and
+scans all parameter gradients (plus a `torch.save` to disk on detection) and
+slows training down by a similar order of magnitude. Enable them only while
+you are actively collecting a report or capturing a known bad step — turn
+them off once you have what you need.
+```
+
+#### `underflow_overflow`
+
+When enabled, the monitor logs the absolute min/max of every weight, input and output to
+per-rank log files under `out/debug/underflow_overflow_rank{rank}.log`. Inspect those
+files to identify the module where values first exploded. Enabling this significantly
+slows training — turn it off once you have collected enough information.
+
+```{warning}
+`debug_args={"underflow_overflow": {"enabled": True}}` cannot be combined with
+`torch_compile_args={"disable": False}`. LightlyTrain raises `ValueError` at
+startup if both are active.
+```
+
+Example: enable inf/nan detection with a full trace every 10th step and stop training
+after step 500:
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    debug_args={
+        "underflow_overflow": {
+            "enabled": True,
+            "trace_batch_nums": [10, 20, 30],
+            "abort_after_batch_num": 500,
+        },
+    },
+)
+```
+
+(debug-underflow-overflow)=
+
+##### `underflow_overflow` settings
+
+| Key                     | Type              | Default | Description                                                                                                                                                                                                  |
+| ----------------------- | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`               | `bool`            | `False` | Whether to enable underflow/overflow debugging. When `True`, registers forward hooks on all model modules to detect inf/nan values in activations and weights.                                               |
+| `max_frames_to_save`    | `int`             | `21`    | How many forward-pass frames to retain when dumping context after an inf/nan is detected. The most recent N frames are written to the debug log so the module where values first exploded can be identified. |
+| `trace_batch_nums`      | `list[int]`       | `[]`    | Training-step numbers (0-indexed, must be non-negative) at which to write a full absolute min/max trace of every weight, input and output. Detection is disabled on traced steps.                            |
+| `abort_after_batch_num` | `int` `\|` `None` | `None`  | Optional training-step after which to abort. When set, training raises `ValueError` once the current step exceeds this threshold. Mainly useful in combination with `trace_batch_nums`.                      |
+
+#### `nancapture`
+
+When `nancapture` is enabled, the monitor scans parameter gradients for NaN/Inf after
+each gradient-accumulation step and *before* the optimizer step (the point at which a
+bad gradient would corrupt the model weights). On detection it saves a self-contained
+capture to `out/debug/nan_capture/rank{global_rank}/nan_capture.pt` and raises
+`NaNDetectedError` to halt training. The capture holds the model state, the step's
+microbatches, RNG state, and metadata. Reproduce the failure by replaying the saved
+capture:
+
+```python
+from lightly_train._debug.nan_capture import load_nan_capture
+
+cap = load_nan_capture("out/my_run/debug/nan_capture/rank0")
+result = cap.replay()
+print(result.reproduced, result.nan_param_names)
+```
+
+```{warning}
+`nancapture` adds non-trivial per-step overhead — every step clones each
+microbatch to CPU, snapshots the torch (and CUDA, when available) RNG state,
+and scans parameter gradients for `NaN`/`Inf`. On detection it also writes
+the full capture to disk via `torch.save`. Expect training to be measurably
+slower (often **2–3×**) while the monitor is enabled. Disable it as soon
+as you have the capture you need.
+```
+
+`cap.replay()` rebuilds the `TrainModel` from the captured class path and init kwargs,
+restores the saved microbatches and RNG state, and re-runs the triggering
+forward+backward pass with `no_backward_sync` on all but the last microbatch. It stops
+before `clip_gradients`/`optimizer.step` because that is the corruption path that the
+training loop never reached. By default the replay auto-creates a single-device Fabric
+with precision `"32-true"`; to reproduce a mixed-precision failure, pass a `Fabric`
+matching the captured run's precision: `cap.replay(fabric=fabric)`.
+
+```{tip}
+When `nancapture` aborts a run, the capture holds the entire state of the
+failed step (model weights, microbatches, RNG, metadata). Inspect or replay it
+to diagnose, fix the underlying issue, then restart the same run with
+`resume_interrupted=True` — `checkpoints/last.ckpt` is healthy because
+`check_and_capture` raises before `clip_gradients`, `optimizer.step`, and the
+per-step checkpoint save, so neither the bad gradient nor any bad optimizer
+state is ever persisted. Pointing `model` at `last.ckpt` to "resume" changes
+the experiment: that path only loads weights and discards optimizer/scheduler
+state.
+```
+
+```{note}
+There is no setting on `nancapture` other than `enabled` — the monitor always
+covers every trainable task, the detection threshold is hard-coded to "any
+non-finite gradient", and the capture path is fixed by `out` and the global rank.
+```
+
+(debug-nancapture)=
+
+##### `nancapture` settings
+
+| Key       | Type   | Default | Description                                                                                                                                                                                                    |
+| --------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled` | `bool` | `False` | Whether to enable NaN/Inf capture debugging. When `True`, parameter gradients are scanned for NaN/Inf after each accumulated training step. On detection, a replayable capture is written and training aborts. |
 
 ```{toctree}
 ---

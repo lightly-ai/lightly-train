@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -31,6 +30,9 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
     PanopticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.config import (
+    DINOV2_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -50,6 +52,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
 from lightly_train._visualize import panoptic_segmentation
 from lightly_train.types import (
     MaskPanopticSegmentationBatch,
@@ -131,20 +134,17 @@ class DINOv2EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
                 assert isinstance(num_joint_blocks, int)  # for mypy
                 self.num_joint_blocks = num_joint_blocks
             else:
-                match = re.match(r"dinov2/(?P<model_size>vit(s|l|b|g)).*", model_name)
-                if match is None:
+                try:
+                    config = DINOV2_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                        alias=model_name
+                    )()
+                except KeyError:
                     raise ValueError(
                         f"Unknown model name '{model_name}', "
                         "see https://docs.lightly.ai/train/stable/panoptic_segmentation.html#model "
                         "for all supported models."
-                    )
-                model_size = match.group("model_size")
-                self.num_joint_blocks = {
-                    "vits": 3,
-                    "vitb": 3,
-                    "vitl": 4,
-                    "vitg": 5,
-                }[model_size]
+                    ) from None
+                self.num_joint_blocks = config.num_joint_blocks
 
         if (
             self.attn_mask_annealing_steps_start == "auto"
@@ -650,14 +650,17 @@ class DINOv2EoMTPanopticSegmentationTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
-            fabric.clip_gradients(
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = self.model_args.gradient_clip_val
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
+                max_norm=gradient_clip_val,
                 error_if_nonfinite=False,
             )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return total_gradient_norm(self.parameters())
 
 
 def _mark_ignore_regions(

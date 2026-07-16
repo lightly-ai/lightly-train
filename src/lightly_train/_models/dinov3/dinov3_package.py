@@ -25,7 +25,7 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 
 logger = logging.getLogger(__name__)
 
@@ -214,10 +214,30 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_convnext_base_eupe_lvd1689.pth",
         list=True,
     ),
+    # LingBot Vision models (Robbyant, built on DINOv3 and pretrained with masked
+    # boundary modeling).
+    "vits16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vits16,
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-small/resolve/main/model.pt?download=true",
+        local_path="dinov3_vits16_lingbot.pth",
+        list=True,
+    ),
+    "vitb16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitb16,
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-base/resolve/main/model.pt?download=true",
+        local_path="dinov3_vitb16_lingbot.pth",
+        list=True,
+    ),
+    "vitl16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitl16,
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-large/resolve/main/model.pt?download=true",
+        local_path="dinov3_vitl16_lingbot.pth",
+        list=True,
+    ),
 }
 
 
-class DINOv3Package(Package):
+class DINOv3Package(MultiScaleFeaturePackage):
     name = "dinov3"
     # Matches:
     #   vits16, vits32-notpretrained, vitl14-sat493m, vit7b32_distillationv1, vitt16plus, ...

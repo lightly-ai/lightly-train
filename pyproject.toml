@@ -48,6 +48,7 @@ dependencies = [
     # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
     "pycocotools>=2.0.11; python_version>='3.9'",
+    "rich>=13.0",
     "numpy>1.23.0; python_version>='3.12'",  # numpy<=1.23 fails to build on Python>3.12 (no distutils).
 
 ]
@@ -71,6 +72,7 @@ dev = [
 
     # Docs
     "furo>=2024.04.27",
+    "myst_nb>=1.1.0; python_version>='3.9'",           # Jupyter notebook support (requires Python >=3.9)
     "myst_parser>=3.0",
     "sphinx-autoapi>=3.0",
     "sphinx-copybutton>=0.5.2",
@@ -83,6 +85,10 @@ dist = [
     "build>=1.2.2",
     "twine>=6.1.0",
     "wheel>=0.45.1",
+]
+benchmarks = [
+    "onnxruntime-gpu==1.25.1; python_version>='3.11' and platform_system == 'Linux'",
+    "tensorrt-cu13==10.16.1.11; platform_system == 'Linux'",
 ]
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
@@ -142,6 +148,7 @@ onnx = [
     "onnx>=1.15.0",
     "onnx>=1.18.0; python_version>='3.9'",  # onnx 1.18+ requires Python 3.9+
     "onnx>=1.20.0; python_version>='3.10'",  # no wheels built anymore for Python<3.10
+    "onnxscript>=0.7.0; python_version>='3.9'",
 ]
 onnxruntime = [
     "onnxruntime>=1.21.0; python_version>='3.10'",

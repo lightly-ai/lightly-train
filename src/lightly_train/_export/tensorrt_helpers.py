@@ -34,6 +34,7 @@ def export_tensorrt(
     opt_batchsize: int = 1,
     min_batchsize: int = 1,
     fp32_attention_scores: bool = False,
+    strongly_typed: bool = False,
     verbose: bool = False,
     debug: bool = False,
     update_network_fn: Callable[[trt.INetworkDefinition], None] | None = None,
@@ -49,6 +50,9 @@ def export_tensorrt(
     This loads the ONNX file, parses it with TensorRT, infers the static input
     shape (C, H, W) from the `"images"` input, and creates an engine with a
     dynamic batch dimension in the range `[min_batchsize, opt_batchsize, max_batchsize]`.
+    Any additional inputs (e.g. `"orig_target_size"`) that have a dynamic batch
+    dimension get a matching optimization profile over the same batch range; a
+    dynamic non-batch dimension on such an input is not supported and raises.
     Spatial dimensions must be static in the ONNX model (dynamic H/W are not yet supported).
 
     The engine is serialized and written to `out`.
@@ -78,6 +82,14 @@ def export_tensorrt(
             Minimum supported batch size.
         fp32_attention_scores:
             Force attention score computations to use FP32 precision.
+        strongly_typed:
+            Build the engine as a strongly-typed network. TensorRT then derives all
+            tensor precisions from the ONNX graph itself (including any fp32 Cast nodes
+            the export inserted around attention scores) instead of applying its own
+            FP16 rules. Use this when the ONNX already encodes the desired mixed
+            precision. Mutually exclusive with ``fp32_attention_scores`` (which relies on
+            per-layer precision overrides that a strongly-typed network does not allow),
+            and the ``precision`` / FP16 builder flags become no-ops under it.
         verbose:
             Enable verbose TensorRT logging.
         debug:
@@ -114,8 +126,19 @@ def export_tensorrt(
         trt.Logger.VERBOSE if (verbose or debug) else trt.Logger.INFO
     )
 
+    if strongly_typed and fp32_attention_scores:
+        raise ValueError(
+            "strongly_typed and fp32_attention_scores are mutually exclusive: a "
+            "strongly-typed network derives all precisions from the ONNX graph and does "
+            "not allow the per-layer precision overrides used by fp32_attention_scores. "
+            "If the ONNX export already casts attention scores to FP32, use "
+            "strongly_typed=True alone."
+        )
+
     builder = trt.Builder(trt_logger)
     network_flags = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+    if strongly_typed:
+        network_flags |= 1 << int(trt.NetworkDefinitionCreationFlag.STRONGLY_TYPED)
     network = builder.create_network(network_flags)
 
     parser = trt.OnnxParser(network, trt_logger)
@@ -172,8 +195,16 @@ def export_tensorrt(
     if hasattr(trt.BuilderFlag, "TF32"):
         config.clear_flag(trt.BuilderFlag.TF32)
 
+    if strongly_typed:
+        # Precision is fully determined by the ONNX graph's tensor dtypes and Cast nodes.
+        # Setting FP16 / precision-constraint builder flags is redundant and rejected for
+        # strongly-typed networks, so we skip them here.
+        logger.info(
+            "Strongly-typed network: precision taken from the ONNX graph "
+            "(FP16/precision-constraint flags not applied)."
+        )
     # Use FP16 if requested and supported.
-    if precision == "fp16" or (model_dtype == torch.float16 and precision == "auto"):
+    elif precision == "fp16" or (model_dtype == torch.float16 and precision == "auto"):
         if builder.platform_has_fast_fp16:
             config.set_flag(trt.BuilderFlag.FP16)
 
@@ -201,6 +232,23 @@ def export_tensorrt(
         opt=(opt_batchsize, C, H, W),
         max=(max_batchsize, C, H, W),
     )
+    for i in range(network.num_inputs):
+        inp = network.get_input(i)
+        if inp.name == "images":
+            continue
+        input_shape = tuple(inp.shape)
+        if -1 not in input_shape:
+            continue
+        if any(dim == -1 for dim in input_shape[1:]):
+            raise ValueError(
+                f"Dynamic non-batch dimensions are not supported yet for input '{inp.name}'."
+            )
+        profile.set_shape(
+            inp.name,
+            min=(min_batchsize, *input_shape[1:]),
+            opt=(opt_batchsize, *input_shape[1:]),
+            max=(max_batchsize, *input_shape[1:]),
+        )
     config.add_optimization_profile(profile)
 
     logger.info("Building TensorRT engine...")

@@ -11,9 +11,9 @@ from typing import Any, Literal, Sequence
 
 from pydantic import Field
 
-from lightly_train._transforms.panoptic_segmentation_transform import (
-    PanopticSegmentationTransform,
-    PanopticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.panoptic_segmentation import (
+    EoMTPanopticSegmentationTransform,
+    EoMTPanopticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -49,7 +49,7 @@ class DINOv2EoMTPanopticSegmentationRandomCropArgs(RandomCropArgs):
 
 
 class DINOv2EoMTPanopticSegmentationTrainTransformArgs(
-    PanopticSegmentationTransformArgs
+    EoMTPanopticSegmentationTransformArgs
 ):
     """
     Defines default transform arguments for panoptic segmentation training with DINOv2.
@@ -97,7 +97,9 @@ class DINOv2EoMTPanopticSegmentationTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv2EoMTPanopticSegmentationValTransformArgs(PanopticSegmentationTransformArgs):
+class DINOv2EoMTPanopticSegmentationValTransformArgs(
+    EoMTPanopticSegmentationTransformArgs
+):
     """
     Defines default transform arguments for panoptic segmentation validation with DINOv2.
     """
@@ -141,9 +143,9 @@ class DINOv2EoMTPanopticSegmentationValTransformArgs(PanopticSegmentationTransfo
                 self.num_channels = len(self.normalize.mean)
 
 
-class DINOv2EoMTPanopticSegmentationTrainTransform(PanopticSegmentationTransform):
+class DINOv2EoMTPanopticSegmentationTrainTransform(EoMTPanopticSegmentationTransform):
     transform_args_cls = DINOv2EoMTPanopticSegmentationTrainTransformArgs
 
 
-class DINOv2EoMTPanopticSegmentationValTransform(PanopticSegmentationTransform):
+class DINOv2EoMTPanopticSegmentationValTransform(EoMTPanopticSegmentationTransform):
     transform_args_cls = DINOv2EoMTPanopticSegmentationValTransformArgs

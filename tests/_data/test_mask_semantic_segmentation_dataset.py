@@ -15,6 +15,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from lightly_train._data import data_helpers
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
@@ -23,9 +24,9 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     SingleChannelClassInfo,
     SplitArgs,
 )
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     NormalizeArgs,
@@ -36,8 +37,8 @@ from .. import helpers
 from ..helpers import create_images, create_semantic_segmentation_masks
 
 
-def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
-    args = SemanticSegmentationTransformArgs(
+def _dummy_transform(num_channels: int = 3) -> EoMTSemanticSegmentationTransform:
+    args = EoMTSemanticSegmentationTransformArgs(
         ignore_index=-100,
         image_size=(32, 32),
         channel_drop=None,
@@ -53,7 +54,7 @@ def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
     )
     args.resolve_auto(model_init_args={})
     args.resolve_incompatible()
-    return SemanticSegmentationTransform(args)
+    return EoMTSemanticSegmentationTransform(args)
 
 
 class TestMaskSemanticSegmentationDataArgs:
@@ -356,6 +357,27 @@ class TestMaskSemanticSegmentationDataArgs:
             1: "airplane",
             2: "car",
         }
+
+    def test_classes_json_relative_to_data_config_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cwd = tmp_path / "cwd"
+        config_dir = tmp_path / "config"
+        cwd.mkdir()
+        config_dir.mkdir()
+        (cwd / "classes.json").write_text('{"0": "wrong"}')
+        (config_dir / "classes.json").write_text('{"1": "right"}')
+        monkeypatch.chdir(cwd)
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images="images/train", masks="masks/train"),
+            val=SplitArgs(images="images/val", masks="masks/val"),
+            classes="classes.json",
+            data_config_file=config_dir / "data.yaml",
+        )
+        data_helpers.resolve_data_paths(dataset_args)
+
+        assert dataset_args.included_classes == {1: "right"}
 
     def test_classes_json_single_channel_with_explicit_labels(
         self, tmp_path: Path
