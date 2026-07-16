@@ -13,6 +13,7 @@ from typing import Sequence
 import torch
 from torch import Tensor
 from torch.nn import Module
+from torch.nn import functional as F
 
 from lightly_train._models.model_wrapper import (
     ArchitectureInfo,
@@ -32,7 +33,7 @@ _FASTVIT_STAGE_INDICES = [0, 2, 4, 6]
 
 class FastViTModelWrapper(Module, MultiScaleFeatureCNN, ArchitectureInfoGettable):
     def __init__(self, model: Module) -> None:
-        for attr in ("forward_embeddings", "forward_tokens", "conv_exp", "gap"):
+        for attr in ("forward_embeddings", "network"):
             if not hasattr(model, attr):
                 raise ValueError(f"Model must have a '{attr}' attribute")
         super().__init__()
@@ -59,12 +60,20 @@ class FastViTModelWrapper(Module, MultiScaleFeatureCNN, ArchitectureInfoGettable
 
     def forward_features(self, x: Tensor) -> ForwardFeaturesOutput:
         x = self._model.forward_embeddings(x)  # type: ignore[operator]
-        x = self._model.forward_tokens(x)  # type: ignore[operator]
-        x = self._model.conv_exp(x)  # type: ignore[operator]
+        for module in self._model.network:  # type: ignore[operator, union-attr]
+            x = module(x)
+        if hasattr(self._model, "conv_exp"):
+            x = self._model.conv_exp(x)  # type: ignore[operator]
+        else:
+            # FastViT's fork_feat mode exposes normalized stage outputs. Apply the
+            # final-stage norm here too so forward_features agrees with its pyramid.
+            norm_name = f"norm{_FASTVIT_STAGE_INDICES[-1]}"
+            if hasattr(self._model, norm_name):
+                x = getattr(self._model, norm_name)(x)
         return {"features": x}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        features: Tensor = self._model.gap(x["features"])  # type: ignore[operator]
+        features = F.adaptive_avg_pool2d(x["features"], output_size=1)
         return {"pooled_features": features}
 
     def get_model(self) -> Module:

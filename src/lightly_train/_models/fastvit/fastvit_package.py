@@ -16,7 +16,7 @@ from torch.nn import Module
 
 from lightly_train._models.fastvit.fastvit import FastViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _get_model_factory() -> dict[str, Any]:
     }
 
 
-class FastViTPackage(Package):
+class FastViTPackage(MultiScaleFeaturePackage):
     name = "fastvit"
 
     @classmethod
