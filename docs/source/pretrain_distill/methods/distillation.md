@@ -30,11 +30,11 @@ Each distillation version ships with a default teacher so you can start training
 specifying `method_args={"teacher": ...}`. Override the default via {ref}`method-args`
 if you want a different teacher.
 
-| Method                            | Default teacher       | License           | Notes                                          |
-| --------------------------------- | --------------------- | ----------------- | ---------------------------------------------- |
-| `distillation` / `distillationv3` | `dinov3/vitb16`       | DINOv3 (research) | Recommended default since LightlyTrain 0.15.0. |
-| `distillationv1`                  | `dinov2/vitb14-noreg` | Apache 2.0        | Global tasks (e.g. classification).            |
-| `distillationv2`                  | `dinov2/vitb14-noreg` | Apache 2.0        | Dense tasks; DINOv2 teacher only.              |
+| Method                            | Default teacher       | License    | Notes                                          |
+| --------------------------------- | --------------------- | ---------- | ---------------------------------------------- |
+| `distillation` / `distillationv3` | `dinov3/vitb16`       | DINOv3     | Recommended default since LightlyTrain 0.15.0. |
+| `distillationv1`                  | `dinov2/vitb14-noreg` | Apache 2.0 | Global tasks (e.g. classification).            |
+| `distillationv2`                  | `dinov2/vitb14-noreg` | Apache 2.0 | Dense tasks; DINOv2 teacher only.              |
 
 ```{tip}
 If you need a permissive Apache 2.0 license, switch the teacher to a DINOv2 model

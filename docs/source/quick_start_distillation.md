@@ -90,7 +90,8 @@ If you omit `method_args={"teacher": ...}`, LightlyTrain uses its default teache
 the chosen distillation version. For `distillation` / `distillationv3` that default is
 `dinov3/vitb16` (DINOv3 ViT-B/16). See
 {ref}`methods-distillation-default-teacher` for the per-version defaults and how to
-switch to a DINOv2 teacher.
+switch to a DINOv2 teacher. You can also use a custom teacher model — see
+{ref}`methods-distillation-custom-models`.
 ```
 
 ```{note}
