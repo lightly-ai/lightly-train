@@ -761,6 +761,152 @@ class LTDETRBaseConfig(ConfigsNamespace):
         )
 
 
+class LTDETRFastViTHybridEncoderConfig(ConfigsNamespace):
+    class Nano(HybridEncoderConfig):
+        in_channels: list[int] = [96, 192, 384]
+        feat_strides: list[int] = [8, 16, 32]
+        hidden_dim: int = 128
+        use_encoder_idx: list[int] = [2]
+        num_encoder_layers: int = 1
+        nhead: int = 8
+        dim_feedforward: int = 512
+        dropout: float = 0.0
+        enc_act: str = "gelu"
+        expansion: float = 0.34
+        depth_mult: float = 0.67
+        act: str = "silu"
+        upsample: bool = True
+
+    class Tiny(Nano):
+        in_channels: list[int] = [128, 256, 512]
+        hidden_dim: int = 192
+
+    class Small(Tiny):
+        hidden_dim: int = 256
+        expansion: float = 0.67
+        depth_mult: float = 1.0
+
+    class Medium(Small):
+        hidden_dim: int = 288
+        dim_feedforward: int = 1152
+        expansion: float = 1.0
+
+    class Large(Medium):
+        hidden_dim: int = 320
+        dim_feedforward: int = 1280
+
+    class LargeMA36(Large):
+        in_channels: list[int] = [152, 304, 608]
+
+
+class LTDETRFastViTRTDETRTransformerv2Config(ConfigsNamespace):
+    class Nano(RTDETRTransformerv2Config):
+        feat_channels: list[int] = [128, 128, 128]
+        feat_strides: list[int] = [8, 16, 32]
+        hidden_dim: int = 128
+        num_layers: int = 3
+        dim_feedforward: int = 512
+        num_points: list[int] = [3, 6, 3]
+
+    class Tiny(Nano):
+        feat_channels: list[int] = [192, 192, 192]
+        hidden_dim: int = 192
+        num_layers: int = 4
+
+    class Small(Tiny):
+        feat_channels: list[int] = [256, 256, 256]
+        hidden_dim: int = 256
+
+    class Medium(Small):
+        feat_channels: list[int] = [288, 288, 288]
+        hidden_dim: int = 288
+        dim_feedforward: int = 1152
+
+    class Large(Medium):
+        feat_channels: list[int] = [320, 320, 320]
+        hidden_dim: int = 320
+        num_layers: int = 6
+        dim_feedforward: int = 1280
+
+
+class LTDETRFastViTDFINETransformerConfig(ConfigsNamespace):
+    class Nano(DFINETransformerConfig):
+        feat_channels: list[int] = [128, 128, 128]
+        feat_strides: list[int] = [8, 16, 32]
+        hidden_dim: int = 128
+        num_layers: int = 3
+        dim_feedforward: int = 512
+
+    class Tiny(Nano):
+        feat_channels: list[int] = [192, 192, 192]
+        hidden_dim: int = 192
+        num_layers: int = 4
+
+    class Small(Tiny):
+        feat_channels: list[int] = [256, 256, 256]
+        hidden_dim: int = 256
+
+    class Medium(Small):
+        feat_channels: list[int] = [288, 288, 288]
+        hidden_dim: int = 288
+        dim_feedforward: int = 1152
+
+    class Large(Medium):
+        feat_channels: list[int] = [320, 320, 320]
+        hidden_dim: int = 320
+        num_layers: int = 6
+        dim_feedforward: int = 1280
+        reg_scale: float = 8.0
+
+
+class LTDETRFastViTBaseConfig(ConfigsNamespace):
+    class Nano(DetectorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRFastViTHybridEncoderConfig.Nano
+        )
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Nano
+        )
+        rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
+            default_factory=LTDETRPostProcessorConfig.Generic
+        )
+        backbone_wrapper: CNNBackboneWrapperConfig = Field(
+            default_factory=CNNBackboneWrapperConfig
+        )
+
+    class Tiny(Nano):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRFastViTHybridEncoderConfig.Tiny
+        )
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Tiny
+        )
+
+    class Small(Tiny):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRFastViTHybridEncoderConfig.Small
+        )
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Small
+        )
+
+    class Medium(Small):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRFastViTHybridEncoderConfig.Medium
+        )
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Medium
+        )
+
+    class Large(Medium):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRFastViTHybridEncoderConfig.Large
+        )
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Large
+        )
+
+
 class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
@@ -1053,6 +1199,53 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("dinov2/vitg14-notpretrained-ltdetr")
     class DINOv2ViTGiantNotPretrained(DINOv2ViTGiant):
         backbone_name: str = "dinov2/vitg14-notpretrained"
+
+
+class LTDETRFastViTConfigRegistry(ConfigsNamespace):
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_t8-ltdetr")
+    class FastViTT8(LTDETRFastViTBaseConfig.Nano):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_t8-dist-in1k"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_t12-ltdetr")
+    class FastViTT12(LTDETRFastViTBaseConfig.Tiny):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_t12-dist-in1k"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_s12-ltdetr")
+    class FastViTS12(LTDETRFastViTBaseConfig.Small):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_s12-dist-in1k"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_sa12-ltdetr")
+    class FastViTSA12(LTDETRFastViTBaseConfig.Small):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_sa12-dist-in1k"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_sa24-ltdetr")
+    class FastViTSA24(LTDETRFastViTBaseConfig.Medium):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_sa24-dist-in1k"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_sa36-ltdetr")
+    class FastViTSA36(LTDETRFastViTBaseConfig.Large):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_sa36-dist-in1k"
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_ma36-ltdetr")
+    class FastViTMA36(LTDETRFastViTBaseConfig.Large):
+        version: Literal["v1"] = "v1"
+        backbone_name: str = "fastvit/fastvit_ma36-dist-in1k"
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRFastViTHybridEncoderConfig.LargeMA36
+        )
+        backbone_args: dict[str, Any] = Field(default_factory=dict)
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):

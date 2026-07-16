@@ -588,6 +588,20 @@ Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under t
 - `dinov3/convnext-large-ltdetr`
 ```
 
+```{dropdown} FastViT backbones
+
+FastViT LT-DETR models initialize their backbone from Apple's distilled
+ImageNet-1K checkpoints. They do not include COCO-pretrained detector weights.
+
+- `fastvit/fastvit_t8-ltdetr`
+- `fastvit/fastvit_t12-ltdetr`
+- `fastvit/fastvit_s12-ltdetr`
+- `fastvit/fastvit_sa12-ltdetr`
+- `fastvit/fastvit_sa24-ltdetr`
+- `fastvit/fastvit_sa36-ltdetr`
+- `fastvit/fastvit_ma36-ltdetr`
+```
+
 ```{dropdown} DINOv3 ViT backbones with EUPE weights
 - `dinov3/vitt16-eupe-ltdetr`
 - `dinov3/vits16-eupe-ltdetr`
