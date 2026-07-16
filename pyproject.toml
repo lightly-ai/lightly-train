@@ -225,8 +225,8 @@ implicit_reexport = true
 
 [tool.ruff]
 extend-exclude = [
-    "src/lightly_train/_models/radio/c_radio_v3_src",
-    "src/lightly_train/_models/radio/c_radio_v4_src",
+    "src/lightly_train/_models/radio/c_radio_v3_src/**",
+    "src/lightly_train/_models/radio/c_radio_v4_src/**",
 ]
 
 [tool.ruff.lint]
