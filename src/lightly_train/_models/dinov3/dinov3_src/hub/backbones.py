@@ -161,6 +161,11 @@ def _make_dinov3_vit(
                 url, map_location="cpu", check_hash=check_hash
             )
 
+        # LingBot Vision checkpoints from Hugging Face wrap the state dict in a
+        # "model" key.
+        if set(state_dict.keys()) == {"model"}:
+            state_dict = state_dict["model"]
+
         # Re-sample the projection weights before loading the statedict.
         key = "patch_embed.proj.weight"
         original_conv_weight = state_dict[key]
