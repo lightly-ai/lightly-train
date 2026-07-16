@@ -19,6 +19,16 @@ This project incorporates the following third-party components:
   - Removed EdgeCrafter registry/distributed dependencies. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
   - Added typed LTDETR-compatible tuple output. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
 
+**FastViT**
+- Source: https://github.com/apple/ml-fastvit
+- License: Apple Software License
+- License file: licences/FASTVIT_LICENSE
+- Modifications:
+  - Vendored the FastViT model implementation and its MobileOne and RepLKNet
+    components under `src/lightly_train/_models/fastvit/components`.
+  - Adapted imports, removed upstream MMDetection and MMSegmentation registry
+    dependencies, and made typing and formatting changes for LightlyTrain.
+
 **DINOv2**
 - Source: https://github.com/facebookresearch/dinov2
 - License: Apache License 2.0

@@ -101,6 +101,7 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
 		-x src/lightly_train/_models/ecvit/ecvit.py \
+		-x src/lightly_train/_models/fastvit/components \
 		-x src/lightly_train/_debug/huggingface_debug_utils.py \
 		-x src/lightly_train/_task_models/object_detection_components \
 		-x src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
@@ -209,6 +210,11 @@ add-header:
 		-f src/lightly_train/_task_models/depth_estimation_components/dpt.py \
 		src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
 		src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
+		-E py
+
+	# Apply the Apple license header to FastViT-derived files
+	uv run --frozen licenseheaders -t dev_tools/fastvit_licenseheader.tmpl \
+		-d src/lightly_train/_models/fastvit/components \
 		-E py
 
 
