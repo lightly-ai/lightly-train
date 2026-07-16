@@ -100,6 +100,8 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scale_block.py \
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
+		-x src/lightly_train/_models/radio/c_radio_v3_src \
+		-x src/lightly_train/_models/radio/c_radio_v4_src \
 		-x src/lightly_train/_models/ecvit/ecvit.py \
 		-x src/lightly_train/_debug/huggingface_debug_utils.py \
 		-x src/lightly_train/_task_models/object_detection_components \
@@ -112,6 +114,12 @@ add-header:
 		-x src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d tests
+
+	# Apply the NVIDIA Open Model License attribution to C-RADIO integration code.
+	# Vendored C-RADIO files are intentionally excluded above and must not be rewritten.
+	uv run --frozen licenseheaders -t dev_tools/nvidia_open_model_licenseheader.tmpl \
+		-f src/lightly_train/_models/radio/radio_loader.py \
+		-E py
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	uv run --frozen licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \

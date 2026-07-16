@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from torch import Tensor
-from torch.nn import AdaptiveAvgPool2d, Module
+from torch.nn import Module
 
 from lightly_train._models.model_wrapper import (
     ArchitectureInfo,
@@ -20,13 +20,15 @@ from lightly_train._models.model_wrapper import (
 
 
 class RadioModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
-    """Adapter for NVIDIA RADIO Torch Hub models."""
+    """Adapter for NVIDIA C-RADIO models."""
 
     def __init__(self, model: Module) -> None:
         super().__init__()
         self._model = model
-        self._feature_dim = int(getattr(model, "embed_dim"))
-        self._pool = AdaptiveAvgPool2d(output_size=1)
+        summary_dim = getattr(model, "summary_dim", None)
+        if summary_dim is None:
+            summary_dim = getattr(model, "embed_dim")
+        self._feature_dim = int(summary_dim)
 
     def feature_dim(self) -> int:
         return self._feature_dim
@@ -47,16 +49,21 @@ class RadioModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
                 "RADIO returned an unexpected output. Adaptors and custom necks are "
                 "not supported by the LightlyTrain RADIO wrapper."
             )
-        _, features = output
+        cls_token, features = output
+        if cls_token.ndim != 2:
+            raise RuntimeError(
+                "C-RADIO returned summary features with unexpected shape "
+                f"{tuple(cls_token.shape)}. Expected (B, C)."
+            )
         if features.ndim != 4:
             raise RuntimeError(
-                "RADIO returned spatial features with unexpected shape "
+                "C-RADIO returned spatial features with unexpected shape "
                 f"{tuple(features.shape)}. Expected NCHW features."
             )
-        return {"features": features}
+        return {"features": features, "cls_token": cls_token}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
-        return {"pooled_features": self._pool(x["features"])}
+        return {"pooled_features": x["cls_token"][..., None, None]}
 
     def get_model(self) -> Module:
         return self._model

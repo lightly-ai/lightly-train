@@ -52,6 +52,13 @@ This project incorporates the following third-party components:
   - Added parameter to load SAT493M weights with different filenames.
   - Added small test models.
 
+**C-RADIO**
+- Source: https://huggingface.co/nvidia/C-RADIOv3-H (revision `d7fd0e2b0a1761f1af150582e06c41e9a99b0bf8`) and https://huggingface.co/nvidia/C-RADIOv4-H (revision `0057b339059c0b9e1b4ba996f975410ebbfdfcc8`)
+- License: NVIDIA Open Model License
+- License file: licences/NVIDIA_OPEN_MODEL_LICENSE.pdf
+- Modifications: None. The C-RADIO v3 and v4 runtime source files are vendored unchanged. LightlyTrain-owned loader code dispatches to the matching vendored runtime and downloads the published checkpoints.
+- Attribution: Licensed by NVIDIA Corporation under the NVIDIA Open Model License.
+
 **RT-DETR**
 - Source: https://github.com/lyuwenyu/RT-DETR
 - License: Apache License 2.0

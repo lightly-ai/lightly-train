@@ -16,17 +16,11 @@ from torch.nn import Module
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import Package
 from lightly_train._models.radio.radio import RadioModelWrapper
+from lightly_train._models.radio.radio_loader import load_radio_model
 
-RADIO_TORCH_HUB_REVISION = "c0f37017930e9dda53f93424cf4bf39fc51f287e"
-_RADIO_MODEL_MARKER = "_lightly_train_radio_hub_revision"
+_RADIO_MODEL_MARKER = "_lightly_train_radio_model_name"
 
 MODEL_NAMES = (
-    "radio_v1",
-    "radio_v2.5-b",
-    "radio_v2.5-l",
-    "radio_v2.5-h",
-    "radio_v2.5-h-norm",
-    "radio_v2.5-g",
     "c-radio_v3-b",
     "c-radio_v3-l",
     "c-radio_v3-h",
@@ -37,7 +31,7 @@ MODEL_NAMES = (
 
 
 class RadioPackage(Package):
-    """Package for NVIDIA RADIO models loaded through Torch Hub."""
+    """Package for NVIDIA C-RADIO models with vendored runtime code."""
 
     name = "radio"
 
@@ -73,30 +67,19 @@ class RadioPackage(Package):
             )
         if not load_weights:
             raise ValueError(
-                "RADIO Torch Hub models are distributed with pretrained weights; "
+                "C-RADIO models are distributed with pretrained weights; "
                 "load_weights=False is not supported."
             )
 
-        args = dict(model_args or {})
-        hub_ref = args.pop("hub_ref", RADIO_TORCH_HUB_REVISION)
-        if args:
-            raise ValueError(
-                "Unsupported RADIO model_args: "
-                f"{sorted(args)}. Only 'hub_ref' is supported."
-            )
+        if model_args:
+            raise ValueError(f"Unsupported C-RADIO model_args: {sorted(model_args)}.")
 
-        model = torch.hub.load(
-            f"NVlabs/RADIO:{hub_ref}",
-            "radio_model",
-            version=model_name,
-            progress=True,
-            skip_validation=True,
-        )  # type: ignore[no-untyped-call]
+        model = load_radio_model(model_name, progress=True)
         if not isinstance(model, Module):
             raise RuntimeError(
-                "RADIO Torch Hub returned an object that is not a torch.nn.Module."
+                "C-RADIO loader returned an object that is not a torch.nn.Module."
             )
-        setattr(model, _RADIO_MODEL_MARKER, hub_ref)
+        setattr(model, _RADIO_MODEL_MARKER, model_name)
         return model
 
     @classmethod

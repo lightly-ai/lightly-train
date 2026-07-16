@@ -14,15 +14,12 @@ from torch.nn import Conv2d, Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.radio.radio import RadioModelWrapper
-from lightly_train._models.radio.radio_package import (
-    MODEL_NAMES,
-    RADIO_TORCH_HUB_REVISION,
-    RadioPackage,
-)
+from lightly_train._models.radio.radio_package import MODEL_NAMES, RadioPackage
 
 
 class FakeRadioModel(Module):
     embed_dim = 8
+    summary_dim = 12
     min_resolution_step = 16
 
     def __init__(self) -> None:
@@ -33,7 +30,11 @@ class FakeRadioModel(Module):
     def forward(self, x: Tensor, feature_fmt: str) -> tuple[Tensor, Tensor]:
         self.feature_formats.append(feature_fmt)
         features = self.projection(x)
-        return features.mean(dim=(-2, -1)), features
+        summary = torch.cat(
+            [features.mean(dim=(-2, -1)), features[:, :4].mean(dim=(-2, -1))],
+            dim=1,
+        )
+        return summary, features
 
 
 class TestRadioPackage:
@@ -43,53 +44,38 @@ class TestRadioPackage:
         ]
         assert package_helpers.get_package("radio") is not None
         assert "radio/c-radio_v4-h" in package_helpers.list_model_names()
+        assert "radio/radio_v1" not in package_helpers.list_model_names()
 
     def test_get_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict[str, object] = {}
 
-        def fake_load(*args: object, **kwargs: object) -> FakeRadioModel:
-            captured["args"] = args
-            captured["kwargs"] = kwargs
+        def fake_load(model_name: str, progress: bool) -> FakeRadioModel:
+            captured["model_name"] = model_name
+            captured["progress"] = progress
             return FakeRadioModel()
 
-        monkeypatch.setattr(torch.hub, "load", fake_load)
+        monkeypatch.setattr(
+            "lightly_train._models.radio.radio_package.load_radio_model", fake_load
+        )
 
         model = RadioPackage.get_model("c-radio_v4-h")
 
         assert isinstance(model, FakeRadioModel)
         assert RadioPackage.is_supported_model(model)
-        assert captured["args"] == (
-            f"NVlabs/RADIO:{RADIO_TORCH_HUB_REVISION}",
-            "radio_model",
-        )
-        assert captured["kwargs"] == {
-            "version": "c-radio_v4-h",
-            "progress": True,
-            "skip_validation": True,
-        }
-
-    def test_get_model__hub_ref_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        captured: dict[str, object] = {}
-
-        def fake_load(*args: object, **kwargs: object) -> FakeRadioModel:
-            captured["args"] = args
-            return FakeRadioModel()
-
-        monkeypatch.setattr(torch.hub, "load", fake_load)
-
-        RadioPackage.get_model("radio_v1", model_args={"hub_ref": "test-ref"})
-
-        assert captured["args"] == ("NVlabs/RADIO:test-ref", "radio_model")
+        assert captured == {"model_name": "c-radio_v4-h", "progress": True}
 
     @pytest.mark.parametrize(
         "kwargs, match",
         [
-            ({"model_name": "unknown"}, "Unknown RADIO model"),
-            ({"model_name": "radio_v1", "num_input_channels": 1}, "3 input"),
-            ({"model_name": "radio_v1", "load_weights": False}, "load_weights=False"),
+            ({"model_name": "radio_v1"}, "Unknown RADIO model"),
+            ({"model_name": "c-radio_v4-h", "num_input_channels": 1}, "3 input"),
             (
-                {"model_name": "radio_v1", "model_args": {"invalid": True}},
-                "Unsupported RADIO model_args",
+                {"model_name": "c-radio_v4-h", "load_weights": False},
+                "load_weights=False",
+            ),
+            (
+                {"model_name": "c-radio_v4-h", "model_args": {"hub_ref": "main"}},
+                "Unsupported C-RADIO model_args",
             ),
         ],
     )
@@ -100,17 +86,21 @@ class TestRadioPackage:
             RadioPackage.get_model(**kwargs)  # type: ignore[arg-type]
 
     def test_wrapper(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(torch.hub, "load", lambda *args, **kwargs: FakeRadioModel())
-        model = RadioPackage.get_model("radio_v1")
+        monkeypatch.setattr(
+            "lightly_train._models.radio.radio_package.load_radio_model",
+            lambda *args, **kwargs: FakeRadioModel(),
+        )
+        model = RadioPackage.get_model("c-radio_v4-h")
         wrapper = RadioPackage.get_model_wrapper(model)
 
         output = wrapper.forward_features(torch.rand(2, 3, 32, 48))
         pooled = wrapper.forward_pool(output)
 
         assert isinstance(wrapper, RadioModelWrapper)
-        assert wrapper.feature_dim() == 8
+        assert wrapper.feature_dim() == 12
         assert output["features"].shape == (2, 8, 32, 48)
-        assert pooled["pooled_features"].shape == (2, 8, 1, 1)
+        assert output["cls_token"].shape == (2, 12)
+        assert pooled["pooled_features"].shape == (2, 12, 1, 1)
         assert model.feature_formats == ["NCHW"]  # type: ignore[attr-defined]
 
     def test_wrapper__invalid_resolution(self) -> None:
@@ -122,8 +112,11 @@ class TestRadioPackage:
     def test_export_model(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        monkeypatch.setattr(torch.hub, "load", lambda *args, **kwargs: FakeRadioModel())
-        model = RadioPackage.get_model("radio_v1")
+        monkeypatch.setattr(
+            "lightly_train._models.radio.radio_package.load_radio_model",
+            lambda *args, **kwargs: FakeRadioModel(),
+        )
+        model = RadioPackage.get_model("c-radio_v4-h")
         out = tmp_path / "radio.pt"
 
         RadioPackage.export_model(RadioPackage.get_model_wrapper(model), out)
