@@ -9,18 +9,27 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypedDict
 
 import torch
 from torch.nn import Module
 
+from lightly_train._env import Env
 from lightly_train._models.fastvit.fastvit import FastViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import MultiScaleFeaturePackage
 
 logger = logging.getLogger(__name__)
 
-_FASTVIT_MODEL_NAMES = [
+
+class _FastViTModelInfo(TypedDict):
+    factory_name: str
+    default_weights: str | None
+    local_path: str | None
+    list: bool
+
+
+_FASTVIT_VARIANTS = (
     "fastvit_t8",
     "fastvit_t12",
     "fastvit_s12",
@@ -28,10 +37,52 @@ _FASTVIT_MODEL_NAMES = [
     "fastvit_sa24",
     "fastvit_sa36",
     "fastvit_ma36",
-]
+)
+
+_SUPERVISED_CHECKPOINT_URL = (
+    "https://docs-assets.developer.apple.com/ml-research/models/fastvit/"
+    "image_classification_models/{variant}.pth.tar"
+)
+_DISTILLED_CHECKPOINT_URL = (
+    "https://docs-assets.developer.apple.com/ml-research/models/fastvit/"
+    "image_classification_distilled_models/{variant}.pth.tar"
+)
+
+# The checkpoint variants intentionally match the FastViT ImageNet-1K entries
+# supported by timm. The official checkpoints are the unfused versions suitable
+# for fine-tuning and downstream dense-prediction tasks.
+MODEL_NAME_TO_INFO: dict[str, _FastViTModelInfo] = {
+    **{
+        variant: _FastViTModelInfo(
+            factory_name=variant,
+            default_weights=None,
+            local_path=None,
+            list=True,
+        )
+        for variant in _FASTVIT_VARIANTS
+    },
+    **{
+        f"{variant}-in1k": _FastViTModelInfo(
+            factory_name=variant,
+            default_weights=_SUPERVISED_CHECKPOINT_URL.format(variant=variant),
+            local_path=f"{variant}_in1k.pth.tar",
+            list=True,
+        )
+        for variant in _FASTVIT_VARIANTS
+    },
+    **{
+        f"{variant}-dist-in1k": _FastViTModelInfo(
+            factory_name=variant,
+            default_weights=_DISTILLED_CHECKPOINT_URL.format(variant=variant),
+            local_path=f"{variant}_dist_in1k.pth.tar",
+            list=True,
+        )
+        for variant in _FASTVIT_VARIANTS
+    },
+}
 
 
-def _get_model_factory() -> dict[str, Any]:
+def _get_model_factory() -> dict[str, Callable[..., Module]]:
     from lightly_train._models.fastvit.components.models.fastvit import (
         fastvit_ma36,
         fastvit_s12,
@@ -58,7 +109,11 @@ class FastViTPackage(MultiScaleFeaturePackage):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [f"{cls.name}/{n}" for n in _FASTVIT_MODEL_NAMES]
+        return [
+            f"{cls.name}/{model_name}"
+            for model_name, info in MODEL_NAME_TO_INFO.items()
+            if info["list"]
+        ]
 
     @classmethod
     def is_supported_model(cls, model: Module | ModelWrapper | Any) -> bool:
@@ -84,19 +139,26 @@ class FastViTPackage(MultiScaleFeaturePackage):
                 f"FastViT only supports 3 input channels, but got {num_input_channels}. "
                 "The convolutional stem is hardcoded to 3 input channels."
             )
-        if load_weights:
-            logger.warning(
-                "FastViT does not provide pretrained weights in this integration. "
-                "The model will be initialized with random weights."
-            )
-        factory = _get_model_factory()
-        if model_name not in factory:
+        if model_name not in MODEL_NAME_TO_INFO:
             raise ValueError(
                 f"Unknown FastViT model name: '{model_name}'. "
-                f"Supported models: {list(factory)}."
+                f"Supported models: {cls.list_model_names()}."
             )
+        model_info = MODEL_NAME_TO_INFO[model_name]
+        factory = _get_model_factory()
         args: dict[str, Any] = model_args or {}
-        model: Module = factory[model_name](pretrained=False, **args)
+        model: Module = factory[model_info["factory_name"]](pretrained=False, **args)
+        if load_weights and model_info["default_weights"] is not None:
+            weights_path = _maybe_download_weights(model_info)
+            checkpoint = torch.load(weights_path, map_location="cpu", weights_only=True)
+            state_dict = checkpoint.get("state_dict", checkpoint)
+            compatible_state_dict = {
+                name: value
+                for name, value in state_dict.items()
+                if name in model.state_dict()
+                and value.shape == model.state_dict()[name].shape
+            }
+            model.load_state_dict(compatible_state_dict, strict=False)
         return model
 
     @classmethod
@@ -125,6 +187,26 @@ class FastViTPackage(MultiScaleFeaturePackage):
                 "Load the exported weights manually with the factory function "
                 f"and model.load_state_dict(torch.load('{out}'))."
             )
+
+
+def _maybe_download_weights(model_info: _FastViTModelInfo) -> Path:
+    """Return the locally cached official checkpoint for a FastViT preset."""
+    url = model_info["default_weights"]
+    local_path = model_info["local_path"]
+    assert url is not None
+    assert local_path is not None
+
+    download_dir = Env.LIGHTLY_TRAIN_MODEL_CACHE_DIR.value.expanduser().resolve()
+    download_dest = download_dir / local_path
+    if not download_dest.exists():
+        download_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(
+            "FastViT weights not found locally. Downloading weights from %s to %s",
+            url,
+            download_dest,
+        )
+        torch.hub.download_url_to_file(url, dst=str(download_dest))
+    return download_dest
 
 
 # Create singleton instance of the package. The singleton should be used whenever

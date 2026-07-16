@@ -7,11 +7,16 @@
 #
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import torch
 
 from lightly_train._models.fastvit.fastvit import FastViTModelWrapper
-from lightly_train._models.fastvit.fastvit_package import FASTVIT_PACKAGE
+from lightly_train._models.fastvit.fastvit_package import (
+    FASTVIT_PACKAGE,
+    MODEL_NAME_TO_INFO,
+)
 from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._task_models.linear_semantic_segmentation.task_model import (
     LinearSemanticSegmentation,
@@ -31,9 +36,87 @@ def fork_feature_wrapper() -> FastViTModelWrapper:
 
 
 class TestFastViTModelWrapper:
+    @pytest.mark.parametrize(
+        "variant",
+        [
+            "fastvit_t8",
+            "fastvit_t12",
+            "fastvit_s12",
+            "fastvit_sa12",
+            "fastvit_sa24",
+            "fastvit_sa36",
+            "fastvit_ma36",
+        ],
+    )
+    def test_list_model_names__includes_imagenet_checkpoints(
+        self, variant: str
+    ) -> None:
+        model_names = FASTVIT_PACKAGE.list_model_names()
+        assert f"fastvit/{variant}" in model_names
+        assert f"fastvit/{variant}-in1k" in model_names
+        assert f"fastvit/{variant}-dist-in1k" in model_names
+        assert f"fastvit/{variant}-reparam" not in model_names
+
+    @pytest.mark.parametrize(
+        ("model_name", "url_part"),
+        [
+            ("fastvit_t8-in1k", "image_classification_models/fastvit_t8.pth.tar"),
+            (
+                "fastvit_t8-dist-in1k",
+                "image_classification_distilled_models/fastvit_t8.pth.tar",
+            ),
+        ],
+    )
+    def test_get_model__downloads_and_loads_checkpoint(
+        self,
+        model_name: str,
+        url_part: str,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
+        reference_model = FASTVIT_PACKAGE.get_model("fastvit_t8", load_weights=False)
+        reference_state_dict = reference_model.state_dict()
+        parameter_name = next(
+            name
+            for name, value in reference_state_dict.items()
+            if name.endswith("weight") and value.is_floating_point()
+        )
+        expected_value = torch.full_like(reference_state_dict[parameter_name], 0.25)
+        reference_state_dict[parameter_name] = expected_value
+        download_calls: list[tuple[str, str]] = []
+
+        def download(url: str, dst: str) -> None:
+            download_calls.append((url, dst))
+            torch.save({"state_dict": reference_state_dict}, dst)
+
+        monkeypatch.setattr(torch.hub, "download_url_to_file", download)
+
+        model = FASTVIT_PACKAGE.get_model(model_name, model_args={"fork_feat": True})
+
+        assert len(download_calls) == 1
+        assert url_part in download_calls[0][0]
+        assert torch.equal(model.state_dict()[parameter_name], expected_value)
+        assert (tmp_path / MODEL_NAME_TO_INFO[model_name]["local_path"]).exists()
+
+        FASTVIT_PACKAGE.get_model(model_name, model_args={"fork_feat": True})
+        assert len(download_calls) == 1
+
+    def test_get_model__does_not_load_weights_when_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def download(*args: object, **kwargs: object) -> None:
+            raise AssertionError("weights must not be downloaded")
+
+        monkeypatch.setattr(torch.hub, "download_url_to_file", download)
+        model = FASTVIT_PACKAGE.get_model("fastvit_t8-in1k", load_weights=False)
+        assert model is not None
+
     def test_package_is_multiscale_feature_package(self) -> None:
         assert isinstance(FASTVIT_PACKAGE, MultiScaleFeaturePackage)
-        assert LinearSemanticSegmentation.is_supported_model("fastvit/fastvit_t8-linear")
+        assert LinearSemanticSegmentation.is_supported_model(
+            "fastvit/fastvit_t8-linear"
+        )
 
     def test_multiscale_feature_dims(self, wrapper: FastViTModelWrapper) -> None:
         dims = wrapper.multiscale_feature_dims()
