@@ -218,8 +218,8 @@ LightlyTrain supports the following model and workflow combinations.
 | Custom PyTorch Model                       |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html)           | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
 
 *For DINOv2/DINOv3, the model is paired with the matching training method or serves as
-distillation teacher (e.g. the DINOv2 model with `method="dinov2"` for pretraining, or as
-teacher for the `distillation` method). For all other models, the listed model is the
+distillation teacher (e.g. the DINOv2 model with `method="dinov2"` for pretraining, or
+as teacher for the `distillation` method). For all other models, the listed model is the
 student: "Pretraining" trains that model directly, and "Distillation" distills a default
 teacher's knowledge into it.*
 
