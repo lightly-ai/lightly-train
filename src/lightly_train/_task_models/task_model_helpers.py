@@ -138,6 +138,10 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
         "dinov3_dav3_metric_tiny_plus_260714_c7b1e414.pt",
         "c7b1e4143d63c73eb0bbdf40e3d94d77f1cc4af027fe223fdeb6f97256d7f964",
     ),
+    "dinov3/dav3-metric-tiny": (
+        "dinov3_dav3_metric_tiny_260716_111dd31c.pt",
+        "111dd31cd8d19caaaaeca92ba109e5f01f6ff02293386e0c42e30d035ec590a2",
+    ),
     "dinov3/dav3-relative-tiny": (
         "dinov3_dav3_relative_tiny_260714_90a26f4b.pt",
         "90a26f4bfadc24d30192094c3f4dc52852c70a7f15ceec95b9d303cec3ea1647",
