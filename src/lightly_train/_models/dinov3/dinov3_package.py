@@ -321,6 +321,12 @@ class DINOv3Package(MultiScaleFeaturePackage):
         if model_args is not None:
             args.update(model_args)
 
+        # DINOv3 builders hardcode drop_path_rate internally and re-splat **kwargs, so
+        # forwarding it here raises "got multiple values for keyword argument
+        # 'drop_path_rate'". No DINOv3 builder accepts it as a parameter, so dropping it
+        # is a no-op for the model.
+        args.pop("drop_path_rate", None)
+
         # We interpret entries from MODEL_NAME_TO_INFO as statedict not models.
         # Therefore model_name must be mapped to statedict_name.
         statedict_name, patch_size = cls.model_name_to_statedict_name(model_name)
