@@ -285,7 +285,7 @@ EXTRAS_PY38 := [dicom,mlflow,onnx,tensorboard,timm,ultralytics,wandb]
 EXTRAS_PY313 := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
-EXTRAS_DEV := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb,radio]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
