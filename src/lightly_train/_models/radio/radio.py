@@ -24,6 +24,9 @@ from lightly_train._models.model_wrapper import (
 class RadioModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     """Adapter for NVIDIA C-RADIO models."""
 
+    _input_mean: Tensor
+    _input_std: Tensor
+
     def __init__(self, model: Module) -> None:
         super().__init__()
         self._model = model
