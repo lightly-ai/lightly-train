@@ -76,6 +76,7 @@ pages):
 - [Ultralytics](#models-ultralytics)
 - [RT-DETR](#models-rtdetr)
 - [RF-DETR](#models-rfdetr)
+- [NVIDIA RADIO](#models-radio)
 - [YOLOv12](#models-yolov12)
 - [SuperGradients](#models-supergradients)
 
@@ -93,6 +94,7 @@ timm
 ultralytics
 rtdetr
 rfdetr
+radio
 yolov12
 supergradients
 custom_models
