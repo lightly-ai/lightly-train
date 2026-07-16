@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from importlib import import_module
 from types import ModuleType
 from typing import Any
@@ -78,11 +79,16 @@ def load_radio_model(model_name: str, progress: bool = True) -> Module:
 
     state_dict = clean_state_dict(state_dict)
     key_warn = model.load_state_dict(model_state_dict, strict=False)
-    if key_warn.missing_keys or key_warn.unexpected_keys:
+    if key_warn.missing_keys:
         raise RuntimeError(
             "C-RADIO checkpoint is incompatible with its vendored runtime: "
-            f"missing keys={key_warn.missing_keys}, "
-            f"unexpected keys={key_warn.unexpected_keys}."
+            f"missing keys={key_warn.missing_keys}."
+        )
+    if key_warn.unexpected_keys:
+        warnings.warn(
+            "C-RADIO checkpoint contains unused parameters for the vendored "
+            f"runtime: unexpected keys={key_warn.unexpected_keys}.",
+            stacklevel=2,
         )
 
     if getattr(args, "spectral_reparam", False):

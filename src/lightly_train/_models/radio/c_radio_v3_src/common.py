@@ -5,6 +5,9 @@
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
+#
+# LightlyTrain local fix: the C-RADIOv3-B checkpoint link below was corrected to
+# match NVIDIA's upstream mapping (c-radio_v3-b_half.pth.tar).
 
 from dataclasses import dataclass
 from typing import Optional
@@ -99,7 +102,7 @@ RESOURCE_MAP = {
     "c-radio_v3-b": RadioResource(
         # NOTE: Currently, this model cannot be loaded via TorchHub. Instead, use the transformers API at https://huggingface.co/nvidia/C-RADIOv3-L
         # and accept the license terms.
-        "https://huggingface.co/nvidia/C-RADIOv3-B/resolve/main/c-radio-v3_b_half.pth.tar?download=true",
+        "https://huggingface.co/nvidia/C-RADIOv3-B/resolve/main/c-radio_v3-b_half.pth.tar?download=true",
         patch_size=16,
         max_resolution=2048,
         preferred_resolution=Resolution(512, 512),
