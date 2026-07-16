@@ -218,19 +218,19 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
     # boundary modeling).
     "vits16-lingbot": _DINOv3ModelInfo(
         builder=backbones.dinov3_vits16,
-        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16_lingbot.pth",
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-small/resolve/main/model.pt?download=true",
         local_path="dinov3_vits16_lingbot.pth",
         list=True,
     ),
     "vitb16-lingbot": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitb16,
-        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitb16_lingbot.pth",
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-base/resolve/main/model.pt?download=true",
         local_path="dinov3_vitb16_lingbot.pth",
         list=True,
     ),
     "vitl16-lingbot": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitl16,
-        default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_lingbot.pth",
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-large/resolve/main/model.pt?download=true",
         local_path="dinov3_vitl16_lingbot.pth",
         list=True,
     ),
