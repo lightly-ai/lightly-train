@@ -14,14 +14,14 @@ pip install 'lightly-train[radio]'
 
 ## Usage
 
-RADIO expects three-channel image tensors with values in `[0, 1]`; it applies its own
-input conditioning. Configure every corresponding LightlyTrain transform with identity
-normalization:
+NVIDIA RADIO expects three-channel image tensors with values in `[0, 1]` and applies
+its own input conditioning. LightlyTrain's RADIO wrapper reverses the default ImageNet
+normalization before passing images to RADIO, so no transform override is required.
 
-```python
-transform_args = {
-    "normalize": {"mean": (0.0, 0.0, 0.0), "std": (1.0, 1.0, 1.0)},
-}
+```{note}
+The wrapper only reverses LightlyTrain's default ImageNet normalization. If you set a
+custom `transform_args.normalize`, it is not automatically reconciled with RADIO's
+internal input conditioning.
 ```
 
 Input height and width must each be divisible by the selected model's resolution step.

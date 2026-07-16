@@ -10,6 +10,7 @@ from types import ModuleType
 
 import pytest
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 from torch import Tensor
 from torch.nn import Conv2d, Module
 
@@ -28,9 +29,11 @@ class FakeRadioModel(Module):
         super().__init__()
         self.projection = Conv2d(3, self.embed_dim, kernel_size=1)
         self.feature_formats: list[str] = []
+        self.inputs: list[Tensor] = []
 
     def forward(self, x: Tensor, feature_fmt: str) -> tuple[Tensor, Tensor]:
         self.feature_formats.append(feature_fmt)
+        self.inputs.append(x.detach().clone())
         features = self.projection(x)
         summary = torch.cat(
             [features.mean(dim=(-2, -1)), features[:, :4].mean(dim=(-2, -1))],
@@ -131,6 +134,17 @@ class TestRadioPackage:
 
         with pytest.raises(ValueError, match="min_resolution_step=16"):
             wrapper.forward_features(torch.rand(1, 3, 31, 32))
+
+    def test_wrapper__reverses_imagenet_normalization(self) -> None:
+        model = FakeRadioModel()
+        wrapper = RadioModelWrapper(model)
+        image = torch.rand(2, 3, 32, 48)
+        mean = torch.tensor(IMAGENET_NORMALIZE["mean"]).view(1, 3, 1, 1)
+        std = torch.tensor(IMAGENET_NORMALIZE["std"]).view(1, 3, 1, 1)
+
+        wrapper.forward_features((image - mean) / std)
+
+        assert torch.allclose(model.inputs[0], image, rtol=0.0, atol=1e-6)
 
     def test_export_model(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

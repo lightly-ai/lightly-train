@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 from torch import Tensor
 from torch.nn import Module
 
@@ -25,6 +27,16 @@ class RadioModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
     def __init__(self, model: Module) -> None:
         super().__init__()
         self._model = model
+        self.register_buffer(
+            "_input_mean",
+            torch.tensor(IMAGENET_NORMALIZE["mean"]).view(1, -1, 1, 1),
+            persistent=False,
+        )
+        self.register_buffer(
+            "_input_std",
+            torch.tensor(IMAGENET_NORMALIZE["std"]).view(1, -1, 1, 1),
+            persistent=False,
+        )
         summary_dim = getattr(model, "summary_dim", None)
         if summary_dim is None:
             summary_dim = getattr(model, "embed_dim")
@@ -42,6 +54,10 @@ class RadioModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
                 f"min_resolution_step={min_resolution_step}, got "
                 f"({height}, {width}). Set a compatible transform image size."
             )
+
+        # LightlyTrain's default transforms use ImageNet normalization. NVIDIA's
+        # built-in RADIO input conditioner expects values in the [0, 1] range.
+        x = x * self._input_std.to(dtype=x.dtype) + self._input_mean.to(dtype=x.dtype)
 
         output = self._model(x, feature_fmt="NCHW")
         if not isinstance(output, tuple) or len(output) != 2:
