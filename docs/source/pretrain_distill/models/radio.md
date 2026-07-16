@@ -14,8 +14,8 @@ pip install 'lightly-train[radio]'
 
 ## Usage
 
-NVIDIA RADIO expects three-channel image tensors with values in `[0, 1]` and applies
-its own input conditioning. LightlyTrain's RADIO wrapper reverses the default ImageNet
+NVIDIA RADIO expects three-channel image tensors with values in `[0, 1]` and applies its
+own input conditioning. LightlyTrain's RADIO wrapper reverses the default ImageNet
 normalization before passing images to RADIO, so no transform override is required.
 
 ```{note}
