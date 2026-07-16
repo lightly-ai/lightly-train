@@ -6,6 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 import torch
@@ -14,6 +15,7 @@ from torch.nn import Conv2d, Module
 
 from lightly_train._models import package_helpers
 from lightly_train._models.radio.radio import RadioModelWrapper
+from lightly_train._models.radio.radio_loader import _source_module
 from lightly_train._models.radio.radio_package import MODEL_NAMES, RadioPackage
 
 
@@ -38,6 +40,27 @@ class FakeRadioModel(Module):
 
 
 class TestRadioPackage:
+    @pytest.mark.parametrize(
+        ("model_name", "module_name"),
+        [
+            ("c-radio_v3-h", "common"),
+            ("c-radio_v3-h", "radio_model"),
+            ("c-radio_v3-h", "input_conditioner"),
+            ("c-radio_v3-h", "feature_normalizer"),
+            ("c-radio_v3-h", "enable_spectral_reparam"),
+            ("c-radio_v4-h", "common"),
+            ("c-radio_v4-h", "radio_model"),
+            ("c-radio_v4-h", "input_conditioner"),
+            ("c-radio_v4-h", "feature_normalizer"),
+            ("c-radio_v4-h", "enable_spectral_reparam"),
+            ("c-radio_v4-h", "enable_damp"),
+        ],
+    )
+    def test_vendored_runtime_modules_import(
+        self, model_name: str, module_name: str
+    ) -> None:
+        assert isinstance(_source_module(model_name, module_name), ModuleType)
+
     def test_list_model_names(self) -> None:
         assert RadioPackage.list_model_names() == [
             f"radio/{model_name}" for model_name in MODEL_NAMES
