@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TypedDict
+from typing import Tuple, TypedDict
 
 import torch
 from PIL.Image import Image as PILImage
@@ -22,7 +22,7 @@ from lightly_train._data import file_helpers
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train.types import PathLike
 
-ObjectDetectionOutput: TypeAlias = tuple[Tensor, Tensor]
+ObjectDetectionOutput: TypeAlias = Tuple[Tensor, Tensor]
 """Raw object detection output: ``(logits, normalized cxcywh boxes)``."""
 
 
