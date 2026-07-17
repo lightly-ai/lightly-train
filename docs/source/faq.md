@@ -97,8 +97,8 @@ LightlyTrain offers several advantages over other self-supervised learning (SSL)
   models in the right format for fine-tuning, reducing risks when moving from pretraining to 
   fine-tuning.
 - **Distillation**: Lightly has developed a unique distillation method that allows
-  you to pretrain smaller models with the knowledge of larger DINOv2 or DINOv3 models
-  without the need for large compute resources.
+  you to pretrain smaller models with the knowledge of larger foundation models,
+  such as DINOv2 or DINOv3, without the need for large compute resources.
 - **DINOv2 method**: LightlyTrain supports the DINOv2 training method out of the box,
   allowing you to train state-of-the-art vision foundation models on your own datasets.
 ```
@@ -387,7 +387,7 @@ model guides the training of your student model.
 
 During distillation, the student model learns to produce similar feature representations as the 
 teacher model for the same input images. This allows smaller models to benefit from the knowledge 
-of larger, more powerful models like vision transformers pretrained with DINOv2, without requiring
+of larger, more powerful foundation models, such as DINOv2 or DINOv3, without requiring
 the same computational resources for training.
 ```
 
@@ -404,7 +404,10 @@ representations exhibit strong semantic understanding and work well for zero-sho
 few-shot learning scenarios.
 
 In LightlyTrain, DINOv2 models serve as teacher models for the distillation method,
-transferring their knowledge to your chosen backbone architecture.
+transferring their knowledge to your chosen backbone architecture. They also serve
+as a starting point for fine-tuning downstream task models, including LT-DETR (object
+detection) and EoMT (semantic segmentation, instance segmentation, panoptic
+segmentation).
 ```
 
 ## Deployment
