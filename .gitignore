@@ -150,6 +150,9 @@ docs/_build/
 docs/source/changelog.md
 docs/**/_auto/
 
+# Ignore generated notebook symlinks (created by docs/prebuild.py)
+docs/source/tutorials/*.ipynb
+
 # PyBuilder
 .pybuilder/
 target/

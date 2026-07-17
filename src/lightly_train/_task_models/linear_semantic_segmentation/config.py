@@ -175,6 +175,18 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ViTB16Eupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitb16-eupe"
 
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vits16-lingbot-linear")
+    class DINOv3ViTS16Lingbot(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vits16-lingbot"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitb16-lingbot-linear")
+    class DINOv3ViTB16Lingbot(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vitb16-lingbot"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitl16-lingbot-linear")
+    class DINOv3ViTL16Lingbot(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vitl16-lingbot"
+
     # --- DINOv3 ConvNeXt variants ---
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-tiny-linear")
     class DINOv3ConvNextTiny(LinearSemanticSegmentationConfig):

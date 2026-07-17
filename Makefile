@@ -293,7 +293,7 @@ DOCKER_EXTRAS := [mlflow,tensorboard,timm,wandb,rfdetr]
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2026-05-18"
+EXCLUDE_NEWER_DATE := "2026-05-19"
 
 export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
 export LIGHTLY_TRAIN_POSTHOG_KEY := ""
