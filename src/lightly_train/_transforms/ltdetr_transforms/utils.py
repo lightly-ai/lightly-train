@@ -319,6 +319,11 @@ def filter_normalized_cxcywh_min_size(
     ``w_px = bboxes[:, 2] * W`` and ``h_px = bboxes[:, 3] * H``. Pass
     ``min_size_px <= 0`` to disable filtering (returns an all-``True`` mask).
     """
+    if len(bboxes) == 0:
+        # Some upstream dataset items represent "no boxes" with a 1-D empty
+        # tensor instead of shape (0, 4); nothing to filter either way.
+        return torch.zeros(0, dtype=torch.bool, device=bboxes.device)
+
     if bboxes.ndim != 2 or bboxes.shape[1] != 4:
         raise ValueError(f"Expected bboxes with shape (N, 4), got {bboxes.shape}.")
 

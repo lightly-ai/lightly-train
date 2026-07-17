@@ -147,6 +147,20 @@ class TestFilterNormalizedCxcywhMinSize:
         assert keep.shape == (0,)
         assert keep.dtype == torch.bool
 
+    def test_empty_input_with_non_cxcywh_shape(self) -> None:
+        # Some upstream dataset items represent "no boxes" as a 1-D empty
+        # tensor instead of shape (0, 4); this must not raise.
+        bboxes = torch.zeros((0,))
+
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
+            image_size=(100, 100),
+            min_size_px=4.0,
+        )
+
+        assert keep.shape == (0,)
+        assert keep.dtype == torch.bool
+
     def test_raises_on_wrong_shape(self) -> None:
         bboxes = torch.zeros((2, 3))
 
