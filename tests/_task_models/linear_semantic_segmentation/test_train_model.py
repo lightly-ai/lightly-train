@@ -86,8 +86,46 @@ class TestLinearSemanticSegmentationTrain:
                 fabric=Fabric(accelerator="cpu"), batch=batch, step=0
             )
 
-        # The 6 crops must be forwarded in chunks of at most the batch size (3).
-        assert spy.call_count == 2
+        # Images are tiled, forwarded, and un-tiled one at a time so that at most a
+        # single image's full-resolution logits are held on the device at once
+        # (independent of the validation batch size). Each image's crops are then
+        # forwarded in chunks of at most the batch size (3), so the three images
+        # (2, 3, and 1 crops) each need exactly one forward call.
+        assert spy.call_count == 3
+        assert [call.args[0].shape[0] for call in spy.call_args_list] == [2, 3, 1]
+        for call in spy.call_args_list:
+            assert call.args[0].shape[0] <= len(images)
+
+        assert result.loss.shape == ()
+        assert torch.isfinite(result.loss)
+
+    def test_validation_step__chunks_single_wide_image(
+        self, mocker: MockerFixture
+    ) -> None:
+        train_model = _make_train_model()
+        train_model.eval()
+
+        # A single very wide image (short side 16 = crop size, aspect ratio 5)
+        # tiles into 5 crops. Even with a batch of one image, forwarding all crops
+        # at once is what runs out of memory, so the crops must still be forwarded
+        # in chunks of at most the batch size (1).
+        images = [torch.rand(3, 16, 80)]
+        masks = [torch.randint(0, 2, size=image.shape[-2:]) for image in images]
+        batch: MaskSemanticSegmentationBatch = {
+            "image_path": ["image_0.png"],
+            "image": images,
+            "mask": masks,
+            "binary_masks": [],
+        }
+
+        spy = mocker.spy(train_model.model, "forward_train")
+        with torch.no_grad():
+            result = train_model.validation_step(
+                fabric=Fabric(accelerator="cpu"), batch=batch, step=0
+            )
+
+        # 5 crops forwarded one at a time (chunk size == batch size == 1).
+        assert spy.call_count == 5
         for call in spy.call_args_list:
             assert call.args[0].shape[0] <= len(images)
 

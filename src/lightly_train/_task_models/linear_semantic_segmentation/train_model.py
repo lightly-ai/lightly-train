@@ -197,40 +197,51 @@ class LinearSemanticSegmentationTrain(TrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"]
-        image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
 
-        # Tile the images.
-        crops_list, origins = self.model.tile(images)
+        # Tile, forward, un-tile, and score one image at a time. Tiling produces
+        # one crop per aspect-ratio unit, so the total number of crops (and the
+        # full-resolution logits kept for them) is unbounded across the batch;
+        # holding them all at once runs out of memory for wide or tall validation
+        # images. Consuming each image's logits into the loss/metrics before moving
+        # on keeps peak memory to a single image, independent of the validation
+        # batch size. Only the first ``viz_max_images`` predictions are retained
+        # (on CPU) for the visualization.
+        loss = torch.tensor(0.0, device=images[0].device)
+        viz_logits: list[Tensor] = []
+        for image, image_mask in zip(images, masks):
+            image_size = (image.shape[-2], image.shape[-1])
 
-        # Forward the crops in chunks of at most the dataloader batch size. Tiling
-        # produces one crop per aspect-ratio unit, so the total number of crops is
-        # unbounded and forwarding all of them at once can run out of memory for
-        # wide or tall validation images.
-        chunk_size = len(images)
-        crop_logits = torch.cat(
-            [
-                self.model.forward_train(
-                    torch.stack(crops_list[start : start + chunk_size])
-                )
-                for start in range(0, len(crops_list), chunk_size)
-            ]
-        )
-        if self.model.class_ignore_index is not None:
-            crop_logits = crop_logits[:, :-1]
+            crops_list, origins = self.model.tile([image])
 
-        # Un-tile the predictions.
-        logits = self.model.untile(
-            crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
-        )
+            # Forward the crops in chunks of at most the dataloader batch size to
+            # bound the peak activation memory of a single forward pass.
+            chunk_size = len(images)
+            crop_logits = torch.cat(
+                [
+                    self.model.forward_train(
+                        torch.stack(crops_list[start : start + chunk_size])
+                    )
+                    for start in range(0, len(crops_list), chunk_size)
+                ]
+            )
+            if self.model.class_ignore_index is not None:
+                crop_logits = crop_logits[:, :-1]
 
-        loss = torch.tensor(0.0, device=crop_logits.device)
-        for image_logits, image_mask in zip(logits, masks):
+            # Un-tile into a single full-resolution prediction. crop_logits goes out
+            # of scope after this and is freed before the next image is processed.
+            image_logits = self.model.untile(
+                crop_logits=crop_logits, origins=origins, image_sizes=[image_size]
+            )[0]
+
             image_logits = image_logits.unsqueeze(0)  # Add batch dimension.
             image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
             loss += self.criterion(image_logits, image_mask)
             self.val_metrics.update_with_predictions(
                 image_logits.argmax(dim=1), image_mask
             )
+
+            if len(viz_logits) < self.viz_max_images:
+                viz_logits.append(image_logits.squeeze(0).cpu())
         loss /= len(images)
 
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
@@ -241,7 +252,7 @@ class LinearSemanticSegmentationTrain(TrainModel):
             visualization=(
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
-                    logits=logits,
+                    logits=viz_logits,
                     class_names=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,
