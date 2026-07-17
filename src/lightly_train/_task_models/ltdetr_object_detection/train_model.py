@@ -36,6 +36,7 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
 from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
     DINOSTAs,
 )
@@ -109,7 +110,10 @@ def _decode_predictions_for_metrics(
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
     labels, boxes, scores = model.postprocessor.decode(
-        (outputs["pred_logits"], outputs["pred_boxes"]), orig_target_sizes
+        ObjectDetectionOutput(
+            logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
+        ),
+        orig_target_sizes,
     )
     return [
         {"labels": labels_i, "boxes": boxes_i, "scores": scores_i}
