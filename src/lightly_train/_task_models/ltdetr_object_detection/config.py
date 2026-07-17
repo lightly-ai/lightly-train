@@ -865,7 +865,7 @@ class LTDETRFastViTBaseConfig(ConfigsNamespace):
             default_factory=LTDETRFastViTHybridEncoderConfig.Nano
         )
         transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
-            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Nano
+            default_factory=LTDETRFastViTDFINETransformerConfig.Nano
         )
         rtdetr_postprocessor: RTDETRPostProcessorConfig = Field(
             default_factory=LTDETRPostProcessorConfig.Generic
@@ -879,7 +879,7 @@ class LTDETRFastViTBaseConfig(ConfigsNamespace):
             default_factory=LTDETRFastViTHybridEncoderConfig.Tiny
         )
         transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
-            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Tiny
+            default_factory=LTDETRFastViTDFINETransformerConfig.Tiny
         )
 
     class Small(Tiny):
@@ -887,7 +887,7 @@ class LTDETRFastViTBaseConfig(ConfigsNamespace):
             default_factory=LTDETRFastViTHybridEncoderConfig.Small
         )
         transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
-            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Small
+            default_factory=LTDETRFastViTDFINETransformerConfig.Small
         )
 
     class Medium(Small):
@@ -895,7 +895,7 @@ class LTDETRFastViTBaseConfig(ConfigsNamespace):
             default_factory=LTDETRFastViTHybridEncoderConfig.Medium
         )
         transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
-            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Medium
+            default_factory=LTDETRFastViTDFINETransformerConfig.Medium
         )
 
     class Large(Medium):
@@ -903,7 +903,7 @@ class LTDETRFastViTBaseConfig(ConfigsNamespace):
             default_factory=LTDETRFastViTHybridEncoderConfig.Large
         )
         transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
-            default_factory=LTDETRFastViTRTDETRTransformerv2Config.Large
+            default_factory=LTDETRFastViTDFINETransformerConfig.Large
         )
 
 
@@ -1204,43 +1204,43 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 class LTDETRFastViTConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_t8-ltdetr")
     class FastViTT8(LTDETRFastViTBaseConfig.Nano):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_t8-dist-in1k"
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_t12-ltdetr")
     class FastViTT12(LTDETRFastViTBaseConfig.Tiny):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_t12-dist-in1k"
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_s12-ltdetr")
     class FastViTS12(LTDETRFastViTBaseConfig.Small):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_s12-dist-in1k"
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_sa12-ltdetr")
     class FastViTSA12(LTDETRFastViTBaseConfig.Small):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_sa12-dist-in1k"
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_sa24-ltdetr")
     class FastViTSA24(LTDETRFastViTBaseConfig.Medium):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_sa24-dist-in1k"
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_sa36-ltdetr")
     class FastViTSA36(LTDETRFastViTBaseConfig.Large):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_sa36-dist-in1k"
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
     @LTDETR_MODEL_REGISTRY.register("fastvit/fastvit_ma36-ltdetr")
     class FastViTMA36(LTDETRFastViTBaseConfig.Large):
-        version: Literal["v1"] = "v1"
+        version: Literal["v2"] = "v2"
         backbone_name: str = "fastvit/fastvit_ma36-dist-in1k"
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRFastViTHybridEncoderConfig.LargeMA36

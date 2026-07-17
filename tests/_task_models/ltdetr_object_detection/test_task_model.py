@@ -1095,6 +1095,8 @@ def test_fastvit_config__uses_compact_head(
 ) -> None:
     config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
 
+    assert config.version == "v2"
+    assert isinstance(config.transformer, DFINETransformerConfig)
     assert config.hybrid_encoder.hidden_dim == expected_width
     assert config.transformer.hidden_dim == expected_width
     assert config.transformer.feat_strides == [8, 16, 32]
@@ -1111,17 +1113,18 @@ def test_fastvit_t8__constructs_with_compact_backbone_adapter() -> None:
 
     assert isinstance(model.backbone, FastViTBackboneWrapper)
     assert model.encoder.hidden_dim == 128
+    assert isinstance(model.decoder, DFINETransformer)
     assert model.decoder.hidden_dim == 128
 
-    dfine_model = LTDETRObjectDetection(
+    rtdetrv2_model = LTDETRObjectDetection(
         model_name="fastvit/fastvit_t8-ltdetr",
         classes={0: "class_0"},
         image_size=(320, 320),
-        decoder_name="dfine",
+        decoder_name="rtdetrv2",
         load_weights=False,
     )
-    assert isinstance(dfine_model.decoder, DFINETransformer)
-    assert dfine_model.decoder.hidden_dim == 128
+    assert isinstance(rtdetrv2_model.decoder, RTDETRTransformerv2)
+    assert rtdetrv2_model.decoder.hidden_dim == 128
 
 
 def test_resolve_auto__fastvit_patch_size_is_none(
