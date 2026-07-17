@@ -14,6 +14,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- ONNX export for LT-DETR object detection now returns raw logits and normalized
+  bounding boxes. Postprocessing is supposed to be applied outside the graph.
+
 ### Deprecated
 
 ### Removed
