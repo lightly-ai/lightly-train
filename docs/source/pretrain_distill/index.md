@@ -16,10 +16,10 @@ data**. LightlyTrain offers three main functionalities for this:
 1. **[Distillation](#methods-distillation)**
 
    Distillation is a special form of pretraining where a large, pretrained teacher
-   model, like {ref}`DINOv2 <models-dinov2>` or {ref}`DINOv3 <models-dinov3>`, is used
-   to guide the training of a smaller student model. This is the ideal starting point if
-   you want to improve performance of any model that is not already a large vision
-   foundation model, like YOLO, ConvNet, or special transformer architectures.
+   model, like [DINOv2](#models-dinov2) or [DINOv3](#models-dinov3), is used to guide
+   the training of a smaller student model. This is the ideal starting point if you want
+   to improve performance of any model that is not already a large vision foundation
+   model, like YOLO, ConvNet, or special transformer architectures.
 
 1. **[Autolabeling](#predict-autolabel)**
 
@@ -69,18 +69,18 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 ````
 
 ```{important}
-The default pretraining method {ref}`distillation <methods-distillation>` is
+The default pretraining method [distillation](#methods-distillation) is
 recommended, as it consistently outperforms others in extensive experiments. Batch
 sizes between `128` and `1536` strike
 a good balance between speed and performance. Moreover, long training runs, such as
 2,000 epochs on COCO, significantly improve results. Check the [Methods](#methods-comparison)
-page for more details why {ref}`distillation <methods-distillation>` is the best
+page for more details why [distillation](#methods-distillation) is the best
 choice.
 ```
 
 This will distill a TorchVision ResNet-50 student model using images from `my_data_dir`
-and the default {ref}`distillation <methods-distillation>` setup, which uses a
-{ref}`DINOv3 <models-dinov3>` teacher by default. All training logs, model exports, and
+and the default [distillation](#methods-distillation) setup, which uses a
+[DINOv3](#models-dinov3) teacher by default. All training logs, model exports, and
 checkpoints are saved to the output directory at `out/my_experiment`.
 
 ```{tip}
@@ -207,12 +207,12 @@ models. You can also pass a pre-instantiated wrapper for a
 ## Method
 
 The `method` argument selects the self-supervised learning recipe, not the model
-library. For example, `method="dinov2"` trains supported {ref}`DINOv2 <methods-dinov2>`
-ViTs with the DINOv2 recipe, while `method="distillation"` trains a student model from a
-teacher and is the recommended default. {ref}`DINOv3 <models-dinov3>` models are
-currently used through {ref}`distillation <methods-distillation>` or as fine-tuning
-backbones, not through a standalone `method="dinov3"` recipe. See [Methods](#methods)
-for a list of all supported methods.
+library. For example, `method="dinov2"` trains supported [DINOv2](#methods-dinov2) ViTs
+with the DINOv2 recipe, while `method="distillation"` trains a student model from a
+teacher and is the recommended default. [DINOv3](#models-dinov3) models are currently
+used through [distillation](#methods-distillation) or as fine-tuning backbones, not
+through a standalone `method="dinov3"` recipe. See [Methods](#methods) for a list of all
+supported methods.
 
 (logging)=
 
@@ -260,16 +260,11 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 Disable the JSONL logger with:
 
 ````{tab} Python
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.pretrain(
-        out="out/my_experiment",
-        data="my_data_dir",
-        model="torchvision/resnet50",
-        loggers={"jsonl": None},
-    )
+```python skip_ruff
+lightly_train.pretrain(
+    ...,
+    loggers={"jsonl": None},
+)
 ````
 
 ````{tab} Command Line
@@ -317,8 +312,8 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 
 ### TensorBoard
 
-TensorBoard logs are automatically saved to the output directory. Configure TensorBoard
-under the `tensorboard` logger key:
+TensorBoard is enabled by default and its logs are automatically saved to the output
+directory. Configure TensorBoard under the `tensorboard` logger key:
 
 ````{tab} Python
 ```python
@@ -347,16 +342,11 @@ tensorboard --logdir out/my_experiment
 Disable the TensorBoard logger with:
 
 ````{tab} Python
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.pretrain(
-        out="out/my_experiment",
-        data="my_data_dir",
-        model="torchvision/resnet50",
-        loggers={"tensorboard": None},
-    )
+```python skip_ruff
+lightly_train.pretrain(
+    ...,
+    loggers={"tensorboard": None},
+)
 ````
 
 ````{tab} Command Line
@@ -406,16 +396,11 @@ for more information.
 Disable the Weights & Biases logger with:
 
 ````{tab} Python
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.pretrain(
-        out="out/my_experiment",
-        data="my_data_dir",
-        model="torchvision/resnet50",
-        loggers={"wandb": None},
-    )
+```python skip_ruff
+lightly_train.pretrain(
+    ...,
+    loggers={"wandb": None},
+)
 ````
 
 ````{tab} Command Line
@@ -530,7 +515,7 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 ```{tip}
 The default teacher for `distillation` / `distillationv3` is `dinov3/vitb16`. See
 {ref}`methods-distillation-default-teacher` for the per-version default table
-and the full list of supported teachers. Use a {ref}`DINOv2 <models-dinov2>` teacher
+and the full list of supported teachers. Use a [DINOv2](#models-dinov2) teacher
 (e.g. `dinov2/vitl14`) for a permissive Apache 2.0 license.
 ```
 
