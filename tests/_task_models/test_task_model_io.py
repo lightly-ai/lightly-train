@@ -51,6 +51,24 @@ def test_model_input_spec__example_inputs_and_dynamic_batch() -> None:
     assert spec.dynamic_shapes(dynamic_batch_size=False)["images"][0] == Dim.STATIC
 
 
+def test_model_input_spec__example_inputs_shape_overrides() -> None:
+    spec = ModelInputSpec(
+        input_specs={
+            "images": TensorSpec(shape=(3, 8, 8), dtype=torch.float32, is_batched=True)
+        },
+        input_dynamic_shapes={
+            "images": (Dim("batch", min=1), _STATIC_DIM, _STATIC_DIM, _STATIC_DIM)
+        },
+    )
+
+    inputs = spec.example_inputs(
+        batch_size=2, shape_overrides={"images": (1, None, 12)}
+    )
+
+    assert inputs["images"].shape == (2, 1, 8, 12)
+    assert spec.input_specs["images"].shape == (3, 8, 8)
+
+
 def test_model_input_spec__rejects_dynamic_non_batch_dimension() -> None:
     with pytest.raises(ValueError, match="Only the batch dimension may be dynamic"):
         ModelInputSpec(

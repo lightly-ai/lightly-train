@@ -689,16 +689,12 @@ class LTDETRObjectDetection(TaskModel):
             batch_size=trace_batch_size,
             device=model_device,
             dtype=torch.float32,
+            shape_overrides=(
+                {"images": (num_channels, None, None)}
+                if num_channels is not None
+                else None
+            ),
         )
-        if num_channels is not None:
-            images = example_inputs["images"]
-            example_inputs["images"] = torch.randn(
-                trace_batch_size,
-                num_channels,
-                *images.shape[-2:],
-                device=model_device,
-                dtype=torch.float32,
-            )
         dynamic_shapes = spec.dynamic_shapes(dynamic_batch_size=dynamic_batch_size)
 
         with torch.no_grad():
