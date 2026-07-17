@@ -706,7 +706,7 @@ class LTDETRObjectDetection(TaskModel):
                 args=(),
                 kwargs=example_inputs,
                 dynamic_shapes=dynamic_shapes,
-                strict=False,
+                strict=True,
             )
             example_output = self(**example_inputs)
 
