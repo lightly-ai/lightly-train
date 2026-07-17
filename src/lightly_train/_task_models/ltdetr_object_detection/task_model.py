@@ -348,8 +348,8 @@ class LTDETRObjectDetection(TaskModel):
         x = self.encoder(x)
         return self.decoder(x)
 
-    def forward(self, x: Tensor) -> ObjectDetectionOutput:
-        raw = self.forward_backend(x)
+    def forward(self, images: Tensor) -> ObjectDetectionOutput:
+        raw = self.forward_backend(images)
         return ObjectDetectionOutput(logits=raw["pred_logits"], boxes=raw["pred_boxes"])
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
