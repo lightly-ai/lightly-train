@@ -632,7 +632,41 @@ class LTDETRObjectDetection(TaskModel):
         format_args: dict[str, Any] | None = None,
         num_channels: int | None = None,
     ) -> None:
-        """Export the model to ONNX using its declared model I/O specification."""
+        """Export the model to ONNX using its declared model I/O specification.
+
+        The export uses example inputs defined by ``self.model_input_spec``. If
+        ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch
+        dimension and is traced with batch size 2; otherwise it uses ``batch_size``.
+        ``num_channels`` optionally overrides the declared image-channel count.
+
+        The exported graph returns raw class logits and normalized ``cxcywh`` boxes.
+        Image preprocessing, top-k selection, thresholding, box rescaling, and SAHI
+        merging are intentionally kept outside the graph.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "fp32", or "fp16".
+            batch_size:
+                Batch size for the ONNX input when ``dynamic_batch_size`` is False.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to ``torch.onnx.export``.
+            num_channels:
+                Optional override for the image input's channel count.
+        """
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
         check_onnx_dynamo_requirements()
@@ -693,10 +727,13 @@ class LTDETRObjectDetection(TaskModel):
         )
 
         if precision == "fp16":
+            # The fp16 conversion can create duplicate node names; simplification
+            # remains required above to normalize them for downstream consumers.
             import onnx
             from onnxruntime.transformers import float16 as ort_float16
 
             model_onnx = onnx.load(str(out))
+            # Keep Softmax and MatMul in fp32 to avoid overflow in attention.
             op_block_list = list(ort_float16.DEFAULT_OP_BLOCK_LIST) + [
                 "Softmax",
                 "MatMul",
@@ -704,6 +741,7 @@ class LTDETRObjectDetection(TaskModel):
             model_fp16 = ort_float16.convert_float_to_float16(
                 model_onnx, op_block_list=op_block_list
             )
+            # The fp32 blocklist can introduce a redundant Cast16 -> Cast32 pair.
             remove_redundant_casts(model_fp16)
             fix_topological_order(model_fp16)
             onnx.save(model_fp16, str(out))
@@ -734,6 +772,7 @@ class LTDETRObjectDetection(TaskModel):
                     "Install onnxruntime-gpu to enable full verification."
                 )
             else:
+                # Always run the reference input in float32 and on CPU for consistency.
                 reference_model = deepcopy(self).cpu().to(torch.float32).eval()
                 reference_model.deploy()
                 reference_inputs = {
@@ -775,8 +814,11 @@ class LTDETRObjectDetection(TaskModel):
                             f"{message}"
                         )
 
+                    # Decoder query order can differ between backends while the raw
+                    # predictions remain equivalent, so compare query-reduced tensors.
                     output_model = output_model.sum(dim=1)
                     if output_onnx.is_floating_point():
+                        # Convert to fp32 to avoid overflow while summing fp16 outputs.
                         output_onnx = output_onnx.float()
                     output_onnx = output_onnx.sum(dim=1)
                     torch.testing.assert_close(

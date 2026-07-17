@@ -66,7 +66,6 @@ class ObjectDetectionPreprocessor(Module):
     ) -> tuple[Tensor, ObjectDetectionMetadata]:
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
-
         x = self._validate_channels(x)
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.resize(x, self.image_size)
@@ -82,17 +81,13 @@ class ObjectDetectionPreprocessor(Module):
     ) -> tuple[Tensor, ObjectDetectionMetadata]:
         x = file_helpers.as_image_tensor(image).to(device)
         orig_h, orig_w = x.shape[-2:]
-
         x = self._validate_channels(x)
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-
         tiles, tiles_coordinates = tiling_utils.tile_image(
             x, overlap=overlap, tile_size=self.image_size
         )
         x_global = transforms_functional.resize(x, self.image_size).unsqueeze(0)
-        batch = torch.cat([x_global, tiles], dim=0)
-
-        return batch, {
+        return torch.cat([x_global, tiles], dim=0), {
             "orig_h": orig_h,
             "orig_w": orig_w,
             "tiles_coordinates": tiles_coordinates,
@@ -146,11 +141,8 @@ class ObjectDetectionPostprocessor(Module):
         super().__init__()
         self.num_classes = num_classes
         self.num_top_queries = num_top_queries
-        # Registered as buffer to be automatically moved to the correct device.
         self.register_buffer(
-            "internal_class_to_class",
-            internal_class_to_class,
-            persistent=False,  # No need to save it in the state dict.
+            "internal_class_to_class", internal_class_to_class, persistent=False
         )
 
     def decode(
@@ -180,9 +172,7 @@ class ObjectDetectionPostprocessor(Module):
         boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
         # Scale normalized boxes to pixel coordinates: (w, h, w, h) per image.
         boxes = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
-
-        labels = self.internal_class_to_class[labels]
-        return labels, boxes, scores
+        return self.internal_class_to_class[labels], boxes, scores
 
     def postprocess(
         self,
@@ -191,14 +181,12 @@ class ObjectDetectionPostprocessor(Module):
         threshold: float,
     ) -> list[dict[str, Tensor]]:
         device = self.internal_class_to_class.device
-        # Postprocessor expects (W, H) per image.
         orig_target_size = torch.tensor(
             [[m["orig_w"], m["orig_h"]] for m in metadata],
             dtype=torch.int64,
             device=device,
         )
         labels_batch, boxes_batch, scores_batch = self.decode(raw, orig_target_size)
-
         out: list[dict[str, Tensor]] = []
         for i in range(len(metadata)):
             keep = scores_batch[i] > threshold
@@ -223,37 +211,27 @@ class ObjectDetectionPostprocessor(Module):
     ) -> dict[str, Tensor]:
         device = self.internal_class_to_class.device
         tile_h, tile_w = tile_size
-        orig_h = int(metadata["orig_h"])
-        orig_w = int(metadata["orig_w"])
         tiles_coordinates = metadata["tiles_coordinates"].to(device)
 
         # Decoder expects (W, H). The first entry is the global image; all remaining
         # entries are fixed-size tiles.
         orig_target_sizes = torch.tensor(
             [
-                [orig_w, orig_h],
-                *[[tile_w, tile_h] for _ in range(len(tiles_coordinates))],
+                [int(metadata["orig_w"]), int(metadata["orig_h"])],
+                *[[tile_w, tile_h] for _ in tiles_coordinates],
             ],
             dtype=torch.int64,
             device=device,
         )
         labels, boxes, scores = self.decode(raw, orig_target_sizes)
+        offsets = tiles_coordinates.repeat(1, 2).unsqueeze(1)
+        boxes[1:] += offsets.expand(-1, boxes.shape[1], -1)
 
-        tiles_coordinates = (
-            tiles_coordinates.repeat(1, 2).unsqueeze(1).expand(-1, boxes.shape[1], -1)
-        )
-        boxes[1:] += tiles_coordinates
-
-        boxes_global = boxes[0].view(-1, 4)
-        boxes_tiles = boxes[1:].view(-1, 4)
-        labels_global = labels[0].flatten()
-        labels_tiles = labels[1:].flatten()
-        scores_global = scores[0].flatten()
-        scores_tiles = scores[1:].flatten()
-
+        boxes_global, boxes_tiles = boxes[0].view(-1, 4), boxes[1:].view(-1, 4)
+        labels_global, labels_tiles = labels[0].flatten(), labels[1:].flatten()
+        scores_global, scores_tiles = scores[0].flatten(), scores[1:].flatten()
         keep_global = scores_global > threshold
         keep_tiles = scores_tiles > threshold
-
         labels, boxes, scores = tiling_utils.combine_object_detection_tiles(
             pred_global={
                 "labels": labels_global[keep_global],
@@ -269,8 +247,4 @@ class ObjectDetectionPostprocessor(Module):
             global_local_iou_threshold=global_local_iou_threshold,
         )
 
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
+        return {"labels": labels, "bboxes": boxes, "scores": scores}
