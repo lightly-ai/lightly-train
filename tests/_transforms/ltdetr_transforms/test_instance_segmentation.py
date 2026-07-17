@@ -20,6 +20,7 @@ from torch import Tensor
 from lightly_train._task_models.ltdetr_instance_segmentation.transforms import (
     LTDETRInstanceSegmentationMixUpArgs,
     LTDETRInstanceSegmentationTrainTransformArgs,
+    LTDETRInstanceSegmentationValTransformArgs,
 )
 from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
     LTDETRInstanceSegmentationCollateFunction,
@@ -324,7 +325,11 @@ def _make_dataset_item(
 class TestLTDETRInstanceSegmentationCollateFunction:
     def test__call__train(self) -> None:
         # mixup disabled so the batch structure is asserted without mixing.
-        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(mixup=None)
+        # min_bbox_size_px is disabled here since this test is about collate
+        # structure, not the size filter (covered separately below).
+        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
+            mixup=None, min_bbox_size_px=0.0
+        )
         transform_args.resolve_auto(model_init_args={})
         collate_fn = LTDETRInstanceSegmentationCollateFunction(
             split="train", transform_args=transform_args
@@ -346,7 +351,9 @@ class TestLTDETRInstanceSegmentationCollateFunction:
         assert out["image_path"] == ["img1.png", "img2.png"]
 
     def test__call__val_split(self) -> None:
-        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(mixup=None)
+        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
+            mixup=None, min_bbox_size_px=0.0
+        )
         transform_args.resolve_auto(model_init_args={})
         collate_fn = LTDETRInstanceSegmentationCollateFunction(
             split="val", transform_args=transform_args
@@ -368,6 +375,7 @@ class TestLTDETRInstanceSegmentationCollateFunction:
             mixup=LTDETRInstanceSegmentationMixUpArgs(
                 prob=1.0, step_start=0, step_stop=None
             ),
+            min_bbox_size_px=0.0,
         )
         transform_args.resolve_auto(model_init_args={})
         collate_fn = LTDETRInstanceSegmentationCollateFunction(
@@ -414,11 +422,12 @@ class TestLTDETRInstanceSegmentationCollateFunction:
 
 
 class TestLTDETRInstanceSegmentationTransformBboxFilter:
-    """Behavior tests for the end-of-transform ``min_bbox_size_px`` filter."""
+    """The per-sample transform no longer filters by ``min_bbox_size_px``."""
 
-    def test_drops_sub_min_size_boxes_and_aligns_masks(self) -> None:
-        # 64x64 image, 4 px threshold -> drop boxes whose normalized
-        # width or height is below 4/64 ≈ 0.0625.
+    def test_does_not_drop_sub_min_size_boxes(self) -> None:
+        # min_bbox_size_px is only enforced in the collate function now, so
+        # sub-minimum boxes (and their masks) must survive the per-sample
+        # transform untouched.
         transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
             image_size=_get_image_size(),
             bbox_params=_get_bbox_params(),
@@ -432,15 +441,14 @@ class TestLTDETRInstanceSegmentationTransformBboxFilter:
         image: NDArray[np.uint8] = np.full((64, 64, 3), 127, dtype=np.uint8)
         bboxes = np.array(
             [
-                [0.3, 0.3, 0.2, 0.2],  # 13x13 -> kept
-                [0.7, 0.7, 0.0001, 0.2],  # width too small -> dropped
-                [0.2, 0.7, 0.2, 0.0001],  # height too small -> dropped
+                [0.3, 0.3, 0.2, 0.2],  # 13x13
+                [0.7, 0.7, 0.0001, 0.2],  # sub-min width
+                [0.2, 0.7, 0.2, 0.0001],  # sub-min height
             ],
             dtype=np.float64,
         )
         class_labels = np.array([1, 2, 3], dtype=np.int64)
         binary_masks = np.zeros((3, 64, 64), dtype=np.uint8)
-        # Give each instance a distinct mask region so we can detect misalignment.
         binary_masks[0, 5:15, 5:15] = 1
         binary_masks[1, 30:35, 5:15] = 2
         binary_masks[2, 5:15, 30:35] = 3
@@ -454,11 +462,79 @@ class TestLTDETRInstanceSegmentationTransformBboxFilter:
             }
         )
 
-        # One box survives: only the 13x13 box has both pixel sides >= 4 px.
-        # The two sub-minimum boxes (clamped to ~0.006 px on one side) are dropped.
-        assert tr_output["bboxes"].shape[0] == 1
-        assert tr_output["class_labels"].tolist() == [1]
-        assert tr_output["binary_masks"].shape[0] == 1
-        assert tr_output["binary_masks"].shape[-2:] == (64, 64)
-        # Surviving instance mask is the original mask for instance 0.
-        assert tr_output["binary_masks"][0].sum().item() == 100
+        assert tr_output["bboxes"].shape[0] == 3
+        assert sorted(tr_output["class_labels"].tolist()) == [1, 2, 3]
+        assert tr_output["binary_masks"].shape[0] == 3
+
+
+class TestLTDETRInstanceSegmentationCollateBboxFilter:
+    """Behavior tests for the batch-level ``min_bbox_size_px`` filter."""
+
+    def test_drops_sub_min_size_boxes_and_aligns_masks(self) -> None:
+        # 8x8 image, 4 px threshold -> normalized width/height below 4/8 = 0.5
+        # is dropped.
+        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
+            mixup=None, min_bbox_size_px=4.0
+        )
+        transform_args.resolve_auto(model_init_args={})
+        collate_fn = LTDETRInstanceSegmentationCollateFunction(
+            split="train", transform_args=transform_args
+        )
+
+        image = torch.rand(3, 8, 8)
+        bboxes = torch.tensor(
+            [
+                [0.5, 0.5, 0.75, 0.75],  # 6x6 -> kept
+                [0.2, 0.2, 0.1, 0.75],  # sub-min width -> dropped
+                [0.7, 0.7, 0.75, 0.1],  # sub-min height -> dropped
+            ]
+        )
+        classes = torch.tensor([1, 2, 3], dtype=torch.int64)
+        masks = torch.zeros(3, 8, 8, dtype=torch.int)
+        masks[0, 0, 0] = 1
+        masks[1, 1, 1] = 1
+        masks[2, 2, 2] = 1
+
+        batch: list[InstanceSegmentationDatasetItem] = [
+            {
+                "image_path": "img.png",
+                "image": image,
+                "binary_masks": {"masks": masks, "labels": classes},
+                "bboxes": bboxes,
+                "classes": classes,
+            }
+        ]
+
+        out = collate_fn(batch)
+
+        assert out["bboxes"][0].shape[0] == 1
+        assert out["classes"][0].tolist() == [1]  # type: ignore[union-attr]
+        assert out["binary_masks"][0]["masks"].shape[0] == 1
+        # The surviving mask is the one that belonged to the surviving box.
+        assert bool(out["binary_masks"][0]["masks"][0, 0, 0])
+
+
+class TestMinBboxSizePxDefaults:
+    """The 4 px guard must only be on by default for LT-DETR training."""
+
+    def test_base_args_default_to_disabled(self) -> None:
+        assert (
+            LTDETRInstanceSegmentationTransformArgs.model_fields[
+                "min_bbox_size_px"
+            ].default
+            == 0.0
+        )
+
+    def test_train_args_default_to_four_pixels(self) -> None:
+        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+        )
+        assert transform_args.min_bbox_size_px == 4.0
+
+    def test_val_args_default_to_disabled(self) -> None:
+        transform_args = LTDETRInstanceSegmentationValTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+        )
+        assert transform_args.min_bbox_size_px == 0.0

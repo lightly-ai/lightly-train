@@ -24,8 +24,8 @@ from lightly_train._transforms.ltdetr_transforms.components import (
     StepScheduledCompose,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
-    filter_boxes_below_min_size,
     filter_degenerate_yolo_boxes,
+    filter_normalized_cxcywh_min_size,
     normalize_bboxes_and_labels,
 )
 from lightly_train._transforms.mixup import MixUp
@@ -97,7 +97,7 @@ class LTDETRObjectDetectionTransformArgs(TaskTransformArgs):
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
     normalize: NormalizeArgs | Literal["auto"] | None
-    min_bbox_size_px: float = 4.0
+    min_bbox_size_px: float = 0.0
 
     # Necessary for BboxParams, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -160,23 +160,8 @@ class LTDETRObjectDetectionTransform(TaskTransform):
             transformed["bboxes"], transformed["class_labels"]
         )
 
-        # Drop boxes whose final pixel-side width/height is below the configured
-        # threshold. Mirrors the original side guard from the LT-DETR matcher /
-        # criterion: tiny targets can destabilize the loss.
-        out_image = transformed["image"]
-        if out_image.ndim >= 2:
-            out_height, out_width = int(out_image.shape[0]), int(out_image.shape[1])
-        else:
-            out_height, out_width = 0, 0
-        bboxes, class_labels, _ = filter_boxes_below_min_size(
-            bboxes=bboxes,
-            class_labels=class_labels,
-            image_size=(out_height, out_width),
-            min_size_px=float(self.transform_args.min_bbox_size_px),
-        )
-
         return {
-            "image": out_image,
+            "image": transformed["image"],
             "bboxes": bboxes,
             "class_labels": class_labels,
         }
@@ -360,20 +345,6 @@ class LTDETRObjectDetectionCollateFunction(TaskCollateFunction):
             if isinstance(item["class_labels"], list):
                 item["class_labels"] = np.array(item["class_labels"])
 
-            # Drop boxes made too small by the batch-level transforms (mixup,
-            # copyblend, scale-jitter, ToTensorV2). Uses the just-finalized image
-            # size so the threshold is in the same units as the boxes at this
-            # stage.
-            img = item["image"]
-            if isinstance(img, torch.Tensor):
-                height, width = int(img.shape[-2]), int(img.shape[-1])
-                item["bboxes"], item["class_labels"], _ = filter_boxes_below_min_size(
-                    bboxes=item["bboxes"],
-                    class_labels=item["class_labels"],
-                    image_size=(height, width),
-                    min_size_px=float(self.transform_args.min_bbox_size_px),
-                )
-
         image = torch.stack([item["image"] for item in augment_batch])  # type: ignore
         # Albumentations ToTensorV2 only converts images/masks to tensors. We have to
         # convert the remaining items manually.
@@ -381,6 +352,19 @@ class LTDETRObjectDetectionCollateFunction(TaskCollateFunction):
         classes = [
             torch.from_numpy(item["class_labels"]).long() for item in augment_batch
         ]
+
+        # Drop boxes made too small by the batch-level transforms (mixup,
+        # copyblend, scale-jitter, ToTensorV2). Uses the final image size so
+        # the threshold is in the same units as the boxes at this stage.
+        height, width = image.shape[-2:]
+        for index, (item_bboxes, item_classes) in enumerate(zip(bboxes, classes)):
+            keep = filter_normalized_cxcywh_min_size(
+                item_bboxes,
+                image_size=(height, width),
+                min_size_px=self.transform_args.min_bbox_size_px,
+            )
+            bboxes[index] = item_bboxes[keep]
+            classes[index] = item_classes[keep]
 
         out = ObjectDetectionBatch(
             image_path=[item["image_path"] for item in batch],

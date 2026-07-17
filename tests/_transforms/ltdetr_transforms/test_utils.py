@@ -9,10 +9,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
+import torch
 
 from lightly_train._transforms.ltdetr_transforms.utils import (
-    filter_boxes_below_min_size,
     filter_degenerate_yolo_boxes,
+    filter_normalized_cxcywh_min_size,
     normalize_bboxes_and_labels,
 )
 
@@ -102,85 +104,55 @@ class TestNormalizeBboxesAndLabels:
         assert class_labels is class_labels_in
 
 
-class TestFilterBoxesBelowMinSize:
+class TestFilterNormalizedCxcywhMinSize:
     def test_drops_sub_minimum_width_or_height(self) -> None:
         # Image size is 100x100, min 4 px -> normalized side of 0.04.
-        bboxes = np.array(
+        bboxes = torch.tensor(
             [
                 [0.5, 0.5, 0.30, 0.30],  # 30x30 - kept
                 [0.5, 0.5, 0.01, 0.30],  # 1x30 - dropped (width too small)
                 [0.5, 0.5, 0.30, 0.02],  # 30x2 - dropped (height too small)
                 [0.5, 0.5, 0.04, 0.04],  # exactly at limit - kept
-            ],
-            dtype=np.float64,
+            ]
         )
-        class_labels = np.array([1, 2, 3, 4], dtype=np.int64)
 
-        out_bboxes, out_labels, out_indices = filter_boxes_below_min_size(
-            bboxes=bboxes,
-            class_labels=class_labels,
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
             image_size=(100, 100),
             min_size_px=4.0,
         )
 
-        np.testing.assert_array_equal(out_bboxes, bboxes[[0, 3]])
-        np.testing.assert_array_equal(out_labels, np.array([1, 4], dtype=np.int64))
-        assert out_indices is None
-
-    def test_filters_indices_in_lockstep(self) -> None:
-        # Instance segmentation relies on indices staying aligned with masks.
-        bboxes = np.array(
-            [
-                [0.5, 0.5, 0.30, 0.30],
-                [0.5, 0.5, 0.01, 0.30],
-                [0.5, 0.5, 0.30, 0.30],
-            ],
-            dtype=np.float64,
-        )
-        class_labels = np.array([1, 2, 3], dtype=np.int64)
-        indices = np.array([10, 11, 12], dtype=np.int64)
-
-        out_bboxes, out_labels, out_indices = filter_boxes_below_min_size(
-            bboxes=bboxes,
-            class_labels=class_labels,
-            indices=indices,
-            image_size=(100, 100),
-            min_size_px=4.0,
-        )
-
-        np.testing.assert_array_equal(out_bboxes, bboxes[[0, 2]])
-        np.testing.assert_array_equal(out_labels, np.array([1, 3], dtype=np.int64))
-        assert out_indices is not None
-        np.testing.assert_array_equal(out_indices, np.array([10, 12], dtype=np.int64))
+        torch.testing.assert_close(keep, torch.tensor([True, False, False, True]))
 
     def test_zero_min_size_keeps_all(self) -> None:
-        bboxes = np.array([[0.5, 0.5, 0.001, 0.001]], dtype=np.float64)
-        class_labels = np.array([1], dtype=np.int64)
+        bboxes = torch.tensor([[0.5, 0.5, 0.001, 0.001]])
 
-        out_bboxes, out_labels, _ = filter_boxes_below_min_size(
-            bboxes=bboxes,
-            class_labels=class_labels,
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
             image_size=(1000, 1000),
             min_size_px=0.0,
         )
 
-        np.testing.assert_array_equal(out_bboxes, bboxes)
-        np.testing.assert_array_equal(out_labels, class_labels)
+        torch.testing.assert_close(keep, torch.tensor([True]))
 
     def test_empty_input(self) -> None:
-        bboxes = np.zeros((0, 4), dtype=np.float64)
-        class_labels = np.zeros((0,), dtype=np.int64)
-        indices = np.zeros((0,), dtype=np.int64)
+        bboxes = torch.zeros((0, 4))
 
-        out_bboxes, out_labels, out_indices = filter_boxes_below_min_size(
-            bboxes=bboxes,
-            class_labels=class_labels,
-            indices=indices,
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
             image_size=(100, 100),
             min_size_px=4.0,
         )
 
-        assert out_bboxes.shape == (0, 4)
-        assert out_labels.shape == (0,)
-        assert out_indices is not None
-        assert out_indices.shape == (0,)
+        assert keep.shape == (0,)
+        assert keep.dtype == torch.bool
+
+    def test_raises_on_wrong_shape(self) -> None:
+        bboxes = torch.zeros((2, 3))
+
+        with pytest.raises(ValueError):
+            filter_normalized_cxcywh_min_size(
+                bboxes,
+                image_size=(100, 100),
+                min_size_px=4.0,
+            )
