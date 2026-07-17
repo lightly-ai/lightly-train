@@ -201,9 +201,20 @@ class LinearSemanticSegmentationTrain(TrainModel):
 
         # Tile the images.
         crops_list, origins = self.model.tile(images)
-        crops = torch.stack(crops_list)
 
-        crop_logits = self.model.forward_train(crops)
+        # Forward the crops in chunks of at most the dataloader batch size. Tiling
+        # produces one crop per aspect-ratio unit, so the total number of crops is
+        # unbounded and forwarding all of them at once can run out of memory for
+        # wide or tall validation images.
+        chunk_size = len(images)
+        crop_logits = torch.cat(
+            [
+                self.model.forward_train(
+                    torch.stack(crops_list[start : start + chunk_size])
+                )
+                for start in range(0, len(crops_list), chunk_size)
+            ]
+        )
         if self.model.class_ignore_index is not None:
             crop_logits = crop_logits[:, :-1]
 
