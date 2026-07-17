@@ -355,7 +355,7 @@ appropriate for your downstream task.
 
 ```{dropdown} <h6>Which pretraining methods are supported?<a class="headerlink" id="which-pretraining-methods-are-supported" href="#which-pretraining-methods-are-supported" title="Link to this heading">¶</a></h6>
 LightlyTrain supports different methods such as:
-- Distillation (with a DINOv2 or DINOv3 teacher)
+- Distillation (with a foundation model teacher, such as DINOv2 or DINOv3)
 - DINOv2 (self-supervised training method)
 - DINO
 - SimCLR
