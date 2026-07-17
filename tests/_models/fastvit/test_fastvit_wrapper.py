@@ -97,7 +97,9 @@ class TestFastViTModelWrapper:
         assert len(download_calls) == 1
         assert url_part in download_calls[0][0]
         assert torch.equal(model.state_dict()[parameter_name], expected_value)
-        assert (tmp_path / MODEL_NAME_TO_INFO[model_name]["local_path"]).exists()
+        local_path = MODEL_NAME_TO_INFO[model_name]["local_path"]
+        assert local_path is not None
+        assert (tmp_path / local_path).exists()
 
         FASTVIT_PACKAGE.get_model(model_name, model_args={"fork_feat": True})
         assert len(download_calls) == 1
