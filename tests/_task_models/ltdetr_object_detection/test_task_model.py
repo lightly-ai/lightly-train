@@ -450,10 +450,9 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     model.eval()
     model.deploy()
     with torch.no_grad():
-        labels, boxes, scores = model(torch.randn(1, 3, 224, 224))
-    assert labels.shape == (1, 300)
+        logits, boxes = model(torch.randn(1, 3, 224, 224))
+    assert logits.shape == (1, 300, 2)
     assert boxes.shape == (1, 300, 4)
-    assert scores.shape == (1, 300)
 
 
 @pytest.mark.parametrize(
@@ -639,10 +638,10 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
         load_weights=False,
     )
 
-    preprocess_image_spy = mocker.spy(model, "preprocess_image")
-    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
+    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
     forward_backend_spy = mocker.spy(model, "forward_backend")
-    postprocess_spy = mocker.spy(model, "postprocess")
+    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
@@ -662,12 +661,86 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     # postprocess receives forward_backend's output and per-image metadata.
     assert postprocess_spy.call_count == 1
-    raw_in, metadata = postprocess_spy.call_args.args
-    assert raw_in is forward_backend_spy.spy_return
+    raw_in, metadata, _ = postprocess_spy.call_args.args
+    assert raw_in[0] is forward_backend_spy.spy_return["pred_logits"]
+    assert raw_in[1] is forward_backend_spy.spy_return["pred_boxes"]
     assert len(metadata) == 2
 
-    # predict_batch returns whatever postprocess produced.
+    # predict_batch returns whatever the standalone postprocessor produced.
     assert result is postprocess_spy.spy_return
+
+
+def test_predict_sahi_batch__splits_raw_outputs_per_image(
+    mocker: MockerFixture,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(16, 16),
+        load_weights=False,
+    )
+    model._deployed = True
+    metadata = [
+        {
+            "orig_h": 20,
+            "orig_w": 20,
+            "tiles_coordinates": torch.zeros(1, 2, dtype=torch.int64),
+        },
+        {
+            "orig_h": 40,
+            "orig_w": 40,
+            "tiles_coordinates": torch.zeros(2, 2, dtype=torch.int64),
+        },
+    ]
+    mocker.patch.object(
+        model.preprocessor,
+        "preprocess_sahi_image",
+        side_effect=[
+            (torch.zeros(2, 3, 16, 16), metadata[0]),
+            (torch.zeros(3, 3, 16, 16), metadata[1]),
+        ],
+    )
+    mocker.patch.object(
+        model.preprocessor, "preprocess_sahi_batch", side_effect=lambda batch: batch
+    )
+    mocker.patch.object(
+        model,
+        "forward",
+        return_value=(torch.zeros(5, 4, 2), torch.zeros(5, 4, 4)),
+    )
+    postprocess_sahi = mocker.patch.object(
+        model.postprocessor,
+        "postprocess_sahi",
+        side_effect=[
+            {
+                "labels": torch.tensor([1]),
+                "bboxes": torch.zeros(1, 4),
+                "scores": torch.ones(1),
+            },
+            {
+                "labels": torch.tensor([2]),
+                "bboxes": torch.zeros(1, 4),
+                "scores": torch.ones(1),
+            },
+        ],
+    )
+
+    output = model.predict_sahi_batch([torch.zeros(3, 20, 20), torch.zeros(3, 40, 40)])
+
+    assert [int(item["labels"].item()) for item in output] == [1, 2]
+    assert postprocess_sahi.call_args_list[0].args[0][0].shape[0] == 2
+    assert postprocess_sahi.call_args_list[1].args[0][0].shape[0] == 3
+
+
+def test_predict_sahi_batch__rejects_empty_input() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(16, 16),
+        load_weights=False,
+    )
+    with pytest.raises(ValueError, match="at least one image"):
+        model.predict_sahi_batch([])
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
@@ -703,9 +776,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     with torch.no_grad():
         torch_outputs = model(torch.from_numpy(inputs))
 
-    # Compare via the shared helper: it sums over the query dim before comparing
-    # floats (order-invariant, since the postprocessor's top-k can reorder
-    # queries across backends) and treats labels as sorted multisets.
+    # Compare via the shared helper, which accounts for query ordering differences.
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
