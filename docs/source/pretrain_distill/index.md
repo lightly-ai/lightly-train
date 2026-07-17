@@ -464,8 +464,6 @@ hidden:
 maxdepth: 1
 ---
 Overview <self>
-Distillation <methods/distillation>
-Pretrain DINOv2 <methods/dinov2>
 All Methods <methods/index>
 models/index
 export
