@@ -34,8 +34,13 @@ class ModelRegistry(Generic[ConfigT]):
     def __init__(self) -> None:
         self._registry: dict[str, Type[ConfigT]] = {}
         self._alias_metadata: dict[str, ModelAlias] = {}
+        self._aliases_excluded_from_model_list: set[str] = set()
 
-    def register(self, *aliases: AliasT) -> Callable[[Type[ConfigT]], Type[ConfigT]]:
+    def register(
+        self,
+        *aliases: AliasT,
+        include_in_model_list: bool = True,
+    ) -> Callable[[Type[ConfigT]], Type[ConfigT]]:
         def decorator(cls: Type[ConfigT]) -> Type[ConfigT]:
             for alias in aliases:
                 alias_name = alias.name if isinstance(alias, ModelAlias) else alias
@@ -48,6 +53,8 @@ class ModelRegistry(Generic[ConfigT]):
                 self._registry[alias_name] = cls
                 if isinstance(alias, ModelAlias):
                     self._alias_metadata[alias_name] = alias
+                if not include_in_model_list:
+                    self._aliases_excluded_from_model_list.add(alias_name)
             return cls
 
         return decorator
@@ -67,6 +74,13 @@ class ModelRegistry(Generic[ConfigT]):
 
     def list_aliases(self) -> dict[str, str]:
         return {alias: cls.__name__ for alias, cls in self._registry.items()}
+
+    def list_model_names(self) -> list[str]:
+        return [
+            alias
+            for alias in self._registry
+            if alias not in self._aliases_excluded_from_model_list
+        ]
 
     def get_alias_metadata(self, alias: str) -> ModelAlias:
         if alias not in self._alias_metadata:

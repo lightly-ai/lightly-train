@@ -1281,6 +1281,12 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         )
 
     @LTDETR_MODEL_REGISTRY.register(
+        "_ltdetrv2-s-notpretrained", include_in_model_list=False
+    )
+    class EdgeCrafterECViTTinyNotPretrained(EdgeCrafterECViTTiny):
+        backbone_name: str = "edgecrafter/_ecvitt-notpretrained"
+
+    @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvittplus-ltdetr",
         "ltdetrv2-m",
     )

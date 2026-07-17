@@ -232,7 +232,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="fastvit/fastvit_sa12-ltdetr",
+        model="_ltdetrv2-s-notpretrained",
         data={
             "path": data,
             "train": Path("train", "images"),
@@ -306,8 +306,8 @@ def test_train_instance_segmentation(
             "train": {"annotations": str(data / "train.json"), "images": "train"},
             "val": {"annotations": str(data / "val.json"), "images": "val"},
         },
-        model="dinov3/vitt16-notpretrained-eomt",
-        model_args={"num_joint_blocks": 1},
+        model="_ltdetrv2-seg-s-notpretrained",
+        model_args={"scheduler_name": "linear"},
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
