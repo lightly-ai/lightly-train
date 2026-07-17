@@ -16,6 +16,7 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor
 from torch.export.dynamic_shapes import Dim, _DimHint
+from typing_extensions import Self
 
 
 class TensorSpec(BaseModel):
@@ -49,7 +50,7 @@ class ModelInputSpec(BaseModel):
     input_dynamic_shapes: dict[str, tuple[_DimHint | Dim, ...]]
 
     @model_validator(mode="after")
-    def _validate_input_dynamic_shapes(self) -> "ModelInputSpec":
+    def _validate_input_dynamic_shapes(self) -> Self:
         if self.input_specs.keys() != self.input_dynamic_shapes.keys():
             raise ValueError(
                 "input_specs and input_dynamic_shapes must contain the same names."
