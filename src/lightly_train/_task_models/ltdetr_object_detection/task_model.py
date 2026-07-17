@@ -20,6 +20,7 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from typing_extensions import Self, override
 
+import lightly_train
 from lightly_train import _logging
 from lightly_train._commands import _warnings
 from lightly_train._export import tensorrt_helpers
@@ -29,6 +30,7 @@ from lightly_train._export.onnx_helpers import (
     remove_redundant_casts,
     write_onnx_metadata,
 )
+from lightly_train._license import LICENSE_INFO
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
@@ -601,11 +603,8 @@ class LTDETRObjectDetection(TaskModel):
 
     def onnx_export_metadata(self) -> dict[str, str]:
         """Return metadata embedded in exported LT-DETR ONNX models."""
-        from lightly_train import __version__
-        from lightly_train._license import LICENSE_INFO
-
         metadata = {
-            "lightly_train_version": __version__,
+            "lightly_train_version": lightly_train.__version__,
             "license_info": LICENSE_INFO,
         }
         if self.image_normalize is not None:

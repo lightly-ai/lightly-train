@@ -80,7 +80,21 @@ class ModelInputSpec(BaseModel):
         *,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        shape_overrides: dict[str, tuple[int | None, ...]] | None = None,
     ) -> dict[str, Tensor]:
+        """Create example inputs, optionally overriding static input dimensions.
+
+        ``shape_overrides`` excludes the batch dimension. A value of ``None`` keeps
+        the corresponding dimension declared in ``input_specs``.
+        """
+        shape_overrides = shape_overrides or {}
+        unknown_inputs = shape_overrides.keys() - self.input_specs.keys()
+        if unknown_inputs:
+            raise ValueError(
+                "shape_overrides contains unknown input names: "
+                f"{sorted(unknown_inputs)}."
+            )
+
         inputs: dict[str, Tensor] = {}
         for name, spec in self.input_specs.items():
             example_batch_size = (
@@ -92,7 +106,11 @@ class ModelInputSpec(BaseModel):
                 if spec.is_batched
                 else None
             )
-            tensor = spec.example_tensor(batch_size=example_batch_size)
+            shape = self._resolve_shape(
+                name=name, shape=spec.shape, override=shape_overrides.get(name)
+            )
+            tensor_spec = spec.model_copy(update={"shape": shape})
+            tensor = tensor_spec.example_tensor(batch_size=example_batch_size)
             if tensor.is_floating_point():
                 tensor = torch.randn(
                     tensor.shape,
@@ -123,6 +141,30 @@ class ModelInputSpec(BaseModel):
         batch_dim = self.input_dynamic_shapes[name][0]
         minimum = getattr(batch_dim, "min", None)
         return 1 if minimum is None else minimum
+
+    @staticmethod
+    def _resolve_shape(
+        *,
+        name: str,
+        shape: tuple[int, ...],
+        override: tuple[int | None, ...] | None,
+    ) -> tuple[int, ...]:
+        if override is None:
+            return shape
+        if len(override) != len(shape):
+            raise ValueError(
+                f"shape_overrides for '{name}' has rank {len(override)}, "
+                f"expected {len(shape)}."
+            )
+        if any(dimension is not None and dimension <= 0 for dimension in override):
+            raise ValueError(
+                f"shape_overrides for '{name}' must contain only positive dimensions "
+                "or None."
+            )
+        return tuple(
+            default if override_dimension is None else override_dimension
+            for default, override_dimension in zip(shape, override)
+        )
 
 
 @dataclass
