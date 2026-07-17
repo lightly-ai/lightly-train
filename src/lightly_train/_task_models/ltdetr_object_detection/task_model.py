@@ -21,7 +21,7 @@ from torch import Tensor
 from typing_extensions import Self, override
 
 import lightly_train
-from lightly_train import _logging
+from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
@@ -343,9 +343,6 @@ class LTDETRObjectDetection(TaskModel):
             input_channels=self._expected_input_channels,
         )
 
-    def get_export_output_names(self) -> list[str]:
-        return ["logits", "boxes"]
-
     def forward_backend(self, x: Tensor) -> Any:
         x = self.backbone(x)
         x = self.encoder(x)
@@ -666,6 +663,7 @@ class LTDETRObjectDetection(TaskModel):
             num_channels:
                 Optional override for the image input's channel count.
         """
+        # Set up logging.
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
         check_onnx_dynamo_requirements()
@@ -677,12 +675,16 @@ class LTDETRObjectDetection(TaskModel):
         if precision == "fp16" and not simplify:
             raise ValueError("fp16 precision requires simplify=True.")
 
-        # Trace in fp32. The decoder contains disabled-autocast regions, and the
-        # existing graph conversion below selectively preserves sensitive ops in fp32.
-        self.eval().to(torch.float32)
+        # Set the model in eval and deploy mode.
+        self.eval()
+        # Always trace in fp32 to avoid dtype mismatches in the decoder's
+        # autocast(enabled=False) blocks. fp16 conversion is applied
+        # post-export via onnxruntime.transformers.
+        self.to(torch.float32)
         self.deploy()
         model_device = next(self.parameters()).device
 
+        # TODO(Thomas, 12/25): Allow passing different image size.
         spec = self.model_input_spec
         trace_batch_size = 2 if dynamic_batch_size else batch_size
         example_inputs = spec.example_inputs(
@@ -697,6 +699,7 @@ class LTDETRObjectDetection(TaskModel):
         )
         dynamic_shapes = spec.dynamic_shapes(dynamic_batch_size=dynamic_batch_size)
 
+        # TODO(Thomas, 12/25): Add warm-up forward if needed.
         with torch.no_grad():
             program = torch.export.export(
                 self,
@@ -722,13 +725,15 @@ class LTDETRObjectDetection(TaskModel):
         )
 
         if precision == "fp16":
-            # The fp16 conversion can create duplicate node names; simplification
-            # remains required above to normalize them for downstream consumers.
+            # convert_float_to_float16 creates nodes with duplicate names. In order to avoid downstream issues
+            # we require simplify to be True, as this correctly renames nodes.
             import onnx
             from onnxruntime.transformers import float16 as ort_float16
 
             model_onnx = onnx.load(str(out))
-            # Keep Softmax and MatMul in fp32 to avoid overflow in attention.
+            # If the input to Softmax are too large the output of Softmax will be NaN values. Therefore we run
+            #  the Softmax computation in fp32. The nodes before Softmax are always MatMul.
+            # TODO (simon, 05/26) Ideally we would only block operators were a Matmul directly feeds into a Softmax.
             op_block_list = list(ort_float16.DEFAULT_OP_BLOCK_LIST) + [
                 "Softmax",
                 "MatMul",
@@ -736,7 +741,9 @@ class LTDETRObjectDetection(TaskModel):
             model_fp16 = ort_float16.convert_float_to_float16(
                 model_onnx, op_block_list=op_block_list
             )
-            # The fp32 blocklist can introduce a redundant Cast16 -> Cast32 pair.
+            # Using the op blocklist on a graph that looks like Softmax -> MatMul creates a graph that looks like
+            #  Cast32 -> MatMul -> Cast16 -> Cast32 -> Softmax -> Cast16. Therefore, we need to remove the middle
+            #  Cast16 -> Cast32.
             remove_redundant_casts(model_fp16)
             fix_topological_order(model_fp16)
             onnx.save(model_fp16, str(out))
@@ -767,7 +774,7 @@ class LTDETRObjectDetection(TaskModel):
                     "Install onnxruntime-gpu to enable full verification."
                 )
             else:
-                # Always run the reference input in float32 and on CPU for consistency.
+                # Always run the reference input in float32 and on cpu for consistency.
                 reference_model = deepcopy(self).cpu().to(torch.float32).eval()
                 reference_model.deploy()
                 reference_inputs = {
@@ -813,20 +820,29 @@ class LTDETRObjectDetection(TaskModel):
                     # predictions remain equivalent, so compare query-reduced tensors.
                     output_model = output_model.sum(dim=1)
                     if output_onnx.is_floating_point():
-                        # Convert to fp32 to avoid overflow while summing fp16 outputs.
+                        # Convert to fp32 to avoid overflow issues when summing in fp16.
                         output_onnx = output_onnx.float()
                     output_onnx = output_onnx.sum(dim=1)
-                    torch.testing.assert_close(
-                        output_onnx,
-                        output_model,
-                        msg=msg,
-                        equal_nan=True,
-                        check_device=False,
-                        check_dtype=False,
-                        check_layout=False,
-                        atol=5e-3,
-                        rtol=1e-1,
-                    )
+                    if output_model.is_floating_point():
+                        # Absolute and relative tolerances are a bit arbitrary and taken from here:
+                        # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
+                        torch.testing.assert_close(
+                            output_onnx,
+                            output_model,
+                            msg=msg,
+                            equal_nan=True,
+                            check_device=False,
+                            check_dtype=False,
+                            check_layout=False,
+                            atol=5e-3,
+                            rtol=1e-1,
+                        )
+                    else:
+                        _torch_testing.assert_most_equal(
+                            output_onnx,
+                            output_model,
+                            msg=msg,
+                        )
 
         logger.info(f"Successfully exported ONNX model to '{out}'")
 

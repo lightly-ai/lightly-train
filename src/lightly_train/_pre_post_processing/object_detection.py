@@ -27,13 +27,10 @@ from lightly_train.types import PathLike
 
 @dataclass
 class ObjectDetectionOutput(BaseModelOutput):
-    """Raw object detection outputs returned by the model's ``forward``.
+    """Raw object detection output: ``(logits, normalized cxcywh boxes)``."""
 
-    The field order defines the ONNX output names (``logits``, ``boxes``).
-    """
-
-    logits: Tensor  # (B, num_queries, num_classes)
-    boxes: Tensor  # (B, num_queries, 4) in normalized cxcywh format
+    logits: Tensor
+    boxes: Tensor
 
 
 class ObjectDetectionMetadata(TypedDict):
@@ -97,9 +94,6 @@ class ObjectDetectionPreprocessor(Module):
         return self.preprocess_batch(batch)
 
     def _validate_channels(self, x: Tensor) -> Tensor:
-        # Expand grayscale to the expected channel count so images can be stacked.
-        # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
-        # 1-channel expansion is a convenience inherited from RGB-only models.
         expected_c = self.expected_input_channels
         if x.shape[-3] == 1 and expected_c > 1:
             x = x.expand(expected_c, -1, -1)
@@ -120,14 +114,7 @@ class ObjectDetectionPreprocessor(Module):
 
 
 class ObjectDetectionPostprocessor(Module):
-    """Decodes raw object detection outputs into per-image predictions.
-
-    Performs top-k selection, box decoding and rescaling, and owns the
-    internal-to-user class-id mapping. This is the RT-DETR focal-loss decoding
-    (sigmoid scores + flat top-k over queries and classes), reimplemented in plain
-    eager PyTorch — postprocessing is no longer part of the exported graph, so it
-    needs no deploy/TensorRT-compatible variant.
-    """
+    """Decode raw object detection outputs into per-image predictions."""
 
     internal_class_to_class: Tensor
 
@@ -148,29 +135,13 @@ class ObjectDetectionPostprocessor(Module):
     def decode(
         self, raw: ObjectDetectionOutput, orig_target_sizes: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
-        """Return per-image ``(labels, boxes, scores)`` with class ids remapped.
-
-        Args:
-            raw:
-                Raw model outputs (``logits`` and normalized ``cxcywh`` boxes).
-            orig_target_sizes:
-                Tensor of shape (B, 2) giving the ``(width, height)`` each image's
-                boxes should be rescaled to.
-
-        Returns:
-            ``(labels, boxes, scores)``, each of shape (B, num_top_queries[, 4]).
-            Boxes are ``xyxy`` in the pixel coordinates of ``orig_target_sizes``.
-        """
-        scores = raw.logits.sigmoid()  # (B, num_queries, num_classes)
+        scores = raw.logits.sigmoid()
         num_classes = scores.shape[-1]
-        # Flat top-k across the (query, class) grid, as in RT-DETR focal-loss decoding.
         scores, index = scores.flatten(1).topk(self.num_top_queries, dim=-1)
         labels = index % num_classes
         query_index = index // num_classes
-
         boxes = box_convert(raw.boxes, in_fmt="cxcywh", out_fmt="xyxy")
         boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
-        # Scale normalized boxes to pixel coordinates: (w, h, w, h) per image.
         boxes = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
         return self.internal_class_to_class[labels], boxes, scores
 
@@ -212,9 +183,6 @@ class ObjectDetectionPostprocessor(Module):
         device = self.internal_class_to_class.device
         tile_h, tile_w = tile_size
         tiles_coordinates = metadata["tiles_coordinates"].to(device)
-
-        # Decoder expects (W, H). The first entry is the global image; all remaining
-        # entries are fixed-size tiles.
         orig_target_sizes = torch.tensor(
             [
                 [int(metadata["orig_w"]), int(metadata["orig_h"])],
@@ -246,5 +214,4 @@ class ObjectDetectionPostprocessor(Module):
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
         )
-
         return {"labels": labels, "bboxes": boxes, "scores": scores}
