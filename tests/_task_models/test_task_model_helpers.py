@@ -20,11 +20,17 @@ from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import (
     DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
 )
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
+    DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
 )
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
+)
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
 )
 
 
@@ -76,6 +82,25 @@ def test_downloadable_model__ltdetrv2_s_coco_alias() -> None:
     assert d["ltdetrv2-s-coco"] == d["edgecrafter/ecvitt-ltdetr-coco"]
 
 
+def test_downloadable_model__dinov3_eomt_semantic_aliases_from_registry() -> None:
+    aliases = [
+        "dinov3/vits16-eomt-coco",
+        "dinov3/vits32-eomt-coco",
+        "dinov3/vitl16-eomt-ade20k",
+    ]
+
+    for alias in aliases:
+        checkpoint = (
+            DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get_alias_metadata(
+                alias
+            ).downloadable_checkpoint
+        )
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
+
+
 def test_downloadable_model__dinov3_eomt_instance_aliases_from_registry() -> None:
     aliases = [
         "dinov3/vitt16-eomt-inst-coco",
@@ -91,6 +116,19 @@ def test_downloadable_model__dinov3_eomt_instance_aliases_from_registry() -> Non
                 alias
             ).downloadable_checkpoint
         )
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
+
+
+def test_downloadable_model__picodet_aliases_from_registry() -> None:
+    aliases = ["picodet-s-coco", "picodet-l-coco"]
+
+    for alias in aliases:
+        checkpoint = PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get_alias_metadata(
+            alias
+        ).downloadable_checkpoint
         assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
             checkpoint.url,
             checkpoint.sha256,

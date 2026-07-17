@@ -9,11 +9,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
+  `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
+
 ### Changed
 
 ### Deprecated
 
 ### Removed
+
+- Remove the DINOv3 EoMT semantic segmentation training `model_args.patch_size` option.
+  The patch size is now determined by the selected model name; use a
+  `dinov3/vit*32-eomt` model, such as `dinov3/vits32-eomt-coco`, to train with patch
+  size 32.
 
 ### Fixed
 
@@ -39,6 +47,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
 - Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
   `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
+- Add a debugging tools tutorial that walks through gradient overflow detection with
+  `underflow_overflow` and gradient norm logging, using the fine-tuning API and a
+  deterministic synthetic dataset.
 
 ### Changed
 

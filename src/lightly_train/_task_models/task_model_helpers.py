@@ -24,8 +24,17 @@ from lightly_train._env import Env
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import (
     DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
 )
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.config import (
+    DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+)
+from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
+    DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
+)
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
@@ -79,108 +88,6 @@ def _get_downloadable_model_url_and_hashes(
 # 3. Add an entry to the DOWNLOADABLE_MODEL_URL_AND_HASH dictionary below including the
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
-    #### Object Detection
-    "picodet-s-coco": (
-        "picodet_s_coco_416_260303_23022a45.pt",
-        "23022a456b2583246288041762a1a66d8d59820d5e775912cb4eb366d3a0cd68",
-    ),
-    "picodet-l-coco": (
-        "picodet_l_coco_640_260303_b1a16990.pt",
-        "b1a16990fe4f86fe60aefb2dcb4bf97ead9cc616f6c14ce4638aa2b838351fff",
-    ),
-    #### Panoptic Segmentation
-    # Trained with 4x schedule (360k steps and the masking schedule of 90K steps)
-    "dinov3/vitt16-eomt-panoptic-coco": (
-        "dinov3_vitt16_eomt_panoptic_coco_260113_770c0a1f.pt",
-        "770c0a1f024b9a78a6669d44968e2ab15b6d812839ce0c28732889ec5370ceea",
-    ),
-    "dinov3/vitt16plus-eomt-panoptic-coco": (
-        "dinov3_vitt16plus_eomt_panoptic_coco_260113_25765911.pt",
-        "25765911e4ebc6d735f385e8350a1c9924b4ccf08657d3868fbaa95ff4cc64e9",
-    ),
-    # Trained with 2x schedule (180k steps)
-    "dinov3/vits16-eomt-panoptic-coco": (
-        "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",
-        "89e8a64fb601c509df76d09ed6ddb6789e080147cadcff9700cf5792dfc20167",
-    ),
-    # Trained with 2x schedule (180k steps)
-    "dinov3/vitb16-eomt-panoptic-coco": (
-        "dinov3_vitb16_eomt_panoptic_coco_251209_05948298.pt",
-        "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
-    ),
-    "dinov3/vitl16-eomt-panoptic-coco": (
-        "dinov3_vitl16_eomt_panoptic_coco_251209_e0c1e6ae.pt",
-        "e0c1e6aeb245dbe6fd8735ffea48b81978b66b1a320533498de4375c18ad4368",
-    ),
-    "dinov3/vitl16-eomt-panoptic-coco-1280": (
-        "dinov3_vitl16_eomt_panoptic_coco_1280_251209_3da0b210.pt",
-        "3da0b21000bba3747bcb3e4ac4ee1e38641614022281f4b710d7442c643182f2",
-    ),
-    #### Semantic Segmentation
-    "dinov3/vitt16-eomt-coco": (
-        "dinov3_vitt16_eomt_coco_260106_104e563e.pt",
-        "104e563ebcd8b7d2842db5f0cc6f8d0e67f1607a063ab818725e9af6f6fe7c27",
-    ),
-    "dinov3/vitt16plus-eomt-coco": (
-        "dinov3_vitt16plus_eomt_coco_260106_68339a7d.pt",
-        "68339a7d5baa0dd6fdd88660410939eb78fc8a8c9332145b9b8ac91a2291950b",
-    ),
-    "dinov3/vits16-eomt-coco": (
-        "dinov3_vits16_eomt_coco_260105_11be50b5.pt",
-        "11be50b578251c974b1fdb413c76e2cd7cfe1e154f6118556bd87477ea205d5a",
-    ),
-    "dinov3/vitb16-eomt-coco": (
-        "dinov3_vitb16_eomt_coco_260105_92de5e05.pt",
-        "92de5e0550f51647e201eef3537a35a8bba75b4e41323b9a7df3c54e6ab400b9",
-    ),
-    "dinov3/vitl16-eomt-coco": (
-        "dinov3_vitl16_eomt_coco_260105_6169fdd8.pt",
-        "6169fdd8edf7d4648c45c6aa1d09b9a4e917ba51dcbd36acf8fbf04a25d1e516",
-    ),
-    "dinov3/vitt32-eomt-coco": (
-        "dinov3_vitt32_eomt_coco_260106_3ce75c95.pt",
-        "3ce75c958aa0d31e3ac14d0bc1e0ca34ccb5b9ab5b141ec40c7f83c1950a2186",
-    ),
-    "dinov3/vitt32plus-eomt-coco": (
-        "dinov3_vitt32plus_eomt_coco_260106_68e19609.pt",
-        "68e196093301bc8a4e73005cebe1cccca75f5c14e58e732d1d9c555ea44e2088",
-    ),
-    "dinov3/vits32-eomt-coco": (
-        "dinov3_vits32_eomt_coco_260106_06595b53.pt",
-        "06595b53b0ee63032e8f7882a2d1e877c84b996c8313727a6694abf42e871d05",
-    ),
-    "dinov3/vitb32-eomt-coco": (
-        "dinov3_vitb32_eomt_coco_260106_62cf509e.pt",
-        "62cf509e156257347274837087592f27743ba51722c4949bec90688859cc6b6a",
-    ),
-    "dinov3/vitl32-eomt-coco": (
-        "dinov3_vitl32_eomt_coco_260106_f51348fb.pt",
-        "f51348fb4c794889ae35b8d9e2cfe383b42e09e975d2854f2e96fed155edd7d9",
-    ),
-    "dinov3/vits16-eomt-cityscapes": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_cityscapes.pt",
-        "ef7d54eac202bb0a6707fd7115b689a748d032037eccaa3a6891b57b83f18b7e",
-    ),
-    "dinov3/vitb16-eomt-cityscapes": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_cityscapes.pt",
-        "e78e6b1f372ac15c860f64445d8265fd5e9d60271509e106a92b7162096c9560",
-    ),
-    "dinov3/vitl16-eomt-cityscapes": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_cityscapes.pt",
-        "3f397e6ca0af4555adb1da9efa489b734e35fbeac15b4c18e408c63922b41f6c",
-    ),
-    "dinov3/vits16-eomt-ade20k": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vits16_autolabel_sun397.pt",
-        "f9f002e5adff875e0a97a3b310c26fe5e10c26d69af4e830a4a67aa7dda330aa",
-    ),
-    "dinov3/vitb16-eomt-ade20k": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitb16_autolabel_sun397.pt",
-        "400f7a1b42a7b67babf253d6aade0be334173d70e7351a01159698ac2d2335ca",
-    ),
-    "dinov3/vitl16-eomt-ade20k": (
-        "dinov3_eomt/lightlytrain_dinov3_eomt_vitl16_ade20k.pt",
-        "eb31183c70edd4df8923cba54ce2eefa517ae328cf3caf0106d2795e34382f8f",
-    ),
     #### Depth Estimation
     "dinov2/dav3-relative-large": (
         "dinov2_dav3_relative_large_260629_9c2e9320.pt",
@@ -204,8 +111,21 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     ),
 }
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(PICODET_OBJECT_DETECTION_MODEL_REGISTRY)
+)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(
+        DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY
+    )
+)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
     _get_downloadable_model_url_and_hashes(
         DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY
+    )
+)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(
+        DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY
     )
 )
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
