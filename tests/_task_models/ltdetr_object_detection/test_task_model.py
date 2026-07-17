@@ -676,7 +676,7 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
-        image_size=(16, 16),
+        image_size=(64, 64),
         load_weights=False,
     )
     model._deployed = True
@@ -736,7 +736,7 @@ def test_predict_sahi_batch__rejects_empty_input() -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
-        image_size=(16, 16),
+        image_size=(64, 64),
         load_weights=False,
     )
     with pytest.raises(ValueError, match="at least one image"):
