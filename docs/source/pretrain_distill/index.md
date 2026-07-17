@@ -11,7 +11,7 @@ data**. LightlyTrain offers three main functionalities for this:
 
    Pretraining lets you train a model on unlabeled data with self-supervised learning
    (SSL) methods. This is ideal if you want to train your own vision foundation models
-   using a method like {ref}`DINOv2 <methods-dinov2>`.
+   using a method like [DINOv2](#methods-dinov2).
 
 1. **[Distillation](#methods-distillation)**
 
