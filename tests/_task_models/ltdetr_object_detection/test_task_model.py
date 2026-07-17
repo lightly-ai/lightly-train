@@ -767,7 +767,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
+    assert input_batch_dim.dim_param == "batch_size"
 
     import torch
 
