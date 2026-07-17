@@ -42,11 +42,15 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._models.fastvit.components.models.fastvit import FastViT
+from lightly_train._models.fastvit.fastvit import FastViTModelWrapper
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DetectorConfig,
     DFINETransformerConfig,
     LTDETRDFINETransformerConfig,
+    LTDETRFastViTDFINETransformerConfig,
+    LTDETRFastViTRTDETRTransformerv2Config,
     LTDETRRTDETRTransformerv2Config,
     RTDETRTransformerv2Config,
 )
@@ -58,6 +62,9 @@ from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper 
 )
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
+)
+from lightly_train._task_models.ltdetr_object_detection.fastvit_wrapper import (
+    FastViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.dfine_decoder import (
@@ -97,21 +104,21 @@ def _resolve_transformer_config(
 
     config_name = type(config.transformer).__name__
     if resolved_decoder_name == "rtdetrv2":
-        config_factory = cast(
-            _TransformerConfigFactory,
-            getattr(LTDETRRTDETRTransformerv2Config, config_name),
-        )
+        config_factory = getattr(LTDETRRTDETRTransformerv2Config, config_name, None)
+        if config_factory is None:
+            config_factory = getattr(
+                LTDETRFastViTRTDETRTransformerv2Config, config_name
+            )
     elif resolved_decoder_name == "dfine":
-        config_factory = cast(
-            _TransformerConfigFactory,
-            getattr(LTDETRDFINETransformerConfig, config_name),
-        )
+        config_factory = getattr(LTDETRDFINETransformerConfig, config_name, None)
+        if config_factory is None:
+            config_factory = getattr(LTDETRFastViTDFINETransformerConfig, config_name)
     else:
         raise ValueError(
             f"Unsupported decoder_name={decoder_name!r}. "
             "Expected one of 'rtdetrv2' or 'dfine'."
         )
-    return config_factory()
+    return cast(_TransformerConfigFactory, config_factory)()
 
 
 class LTDETRObjectDetection(TaskModel):
@@ -250,16 +257,26 @@ class LTDETRObjectDetection(TaskModel):
                 DINOv3VisionTransformer,
                 DINOv2VisionTransformer,
                 ECViTModelWrapper,
+                FastViT,
             ),
         )
         if load_dinov2_backbone_weights:
             assert backbone_weights is not None
             self.load_backbone_weights(backbone=backbone, path=backbone_weights)
 
-        self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+        self.backbone: (
+            DINOSTAs
+            | DINOv3ConvNextWrapper
+            | ECViTBackboneWrapper
+            | FastViTBackboneWrapper
+        )
 
         if isinstance(backbone, ECViTModelWrapper):
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
+        elif isinstance(backbone, FastViT):
+            self.backbone = FastViTBackboneWrapper(
+                model_wrapper=FastViTModelWrapper(model=backbone)
+            )
         elif isinstance(backbone, (DINOv3VisionTransformer, DINOv2VisionTransformer)):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore

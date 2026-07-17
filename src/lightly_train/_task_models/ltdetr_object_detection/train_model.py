@@ -222,7 +222,10 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
 
                     if match is not None:
                         self.patch_size = int(match.group("patch_size"))
-                    elif re.match(r"dinov3/convnext.*", model_name) is not None:
+                    elif (
+                        re.match(r"(dinov3/convnext|fastvit/fastvit_).*", model_name)
+                        is not None
+                    ):
                         self.patch_size = None
                     else:
                         raise ValueError(

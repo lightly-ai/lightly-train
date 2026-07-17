@@ -33,6 +33,9 @@ from lightly_train._task_models.ltdetr_object_detection.config import (
 from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
     DINOSTAs,
 )
+from lightly_train._task_models.ltdetr_object_detection.fastvit_wrapper import (
+    FastViTBackboneWrapper,
+)
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETR_DEFAULT_IMAGE_NORMALIZE,
     LTDETRObjectDetection,
@@ -45,6 +48,9 @@ from lightly_train._task_models.ltdetr_object_detection.train_model import (
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransformArgs,
+)
+from lightly_train._task_models.object_detection_components.dfine_decoder import (
+    DFINETransformer,
 )
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -1050,3 +1056,88 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     assert projector_param_ids.isdisjoint(backbone_union_ids), (
         "projector params must not be in the backbone groups"
     )
+
+
+# ---------------------------------------------------------------------------
+# FastViT backbone tests
+# ---------------------------------------------------------------------------
+
+FASTVIT_LTDETR_MODEL_NAMES = [
+    "fastvit/fastvit_t8-ltdetr",
+    "fastvit/fastvit_t12-ltdetr",
+    "fastvit/fastvit_s12-ltdetr",
+    "fastvit/fastvit_sa12-ltdetr",
+    "fastvit/fastvit_sa24-ltdetr",
+    "fastvit/fastvit_sa36-ltdetr",
+    "fastvit/fastvit_ma36-ltdetr",
+]
+
+
+@pytest.mark.parametrize("model_name", FASTVIT_LTDETR_MODEL_NAMES)
+def test_is_supported_model__fastvit(model_name: str) -> None:
+    assert LTDETRObjectDetection.is_supported_model(model_name)
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_width"),
+    [
+        ("fastvit/fastvit_t8-ltdetr", 128),
+        ("fastvit/fastvit_t12-ltdetr", 192),
+        ("fastvit/fastvit_s12-ltdetr", 256),
+        ("fastvit/fastvit_sa12-ltdetr", 256),
+        ("fastvit/fastvit_sa24-ltdetr", 288),
+        ("fastvit/fastvit_sa36-ltdetr", 320),
+        ("fastvit/fastvit_ma36-ltdetr", 320),
+    ],
+)
+def test_fastvit_config__uses_compact_head(
+    model_name: str, expected_width: int
+) -> None:
+    config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+
+    assert config.version == "v2"
+    assert isinstance(config.transformer, DFINETransformerConfig)
+    assert config.hybrid_encoder.hidden_dim == expected_width
+    assert config.transformer.hidden_dim == expected_width
+    assert config.transformer.feat_strides == [8, 16, 32]
+    assert config.backbone_name.endswith("-dist-in1k")
+
+
+def test_fastvit_t8__constructs_with_compact_backbone_adapter() -> None:
+    model = LTDETRObjectDetection(
+        model_name="fastvit/fastvit_t8-ltdetr",
+        classes={0: "class_0"},
+        image_size=(320, 320),
+        load_weights=False,
+    )
+
+    assert isinstance(model.backbone, FastViTBackboneWrapper)
+    assert model.encoder.hidden_dim == 128
+    assert isinstance(model.decoder, DFINETransformer)
+    assert model.decoder.hidden_dim == 128
+
+    rtdetrv2_model = LTDETRObjectDetection(
+        model_name="fastvit/fastvit_t8-ltdetr",
+        classes={0: "class_0"},
+        image_size=(320, 320),
+        decoder_name="rtdetrv2",
+        load_weights=False,
+    )
+    assert isinstance(rtdetrv2_model.decoder, RTDETRTransformerv2)
+    assert rtdetrv2_model.decoder.hidden_dim == 128
+
+
+def test_resolve_auto__fastvit_patch_size_is_none(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = LTDETRObjectDetectionTrainArgs()
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="fastvit/fastvit_sa12-ltdetr",
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.patch_size is None
