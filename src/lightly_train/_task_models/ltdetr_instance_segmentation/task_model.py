@@ -182,7 +182,7 @@ class LTDETRInstanceSegmentation(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return list(LTDETR_SEG_MODEL_REGISTRY.list_aliases())
+        return LTDETR_SEG_MODEL_REGISTRY.list_model_names()
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
@@ -620,11 +620,8 @@ class LTDETRInstanceSegmentation(TaskModel):
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            # We convert the fp32 attention scores already during ONNX export, so we
-            # build a strongly-typed engine: TensorRT then honors those fp32 Cast nodes
-            # instead of forcing the whole attention into FP16 (which overflows to NaN).
             fp32_attention_scores=False,
-            strongly_typed=True,
+            strongly_typed=False,
             verbose=verbose,
         )
 

@@ -34,6 +34,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer as DINOv3VisionTransformer,
@@ -173,6 +174,8 @@ class LTDETRObjectDetection(TaskModel):
         self.image_size = image_size
         self.classes = classes
         self.backbone_freeze = backbone_freeze
+        self._backbone_package_name = package_name
+        self._backbone_name = short_backbone
 
         if backbone_freeze:
             config.backbone_wrapper.finetune = False
@@ -305,7 +308,7 @@ class LTDETRObjectDetection(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return list(LTDETR_MODEL_REGISTRY.list_aliases())
+        return LTDETR_MODEL_REGISTRY.list_model_names()
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
@@ -975,6 +978,22 @@ class LTDETRObjectDetection(TaskModel):
         onnx_args = dict(onnx_args) if onnx_args is not None else {}
         onnx_args.setdefault("precision", precision)
 
+        strongly_typed = (
+            precision == "fp16"
+            and self._backbone_package_name == DINOV3_PACKAGE.name
+            and self._backbone_name == "vits16"
+        )
+        if strongly_typed:
+            logger.info(
+                "Using a strongly-typed TensorRT network for DINOv3 ViT-S to "
+                "preserve FP32 attention scores and prevent FP16 overflow."
+            )
+        else:
+            logger.info(
+                "Using a weakly-typed TensorRT network so TensorRT can optimize "
+                "layer precision."
+            )
+
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
             out=out,
@@ -984,10 +1003,7 @@ class LTDETRObjectDetection(TaskModel):
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            # We convert the fp32 attention scores already during ONNX export, so we
-            # build a strongly-typed engine: TensorRT then honors those fp32 Cast nodes
-            # instead of forcing the whole attention into FP16 (which overflows to NaN).
             fp32_attention_scores=False,
-            strongly_typed=True,
+            strongly_typed=strongly_typed,
             verbose=verbose,
         )

@@ -24,6 +24,9 @@ from lightly_train._env import Env
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.config import (
     DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
 )
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.config import (
+    DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
     DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
 )
@@ -85,34 +88,6 @@ def _get_downloadable_model_url_and_hashes(
 # 3. Add an entry to the DOWNLOADABLE_MODEL_URL_AND_HASH dictionary below including the
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
-    #### Panoptic Segmentation
-    # Trained with 4x schedule (360k steps and the masking schedule of 90K steps)
-    "dinov3/vitt16-eomt-panoptic-coco": (
-        "dinov3_vitt16_eomt_panoptic_coco_260113_770c0a1f.pt",
-        "770c0a1f024b9a78a6669d44968e2ab15b6d812839ce0c28732889ec5370ceea",
-    ),
-    "dinov3/vitt16plus-eomt-panoptic-coco": (
-        "dinov3_vitt16plus_eomt_panoptic_coco_260113_25765911.pt",
-        "25765911e4ebc6d735f385e8350a1c9924b4ccf08657d3868fbaa95ff4cc64e9",
-    ),
-    # Trained with 2x schedule (180k steps)
-    "dinov3/vits16-eomt-panoptic-coco": (
-        "dinov3_vits16_eomt_panoptic_coco_251219_89e8a64f.pt",
-        "89e8a64fb601c509df76d09ed6ddb6789e080147cadcff9700cf5792dfc20167",
-    ),
-    # Trained with 2x schedule (180k steps)
-    "dinov3/vitb16-eomt-panoptic-coco": (
-        "dinov3_vitb16_eomt_panoptic_coco_251209_05948298.pt",
-        "0594829822a23935079c35304f3bd1c7fede802114bc1a699780df693f2dea6c",
-    ),
-    "dinov3/vitl16-eomt-panoptic-coco": (
-        "dinov3_vitl16_eomt_panoptic_coco_251209_e0c1e6ae.pt",
-        "e0c1e6aeb245dbe6fd8735ffea48b81978b66b1a320533498de4375c18ad4368",
-    ),
-    "dinov3/vitl16-eomt-panoptic-coco-1280": (
-        "dinov3_vitl16_eomt_panoptic_coco_1280_251209_3da0b210.pt",
-        "3da0b21000bba3747bcb3e4ac4ee1e38641614022281f4b710d7442c643182f2",
-    ),
     #### Depth Estimation
     "dinov2/dav3-relative-small": (
         "dinov2_dav3_relative_small_260710_dcc2463f.pt",
@@ -170,6 +145,11 @@ DOWNLOADABLE_MODEL_URL_AND_HASH.update(
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
     _get_downloadable_model_url_and_hashes(
         DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY
+    )
+)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(
+        DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY
     )
 )
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
