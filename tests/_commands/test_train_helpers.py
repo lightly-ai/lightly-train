@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import pickle
 from pathlib import Path
 from typing import Any, Literal
 
@@ -37,6 +38,7 @@ from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._transforms.transform import (
     MethodTransformArgs,
     NormalizeArgs,
@@ -172,6 +174,95 @@ def test_get_embedding_model__custom(embed_dim: int | None) -> None:
     assert isinstance(embedding_model.wrapped_model, ModelWrapper)
     embedding = embedding_model.forward(x)
     assert embedding.shape == (1, embedding_model.embed_dim, 1, 1)
+
+
+def test_get_torch_compile_args() -> None:
+    args = train_helpers.get_torch_compile_args(
+        {"disable": False, "mode": "max-autotune"}
+    )
+
+    assert isinstance(args, TorchCompileArgs)
+    assert args.disable is False
+    assert args.model_dump()["mode"] == "max-autotune"
+
+
+class DummyInterpolatingModel(DummyCustomModel):
+    def get_model(self) -> torch.nn.Module:
+        return self
+
+    def interpolate_pos_encoding(self, x: Tensor, w: int, h: int) -> Tensor:
+        return x
+
+
+def test_compile_method_backbones(mocker: MockerFixture) -> None:
+    embedding_model = EmbeddingModel(wrapped_model=DummyCustomModel())
+    method = SimCLR(
+        method_args=SimCLRArgs(),
+        optimizer_args=AdamWArgs(),
+        embedding_model=embedding_model,
+        global_batch_size=1,
+        num_input_channels=3,
+    )
+    compile_mock = mocker.patch(
+        "lightly_train._torch_compile.try_compile",
+        side_effect=lambda fn, name, torch_compile_args: fn,
+    )
+
+    train_helpers.compile_method_backbones(
+        method=method,
+        torch_compile_args=TorchCompileArgs(disable=False, mode="default"),
+    )
+
+    compile_mock.assert_called_once()
+    assert (
+        compile_mock.call_args.args[1]
+        == "embedding_model.wrapped_model.forward_features"
+    )
+
+
+def test_compile_method_backbones__does_not_assign_disabled_method_to_instance(
+    mocker: MockerFixture,
+) -> None:
+    model = DummyInterpolatingModel()
+    embedding_model = EmbeddingModel(wrapped_model=model)
+    method = SimCLR(
+        method_args=SimCLRArgs(),
+        optimizer_args=AdamWArgs(),
+        embedding_model=embedding_model,
+        global_batch_size=1,
+        num_input_channels=3,
+    )
+    mocker.patch(
+        "lightly_train._torch_compile.try_compile",
+        side_effect=lambda fn, name, torch_compile_args: fn,
+    )
+
+    train_helpers.compile_method_backbones(
+        method=method,
+        torch_compile_args=TorchCompileArgs(disable=False, mode="default"),
+    )
+
+    assert "interpolate_pos_encoding" not in model.__dict__
+    assert "forward_features" not in model.__dict__
+    pickle.dumps(model)
+
+
+def test_compile_method_backbones__disabled(mocker: MockerFixture) -> None:
+    embedding_model = EmbeddingModel(wrapped_model=DummyCustomModel())
+    method = SimCLR(
+        method_args=SimCLRArgs(),
+        optimizer_args=AdamWArgs(),
+        embedding_model=embedding_model,
+        global_batch_size=1,
+        num_input_channels=3,
+    )
+    compile_mock = mocker.patch("lightly_train._torch_compile.try_compile")
+
+    train_helpers.compile_method_backbones(
+        method=method, torch_compile_args=TorchCompileArgs()
+    )
+
+    compile_mock.assert_not_called()
 
 
 def test_get_trainer(tmp_path: Path) -> None:

@@ -25,6 +25,7 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
+from lightly_train import _torch_compile
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._configs import validate
 from lightly_train._env import Env
@@ -37,6 +38,7 @@ from lightly_train._optim import optimizer_helpers
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
+from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._transforms.transform import (
     MethodTransform,
     MethodTransformArgs,
@@ -143,6 +145,87 @@ def get_embedding_model(
 ) -> EmbeddingModel:
     logger.debug(f"Getting embedding model with embedding dimension {embed_dim}.")
     return EmbeddingModel(wrapped_model=wrapped_model, embed_dim=embed_dim)
+
+
+def get_torch_compile_args(
+    torch_compile_args: dict[str, Any] | TorchCompileArgs | None,
+) -> TorchCompileArgs:
+    if isinstance(torch_compile_args, TorchCompileArgs):
+        return torch_compile_args
+    torch_compile_args = {} if torch_compile_args is None else torch_compile_args
+    return validate.pydantic_model_validate(TorchCompileArgs, torch_compile_args)
+
+
+def compile_method_backbones(
+    method: Method,
+    torch_compile_args: TorchCompileArgs,
+) -> None:
+    """Compile the embedding wrappers used by SSL methods.
+
+    The pretrain ``LightningModule.training_step`` contains logging, filenames,
+    dynamic view lists, and other graph-hostile control flow. Compile only the
+    backbone feature extraction methods that dominate runtime.
+
+    Methods are patched on the CLASS (not the instance) so models stay
+    picklable for DDP/Lightning; sentinels prevent double patching.
+
+    Note: ``interpolate_pos_encoding`` is excluded from the compiled graph
+    (bicubic resize is graph-hostile). This assumes the input resolution
+    matches the checkpoint's pos_embed grid; cross-resolution training with a
+    compiled backbone would need load-time pos_embed interpolation, which is
+    not yet supported.
+    """
+    if torch_compile_args.disable:
+        return
+
+    if hasattr(torch, "_dynamo") and hasattr(torch._dynamo, "config"):
+        # This path compiles SSL backbone submodules before Lightning wraps the
+        # method in DDP. PyTorch DDPOptimizer can otherwise re-enter at runtime
+        # and fail on DINOv2 stochastic-depth graphs.
+        torch._dynamo.config.optimize_ddp = False
+
+    seen: set[int] = set()
+    for attr_name in (
+        "embedding_model",
+        "embedding_model_momentum",
+        "student_embedding_model",
+        "teacher_embedding_model",
+    ):
+        embedding_model = getattr(method, attr_name, None)
+        if not isinstance(embedding_model, EmbeddingModel):
+            continue
+        wrapped_model = embedding_model.wrapped_model
+        if id(wrapped_model) in seen:
+            continue
+        seen.add(id(wrapped_model))
+        model = wrapped_model.get_model()
+        if hasattr(model, "interpolate_pos_encoding"):
+            model_cls = type(model)
+            interpolate_pos_encoding = getattr(model_cls, "interpolate_pos_encoding")
+            if not getattr(interpolate_pos_encoding, "_lightly_disable_compile", False):
+                interpolate_pos_encoding = _torch_compile.disable_compile(
+                    interpolate_pos_encoding
+                )
+                setattr(
+                    interpolate_pos_encoding,
+                    "_lightly_disable_compile",
+                    True,
+                )
+                setattr(
+                    model_cls,
+                    "interpolate_pos_encoding",
+                    interpolate_pos_encoding,
+                )
+        wrapped_model_cls = type(wrapped_model)
+        forward_features = getattr(wrapped_model_cls, "forward_features")
+        if not getattr(forward_features, "_lightly_torch_compile", False):
+            forward_features = _torch_compile.try_compile(
+                forward_features,
+                f"{attr_name}.wrapped_model.forward_features",
+                torch_compile_args=torch_compile_args,
+            )
+            setattr(forward_features, "_lightly_torch_compile", True)
+            setattr(wrapped_model_cls, "forward_features", forward_features)
 
 
 def get_trainer(

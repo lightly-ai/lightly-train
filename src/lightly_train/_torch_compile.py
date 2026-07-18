@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import TypeVar
+from typing import Any, TypeVar, cast
 
 import torch
 from pydantic import ConfigDict
@@ -80,12 +80,29 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     logger.info(f"Compiling {name} with torch.compile")
     start_time = time.perf_counter()
     try:
-        fn = torch.compile(fn, **torch_compile_args.model_dump())  # type: ignore
+        compiled_fn = torch.compile(fn, **torch_compile_args.model_dump())  # type: ignore
     except Exception as ex:
         logger.warning(
-            f"Compilation failed, falling back to uncompiled version. Error: {ex}"
+            f"Compilation failed for {name}, falling back to eager. Error: {ex}"
         )
         return fn
     total_time = time.perf_counter() - start_time
     logger.info(f"Compilation completed in {total_time:.1f} seconds")
-    return fn
+
+    compile_failed_at_runtime = False
+
+    def _compiled_or_eager(*args: Any, **kwargs: Any) -> Any:
+        nonlocal compile_failed_at_runtime
+        if compile_failed_at_runtime:
+            return fn(*args, **kwargs)  # type: ignore[operator]
+        try:
+            return compiled_fn(*args, **kwargs)  # type: ignore[misc]
+        except Exception as ex:
+            compile_failed_at_runtime = True
+            logger.warning(
+                f"Compiled function {name} failed at runtime, falling back to eager "
+                f"for subsequent calls. Error: {ex}"
+            )
+            return fn(*args, **kwargs)  # type: ignore[operator]
+
+    return cast(_T, _compiled_or_eager)
