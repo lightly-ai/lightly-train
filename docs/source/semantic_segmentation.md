@@ -206,8 +206,10 @@ if __name__ == "__main__":
 
 ### Changing the Patch Size
 
-Increasing the patch size is an effective way to speed up inference and training. You
-can change the patch size via the `model_args` parameter:
+Increasing the patch size is an effective way to speed up inference and training. The
+patch size is encoded in the model name: for DINOv3 ViT models, `dinov3/vits16-eomt`
+uses a patch size of 16, while `dinov3/vits32-eomt` uses a patch size of 32. To train at
+a larger patch size, simply select a `vit*32` model:
 
 ```python
 import lightly_train
@@ -216,18 +218,16 @@ if __name__ == "__main__":
 
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vits16-eomt-coco",
-        model_args={"patch_size": 32},
+        model="dinov3/vits32-eomt-coco",
         # ...,
     )
 ```
 
-As shown above, the patch size can be set to a value different from the one used in the
-pretrained model without harming compatibility of the pretrained weights. For DINOv3 ViT
-models, the patch size encoded in the model name is just the default;
-`model_args["patch_size"]` overrides it and LightlyTrain logs a warning if they differ.
-Internally, the patch embedding weights are automatically resized to the requested patch
-size using the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
+The patch-32 checkpoints are derived from the corresponding patch-16 pretrained weights
+by resizing the patch embedding using the method introduced in
+[FlexiViT](https://arxiv.org/pdf/2212.08013), so the pretrained weights remain
+compatible. The available models are listed
+[here](#semantic-segmentation-benchmark-results) in the "Model" column of the tables.
 
 As illustrated in this {ref}`figure <fig-miou-latency>`, increasing the patch size leads
 to a significant speed-up with only a moderate impact on performance.
@@ -287,6 +287,11 @@ Every image must have a corresponding mask whose filename either matches that of
 image (under a different directory) or follows a specific template pattern. The masks
 must be PNG images in either grayscale integer format, where each pixel value
 corresponds to a class ID, or multi-channel (e.g., RGB) format.
+
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits.
 
 The following image formats are supported:
 

@@ -25,6 +25,9 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.picodet_object_detection.csp_pan import CSPPAN
 from lightly_train._task_models.picodet_object_detection.esnet import ESNet
 from lightly_train._task_models.picodet_object_detection.pico_head import (
@@ -38,24 +41,6 @@ from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
-
-# Model configurations
-_MODEL_CONFIGS = {
-    "picodet/s-416": {
-        "model_size": "s",
-        "image_size": (416, 416),
-        "stacked_convs": 2,
-        "neck_out_channels": 96,
-        "head_feat_channels": 96,
-    },
-    "picodet/l-640": {
-        "model_size": "l",
-        "image_size": (640, 640),
-        "stacked_convs": 3,
-        "neck_out_channels": 128,
-        "head_feat_channels": 128,
-    },
-}
 
 
 class PicoDetObjectDetection(TaskModel):
@@ -118,36 +103,16 @@ class PicoDetObjectDetection(TaskModel):
             }
         )
 
-        config = _MODEL_CONFIGS.get(model_name)
-        if config is None:
+        try:
+            config = PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get(alias=model_name)()
+        except KeyError as error:
             raise ValueError(
                 f"Unknown model name '{model_name}'. "
-                f"Available: {list(_MODEL_CONFIGS.keys())}"
-            )
-
-        model_size_raw = config["model_size"]
-        stacked_convs_raw = config["stacked_convs"]
-        neck_out_channels_raw = config["neck_out_channels"]
-        head_feat_channels_raw = config["head_feat_channels"]
-        if model_size_raw not in ("s", "m", "l"):
-            raise ValueError(f"Invalid model_size: {model_size_raw}")
-        if not isinstance(stacked_convs_raw, int):
-            raise TypeError(f"stacked_convs must be int, got {type(stacked_convs_raw)}")
-        if not isinstance(neck_out_channels_raw, int):
-            raise TypeError(
-                f"neck_out_channels must be int, got {type(neck_out_channels_raw)}"
-            )
-        if not isinstance(head_feat_channels_raw, int):
-            raise TypeError(
-                f"head_feat_channels must be int, got {type(head_feat_channels_raw)}"
-            )
-        model_size_typed: Literal["s", "m", "l"] = model_size_raw  # type: ignore[assignment]
-        stacked_convs_typed: int = stacked_convs_raw
-        neck_out_channels_typed: int = neck_out_channels_raw
-        head_feat_channels_typed: int = head_feat_channels_raw
+                f"Available: {list(PICODET_OBJECT_DETECTION_MODEL_REGISTRY.list_aliases())}"
+            ) from error
 
         self.backbone = ESNet(
-            model_size=model_size_typed,
+            model_size=config.model_size,
             out_indices=(2, 9, 12),  # C3, C4, C5
         )
         backbone_out_channels = self.backbone.out_channels
@@ -160,7 +125,7 @@ class PicoDetObjectDetection(TaskModel):
 
         self.neck = CSPPAN(
             in_channels=backbone_out_channels,
-            out_channels=neck_out_channels_typed,
+            out_channels=config.neck_out_channels,
             kernel_size=5,
             num_features=4,  # P3, P4, P5, P6
             expansion=1.0,
@@ -169,10 +134,10 @@ class PicoDetObjectDetection(TaskModel):
         )
 
         self.head = PicoHead(
-            in_channels=neck_out_channels_typed,
+            in_channels=config.neck_out_channels,
             num_classes=num_classes,
-            feat_channels=head_feat_channels_typed,
-            stacked_convs=stacked_convs_typed,
+            feat_channels=config.head_feat_channels,
+            stacked_convs=config.stacked_convs,
             kernel_size=5,
             reg_max=reg_max,
             strides=(8, 16, 32, 64),
@@ -180,10 +145,10 @@ class PicoDetObjectDetection(TaskModel):
             use_depthwise=True,
         )
         self.o2o_head = PicoHead(
-            in_channels=neck_out_channels_typed,
+            in_channels=config.neck_out_channels,
             num_classes=num_classes,
-            feat_channels=head_feat_channels_typed,
-            stacked_convs=stacked_convs_typed,
+            feat_channels=config.head_feat_channels,
+            stacked_convs=config.stacked_convs,
             kernel_size=5,
             reg_max=reg_max,
             strides=(8, 16, 32, 64),
@@ -303,12 +268,12 @@ class PicoDetObjectDetection(TaskModel):
     @classmethod
     def list_model_names(cls) -> list[str]:
         """Return list of supported model names."""
-        return list(_MODEL_CONFIGS.keys())
+        return list(PICODET_OBJECT_DETECTION_MODEL_REGISTRY.list_aliases())
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
         """Check if a model name is supported."""
-        return model in _MODEL_CONFIGS
+        return model in PICODET_OBJECT_DETECTION_MODEL_REGISTRY.list_aliases()
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
@@ -764,7 +729,7 @@ class PicoDetObjectDetection(TaskModel):
 
             reference_model = deepcopy(self).cpu().to(torch.float32).eval()
             reference_export_model = _PicoDetExportWrapper(reference_model)
-            reference_outputs = reference_export_model(
+            reference_outputs: tuple[Tensor, ...] = reference_export_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -786,7 +751,7 @@ class PicoDetObjectDetection(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     torch.testing.assert_close(
                         output_onnx,
                         output_model,

@@ -163,8 +163,7 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
 	uv run --frozen licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
-		src/lightly_train/_task_models/ltdetr_object_detection/dino_vit_wrapper.py \
+		-f src/lightly_train/_task_models/ltdetr_object_detection/dino_vit_wrapper.py \
 		src/lightly_train/_task_models/object_detection_components/flat_cosine.py \
 		-E py
 
@@ -298,7 +297,7 @@ DOCKER_EXTRAS := [mlflow,tensorboard,timm,wandb,rfdetr]
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2026-05-18"
+EXCLUDE_NEWER_DATE := "2026-05-19"
 
 export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
 export LIGHTLY_TRAIN_POSTHOG_KEY := ""

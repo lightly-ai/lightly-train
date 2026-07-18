@@ -37,6 +37,35 @@ def model() -> DINOv3EoMTSemanticSegmentation:
     )
 
 
+def test_list_model_names__uses_registry() -> None:
+    names = DINOv3EoMTSemanticSegmentation.list_model_names()
+
+    assert "dinov3/_vittest16-eomt" in names
+    assert "dinov3/vits16-eomt" in names
+    assert "dinov3/vits16-eomt-coco" in names
+    assert "dinov3/vits32-eomt-coco" in names
+    assert "dinov3/vitt16-eupe-eomt" in names
+    assert "dinov3/vitt16-notpretrained-eomt" in names
+    assert "dinov3/convnext-tiny-eomt" not in names
+
+
+def test_is_supported_model__uses_registry() -> None:
+    assert DINOv3EoMTSemanticSegmentation.is_supported_model("dinov3/vits16-eomt")
+    assert DINOv3EoMTSemanticSegmentation.is_supported_model("dinov3/vits16-eomt-coco")
+    assert DINOv3EoMTSemanticSegmentation.is_supported_model("dinov3/vits32-eomt-coco")
+    assert DINOv3EoMTSemanticSegmentation.is_supported_model("dinov3/vitt16-eupe-eomt")
+    assert not DINOv3EoMTSemanticSegmentation.is_supported_model(
+        "dinov3/convnext-tiny-eomt"
+    )
+
+
+def test_init__uses_registry_patch_size(model: DINOv3EoMTSemanticSegmentation) -> None:
+    # The patch size comes from the registry config, not from the train model.
+    assert model.model_name == "dinov3/_vittest16-eomt"
+    assert model.patch_size == 16
+    assert model.backbone.patch_size == 16
+
+
 def test_predict_batch__composes_stages_in_order(
     model: DINOv3EoMTSemanticSegmentation, mocker: MockerFixture
 ) -> None:

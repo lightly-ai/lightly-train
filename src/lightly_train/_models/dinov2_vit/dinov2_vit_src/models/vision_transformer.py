@@ -516,7 +516,7 @@ def _vit_test(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTrans
     model = DinoVisionTransformer(
         patch_size=patch_size,
         embed_dim=8,
-        depth=2,
+        depth=3,
         num_heads=2,
         mlp_ratio=1,
         block_fn=partial(Block, attn_class=MemEffAttention),
