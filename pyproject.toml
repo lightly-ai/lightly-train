@@ -259,11 +259,6 @@ conflicts = [
         { extra = "super-gradients" },
         { extra = "onnx" },
     ],
-    [
-        { extra = "super-gradients" },
-        { group = "pinned-rocm-torch" },
-        { extra = "onnxruntime" },
-    ],
     [ # conflicting pinned versions of torch and torchvision for Python 3.8
         { group = "minimal-torch" },
         { group = "pinned-torch-minimal" },
