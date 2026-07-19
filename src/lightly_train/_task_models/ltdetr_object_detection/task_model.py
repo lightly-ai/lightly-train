@@ -720,6 +720,9 @@ class LTDETRObjectDetection(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=True,
+            report=False,
+            optimize=True,
+            verify=True,
             dynamic_shapes=dynamic_shapes,
             **(format_args or {}),
         )

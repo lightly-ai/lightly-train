@@ -673,7 +673,7 @@ class DetectorConfig(PydanticConfig):
             },
             input_dynamic_shapes={
                 "images": (
-                    Dim("batch_size", min=1, max=2**31 - 1),
+                    Dim("batch_size", min=1),
                     Dim.STATIC,
                     Dim.STATIC,
                     Dim.STATIC,

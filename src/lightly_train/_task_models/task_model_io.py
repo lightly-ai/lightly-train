@@ -15,14 +15,8 @@ from typing import Any
 import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor
-from torch.export.dynamic_shapes import Dim, _DimHint
+from torch.export.dynamic_shapes import Dim
 from typing_extensions import Self
-
-try:
-    from torch.export.dynamic_shapes import _Dim
-except ImportError:
-    # Since Torch 2.10, Dim is a class instead of a factory returning an _Dim type.
-    _Dim = Dim  # type: ignore[misc]
 
 
 class TensorSpec(BaseModel):
@@ -53,10 +47,22 @@ class ModelInputSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     input_specs: dict[str, TensorSpec]
-    input_dynamic_shapes: dict[str, tuple[_DimHint | _Dim, ...]]
+    input_dynamic_shapes: dict[str, tuple[Dim | Any, ...]] = Field(
+        ...,
+        description=(
+            "Dynamic shapes of the model's named inputs, should be either of type "
+            "torch.export.dynamic_shapes.Dim or torch.export.dynamic_shapes._DimHint."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_input_dynamic_shapes(self) -> Self:
+        """Validate names, ranks, and allowed dynamic dimensions of model inputs.
+
+        Every input must have a matching dynamic-shape entry whose rank includes
+        the batch dimension for batched inputs. Only that leading batch dimension
+        may be dynamic; all remaining dimensions must be static.
+        """
         if self.input_specs.keys() != self.input_dynamic_shapes.keys():
             raise ValueError(
                 "input_specs and input_dynamic_shapes must contain the same names."
@@ -130,8 +136,8 @@ class ModelInputSpec(BaseModel):
 
     def dynamic_shapes(
         self, *, dynamic_batch_size: bool = True
-    ) -> dict[str, tuple[_DimHint | _Dim, ...]]:
-        result: dict[str, tuple[_DimHint | _Dim, ...]] = {}
+    ) -> dict[str, tuple[Dim | Any, ...]]:
+        result: dict[str, tuple[Dim | Any, ...]] = {}
         for name, dims in self.input_dynamic_shapes.items():
             new_dims = list(dims)
             if not dynamic_batch_size and self.input_specs[name].is_batched:
@@ -140,7 +146,7 @@ class ModelInputSpec(BaseModel):
         return result
 
     @staticmethod
-    def _is_static_dim(dim: _DimHint | _Dim) -> bool:
+    def _is_static_dim(dim: Dim | Any) -> bool:
         return bool(dim == Dim.STATIC)
 
     def _default_batch_size(self, name: str) -> int:
