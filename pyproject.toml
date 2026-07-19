@@ -101,13 +101,16 @@ pinned-torch-minimal = [
     "torchvision==0.19.0; python_version<'3.9'",
 ]
 pinned-torch-maximal = [
-    "torch==2.7.0; python_version>='3.11'",
-    "torchvision==0.22.0; python_version>='3.11'",
+    "torch==2.7.0; python_version>='3.9'",
+    "torchvision==0.22.0; python_version>='3.9'",
 ]
-rocm-torch = [
-    "torch==2.12.0; python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
-    "torchvision==0.27.0; python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
-    "triton-rocm==3.7.0; python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+pinned-rocm-torch = [
+    "torch==2.4.1+rocm6.1; python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "torchvision==0.19.1+rocm6.1; python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "pytorch-triton-rocm==3.0.0; python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "torch==2.13.0+rocm7.2; python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "torchvision==0.28.0+rocm7.2; python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "triton-rocm; python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
 ]
 
 [project.optional-dependencies]
@@ -242,8 +245,6 @@ override-dependencies = [
     # are intentionally left to the resolver; the conflict declaration below prevents
     # super-gradients' onnx==1.15.0 pin from pulling those down.
     "onnx>=1.15.0",
-    # PyTorch's ROCm metadata only checks for Linux, but ROCm wheels are x86-64 only.
-    "triton-rocm==3.7.0; python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 conflicts = [
     [ # conflicting due to incompatible versions of onnxruntime
@@ -258,45 +259,40 @@ conflicts = [
         { extra = "super-gradients" },
         { extra = "onnx" },
     ],
+    [
+        { extra = "super-gradients" },
+        { group = "pinned-rocm-torch" },
+        { extra = "onnxruntime" },
+    ],
     [ # conflicting pinned versions of torch and torchvision for Python 3.8
         { group = "minimal-torch" },
         { group = "pinned-torch-minimal" },
         { group = "pinned-torch-maximal" },
-    ],
-    [ # ROCm and CUDA Torch packages cannot be installed together
-        { group = "rocm-torch" },
-        { group = "minimal-torch" },
-    ],
-    [ # ROCm and CUDA Torch packages cannot be installed together
-        { group = "rocm-torch" },
-        { group = "pinned-torch-minimal" },
-    ],
-    [ # ROCm and CUDA Torch packages cannot be installed together
-        { group = "rocm-torch" },
-        { group = "pinned-torch-maximal" },
+        { group = "pinned-rocm-torch" },
     ],
 ]
-
-[tool.uv.dependency-groups]
-minimal-torch = { requires-python = ">=3.8,<3.9" }
-pinned-torch-minimal = { requires-python = ">=3.8,<3.9" }
-pinned-torch-maximal = { requires-python = ">=3.11,<3.14" }
-rocm-torch = { requires-python = ">=3.10,<3.11" }
 
 [tool.uv.sources]
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [
-    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version < '3.9'" },
-    { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version >= '3.11'" },
-    { index = "pytorch-rocm72", group = "rocm-torch", marker = "python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9'" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version>='3.9'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
 ]
 torchvision = [
-    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version < '3.9'" },
-    { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version >= '3.11'" },
-    { index = "pytorch-rocm72", group = "rocm-torch", marker = "python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9'" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version>='3.9'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
 ]
-triton-rocm = { index = "pytorch-rocm72", marker = "python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'" }
+pytorch-triton-rocm = [
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+]
+triton-rocm = [
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+]
 
 [[tool.uv.index]]
 name = "pytorch-cu118"
@@ -304,8 +300,8 @@ url = "https://download.pytorch.org/whl/cu118"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-rocm72"
-url = "https://download.pytorch.org/whl/rocm7.2"
+name = "pytorch-rocm-all"
+url = "https://download.pytorch.org/whl"
 explicit = true
 
 [tool.pytest.ini_options]
