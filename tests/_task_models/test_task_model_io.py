@@ -6,22 +6,17 @@
 # LICENSE file in the root directory of this source tree.
 #
 from dataclasses import dataclass
-from typing import Any
 
 import pytest
 import torch
 from torch import Tensor
 from torch.export import Dim
-from torch.export.dynamic_shapes import _DimHint
 
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
     TensorSpec,
 )
-
-_DYNAMIC_DIM: Any = _DimHint.DYNAMIC()  # type: ignore[no-untyped-call]
-_STATIC_DIM: Any = _DimHint.STATIC()  # type: ignore[no-untyped-call]
 
 
 @dataclass
@@ -43,7 +38,7 @@ def test_model_input_spec__example_inputs_and_dynamic_batch() -> None:
             "images": TensorSpec(shape=(3, 8, 8), dtype=torch.float32, is_batched=True)
         },
         input_dynamic_shapes={
-            "images": (Dim("batch", min=4), _STATIC_DIM, _STATIC_DIM, _STATIC_DIM)
+            "images": (Dim("batch", min=4), Dim.STATIC, Dim.STATIC, Dim.STATIC)
         },
     )
     assert spec.example_inputs()["images"].shape == (4, 3, 8, 8)
@@ -57,7 +52,7 @@ def test_model_input_spec__example_inputs_shape_overrides() -> None:
             "images": TensorSpec(shape=(3, 8, 8), dtype=torch.float32, is_batched=True)
         },
         input_dynamic_shapes={
-            "images": (Dim("batch", min=1), _STATIC_DIM, _STATIC_DIM, _STATIC_DIM)
+            "images": (Dim("batch", min=1), Dim.STATIC, Dim.STATIC, Dim.STATIC)
         },
     )
 
@@ -78,7 +73,7 @@ def test_model_input_spec__rejects_dynamic_non_batch_dimension() -> None:
                 )
             },
             input_dynamic_shapes={
-                "images": (_DYNAMIC_DIM, _STATIC_DIM, _DYNAMIC_DIM, _STATIC_DIM)
+                "images": (Dim.DYNAMIC, Dim.STATIC, Dim.DYNAMIC, Dim.STATIC)
             },
         )
 

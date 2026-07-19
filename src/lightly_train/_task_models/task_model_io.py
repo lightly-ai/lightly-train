@@ -18,6 +18,12 @@ from torch import Tensor
 from torch.export.dynamic_shapes import Dim, _DimHint
 from typing_extensions import Self
 
+try:
+    from torch.export.dynamic_shapes import _Dim
+except ImportError:
+    # Since Torch 2.10, Dim is a class instead of a factory returning an _Dim type.
+    _Dim = Dim  # type: ignore[misc]
+
 
 class TensorSpec(BaseModel):
     """Specification of a single tensor used for model inputs or outputs."""
@@ -47,7 +53,7 @@ class ModelInputSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     input_specs: dict[str, TensorSpec]
-    input_dynamic_shapes: dict[str, tuple[_DimHint | Dim, ...]]
+    input_dynamic_shapes: dict[str, tuple[_DimHint | _Dim, ...]]
 
     @model_validator(mode="after")
     def _validate_input_dynamic_shapes(self) -> Self:
@@ -124,8 +130,8 @@ class ModelInputSpec(BaseModel):
 
     def dynamic_shapes(
         self, *, dynamic_batch_size: bool = True
-    ) -> dict[str, tuple[_DimHint | Dim, ...]]:
-        result: dict[str, tuple[_DimHint | Dim, ...]] = {}
+    ) -> dict[str, tuple[_DimHint | _Dim, ...]]:
+        result: dict[str, tuple[_DimHint | _Dim, ...]] = {}
         for name, dims in self.input_dynamic_shapes.items():
             new_dims = list(dims)
             if not dynamic_batch_size and self.input_specs[name].is_batched:
@@ -134,8 +140,8 @@ class ModelInputSpec(BaseModel):
         return result
 
     @staticmethod
-    def _is_static_dim(dim: _DimHint | Dim) -> bool:
-        return isinstance(dim, _DimHint) and dim.type.name == "STATIC"
+    def _is_static_dim(dim: _DimHint | _Dim) -> bool:
+        return bool(dim == Dim.STATIC)
 
     def _default_batch_size(self, name: str) -> int:
         batch_dim = self.input_dynamic_shapes[name][0]
