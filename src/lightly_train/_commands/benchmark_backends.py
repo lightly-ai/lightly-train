@@ -370,7 +370,10 @@ class TensorRTBackend(ObjectDetectionBackend):
         # Postprocess.
         if "logits" in outputs:
             results = self.model.postprocess(
-                raw_outputs=(outputs["logits"], outputs["boxes"]),
+                raw_outputs={
+                    "pred_logits": outputs["logits"],
+                    "pred_boxes": outputs["boxes"],
+                },
                 metadata=metadata,
                 threshold=self.threshold,
             )

@@ -673,7 +673,9 @@ class DetectorConfig(PydanticConfig):
             },
             input_dynamic_shapes={
                 "images": (
-                    Dim("batch_size", min=1),
+                    # Batch dim has to stay within int32 range on the entire tracing,
+                    # which is sometimes larger than the number here.
+                    Dim("batch_size", min=1, max=128),
                     Dim.STATIC,
                     Dim.STATIC,
                     Dim.STATIC,
