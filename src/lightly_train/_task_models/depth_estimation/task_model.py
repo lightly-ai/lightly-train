@@ -368,6 +368,55 @@ _MODEL_CONFIGS: dict[str, dict[str, Any]] = {
             "use_sky_head": True,
         },
     },
+    # Test-only V3 config: the real ViT-S backbone with a tiny DPT head and a small
+    # processing resolution to keep depth fine-tuning tests fast on CPU. (The 2-block
+    # `_vittest14` backbone cannot feed the DPT, which needs four distinct intermediate
+    # layers.)
+    "dinov2/_vittest14-dav3": {
+        "canonical_name": "dinov2/_vittest14-dav3",
+        "backbone_package": "dinov2",
+        "backbone_name": "vits14-noreg",
+        "image_size": 70,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "none",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            # Backbone img_size matches the DINOv2 checkpoint (pos_embed is interpolated
+            # to the actual processing resolution at forward time).
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 16,
+            "out_channels": (8, 16, 32, 32),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
+    # Test-only metric counterpart of `_vittest14-dav3`: identical tiny DPT head and
+    # small processing resolution, but `scale_mode="focal"` so metric fine-tuning (the
+    # scale-aware loss and unaligned metrics) can be exercised fast on CPU.
+    "dinov2/_vittest14-dav3-metric": {
+        "canonical_name": "dinov2/_vittest14-dav3-metric",
+        "backbone_package": "dinov2",
+        "backbone_name": "vits14-noreg",
+        "image_size": 70,
+        "activation": "exp",
+        "use_sky_head": True,
+        "sky_activation": "sigmoid",
+        "align_corners": False,
+        "scale_mode": "focal",
+        "model_args": {
+            "out_layers": (2, 5, 8, 11),
+            "image_size": 518,
+            "patch_size": 14,
+            "features": 16,
+            "out_channels": (8, 16, 32, 32),
+            "output_dim": 1,
+            "use_sky_head": True,
+        },
+    },
 }
 
 
@@ -484,11 +533,26 @@ class DepthAnythingDepthEstimation(TaskModel):
             raise ValueError(f"Unknown backbone package '{backbone_package}'.")
         if backbone_args is not None:
             backbone_model_args.update(backbone_args)
-        self.backbone = backbone_package_obj.get_model(
+        # Stored so fine-tuning can re-fetch the same backbone (with the same
+        # construction args) and load pretrained weights into it separately (see
+        # `_load_pretrained_backbone` in `train_model.py`).
+        self.backbone_package = backbone_package_obj
+        self.backbone_name: str = config["backbone_name"]
+        self.backbone_model_args: dict[str, Any] = backbone_model_args
+        self.backbone = self.backbone_package.get_model(
             model_name=config["backbone_name"],
             model_args=backbone_model_args,
             load_weights=False,
         )
+        try:
+            mask_token = self.backbone.mask_token  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+        else:
+            # Depth estimation does not use the mask token. We disable grads for it to
+            # avoid DDP errors from unused parameters during fine-tuning (see
+            # image_classification's task_model.py for the same pattern).
+            mask_token.requires_grad = False
         self.decoder = DPT(
             dim_in=int(self.backbone.embed_dim),
             patch_size=patch_size,
@@ -723,6 +787,20 @@ class DepthAnythingDepthEstimation(TaskModel):
         return out
 
     def load_train_state_dict(self, state_dict: dict[str, Any]) -> None:
+        """Loads weights from a training-export or converted checkpoint.
+
+        Training exports the full ``DepthEstimationTrain`` module, so the task-model
+        weights are nested under a ``model.`` prefix alongside criterion and metric
+        buffers; converted checkpoints store the bare task-model keys. When any
+        ``model.``-prefixed key is present, the prefix is stripped and all other keys
+        (criterion, metrics) are dropped; otherwise the state dict is loaded as-is.
+        """
+        if any(name.startswith("model.") for name in state_dict):
+            state_dict = {
+                name[len("model.") :]: param
+                for name, param in state_dict.items()
+                if name.startswith("model.")
+            }
         self.load_state_dict(state_dict, strict=True)
 
     @torch.no_grad()
@@ -1003,6 +1081,32 @@ class DepthAnythingDepthEstimation(TaskModel):
                 )
         elif intrinsics is not None:
             raise ValueError("This model does not accept intrinsics.")
+
+
+def get_model_image_size(model_name: str) -> int:
+    """Returns the fixed processing image size for a depth model.
+
+    Used to resolve the training transform image size from the model name without
+    instantiating the model.
+    """
+    key = model_name.lower()
+    if key not in _MODEL_CONFIGS:
+        raise ValueError(
+            f"Model name '{model_name}' is not supported. Available models are: "
+            f"{DepthAnythingDepthEstimation.list_model_names()}."
+        )
+    return int(_MODEL_CONFIGS[key]["image_size"])
+
+
+def get_model_patch_size(model_name: str) -> int:
+    """Returns the ViT patch size for a depth model."""
+    key = model_name.lower()
+    if key not in _MODEL_CONFIGS:
+        raise ValueError(
+            f"Model name '{model_name}' is not supported. Available models are: "
+            f"{DepthAnythingDepthEstimation.list_model_names()}."
+        )
+    return int(_MODEL_CONFIGS[key]["model_args"]["patch_size"])
 
 
 def _processed_focal_length(

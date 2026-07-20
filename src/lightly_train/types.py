@@ -27,6 +27,7 @@ PackageModel = Any
 ImageDtypes = Union[np.uint8, np.float32]
 NDArrayImage = NDArray[ImageDtypes]  # (H, W) or (H, W, C)
 NDArrayMask = NDArray[Union[np.uint8, np.uint16, np.int_]]  # (H, W) or (H, W, C)
+NDArrayDepth = NDArray[np.float32]  # (H, W) float depth or sky confidence map
 NDArrayBBoxes = NDArray[np.float64]  # (n_boxes, 4)
 NDArrayOBBoxes = NDArray[
     np.float64
@@ -216,6 +217,23 @@ class ImageClassificationBatch(TypedDict):
     # multilabel classification, or (1,) with the class label for multiclass
     # classification.
     classes: list[Tensor]
+
+
+class DepthEstimationDatasetItem(TaskDatasetItem):
+    image_path: ImageFilename
+    image: Tensor  # Tensor with shape (3, H, W).
+    depth: Tensor  # Tensor with shape (1, H, W). Pixels with value <= 0 are invalid.
+    sky: Tensor  # Tensor with shape (1, H, W) with sky confidence in [0, 1].
+
+
+class DepthEstimationBatch(TypedDict):
+    image_path: list[ImageFilename]  # length==batch_size
+    # Tensor with shape (batch_size, 3, H, W) or list of Tensors with shape (3, H, W).
+    image: Tensor | list[Tensor]
+    # Tensor with shape (batch_size, 1, H, W) or list of Tensors with shape (1, H, W).
+    depth: Tensor | list[Tensor]
+    # Tensor with shape (batch_size, 1, H, W) or list of Tensors with shape (1, H, W).
+    sky: Tensor | list[Tensor]
 
 
 # Replaces torch.optim.optimizer.ParamsT
