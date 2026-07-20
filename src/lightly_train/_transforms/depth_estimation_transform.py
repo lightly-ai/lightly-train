@@ -24,6 +24,7 @@ from albumentations import (
     VerticalFlip,
 )
 from albumentations.pytorch import ToTensorV2
+from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
 from typing_extensions import NotRequired
 
@@ -52,6 +53,11 @@ from lightly_train.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+# The RandomCrop padding kwargs (pad_if_needed, pad_position, fill) were added in
+# albumentations 1.4.21; older pinned versions (e.g. 1.3.1 for super-gradients) only
+# accept height/width/p. See _transforms/random_iou_crop.py for the same guard.
+ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
 
 # Albumentations targets: depth and sky are passed through geometric ops as float
 # "mask" targets so they are not normalized or color-jittered.
@@ -126,16 +132,28 @@ class DepthEstimationTransform(TaskTransform):
         # During training the image is randomly cropped to a fixed size; the same
         # geometric crop is applied to depth and sky via the additional targets.
         if transform_args.random_crop is not None:
-            transform += [
-                RandomCrop(
-                    height=no_auto(transform_args.random_crop.height),
-                    width=no_auto(transform_args.random_crop.width),
+            crop_height = no_auto(transform_args.random_crop.height)
+            crop_width = no_auto(transform_args.random_crop.width)
+            crop_prob = transform_args.random_crop.prob
+            if ALBUMENTATIONS_GEQ_1_4_21:
+                random_crop = RandomCrop(
+                    height=crop_height,
+                    width=crop_width,
                     pad_if_needed=transform_args.random_crop.pad_if_needed,
                     pad_position=transform_args.random_crop.pad_position,
                     fill=transform_args.random_crop.fill,
-                    p=transform_args.random_crop.prob,
+                    p=crop_prob,
                 )
-            ]
+            else:
+                # Older albumentations has no padding support; fall back to a plain crop.
+                # The DepthAnything resolutions are always larger than the crop size, so
+                # pad_if_needed is a no-op in practice.
+                random_crop = RandomCrop(
+                    height=crop_height,
+                    width=crop_width,
+                    p=crop_prob,
+                )
+            transform += [random_crop]
 
         if transform_args.random_flip is not None:
             if transform_args.random_flip.horizontal_prob > 0.0:

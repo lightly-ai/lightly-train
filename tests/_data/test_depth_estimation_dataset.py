@@ -109,10 +109,12 @@ def test_depth_estimation_dataset___getitem___shape_mismatch(
     sky_dir = tmp_path / "sky"
     for d in (image_dir, depth_dir, sky_dir):
         d.mkdir()
-    Image.fromarray(np.zeros((16, 16, 3), dtype=np.uint8)).save(image_dir / "a.png")
-    # Write a mismatched label for the parametrized target.
-    depth_shape = (8, 8) if missing == "depth" else (16, 16)
-    sky_shape = (8, 8) if missing == "sky" else (16, 16)
+    Image.fromarray(np.zeros((28, 28, 3), dtype=np.uint8)).save(image_dir / "a.png")
+    # Write a mismatched label for the parametrized target. The mismatch is detected in
+    # __getitem__ before the transform runs, so image_size only needs to be valid (a
+    # multiple of the patch size 14).
+    depth_shape = (8, 8) if missing == "depth" else (28, 28)
+    sky_shape = (8, 8) if missing == "sky" else (28, 28)
     np.save(depth_dir / "a.npy", np.ones(depth_shape, dtype=np.float32))
     Image.fromarray(np.zeros(sky_shape, dtype=np.uint8), mode="L").save(
         sky_dir / "a.png"
@@ -123,7 +125,7 @@ def test_depth_estimation_dataset___getitem___shape_mismatch(
         val=SplitArgs(images=image_dir, depth=depth_dir, sky=sky_dir),
     )
     dataset_args = data_args.get_train_args()
-    transform_args = DepthEstimationTrainTransformArgs(image_size=(16, 16))
+    transform_args = DepthEstimationTrainTransformArgs(image_size=(28, 28))
     transform_args.resolve_auto(model_init_args={})
     transform_args.resolve_incompatible()
     dataset = DepthEstimationDataset(
