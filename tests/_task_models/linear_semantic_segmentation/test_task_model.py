@@ -114,7 +114,7 @@ class TestLinearSemanticSegmentation:
         )
 
         config = LINEAR_SEG_MODEL_REGISTRY.get(model_name)()
-        assert config.backbone_name == model_name.removesuffix("-linear")
+        assert config.backbone_name == model_name[: -len("-linear")]
         assert config.freeze_mask_token is True
 
 
