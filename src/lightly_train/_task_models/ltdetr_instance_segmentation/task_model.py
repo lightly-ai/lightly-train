@@ -182,7 +182,7 @@ class LTDETRInstanceSegmentation(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return list(LTDETR_SEG_MODEL_REGISTRY.list_aliases())
+        return LTDETR_SEG_MODEL_REGISTRY.list_model_names()
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:

@@ -1,6 +1,6 @@
 (depth-estimation-doc)=
 
-# Depth Estimation (NEW)
+# Depth Estimation
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/depth_estimation.ipynb)
 
@@ -8,7 +8,6 @@
 LightlyTrain supports depth estimation inference with
 [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) and
 [Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) models.
-Training support will be released soon!
 ```
 
 LightlyTrain ports the Depth Anything V2 (DAv2) and V3 (DAv3) monocular depth estimation
@@ -29,14 +28,27 @@ The meaning of the predicted values is not the same across models. For
 
 ## Models
 
-All models use a DINOv2 ViT backbone.
+All models use a ViT backbone. The model name prefix indicates which one: `dinov2/`
+models use a DINOv2 backbone and `dinov3/` models a DINOv3 backbone.
 
 ### Depth Anything V3
 
-| Model                        | Type     | Backbone |
-| ---------------------------- | -------- | :------: |
-| `dinov2/dav3-relative-large` | Relative | ViT-L/14 |
-| `dinov2/dav3-metric-large`   | Metric   | ViT-L/14 |
+| Model                            | Type     |     Backbone     |
+| -------------------------------- | -------- | :--------------: |
+| `dinov3/dav3-relative-tiny`      | Relative | DINOv3 ViT-T/16  |
+| `dinov3/dav3-relative-tiny-plus` | Relative | DINOv3 ViT-T+/16 |
+| `dinov2/dav3-relative-small`     | Relative | DINOv2 ViT-S/14  |
+| `dinov2/dav3-relative-large`     | Relative | DINOv2 ViT-L/14  |
+| `dinov3/dav3-metric-tiny`        | Metric   | DINOv3 ViT-T/16  |
+| `dinov3/dav3-metric-tiny-plus`   | Metric   | DINOv3 ViT-T+/16 |
+| `dinov2/dav3-metric-small`       | Metric   | DINOv2 ViT-S/14  |
+| `dinov2/dav3-metric-large`       | Metric   | DINOv2 ViT-L/14  |
+
+The large models are ported from the official
+[Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) release. The
+tiny, tiny-plus, and small models are trained by LightlyTrain by distilling the
+corresponding large model, giving much faster inference at a small accuracy cost (see
+the [benchmarks](#depth-estimation-benchmarks) below).
 
 ### Depth Anything V2
 
@@ -73,13 +85,54 @@ them from the official weights yourself, see
 - **Do you need depth in meters?** If yes, pick a **metric** model. If you only need the
   relative ordering of the scene (closer vs. farther), pick a **relative** model, it is
   simpler to use and needs no camera information.
-- **DAv3 or DAv2?** DAv3 is the recent model and generally the most accurate. Choose
-  DAv2 if you need a smaller and faster ViT-S or ViT-B model, or a model under a
-  permissive license for commercial use, the two hosted DAv2 small models are
-  Apache-2.0.
+- **Which size?** The tiny and tiny-plus models are the fastest and light enough for CPU
+  and edge deployment, small is a good middle ground, and large is the most accurate.
+  Start with large and step down if you need more speed, see the
+  [benchmarks](#depth-estimation-benchmarks) below.
+- **DAv3 or DAv2?** Use DAv3: it is the recent model, generally the most accurate, and
+  comes in sizes from ViT-T to ViT-L. This is especially true for zero-shot metric depth
+  estimation: the DAv2 metric models are only trained on in-domain data (indoor or
+  outdoor driving scenes), while the DAv3 metric models generalize across domains.
 - **Which DAv2 metric model?** The metric DAv2 models are trained per domain: use a
   `hypersim` model for **indoor** scenes (depth up to 20 m) and a `vkitti` model for
   **outdoor** driving scenes (depth up to 80 m).
+
+(depth-estimation-benchmarks)=
+
+### Benchmarks
+
+Depth accuracy is evaluated zero-shot on the NYUv2 test split (654 images) with the
+eigen crop and a depth range of 0.1 m to 10 m. NYUv2 was not used during training.
+**Metric** models are scored directly against the ground-truth depth:
+
+| Model                          | Params (M) |  δ1   | AbsRel | RMSE  |
+| ------------------------------ | :--------: | :---: | :----: | :---: |
+| `dinov2/dav3-metric-large`     |   334.2M   | 0.950 | 0.078  | 0.339 |
+| `dinov2/dav3-metric-small`     |   24.7M    | 0.912 | 0.099  | 0.377 |
+| `dinov3/dav3-metric-tiny-plus` |    7.9M    | 0.846 | 0.123  | 0.457 |
+| `dinov3/dav3-metric-tiny`      |    6.2M    | 0.818 | 0.131  | 0.506 |
+
+**Relative** models are scored after a per-image least-squares scale-and-shift alignment
+to the ground truth, so the numbers are affine-invariant and not directly comparable to
+the metric table:
+
+| Model                            | Params (M) |  δ1   | AbsRel |
+| -------------------------------- | :--------: | :---: | :----: |
+| `dinov2/dav3-relative-large`     |   334.2M   | 0.928 | 0.084  |
+| `dinov2/dav3-relative-small`     |   24.7M    | 0.909 | 0.101  |
+| `dinov3/dav3-relative-tiny-plus` |    7.9M    | 0.874 | 0.120  |
+| `dinov3/dav3-relative-tiny`      |    6.2M    | 0.882 | 0.118  |
+
+All models are evaluated with the aspect-preserving `lower_bound_resize` method.
+
+Inference time of the distilled relative models, measured with FP16 TensorRT engines on
+an NVIDIA T4 GPU:
+
+| Model                            | Input Size | Params (M) | Avg inference time |
+| -------------------------------- | :--------: | :--------: | :----------------: |
+| `dinov3/dav3-relative-tiny`      |  576×576   |    6.2M    |      5.27 ms       |
+| `dinov3/dav3-relative-tiny-plus` |  576×576   |    7.9M    |      5.49 ms       |
+| `dinov2/dav3-relative-small`     |  504×504   |   24.7M    |      9.17 ms       |
 
 (depth-estimation-relative)=
 
@@ -93,7 +146,7 @@ height and width as the input image.
 import lightly_train
 
 # Load a model hosted by LightlyTrain (downloaded and cached automatically).
-model = lightly_train.load_model("dinov2/dav3-relative-large")
+model = lightly_train.load_model("dinov2/dav3-relative-small")
 
 # Predict a relative-depth map. Returns a (H, W) tensor matching the input resolution.
 depth = model.predict("image.jpg")
@@ -102,8 +155,9 @@ depth = model.predict("image.jpg")
 ```{tip}
 By default `load_model` runs on a GPU (`"cuda"` or `"mps"`) if one is available and falls
 back to CPU otherwise. Pass `device=` to choose explicitly, e.g.
-`lightly_train.load_model("dinov2/dav3-relative-large", device="cuda")`. The default ViT-L
-models are sizable, so a GPU is recommended.
+`lightly_train.load_model("dinov2/dav3-relative-small", device="cuda")`. The tiny and
+small models are light enough for CPU inference; the ViT-L models are sizable, so a GPU
+is recommended for them.
 ```
 
 ### Visualize the Result
@@ -116,7 +170,7 @@ from PIL import Image
 
 import lightly_train
 
-model = lightly_train.load_model("dinov2/dav3-relative-large")
+model = lightly_train.load_model("dinov2/dav3-relative-small")
 depth = model.predict("image.jpg")
 
 # Colorize the depth map and save it next to the input image.
@@ -199,7 +253,7 @@ Use `predict_batch` to run inference on several images at once. It returns a lis
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov2/dav3-relative-large")
+model = lightly_train.load_model("dinov2/dav3-relative-small")
 depths = model.predict_batch(["image1.jpg", "image2.jpg"])
 ```
 
@@ -298,7 +352,7 @@ The following example shows how to export a model to ONNX.
 import lightly_train
 
 # Load a model.
-model = lightly_train.load_model("dinov2/dav3-relative-large")
+model = lightly_train.load_model("dinov2/dav3-relative-small")
 
 # Export to ONNX.
 model.export_onnx(
@@ -340,7 +394,7 @@ pip install tensorrt-cu12
 import lightly_train
 
 # Load a model.
-model = lightly_train.load_model("dinov2/dav3-relative-large")
+model = lightly_train.load_model("dinov2/dav3-relative-small")
 
 # Export to TensorRT from an ONNX file.
 model.export_tensorrt(
@@ -357,13 +411,14 @@ when exporting to TensorRT.
 ONNX export and TensorRT engine building can be combined in a single call: building a
 TensorRT engine requires an ONNX model, and `export_tensorrt` exports it for you. You
 can fix the export resolution via `onnx_args` (`height` and `width`, both multiples of
-the patch size 14) and pick the precision at the same time:
+the backbone patch size: 14 for `dinov2/` models, 16 for `dinov3/` models) and pick the
+precision at the same time:
 
 ```python skip_ruff
 import lightly_train
 
 # A hosted model name, or a path to a converted DAv2 checkpoint.
-model = lightly_train.load_model("dinov2/dav3-relative-large")
+model = lightly_train.load_model("dinov2/dav3-relative-small")
 
 
 model.export_tensorrt(

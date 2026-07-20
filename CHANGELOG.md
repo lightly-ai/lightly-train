@@ -11,8 +11,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
   `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
+- Add tiny, tiny-plus, and small Depth Anything V3 depth estimation models — the
+  smallest and fastest so far, distilled from ViT-L: `dinov3/dav3-relative-tiny`,
+  `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,
+  `dinov3/dav3-metric-tiny`, `dinov3/dav3-metric-tiny-plus`, and
+  `dinov2/dav3-metric-small`.
 
 ### Changed
+
+- ONNX export for LT-DETR object detection now returns raw logits and normalized
+  bounding boxes. Postprocessing is supposed to be applied outside the graph.
 
 ### Deprecated
 

@@ -373,7 +373,7 @@ See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_onnx` for all available op
 when exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/panoptic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation_export.ipynb)
 
 (panoptic-segmentation-tensorrt)=
 
@@ -415,4 +415,4 @@ See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_tensorrt` for all availabl
 options when exporting to TensorRT.
 
 You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/panoptic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation_export.ipynb)

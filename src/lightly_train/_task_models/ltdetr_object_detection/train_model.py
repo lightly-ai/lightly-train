@@ -103,6 +103,20 @@ logger = logging.getLogger(__name__)
 _DINOV2_PREFIX = "dinov2/"
 
 
+def _decode_predictions_for_metrics(
+    model: LTDETRObjectDetection,
+    outputs: dict[str, Tensor],
+    orig_target_sizes: Tensor,
+) -> list[dict[str, Tensor]]:
+    labels, boxes, scores = model.postprocessor.decode(
+        (outputs["pred_logits"], outputs["pred_boxes"]), orig_target_sizes
+    )
+    return [
+        {"labels": labels_i, "boxes": boxes_i, "scores": scores_i}
+        for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
+    ]
+
+
 class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
     """Shared defaults for LTDETRObjectDetectionTrainArgs and
     DINOv2LTDETRObjectDetectionTrainArgsV2.
@@ -598,8 +612,10 @@ class LTDETRObjectDetectionTrain(TrainModel):
             orig_target_sizes_tensor = torch.tensor(
                 orig_target_sizes, device=samples.device
             )
-            results = self.model.postprocessor(
-                outputs, orig_target_sizes=orig_target_sizes_tensor
+            results = _decode_predictions_for_metrics(
+                model=self.model,
+                outputs=outputs,
+                orig_target_sizes=orig_target_sizes_tensor,
             )
             self.train_metrics.update_with_predictions(results, targets)
 
@@ -669,8 +685,10 @@ class LTDETRObjectDetectionTrain(TrainModel):
         orig_target_sizes_tensor = torch.tensor(
             orig_target_sizes, device=samples.device
         )
-        results: list[dict[str, Tensor]] = self.model.postprocessor(
-            outputs, orig_target_sizes=orig_target_sizes_tensor
+        results = _decode_predictions_for_metrics(
+            model=self.model,
+            outputs=outputs,
+            orig_target_sizes=orig_target_sizes_tensor,
         )
 
         # Metrics
