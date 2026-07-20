@@ -23,8 +23,8 @@ jobs:
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           list-files: shell
@@ -39,31 +39,20 @@ jobs:
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python: ["3.8", "3.13"]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set Up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         id: setup-uv
         with:
-          version: 0.10.0
+          version: 0.11.15
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-          python-version: ${{ matrix.python }}
-      - name: Set Up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
       - name: Set Up Environment
         run: |
-          make install-pinned-${{ matrix.python }}
+          make install-pinned-3.13
       - name: Run Format Check
-        # Run the format check only on the latest Python version as earlier versions
-        # might format the code differently.
-        if: ${{ matrix.python == '3.13' }}
         run: |
           make format-check
       - name: Run Type Check

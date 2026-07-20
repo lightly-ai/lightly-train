@@ -23,8 +23,8 @@ jobs:
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           list-files: shell
@@ -40,34 +40,21 @@ jobs:
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     strategy:
       matrix:
-        python: ["3.8", "3.13"]
         runners: ["ubuntu-latest", "windows-latest"]
     runs-on: ${{ matrix.runners }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set Up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         id: setup-uv
         with:
-          version: 0.10.0
+          version: 0.11.15
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-          python-version: ${{ matrix.python }}
-      - name: Set Up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-      # Disabled because FFmpeg install fails too often in CI. See https://github.com/federicocarboni/setup-ffmpeg/issues/29
-      # - name: Set Up FFmpeg
-      #   # FFMPEG is not installable on Windows using the setup-ffmpeg action.
-      #   if: ${{ matrix.runners == 'ubuntu-latest' }}
-      #   uses: FedericoCarboni/setup-ffmpeg@v3
-      #   with:
-      #     ffmpeg-version: 4.3.1
       - name: Set Up Environment
         run: |
-          make install-pinned-${{ matrix.python }}              # Install the dependencies
+          make install-pinned-3.13
       - name: Run Pytest
         run: |
-          make test-ci
+          make test-ci-maximal

@@ -14,9 +14,9 @@ SOURCE_DIR := source
 .PHONY: docs
 docs:
 	@echo "📚 Building v${VERSION} documentation..."
-	python prebuild.py --source-dir ${SOURCE_DIR}
-	sphinx-build -b html --fail-on-warning --keep-going ${SOURCE_DIR} ${BUILD_VERSION_DIR}
-	python build.py --build-dir ${BUILD_DIR}
+	uv run --frozen python prebuild.py --source-dir ${SOURCE_DIR}
+	uv run --frozen sphinx-build -b html --fail-on-warning --keep-going ${SOURCE_DIR} ${BUILD_VERSION_DIR}
+	uv run --frozen python build.py --build-dir ${BUILD_DIR}
 	@echo "✅ Documentation built successfully!"
 
 # Build docs for the stable version. Assumes that the current version is the stable
@@ -24,15 +24,15 @@ docs:
 .PHONY: docs-stable
 docs-stable:
 	@echo "🗿 Building stable documentation..."
-	python prebuild.py --source-dir ${SOURCE_DIR}
-	sphinx-build -b html --fail-on-warning --keep-going ${SOURCE_DIR} ${BUILD_STABLE_DIR}
-	python build.py --build-dir ${BUILD_DIR}
+	uv run --frozen python prebuild.py --source-dir ${SOURCE_DIR}
+	uv run --frozen sphinx-build -b html --fail-on-warning --keep-going ${SOURCE_DIR} ${BUILD_STABLE_DIR}
+	uv run --frozen python build.py --build-dir ${BUILD_DIR}
 	@echo "✅ Documentation built successfully!"
 
 # Serve the documentation on localhost.
 .PHONY: serve
 serve:
-	python -m http.server 1234 --directory ${BUILD_DIR}
+	uv run --frozen python -m http.server 1234 --directory ${BUILD_DIR}
 
 .PHONY: clean
 clean:

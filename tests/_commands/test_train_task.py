@@ -12,10 +12,28 @@ from typing import Any
 
 import pytest
 from lightning_utilities.core.imports import RequirementCache
+from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
+)
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationMulticlassDataArgs,
+    ImageClassificationMultilabelDataArgs,
+)
+from lightly_train._data.instance_segmentation_dataset import (
+    COCOInstanceSegmentationDataArgs,
+    YOLOInstanceSegmentationDataArgs,
+)
+from lightly_train._data.mask_panoptic_segmentation_dataset import (
+    MaskPanopticSegmentationDataArgs,
+)
+from lightly_train._data.mask_semantic_segmentation_dataset import (
+    MaskSemanticSegmentationDataArgs,
+)
+from lightly_train._data.yolo_object_detection_dataset import (
+    YOLOObjectDetectionDataArgs,
 )
 
 if RequirementCache("albumentations<1.4.0"):
@@ -36,7 +54,18 @@ import torch
 import yaml
 
 import lightly_train
-from lightly_train._commands.train_task import ObjectDetectionTrainTaskConfig
+from lightly_train._commands.train_task import (
+    ImageClassificationMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMultilabelTrainTaskConfig,
+    ImageClassificationMultilabelTrainTaskConfig,
+    InstanceSegmentationTrainTaskConfig,
+    ObjectDetectionTrainTaskConfig,
+    PanopticSegmentationTrainTaskConfig,
+    SemanticSegmentationMultiheadTrainTaskConfig,
+    SemanticSegmentationTrainTaskConfig,
+)
+from lightly_train._data import data_helpers as data_arg_helpers
 
 from .. import helpers
 
@@ -86,6 +115,13 @@ def test_train_image_classification__multiclass(tmp_path: Path) -> None:
     assert results["labels"].shape == (1,)
     assert results["scores"].shape == (1,)
 
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
+
 
 def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     out = tmp_path / "out"
@@ -124,6 +160,13 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     results = model.predict(torch.randn(3, 224, 224), threshold=-1)  # type: ignore[call-arg]
     assert results["labels"].shape == (3,)
     assert results["scores"].shape == (3,)
+
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
@@ -189,7 +232,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="dinov3/vitt16-notpretrained-ltdetr",
+        model="_ltdetrv2-s-notpretrained",
         data={
             "path": data,
             "train": Path("train", "images"),
@@ -198,6 +241,9 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
                 0: "class_0",
                 1: "class_1",
             },
+        },
+        model_args={
+            "scheduler_name": "linear",
         },
         steps=2,
         batch_size=2,
@@ -229,6 +275,13 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     assert results["scores"].ndim == 1
     assert results["labels"].ndim == 1
 
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
+
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
@@ -243,30 +296,18 @@ def test_train_instance_segmentation(
 ) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
-    # Create dataset with 6 files, including one without a label file (index 4) and
-    # one with an empty label file (index 5).
-    helpers.create_yolo_instance_segmentation_dataset(
-        data,
-        split_first=True,
-        num_files=6,
-        missing_label_indices=[4],
-        empty_label_indices=[5],
-    )
+    helpers.create_coco_instance_segmentation_dataset(data, num_files=4)
 
     # Check training
     lightly_train.train_instance_segmentation(
         out=out,
         data={
-            "path": data,
-            "train": Path("train", "images"),
-            "val": Path("val", "images"),
-            "names": {
-                0: "class_0",
-                1: "class_1",
-            },
+            "format": "coco",
+            "train": {"annotations": str(data / "train.json"), "images": "train"},
+            "val": {"annotations": str(data / "val.json"), "images": "val"},
         },
-        model="dinov3/vitt16-notpretrained-eomt",
-        model_args={"num_joint_blocks": 1},
+        model="_ltdetrv2-seg-s-notpretrained",
+        model_args={"scheduler_name": "linear"},
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
@@ -288,6 +329,13 @@ def test_train_instance_segmentation(
     assert results["masks"].ndim == 3
     assert results["masks"].shape[-2:] == dummy_input.shape[1:]
     assert results["scores"].ndim == 1
+
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
@@ -342,6 +390,13 @@ def test_train_panoptic_segmentation(
     assert results["segment_ids"].ndim == 1
     assert results["scores"].ndim == 1
 
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
+
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @pytest.mark.skipif(
@@ -395,6 +450,13 @@ def test_train_panoptic_segmentation__dinov2(
     assert results["masks"].shape == (100, 200, 2)
     assert results["segment_ids"].ndim == 1
     assert results["scores"].ndim == 1
+
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(
@@ -467,6 +529,13 @@ def test_train_semantic_segmentation(
     assert prediction.shape == (224, 224)
     assert prediction.min() >= 0
     assert prediction.max() <= 1
+
+    # Check that example images were logged for training and validation.
+    image_examples_dir = out / "image_examples"
+    assert image_examples_dir.exists()
+    assert (image_examples_dir / "train_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_labels_0.jpg").exists()
+    assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
@@ -897,8 +966,31 @@ def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_
 
 
 @pytest.mark.parametrize("path_type", [str, Path])
-def test_create_object_detection_train_task_config__data_is_yaml(
-    tmp_path: Path, path_type: type
+@pytest.mark.parametrize(
+    "config_cls, task, expected_data_args_cls",
+    [
+        (
+            ObjectDetectionTrainTaskConfig,
+            "object_detection",
+            COCOObjectDetectionDataArgs,
+        ),
+        (
+            InstanceSegmentationTrainTaskConfig,
+            "instance_segmentation",
+            COCOInstanceSegmentationDataArgs,
+        ),
+    ],
+)
+def test_create_train_task_config__data_is_coco_yaml(
+    tmp_path: Path,
+    path_type: type,
+    config_cls: type[
+        ObjectDetectionTrainTaskConfig | InstanceSegmentationTrainTaskConfig
+    ],
+    task: str,
+    expected_data_args_cls: type[
+        COCOObjectDetectionDataArgs | COCOInstanceSegmentationDataArgs
+    ],
 ) -> None:
     data_yaml = tmp_path / "data.yaml"
     data_yaml.write_text(
@@ -911,12 +1003,446 @@ def test_create_object_detection_train_task_config__data_is_yaml(
             }
         )
     )
+    config = config_cls(
+        out="out",
+        model="some/model",
+        task=task,  # type: ignore[arg-type]
+        data=path_type(data_yaml),  # type: ignore[arg-type]
+    )
+    assert isinstance(config.data, expected_data_args_cls)
+    assert config.data.format == "coco"
+    assert config.data.train.annotations == "train.json"
+    assert config.data.val.annotations == "val.json"
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+@pytest.mark.parametrize(
+    "config_cls, task, expected_data_args_cls",
+    [
+        (
+            ObjectDetectionTrainTaskConfig,
+            "object_detection",
+            YOLOObjectDetectionDataArgs,
+        ),
+        (
+            InstanceSegmentationTrainTaskConfig,
+            "instance_segmentation",
+            YOLOInstanceSegmentationDataArgs,
+        ),
+    ],
+)
+def test_create_train_task_config__data_yaml_defaults_to_yolo(
+    tmp_path: Path,
+    path_type: type,
+    config_cls: type[
+        ObjectDetectionTrainTaskConfig | InstanceSegmentationTrainTaskConfig
+    ],
+    task: str,
+    expected_data_args_cls: type[
+        YOLOObjectDetectionDataArgs | YOLOInstanceSegmentationDataArgs
+    ],
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "path": str(tmp_path),
+                "train": "images/train",
+                "val": "images/val",
+                "names": {0: "class_a"},
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+    config = config_cls(
+        out="out",
+        model="some/model",
+        task=task,  # type: ignore[arg-type]
+        data=path_type(data_yaml),  # type: ignore[arg-type]
+    )
+    assert isinstance(config.data, expected_data_args_cls)
+    assert config.data.format == "yolo"
+    assert config.data.path == str(tmp_path)
+    assert config.data.train == Path("images/train")
+    assert config.data.val == Path("images/val")
+    assert config.data.names == {0: "class_a"}
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__direct_data_has_no_data_config_file(
+    tmp_path: Path,
+) -> None:
     config = ObjectDetectionTrainTaskConfig(
         out="out",
         model="some/model",
         task="object_detection",
+        data={  # type: ignore[arg-type]
+            "path": str(tmp_path),
+            "train": "images/train",
+            "val": "images/val",
+            "names": {0: "class_a"},
+        },
+    )
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.data_config_file is None
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+@pytest.mark.parametrize(
+    "config_cls, expected_data_args_cls",
+    [
+        (
+            ImageClassificationMulticlassTrainTaskConfig,
+            ImageClassificationMulticlassDataArgs,
+        ),
+        (
+            ImageClassificationMultilabelTrainTaskConfig,
+            ImageClassificationMultilabelDataArgs,
+        ),
+        (
+            ImageClassificationMultiheadMulticlassTrainTaskConfig,
+            ImageClassificationMulticlassDataArgs,
+        ),
+        (
+            ImageClassificationMultiheadMultilabelTrainTaskConfig,
+            ImageClassificationMultilabelDataArgs,
+        ),
+    ],
+)
+def test_create_train_task_config__image_classification_data_yaml(
+    tmp_path: Path,
+    path_type: type,
+    config_cls: type[
+        ImageClassificationMulticlassTrainTaskConfig
+        | ImageClassificationMultilabelTrainTaskConfig
+        | ImageClassificationMultiheadMulticlassTrainTaskConfig
+        | ImageClassificationMultiheadMultilabelTrainTaskConfig
+    ],
+    expected_data_args_cls: type[
+        ImageClassificationMulticlassDataArgs | ImageClassificationMultilabelDataArgs
+    ],
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": "train",
+                "val": "val",
+                "classes": {0: "class_a"},
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = config_cls(
+        out="out",
+        model="some/model",
         data=path_type(data_yaml),
     )
-    assert isinstance(config.data, COCOObjectDetectionDataArgs)
-    assert config.data.train.annotations == "train.json"
-    assert config.data.val.annotations == "val.json"
+
+    assert isinstance(config.data, expected_data_args_cls)
+    assert config.data.train == "train"
+    assert config.data.val == "val"
+    assert config.data.classes == {0: "class_a"}
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+@pytest.mark.parametrize(
+    "config_cls, expected_data_args_cls",
+    [
+        (
+            ImageClassificationMulticlassTrainTaskConfig,
+            ImageClassificationMulticlassDataArgs,
+        ),
+        (
+            ImageClassificationMultilabelTrainTaskConfig,
+            ImageClassificationMultilabelDataArgs,
+        ),
+    ],
+)
+def test_create_train_task_config__image_classification_csv_aliases(
+    config_cls: type[
+        ImageClassificationMulticlassTrainTaskConfig
+        | ImageClassificationMultilabelTrainTaskConfig
+    ],
+    expected_data_args_cls: type[
+        ImageClassificationMulticlassDataArgs | ImageClassificationMultilabelDataArgs
+    ],
+) -> None:
+    config = config_cls(
+        out="out",
+        model="some/model",
+        data={  # type: ignore[arg-type]
+            "train_csv": "train.csv",
+            "val_csv": "val.csv",
+            "classes": {0: "class_a"},
+        },
+    )
+
+    assert isinstance(config.data, expected_data_args_cls)
+    assert config.data.train == "train.csv"
+    assert config.data.val == "val.csv"
+    assert "train_csv" not in config.model_dump()["data"]
+    assert "val_csv" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__image_classification_csv_alias_conflict() -> None:
+    with pytest.raises(
+        ValidationError, match="Cannot specify both 'train' and 'train_csv'"
+    ):
+        ImageClassificationMulticlassTrainTaskConfig(
+            out="out",
+            model="some/model",
+            data={  # type: ignore[arg-type]
+                "train": "train",
+                "train_csv": "train.csv",
+                "val": "val",
+                "classes": {0: "class_a"},
+            },
+        )
+
+    with pytest.raises(
+        ValidationError, match="Cannot specify both 'val' and 'val_csv'"
+    ):
+        ImageClassificationMulticlassTrainTaskConfig(
+            out="out",
+            model="some/model",
+            data={  # type: ignore[arg-type]
+                "train": "train",
+                "val": "val",
+                "val_csv": "val.csv",
+                "classes": {0: "class_a"},
+            },
+        )
+
+
+def test_create_train_task_config__image_classification_data_yaml_csv_aliases(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "data.yaml"
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train_csv": "train.csv",
+                "val_csv": "val.csv",
+                "classes": {0: "class_a"},
+            }
+        )
+    )
+
+    config = ImageClassificationMultilabelTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,  # type: ignore[arg-type]
+    )
+
+    assert isinstance(config.data, ImageClassificationMultilabelDataArgs)
+    assert config.data.train == "train.csv"
+    assert config.data.val == "val.csv"
+    assert config.data.data_config_file == data_yaml.resolve()
+
+
+def test_create_train_task_config__semantic_segmentation_data_yaml_with_classes_json(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    (data_yaml.parent / "classes.json").write_text('{"0": "background", "1": "car"}')
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {"images": "images/train", "masks": "masks/train"},
+                "val": {"images": "images/val", "masks": "masks/val"},
+                "classes": "classes.json",
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = SemanticSegmentationTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,  # type: ignore[arg-type]
+    )
+
+    assert isinstance(config.data, MaskSemanticSegmentationDataArgs)
+    assert config.data.train.images == "images/train"
+    assert config.data.val.masks == "masks/val"
+    assert config.data.classes == Path("classes.json")
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+    data_arg_helpers.resolve_data_paths(config.data)
+
+    assert (
+        Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    )
+    assert Path(config.data.val.masks) == (data_yaml.parent / "masks/val").resolve()
+    assert isinstance(config.data.classes, dict)
+    assert config.data.classes[0].name == "background"
+    assert config.data.classes[1].name == "car"
+
+
+def test_create_train_task_config__semantic_segmentation_multihead_data_yaml_with_classes_json(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    (data_yaml.parent / "classes.json").write_text('{"0": "background", "1": "car"}')
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {"images": "images/train", "masks": "masks/train"},
+                "val": {"images": "images/val", "masks": "masks/val"},
+                "classes": "classes.json",
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = SemanticSegmentationMultiheadTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,  # type: ignore[arg-type]
+    )
+
+    assert isinstance(config.data, MaskSemanticSegmentationDataArgs)
+    assert config.data.train.images == "images/train"
+    assert config.data.val.masks == "masks/val"
+    assert config.data.classes == Path("classes.json")
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+
+def test_create_train_task_config__data_yaml_nested_unknown_key_errors(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {
+                    "images": "images/train",
+                    "masks": "masks/train",
+                    "unknown_nested_key": "unknown",
+                },
+                "val": {"images": "images/val", "masks": "masks/val"},
+                "classes": {0: "background", 1: "car"},
+            }
+        )
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        SemanticSegmentationTrainTaskConfig(
+            out="out",
+            model="some/model",
+            data=data_yaml,  # type: ignore[arg-type]
+        )
+
+
+def test_create_train_task_config__panoptic_segmentation_data_yaml(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "train": {
+                    "images": "images/train",
+                    "masks": "masks/train",
+                    "annotations": "annotations/train.json",
+                },
+                "val": {
+                    "images": "images/val",
+                    "masks": "masks/val",
+                    "annotations": "annotations/val.json",
+                },
+                "extra_field_123": "extra_field_123",
+            }
+        )
+    )
+
+    config = PanopticSegmentationTrainTaskConfig(
+        out="out",
+        model="some/model",
+        data=data_yaml,  # type: ignore[arg-type]
+    )
+
+    assert isinstance(config.data, MaskPanopticSegmentationDataArgs)
+    assert config.data.train.images == "images/train"
+    assert config.data.train.annotations == "annotations/train.json"
+    assert config.data.data_config_file == data_yaml.resolve()
+    assert "data_config_file" not in config.model_dump()["data"]
+
+    data_arg_helpers.resolve_data_paths(config.data)
+
+    assert (
+        Path(config.data.train.images) == (data_yaml.parent / "images/train").resolve()
+    )
+    assert (
+        Path(config.data.train.annotations)
+        == (data_yaml.parent / "annotations/train.json").resolve()
+    )
+    assert config.data.val.masks == (data_yaml.parent / "masks/val").resolve()
+
+
+def test_train_task_config_resolve_data_paths__yaml_relative_to_data_config(
+    tmp_path: Path,
+) -> None:
+    data_yaml = tmp_path / "configs" / "data.yaml"
+    data_yaml.parent.mkdir()
+    data_yaml.write_text(
+        yaml.dump(
+            {
+                "path": "dataset",
+                "train": "images/train",
+                "val": "images/val",
+                "names": {0: "class_a"},
+            }
+        )
+    )
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data=data_yaml,  # type: ignore[arg-type]
+    )
+
+    data_arg_helpers.resolve_data_paths(config.data)
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.path == (data_yaml.parent / "dataset").resolve()
+    assert config.data.train == Path("images/train")
+    assert config.data.val == Path("images/val")
+
+
+def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config = ObjectDetectionTrainTaskConfig(
+        out="out",
+        model="some/model",
+        task="object_detection",
+        data={  # type: ignore[arg-type]
+            "path": "dataset",
+            "train": "images/train",
+            "val": "images/val",
+            "names": {0: "class_a"},
+        },
+    )
+
+    data_arg_helpers.resolve_data_paths(config.data)
+
+    assert isinstance(config.data, YOLOObjectDetectionDataArgs)
+    assert config.data.path == (tmp_path / "dataset").resolve()
+    assert config.data.train == Path("images/train")
+    assert config.data.val == Path("images/val")

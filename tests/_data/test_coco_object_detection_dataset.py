@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from lightly_train._data.coco_object_detection_dataset import (
@@ -54,3 +55,26 @@ class TestCOCOObjectDetectionDatasetArgs:
                 [0.125, 0.5, 0.0, 1.0],
             ]
             assert json.loads(image_info[2]["class_labels"]) == [0, 1]
+
+
+class TestCOCOObjectDetectionMmapHash:
+    @staticmethod
+    def _make_args(tmp_path: Path) -> COCOObjectDetectionDataArgs:
+        create_coco_object_detection_dataset(tmp_path=tmp_path)
+        return COCOObjectDetectionDataArgs(
+            train=SplitArgs(annotations=tmp_path / "train.json", images=Path("train")),
+            val=SplitArgs(annotations=tmp_path / "val.json", images=Path("val")),
+        )
+
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()
+
+    def test_mmap_hash_changes_when_annotations_modified(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        hash_before = args.train_data_mmap_hash()
+        annotations_path = tmp_path / "train.json"
+        st = annotations_path.stat()
+        os.utime(annotations_path, (st.st_atime, st.st_mtime + 1))
+        assert args.train_data_mmap_hash() != hash_before

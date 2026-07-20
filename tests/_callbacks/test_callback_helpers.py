@@ -88,7 +88,9 @@ def test_get_callbacks__mlflow(tmp_path: Path) -> None:
     model = DummyCustomModel()
     embedding_model = EmbeddingModel(wrapped_model=model)
     callback_args = CallbackArgs()
-    loggers = [MLFlowLogger()]
+    loggers = [
+        MLFlowLogger(tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}")
+    ]
     callbacks = callback_helpers.get_callbacks(
         callback_args=callback_args,
         out=tmp_path,

@@ -50,6 +50,8 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
+from lightly_train._visualize import semantic_segmentation
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
 
@@ -98,6 +100,8 @@ class DINOv2EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     def resolve_auto(
         self,
         total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
@@ -192,6 +196,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         num_queries = no_auto(self.model_args.num_queries)
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         image_size = no_auto(val_transform_args.image_size)
+
         normalize = no_auto(val_transform_args.normalize)
 
         self.model = DINOv2EoMTSemanticSegmentation(
@@ -244,6 +249,12 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         _torch_helpers.register_load_state_dict_pre_hook(
             self, hooks.criterion_empty_weight_reinit_hook
         )
+
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
+        self.viz_alpha = 0.6
 
     def get_task_model(self) -> DINOv2EoMTSemanticSegmentation:
         return self.model
@@ -319,10 +330,22 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
+            visualization=(
+                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
+            ),
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: MaskSemanticSegmentationBatch
+        self,
+        fabric: Fabric,
+        batch: MaskSemanticSegmentationBatch,
+        step: int,
     ) -> TaskStepResult:
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
         images = batch["image"]
@@ -354,6 +377,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         )
         num_blocks = self.model.backbone.n_blocks
         losses = {}
+        pred_logits: list[Tensor] | None = None
         for i, (block_idx, mask_logits, class_logits) in enumerate(
             zip(
                 # Add +1 to num_blocks for final output.
@@ -389,6 +413,7 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
                     self.val_metrics.update_with_predictions(
                         pred[None, ...], targ[None, ...]
                     )
+                pred_logits = [p.detach() for p in logits]
 
         # Compute the total loss.
         loss = self.criterion.loss_total(losses_all_layers=losses)
@@ -398,6 +423,16 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
+            visualization=(
+                semantic_segmentation.SemanticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    logits=pred_logits,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
+            ),
         )
 
     def mask_annealing(
@@ -555,11 +590,14 @@ class DINOv2EoMTSemanticSegmentationTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
-            fabric.clip_gradients(
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = self.model_args.gradient_clip_val
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
+                max_norm=gradient_clip_val,
                 error_if_nonfinite=False,
             )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return total_gradient_norm(self.parameters())

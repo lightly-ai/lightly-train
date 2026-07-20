@@ -14,6 +14,7 @@ from typing import (
     Literal,
     Mapping,
     Protocol,
+    Sequence,
     overload,
     runtime_checkable,
 )
@@ -127,6 +128,8 @@ class NNModule(Protocol):
 
     def modules(self) -> Iterator[Module]: ...
 
+    def requires_grad_(self, requires_grad: bool = True) -> Self: ...
+
 
 @runtime_checkable
 class ModelWrapper(
@@ -137,6 +140,90 @@ class ModelWrapper(
     NNModule,
     Protocol,
 ): ...
+
+
+@runtime_checkable
+class MultiScaleFeatureDims(Protocol):
+    def multiscale_feature_dims(self) -> list[int]:
+        """Returns the feature dimensions of each layer/stage in the model.
+
+        The returned list has one entry per layer/stage, indexed from 0 (earliest
+        layer/stage) to N-1 (last layer/stage). For a ViT all entries are typically
+        the same (equal to ``embed_dim``). For a ConvNeXt each stage has a different
+        dimension (e.g. [96, 192, 384, 768]).
+
+        The index of each entry corresponds to the layer indices accepted by
+        ``forward_multiscale_features``.
+        """
+        ...
+
+
+@runtime_checkable
+class PatchSize(Protocol):
+    def patch_size(self) -> int:
+        """Returns the patch size of the model.
+
+        For ViT models this is the size of each patch (e.g., 16 or 14).
+        """
+        ...
+
+
+@runtime_checkable
+class MultiScaleFeatureStrides(Protocol):
+    def multiscale_feature_strides(self) -> list[int]:
+        """Returns the feature strides of each layer/stage in the model.
+
+        The returned list has one entry per layer/stage, indexed from 0 (earliest
+        layer/stage) to N-1 (last layer/stage). For a ViT all entries are typically
+        the same (equal to the patch size). For a ConvNeXt each stage has a different
+        stride (e.g. [4, 8, 16, 32] for a model with patch size 4).
+
+        The index of each entry corresponds to the layer indices accepted by
+        ``forward_multiscale_features``.
+        """
+        ...
+
+
+@runtime_checkable
+class ForwardMultiScaleFeatures(Protocol):
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        """Extracts multi-scale features from the specified layers/stages.
+
+        The ``layer_indices`` are 0-based indices from the beginning of the network,
+        corresponding to the indices of ``multiscale_feature_dims()``. For a ViT each
+        index refers to a transformer block. For a ConvNeXt each index refers to a
+        stage (downsample stage + residual blocks).
+
+        Args:
+            x: Inputs with shape (B, C_in, H_in, W_in).
+            layer_indices: Indices of the layers/stages to extract features from.
+
+        Returns:
+            List of dicts, one per requested layer/stage, in the same order as
+            ``layer_indices``. Each dict has a ``"features"`` entry containing the
+            extracted features with shape (B, feature_dim, H_out, W_out), and
+            optionally a ``"cls_token"`` entry. Features are normalized. Different
+            entries may have different feature dimensions and spatial resolutions.
+        """
+        ...
+
+
+class MultiScaleFeatureViT(
+    ModelWrapper, ForwardMultiScaleFeatures, MultiScaleFeatureDims, PatchSize, Protocol
+):
+    """Protocol for ViT models with multiscale feature extraction."""
+
+
+class MultiScaleFeatureCNN(
+    ModelWrapper,
+    ForwardMultiScaleFeatures,
+    MultiScaleFeatureDims,
+    MultiScaleFeatureStrides,
+    Protocol,
+):
+    """Protocol for CNN models with multiscale feature extraction."""
 
 
 def missing_model_wrapper_attrs(

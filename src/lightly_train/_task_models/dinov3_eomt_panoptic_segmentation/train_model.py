@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -31,6 +30,9 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
     PanopticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.config import (
+    DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -50,6 +52,8 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
+from lightly_train._visualize import panoptic_segmentation
 from lightly_train.types import (
     MaskPanopticSegmentationBatch,
     PathLike,
@@ -114,6 +118,8 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
     def resolve_auto(
         self,
         total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
@@ -128,27 +134,17 @@ class DINOv3EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
                 assert isinstance(num_joint_blocks, int)  # for mypy
                 self.num_joint_blocks = num_joint_blocks
             else:
-                match = re.match(
-                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b)).*", model_name
-                )
-                if match is None:
+                try:
+                    config = DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                        alias=model_name
+                    )()
+                except KeyError:
                     raise ValueError(
                         f"Unknown model name '{model_name}', "
-                        "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
+                        "see https://docs.lightly.ai/train/stable/panoptic_segmentation.html#model "
                         "for all supported models."
-                    )
-                model_size = match.group("model_size")
-                self.num_joint_blocks = {
-                    "vitt": 3,
-                    "vits": 3,
-                    "vitb": 3,
-                    "vitl": 4,
-                    "vitg": 5,
-                    "vith": 5,
-                    # TODO: Verify the number of blocks. EoMT has an experiment with a
-                    # model of comparable size.
-                    "vit7b": 5,
-                }[model_size]
+                    ) from None
+                self.num_joint_blocks = config.num_joint_blocks
 
         if (
             self.attn_mask_annealing_steps_start == "auto"
@@ -279,6 +275,12 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             self, hooks.criterion_empty_weight_reinit_hook
         )
 
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 4
+        self.viz_alpha = 0.5
+
     def get_task_model(self) -> DINOv3EoMTPanopticSegmentation:
         return self.model
 
@@ -363,10 +365,22 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             loss=loss,
             log_dict=mask_prob_dict,
             metrics=self.train_metrics,
+            visualization=(
+                panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
+            ),
         )
 
     def validation_step(
-        self, fabric: Fabric, batch: MaskPanopticSegmentationBatch
+        self,
+        fabric: Fabric,
+        batch: MaskPanopticSegmentationBatch,
+        step: int,
     ) -> TaskStepResult:
         # NOTE: Crowd regions are included in the validation loss and metrics.
         num_joint_blocks = no_auto(self.model_args.num_joint_blocks)
@@ -430,6 +444,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         resized_mask_logits_last_layer = resized_mask_logits_per_layer[-1]
         class_logits_last_layer = class_logits_per_layer[-1]
         # Revert resize and pad for mask logits.
+        pred_masks: list[Tensor] = []
         for logits, class_logits, target_masks, target_binary_mask, (crop_h, crop_w), (
             image_h,
             image_w,
@@ -457,6 +472,7 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
                 mask_threshold=self.model_args.mask_threshold,
                 mask_overlap_threshold=self.model_args.mask_overlap_threshold,
             )
+            pred_masks.append(masks)
             _mark_ignore_regions(
                 target_masks=target_masks,
                 ignore_class_id=self.model.internal_ignore_class_id,
@@ -471,6 +487,16 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
             loss=loss,
             log_dict={},
             metrics=self.val_metrics,
+            visualization=(
+                panoptic_segmentation.PanopticSegmentationTaskStepVisualization(
+                    batch=batch,
+                    pred_masks=pred_masks,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    alpha=self.viz_alpha,
+                )
+            ),
         )
 
     def mask_annealing(
@@ -624,14 +650,17 @@ class DINOv3EoMTPanopticSegmentationTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
-            fabric.clip_gradients(
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = self.model_args.gradient_clip_val
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
+                max_norm=gradient_clip_val,
                 error_if_nonfinite=False,
             )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return total_gradient_norm(self.parameters())
 
 
 def _mark_ignore_regions(

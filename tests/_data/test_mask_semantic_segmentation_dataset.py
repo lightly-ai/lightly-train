@@ -15,6 +15,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from lightly_train._data import data_helpers
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
     MaskSemanticSegmentationDataset,
@@ -23,9 +24,9 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
     SingleChannelClassInfo,
     SplitArgs,
 )
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     NormalizeArgs,
@@ -33,10 +34,11 @@ from lightly_train._transforms.transform import (
 )
 
 from .. import helpers
+from ..helpers import create_images, create_semantic_segmentation_masks
 
 
-def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
-    args = SemanticSegmentationTransformArgs(
+def _dummy_transform(num_channels: int = 3) -> EoMTSemanticSegmentationTransform:
+    args = EoMTSemanticSegmentationTransformArgs(
         ignore_index=-100,
         image_size=(32, 32),
         channel_drop=None,
@@ -52,7 +54,7 @@ def _dummy_transform(num_channels: int = 3) -> SemanticSegmentationTransform:
     )
     args.resolve_auto(model_init_args={})
     args.resolve_incompatible()
-    return SemanticSegmentationTransform(args)
+    return EoMTSemanticSegmentationTransform(args)
 
 
 class TestMaskSemanticSegmentationDataArgs:
@@ -121,6 +123,7 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
+        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -175,6 +178,7 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         # Check that all inputs were converted to ClassInfo objects
+        assert isinstance(dataset_args.classes, dict)
         assert set(dataset_args.classes.keys()) == set(expected_checks.keys()), (
             "Class IDs don't match"
         )
@@ -335,6 +339,114 @@ class TestMaskSemanticSegmentationDataArgs:
         )
 
         assert dataset_args.included_classes == expected_included
+
+    def test_classes_json(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text('{"0": "background", "1": "airplane", "2": "car"}')
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=json_file,
+        )
+
+        assert dataset_args.included_classes == {
+            0: "background",
+            1: "airplane",
+            2: "car",
+        }
+
+    def test_classes_json_relative_to_data_config_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cwd = tmp_path / "cwd"
+        config_dir = tmp_path / "config"
+        cwd.mkdir()
+        config_dir.mkdir()
+        (cwd / "classes.json").write_text('{"0": "wrong"}')
+        (config_dir / "classes.json").write_text('{"1": "right"}')
+        monkeypatch.chdir(cwd)
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images="images/train", masks="masks/train"),
+            val=SplitArgs(images="images/val", masks="masks/val"),
+            classes="classes.json",
+            data_config_file=config_dir / "data.yaml",
+        )
+        data_helpers.resolve_data_paths(dataset_args)
+
+        assert dataset_args.included_classes == {1: "right"}
+
+    def test_classes_json_single_channel_with_explicit_labels(
+        self, tmp_path: Path
+    ) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text(
+            '{"0": {"name": "background", "labels": [0, 1]}, "1": {"name": "vehicle", "labels": [2, 3]}}'
+        )
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=json_file,
+        )
+
+        assert isinstance(dataset_args.classes, dict)
+        assert isinstance(dataset_args.classes[0], SingleChannelClassInfo)
+        assert dataset_args.classes[0].name == "background"
+        assert dataset_args.classes[0].labels == {0, 1}
+        assert dataset_args.classes[1].name == "vehicle"
+        assert dataset_args.classes[1].labels == {2, 3}
+
+    def test_classes_json_multi_channel(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text(
+            '{"0": {"name": "background", "labels": [[0, 0, 0], [255, 255, 255]]}, "1": {"name": "road", "labels": [[128, 128, 128]]}}'
+        )
+
+        dataset_args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes=json_file,
+        )
+
+        assert isinstance(dataset_args.classes, dict)
+        assert isinstance(dataset_args.classes[0], MultiChannelClassInfo)
+        assert dataset_args.classes[0].name == "background"
+        assert dataset_args.classes[0].labels == {(0, 0, 0), (255, 255, 255)}
+        assert dataset_args.classes[1].name == "road"
+        assert dataset_args.classes[1].labels == {(128, 128, 128)}
+
+    def test_classes_json_not_a_mapping_raises(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        json_file = tmp_path / "classes.json"
+        json_file.write_text("[0, 1, 2]")
+
+        with pytest.raises(ValueError, match="Expected '.*' to contain a JSON dict"):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=json_file,
+            )
+
+    def test_classes_json_wrong_extension_raises(self, tmp_path: Path) -> None:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        txt_file = tmp_path / "classes.txt"
+
+        with pytest.raises(ValueError, match="'classes' path must be a .json file"):
+            MaskSemanticSegmentationDataArgs(
+                train=SplitArgs(images=image_dir, masks=mask_dir),
+                val=SplitArgs(images=image_dir, masks=mask_dir),
+                classes=txt_file,
+            )
 
 
 class TestMaskSemanticSegmentationDatasetArgs:
@@ -774,3 +886,46 @@ class TestMaskSemanticSegmentationDataset:
         )
 
         assert dataset.class_id_to_internal_class_id == expected_mapping
+
+
+class TestMaskSemanticSegmentationDataArgsMmapHash:
+    @staticmethod
+    def _make_args(tmp_path: Path) -> MaskSemanticSegmentationDataArgs:
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        create_images(image_dir=image_dir, files=2, height=32, width=32)
+        create_semantic_segmentation_masks(
+            mask_dir=mask_dir, files=2, height=32, width=32, num_classes=2
+        )
+        return MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes={
+                0: SingleChannelClassInfo(name="background", labels={0}),
+                1: SingleChannelClassInfo(name="foreground", labels={1}),
+            },
+        )
+
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        args = self._make_args(tmp_path)
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()
+
+    def test_mmap_hash_with_set_labels_is_deterministic(self, tmp_path: Path) -> None:
+        """ClassInfo with set fields must produce the same hash across calls."""
+        image_dir = tmp_path / "images"
+        mask_dir = tmp_path / "masks"
+        create_images(image_dir=image_dir, files=2, height=32, width=32)
+        create_semantic_segmentation_masks(
+            mask_dir=mask_dir, files=2, height=32, width=32, num_classes=3
+        )
+        args = MaskSemanticSegmentationDataArgs(
+            train=SplitArgs(images=image_dir, masks=mask_dir),
+            val=SplitArgs(images=image_dir, masks=mask_dir),
+            classes={
+                0: SingleChannelClassInfo(name="bg", labels={0, 10, 20}),
+                1: SingleChannelClassInfo(name="fg", labels={1, 11, 21}),
+            },
+        )
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()

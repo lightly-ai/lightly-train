@@ -29,7 +29,7 @@ notebook:
 | Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
 | ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
 | LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
-| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
+| LightlyTrain                         | dinov3/vitt16plus-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
 | LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
 | LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
 | LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
@@ -183,6 +183,11 @@ define the thing and stuff classes and list the individual segments for each ima
 the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data) for more
 details.
 
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits.
+
 The following image formats are supported:
 
 - jpg
@@ -237,23 +242,33 @@ following models are available:
 
 ### DINOv3 Models
 
+- `dinov3/vitt16-eomt-panoptic-coco` (fine-tuned on COCO)
+- `dinov3/vitt16plus-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vits16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitb16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitl16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitl16-eomt-panoptic-coco-1280` (fine-tuned on COCO with 1280x1280 input size)
 - `dinov3/vitt16-eomt`
+- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
+- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
+- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-eomt`
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All DINOv3 models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-and fine-tuned by Lightly, except the `vitt` models which are pretrained by Lightly.
+Unless noted otherwise, all DINOv3 backbones are initialized from weights
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
+DINOv3 backbone weights instead. Models marked as EUPE use
+[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+models are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 ### DINOv2 Models
 
@@ -358,7 +373,7 @@ See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_onnx` for all available op
 when exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/panoptic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation_export.ipynb)
 
 (panoptic-segmentation-tensorrt)=
 
@@ -400,4 +415,4 @@ See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_tensorrt` for all availabl
 options when exporting to TensorRT.
 
 You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/panoptic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation_export.ipynb)

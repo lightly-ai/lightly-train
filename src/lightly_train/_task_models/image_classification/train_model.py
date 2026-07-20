@@ -43,6 +43,8 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
+from lightly_train._visualize import image_classification
 from lightly_train.types import (
     ImageClassificationBatch,
     PathLike,
@@ -71,6 +73,8 @@ class ImageClassificationTrainArgs(TrainModelArgs):
     def resolve_auto(
         self,
         total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
@@ -120,17 +124,19 @@ class ImageClassificationTrain(TrainModel):
         # metrics we use. But we need old torchmetrics support for SuperGradients.
 
         super().__init__()
+
+        self.model_args = model_args
+
         image_size = no_auto(val_transform_args.image_size)
         normalize = no_auto(val_transform_args.normalize)
 
-        self.model_args = model_args
         self.model = ImageClassification(
             model=model_name,
             classes=data_args.included_classes,
             classification_task=data_args.classification_task,
             # TODO(Guarin, 02/26): Check drop path rate for DINO models.
             image_size=image_size,
-            image_normalize=normalize.model_dump(),
+            image_normalize=normalize.model_dump() if normalize is not None else None,
             backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_args=model_args.backbone_args,
@@ -162,12 +168,17 @@ class ImageClassificationTrain(TrainModel):
             loss_names=["loss"],
             train_loss_running_mean_window=gradient_accumulation_steps,
         )
+        # TODO(Nauryz, 04/2026): These visualization thresholds are currently
+        # hardcoded, but we may want to make them configurable in the future
+        # (with logger_args).
+        self.viz_max_images = 16
+        self.viz_top_k = 3
 
     def get_task_model(self) -> ImageClassification:
         return self.model
 
     def forward(self, images: Tensor) -> Tensor:
-        return self.model.forward_train(images)
+        return self.model.forward_backend(images)
 
     def training_step(
         self, fabric: Fabric, batch: ImageClassificationBatch, step: int
@@ -193,10 +204,28 @@ class ImageClassificationTrain(TrainModel):
         self.train_metrics.update_with_losses(
             {"loss": loss.detach()}, weight=len(images)
         )
-        return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
+
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.train_metrics,
+            visualization=(
+                image_classification.ImageClassificationTaskStepVisualization(
+                    batch=batch,
+                    class_names=self.model.included_classes,
+                    image_normalize=self.model.image_normalize,
+                    max_images=self.viz_max_images,
+                    top_k=self.viz_top_k,
+                    classification_task=self.model.classification_task,
+                )
+            ),
+        )
 
     def validation_step(
-        self, fabric: Fabric, batch: ImageClassificationBatch
+        self,
+        fabric: Fabric,
+        batch: ImageClassificationBatch,
+        step: int,
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
@@ -216,7 +245,21 @@ class ImageClassificationTrain(TrainModel):
             )
         self.val_metrics.update_with_predictions(logits, targets)
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
-        return TaskStepResult(loss=loss, log_dict={}, metrics=self.val_metrics)
+
+        return TaskStepResult(
+            loss=loss,
+            log_dict={},
+            metrics=self.val_metrics,
+            visualization=image_classification.ImageClassificationTaskStepVisualization(
+                batch=batch,
+                logits=logits,
+                class_names=self.model.included_classes,
+                image_normalize=self.model.image_normalize,
+                top_k=self.viz_top_k,
+                max_images=self.viz_max_images,
+                classification_task=self.model.classification_task,
+            ),
+        )
 
     def get_optimizer(
         self,
@@ -254,14 +297,17 @@ class ImageClassificationTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if no_auto(self.model_args.gradient_clip_val) > 0:
-            fabric.clip_gradients(
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = no_auto(self.model_args.gradient_clip_val)
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=no_auto(self.model_args.gradient_clip_val),
+                max_norm=gradient_clip_val,
                 error_if_nonfinite=False,
             )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return total_gradient_norm(self.parameters())
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:

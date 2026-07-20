@@ -44,14 +44,18 @@ def test__set_console_handler() -> None:
     torch_logger = logging.getLogger("torch")
     torch_logger.addHandler(logging.StreamHandler())
     new_handler = logging.StreamHandler()
-    # Should remove the existing handler and add the new handler.
+    # Should remove the existing stream handler and add the new handler.
+    # Non-stream handlers (e.g. a NullHandler attached by pytest's live logging)
+    # are intentionally preserved by `_remove_handlers`, so only the stream
+    # handlers are checked here.
     _logging._set_console_handler(new_handler)
-    assert len(lightly_logger.handlers) == 1
-    assert lightly_logger.handlers[0] == new_handler
-    assert len(lightning_logger.handlers) == 1
-    assert lightning_logger.handlers[0] == new_handler
-    assert len(torch_logger.handlers) == 1
-    assert torch_logger.handlers[0] == new_handler
+    for logger in (lightly_logger, lightning_logger, torch_logger):
+        stream_handlers = [
+            handler
+            for handler in logger.handlers
+            if isinstance(handler, logging.StreamHandler)
+        ]
+        assert stream_handlers == [new_handler]
 
 
 def test__remove_handlers() -> None:

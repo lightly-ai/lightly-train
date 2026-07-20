@@ -7,9 +7,10 @@
 #
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, Union
+from typing import ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
@@ -17,17 +18,17 @@ from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationCollateFunction,
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
+    EoMTSemanticSegmentationCollateFunction,
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
-from lightly_train._transforms.task_transform import TaskCollateFunction
+from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import (
     BinaryMasksDict,
     MaskSemanticSegmentationDatasetItem,
@@ -55,6 +56,8 @@ class MultiChannelClassInfo(PydanticConfig):
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
+RawClassInfo = Union[ClassInfo, str, Dict[str, object]]
+RawClasses = Union[Dict[Union[int, str], RawClassInfo], PathLike]
 
 
 class MaskSemanticSegmentationDataset(TaskDataset):
@@ -62,14 +65,14 @@ class MaskSemanticSegmentationDataset(TaskDataset):
     dataset_args: MaskSemanticSegmentationDatasetArgs
 
     batch_collate_fn_cls: ClassVar[type[TaskCollateFunction]] = (
-        SemanticSegmentationCollateFunction
+        EoMTSemanticSegmentationCollateFunction
     )
 
     def __init__(
         self,
         dataset_args: MaskSemanticSegmentationDatasetArgs,
         image_info: Sequence[dict[str, str]],
-        transform: SemanticSegmentationTransform,
+        transform: EoMTSemanticSegmentationTransform | None = None,
     ):
         super().__init__(
             transform=transform, dataset_args=dataset_args, image_info=image_info
@@ -87,8 +90,17 @@ class MaskSemanticSegmentationDataset(TaskDataset):
             list(self.class_id_to_internal_class_id.keys())
         )
 
+        if transform is not None:
+            self._init_image_mode(transform)
+
+    def set_transform(self, transform: TaskTransform) -> None:
+        super().set_transform(transform)
+        assert isinstance(transform, EoMTSemanticSegmentationTransform)
+        self._init_image_mode(transform)
+
+    def _init_image_mode(self, transform: EoMTSemanticSegmentationTransform) -> None:
         transform_args = transform.transform_args
-        assert isinstance(transform_args, SemanticSegmentationTransformArgs)
+        assert isinstance(transform_args, EoMTSemanticSegmentationTransformArgs)
 
         image_mode = (
             None
@@ -306,23 +318,88 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     ignore_index: ClassVar[int] = -100
     train: SplitArgs
     val: SplitArgs
-    classes: dict[int, ClassInfo]
+    classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
-    def train_imgs_path(self) -> Path:
-        return Path(self.train.images)
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.images = data_helpers.resolve_path(
+            self.train.images, base_dir=base_dir
+        )
+        self.train.masks = data_helpers.resolve_path(
+            self.train.masks, base_dir=base_dir
+        )
+        self.val.images = data_helpers.resolve_path(self.val.images, base_dir=base_dir)
+        self.val.masks = data_helpers.resolve_path(self.val.masks, base_dir=base_dir)
+        if not isinstance(self.classes, dict):
+            self.classes = self.validate_classes(
+                data_helpers.resolve_path(self.classes, base_dir=base_dir)
+            )
 
-    def val_imgs_path(self) -> Path:
-        return Path(self.val.images)
+    def _deterministic_classes_str(self) -> str:
+        """Serialize classes deterministically for hashing.
+
+        ClassInfo contains set fields (e.g., labels: set[int]) whose str()
+        representation is not deterministic across processes due to hash
+        randomization. We serialize to JSON with sorted sets and keys instead.
+        """
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
+        classes = self.classes
+        return json.dumps(
+            {str(k): v.model_dump() for k, v in sorted(classes.items())},
+            sort_keys=True,
+            default=lambda x: sorted(x, key=str) if isinstance(x, set) else x,
+        )
+
+    def train_data_mmap_hash(self) -> str:
+        return str(
+            (
+                Path(self.train.images).resolve(),
+                Path(self.train.masks).resolve(),
+                self._deterministic_classes_str(),
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+            )
+        )
+
+    def val_data_mmap_hash(self) -> str:
+        return str(
+            (
+                Path(self.val.images).resolve(),
+                Path(self.val.masks).resolve(),
+                self._deterministic_classes_str(),
+                sorted(self.ignore_classes) if self.ignore_classes else None,
+            )
+        )
 
     @field_validator("classes", mode="before")
     @classmethod
-    def validate_classes(
-        cls, classes: dict[int, str | dict[str, Any]]
-    ) -> dict[int, ClassInfo]:
+    def validate_classes(cls, classes: RawClasses) -> dict[int, ClassInfo] | Path:
+        # Relative JSON paths need the data config base_dir, which is only known
+        # later in resolve_data_paths. Keep those paths unresolved here.
+        if isinstance(classes, (str, Path)):
+            path = Path(classes)
+            if path.suffix != ".json":
+                raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
+            if not path.is_absolute():
+                return path
+            try:
+                with path.open(encoding="utf-8") as f:
+                    data = json.load(f)
+            except OSError as e:
+                raise ValueError(f"Failed to read classes file '{path}': {e}") from e
+            if not isinstance(data, dict):
+                raise ValueError(
+                    f"Expected '{path}' to contain a JSON dict, got {type(data).__name__}."
+                )
+            classes = {int(k): v for k, v in data.items()}
+
+        # We need strict=False, as otherwise the lists from JSON file cannot be coherced into a MultiChannelClassInfo.
         classes_validated = TypeAdapter(
             Dict[int, Union[str, SingleChannelClassInfo, MultiChannelClassInfo]]
-        ).validate_python(classes)
+        ).validate_python(classes, strict=False)
 
         # Convert to ClassInfo objects and perform consistency checks.
         class_infos: dict[int, ClassInfo] = {}
@@ -402,9 +479,15 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def included_classes(self) -> dict[int, str]:
         """Returns classes (AFTER mapping) that are not ignored with the name."""
         ignore_classes = set() if self.ignore_classes is None else self.ignore_classes
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
+        classes = self.classes
 
         result = {}
-        for class_id, class_info in self.classes.items():
+        for class_id, class_info in classes.items():
             if class_id not in ignore_classes:
                 result[class_id] = class_info.name
 
@@ -420,6 +503,11 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_train_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.train.images),
             mask_dir_or_file=str(self.train.masks),
@@ -431,6 +519,11 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     def get_val_args(
         self,
     ) -> MaskSemanticSegmentationDatasetArgs:
+        if not isinstance(self.classes, dict):
+            raise TypeError(
+                f"Expected 'classes' to be a dict after validation, "
+                f"got {type(self.classes).__name__}"
+            )
         return MaskSemanticSegmentationDatasetArgs(
             image_dir=Path(self.val.images),
             mask_dir_or_file=str(self.val.masks),

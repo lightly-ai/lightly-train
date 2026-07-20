@@ -14,7 +14,10 @@ import pytest
 import torch
 
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
-from lightly_train._models.dinov3.dinov3_package import DINOv3Package
+from lightly_train._models.dinov3.dinov3_package import (
+    DINOv3Package,
+    _resolve_patch_size,
+)
 from lightly_train._models.dinov3.dinov3_src.hub import backbones
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
@@ -29,21 +32,34 @@ class TestDINOv3Package:
     @pytest.mark.parametrize(
         "model_name, listed",
         [
-            ("dinov3/_vittest16", True),
-            ("dinov3/_convnexttest", True),
+            # Test models are not listed.
+            ("dinov3/_vittest16", False),
+            ("dinov3/_convnexttest", False),
+            # Tiny models (Lightly).
             ("dinov3/vitt16", True),
             ("dinov3/vitt16plus", True),
+            ("dinov3/vitt16-distillationv1", True),
+            ("dinov3/vitt16plus-distillationv1", True),
+            ("dinov3/vitt16-notpretrained", True),
+            ("dinov3/vitt16plus-notpretrained", True),
+            # ViT models (Meta).
             ("dinov3/vits16", True),
             ("dinov3/vits16plus", True),
             ("dinov3/vitb16", True),
             ("dinov3/vitl16", True),
             ("dinov3/vitl16-sat493m", True),
+            ("dinov3/vith16plus", True),
             ("dinov3/vit7b16", True),
             ("dinov3/vit7b16-sat493m", True),
+            # ConvNeXt models (Meta).
             ("dinov3/convnext-tiny", True),
             ("dinov3/convnext-small", True),
             ("dinov3/convnext-base", True),
             ("dinov3/convnext-large", True),
+            # LingBot Vision models (Robbyant).
+            ("dinov3/vits16-lingbot", True),
+            ("dinov3/vitb16-lingbot", True),
+            ("dinov3/vitl16-lingbot", True),
         ],
     )
     def test_list_model_names(self, model_name: str, listed: bool) -> None:
@@ -158,3 +174,44 @@ class TestDINOv3Package:
         # The log should show a format without the 'dinov3/' prefix
         assert "get_model('<XYZ>')" in log_output
         assert "get_model('dinov3/" not in log_output
+
+    @pytest.mark.parametrize("model_name, patch_size", [("vitt16", 41), ("vitt32", 32)])
+    def test_get_model__patch_size_arg_gets_precedence_over_model_name(
+        self, model_name: str, patch_size: int
+    ) -> None:
+        model = DINOv3Package.get_model(
+            model_name, model_args={"patch_size": patch_size}, load_weights=False
+        )
+
+        assert model.patch_size == patch_size
+
+    @pytest.mark.parametrize(
+        "patch_size, args, expected_args, expected_warning",
+        [
+            (None, {}, {}, None),
+            ("16", {}, {"patch_size": 16}, None),
+            ("16", {"patch_size": None}, {"patch_size": 16}, None),
+            (
+                "16",
+                {"patch_size": 41},
+                {"patch_size": 41},
+                "Patch size from model name 16 got overwritten by patch size argument 41",
+            ),
+        ],
+    )
+    def test_resolve_patch_size(
+        self,
+        patch_size: str | None,
+        args: dict[str, int | None],
+        expected_args: dict[str, int],
+        expected_warning: str | None,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with caplog.at_level(logging.WARNING):
+            _resolve_patch_size(patch_size, args)
+
+        assert args == expected_args
+        if expected_warning is None:
+            assert caplog.text == ""
+        else:
+            assert expected_warning in caplog.text

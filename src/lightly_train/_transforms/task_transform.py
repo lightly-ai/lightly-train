@@ -27,6 +27,15 @@ class TaskTransformArgs(PydanticConfig):
         """Resolve any arguments set to "auto"."""
         pass
 
+    def resolve_step_schedule(
+        self,
+        total_steps: int,
+        train_num_batches: int,
+        gradient_accumulation_steps: int,
+    ) -> None:
+        """Resolve any step-scheduled transform arguments."""
+        pass
+
     def resolve_incompatible(self) -> None:
         """Resolve any incompatible arguments."""
         pass

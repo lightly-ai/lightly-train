@@ -6,16 +6,8 @@
 
 ```
 git clone https://github.com/lightly-ai/lightly-train.git
-uv venv .venv
-source .venv/bin/activate
 make install-dev
 ```
-
-Make sure the environment is activated before running the following commands.
-
-> [!WARNING]\
-> Prepending commands with `uv run` might not work properly. Activate the environment
-> directly instead.
 
 ### Running Checks and Tests
 
@@ -35,7 +27,7 @@ make test
 To run a specific test file, use:
 
 ```
-pytest path/to/test_file.py
+uv run --frozen pytest path/to/test_file.py
 ```
 
 ### Documentation

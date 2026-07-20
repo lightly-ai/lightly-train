@@ -45,6 +45,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
 from lightly_train.types import ImageClassificationBatch, PathLike
 
 
@@ -275,7 +276,10 @@ class ImageClassificationMultiheadTrain(TrainModel):
         return TaskStepResult(loss=loss, log_dict={}, metrics=self.train_metrics)
 
     def validation_step(
-        self, fabric: Fabric, batch: ImageClassificationBatch
+        self,
+        fabric: Fabric,
+        batch: ImageClassificationBatch,
+        step: int,
     ) -> TaskStepResult:
         images = batch["image"]
         classes = batch["classes"]
@@ -312,14 +316,17 @@ class ImageClassificationMultiheadTrain(TrainModel):
         # backbone is always frozen for multihead training
         self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
-            fabric.clip_gradients(
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = self.model_args.gradient_clip_val
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
+                max_norm=gradient_clip_val,
                 error_if_nonfinite=False,
             )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return total_gradient_norm(self.parameters())
 
 
 def _class_ids_to_multihot(class_ids: list[Tensor], num_classes: int) -> Tensor:

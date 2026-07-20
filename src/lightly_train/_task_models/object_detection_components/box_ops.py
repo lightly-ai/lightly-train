@@ -15,9 +15,14 @@
 https://github.com/facebookresearch/detr/blob/main/util/box_ops.py
 """
 
+import logging
+
 import torch
 from torch import Tensor
 from torchvision.ops.boxes import box_area
+
+_logger = logging.getLogger(__name__)
+_invalid_bbox_warning_emitted = False
 
 
 def box_cxcywh_to_xyxy(x: Tensor) -> Tensor:
@@ -30,6 +35,30 @@ def box_xyxy_to_cxcywh(x: Tensor) -> Tensor:
     x0, y0, x1, y1 = x.unbind(-1)
     b = [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0), (y1 - y0)]
     return torch.stack(b, dim=-1)
+
+
+def sanitize_boxes_cxcywh_normalized(boxes: Tensor) -> Tensor:
+    """Sanitize normalized ``cxcywh`` boxes predicted by the decoder.
+
+    The RT-DETR matcher and criterion operate on boxes normalized by image
+    size. We therefore map NaN to ``0``, ``-inf`` to ``0``, ``+inf`` to ``1``,
+    and clamp all coordinates to ``[0, 1]`` before downstream L1/IoU/GIoU
+    computations.
+    """
+    global _invalid_bbox_warning_emitted
+
+    if not _invalid_bbox_warning_emitted:
+        invalid_mask = ~torch.isfinite(boxes)
+        if invalid_mask.any():
+            _logger.warning(
+                "Found invalid predicted bbox values (NaN/inf) before "
+                "sanitization. This usually indicates numerical instability "
+                "upstream."
+            )
+            _invalid_bbox_warning_emitted = True
+
+    boxes = torch.nan_to_num(boxes, nan=0.0, posinf=1.0, neginf=0.0)
+    return boxes.clamp(min=0.0, max=1.0)
 
 
 # modified from torchvision to also return the union
@@ -58,10 +87,6 @@ def generalized_box_iou(boxes1, boxes2):
     Returns a [N, M] pairwise matrix, where N = len(boxes1)
     and M = len(boxes2)
     """
-    # degenerate boxes gives inf / nan results
-    # so do an early check
-    assert (boxes1[:, 2:] >= boxes1[:, :2]).all()
-    assert (boxes2[:, 2:] >= boxes2[:, :2]).all()
     iou, union = box_iou(boxes1, boxes2)
 
     lt = torch.min(boxes1[:, None, :2], boxes2[:, :2])

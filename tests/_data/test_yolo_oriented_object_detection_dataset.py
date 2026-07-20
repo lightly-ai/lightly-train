@@ -274,3 +274,18 @@ class TestYoloOrientedObjectDetectionDataset:
         assert sample["image"].dtype == torch.float32
         assert sample["bboxes"].shape == (0, 5)
         assert sample["classes"].shape == (0,)
+
+
+class TestYOLOOrientedObjectDetectionMmapHash:
+    def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
+        create_yolo_oriented_object_detection_dataset(
+            tmp_path=tmp_path, split_first=True
+        )
+        args = YOLOOrientedObjectDetectionDataArgs(
+            path=tmp_path,
+            train="train/images",
+            val="val/images",
+            names={0: "class_0", 1: "class_1"},
+        )
+        assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
+        assert args.val_data_mmap_hash() == args.val_data_mmap_hash()

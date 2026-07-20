@@ -12,6 +12,9 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
+# Modifications Copyright 2026 Lightly AG:
+# - Introduce sanitize_boxes_cxcywh_normalized function to ensure boxes are in the expected format
+
 import copy
 
 import torch
@@ -24,15 +27,11 @@ from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
     box_iou,
     generalized_box_iou,
+    sanitize_boxes_cxcywh_normalized,
 )
-
-
-def is_dist_available_and_initialized():
-    if not torch.distributed.is_available():
-        return False
-    if not torch.distributed.is_initialized():
-        return False
-    return True
+from lightly_train._task_models.object_detection_components.dist_utils import (
+    is_dist_available_and_initialized,
+)
 
 
 class RTDETRCriterionv2(nn.Module):
@@ -99,6 +98,7 @@ class RTDETRCriterionv2(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         if values is None:
             src_boxes = outputs["pred_boxes"][idx]
+            src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
             target_boxes = torch.cat(
                 [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
             )
@@ -143,6 +143,7 @@ class RTDETRCriterionv2(nn.Module):
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs["pred_boxes"][idx]
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
         )
@@ -299,6 +300,7 @@ class RTDETRCriterionv2(nn.Module):
             return {}
 
         src_boxes = outputs["pred_boxes"][self._get_src_permutation_idx(indices)]
+        src_boxes = sanitize_boxes_cxcywh_normalized(src_boxes)
         target_boxes = torch.cat(
             [t["boxes"][j] for t, (_, j) in zip(targets, indices)], dim=0
         )

@@ -165,7 +165,7 @@ _PRETRAIN_HELP_MSG = f"""
             respective arguments: `callbacks.model_checkpoint.every_n_epochs=5`.
             Default: null
         optim (str):
-            Optimizer name. Must be one of ['auto', 'adamw', 'sgd']. 'auto' automatically
+            Optimizer name. Must be one of ['auto', 'adamw', 'adamw8bit', 'sgd']. 'auto' automatically
             selects the optimizer based on the method.
         optim_args (dict):
             Optimizer arguments. Available arguments depend on the optimizer.

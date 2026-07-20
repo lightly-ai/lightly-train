@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
@@ -23,6 +24,7 @@ from torchvision.transforms.v2 import functional as transforms_functional
 from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._export.onnx_helpers import check_onnx_dynamo_requirements
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.layers.attention import (
@@ -30,6 +32,10 @@ from lightly_train._models.dinov3.dinov3_src.layers.attention import (
 )
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer,
+)
+from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.config import (
+    DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+    EoMTPanopticSegmentationConfig,
 )
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.scale_block import (
     ScaleBlock,
@@ -101,7 +107,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 If False, then no pretrained weights are loaded.
         """
         super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
+        parsed_name = self._resolve_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.thing_classes = thing_classes
         self.stuff_classes = stuff_classes
@@ -134,6 +140,10 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         self.class_to_internal_class: dict[int, int] = {
             class_id: internal_id
             for internal_id, class_id in enumerate(internal_class_to_class[:-1])
+        }
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
         }
 
         # Boolean mask indicating which internal classes are stuff classes.
@@ -228,50 +238,33 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}" for name in DINOV3_PACKAGE.list_model_names()
-        ]
+        return list(DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases())
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
+        return model in DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases()
 
     @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
+    def _get_config(cls, model_name: str) -> EoMTPanopticSegmentationConfig:
+        try:
+            return DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                alias=model_name
+            )()
+        except KeyError:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}. See the documentation for "
                 "more information: https://docs.lightly.ai/train/stable/panoptic_segmentation.html"
-            )
+            ) from None
 
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV3_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV3_PACKAGE.parse_model_name(model_name=backbone_name)
-        except ValueError:
-            raise_invalid_name()
-
+    @classmethod
+    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
+        config = cls._get_config(model_name=model_name)
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
         return {
-            "model_name": f"{DINOV3_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
 
@@ -312,50 +305,152 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         if self.training:
             self.eval()
 
-        first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch(x.unsqueeze(0))
+        raw = self.forward_backend(batch)
+        return self.postprocess(
+            raw,
+            [metadata],
+            threshold=threshold,
+            mask_threshold=mask_threshold,
+            mask_overlap_threshold=mask_overlap_threshold,
+        )[0]
 
-        # Load image
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
         )
-
         x, (crop_h, crop_w) = self.resize_and_pad(x)
-        x = x.unsqueeze(0)  # (1, C, H', W')
+        return x, {
+            "orig_h": image_h,
+            "orig_w": image_w,
+            "crop_h": crop_h,
+            "crop_w": crop_w,
+        }
 
-        # (1, Q, H', W'), (1, Q, K+1)
-        # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self._forward_logits(x)
+    def preprocess_batch(self, batch: Tensor) -> Tensor:
+        return batch
 
-        # Interpolate to original image size.
-        mask_logits = mask_logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
-        # (1, Q, H, W)
-        mask_logits = F.interpolate(
-            mask_logits, size=(image_h, image_w), mode="bilinear"
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
+        # x is a batch of images with shape (B, C, H, W).
+        H, W = x.shape[-2:]
+
+        # Forward pass.
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            x, return_logits_per_layer=False
         )
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
 
-        # (H, W, 2), (num_segments), (num_segments)
-        masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
-            mask_logits=mask_logits[0],
-            class_logits=class_logits[0],
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: tuple[Tensor, Tensor],
+        metadata: Sequence[dict[str, Any]],
+        threshold: float,
+        mask_threshold: float,
+        mask_overlap_threshold: float,
+    ) -> list[dict[str, Tensor]]:
+        mask_logits_batch, class_logits_batch = raw_outputs
+        out: list[dict[str, Tensor]] = []
+        for i, meta in enumerate(metadata):
+            crop_h, crop_w = meta["crop_h"], meta["crop_w"]
+            orig_h, orig_w = meta["orig_h"], meta["orig_w"]
+            # (1, Q, crop_h, crop_w)
+            mask_logits = mask_logits_batch[i : i + 1, ..., :crop_h, :crop_w]
+            # (1, Q, orig_h, orig_w)
+            mask_logits = F.interpolate(
+                mask_logits, size=(orig_h, orig_w), mode="bilinear"
+            )
+            masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
+                mask_logits=mask_logits[0],
+                class_logits=class_logits_batch[i],
+                threshold=threshold,
+                mask_threshold=mask_threshold,
+                mask_overlap_threshold=mask_overlap_threshold,
+            )
+            # Map internal class IDs to class IDs.
+            masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
+            out.append(
+                {
+                    "masks": masks,
+                    "segment_ids": segment_ids,
+                    "scores": scores,
+                }
+            )
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+        threshold: float = 0.8,
+        mask_threshold: float = 0.5,
+        mask_overlap_threshold: float = 0.8,
+    ) -> list[dict[str, Tensor]]:
+        """Run inference on a batch of images and return per-image predictions.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, a PIL image, or a
+                tensor of shape (C, H, W).
+            threshold:
+                The confidence threshold to keep predicted masks.
+            mask_threshold:
+                The threshold to convert predicted mask logits to binary masks.
+            mask_overlap_threshold:
+                The overlap area threshold for the predicted masks. Used to filter
+                out or merge disconnected mask regions for every instance.
+
+        Returns:
+            A list with one dict per input image. Each dict contains:
+                - "masks": Tensor of shape (H, W, 2) at the original image
+                  resolution where the last dimension has two channels:
+                    - Channel 0: class label per pixel
+                    - Channel 1: segment id per pixel. Id -1 indicates pixels
+                      without an assigned segment.
+                - "segment_ids": Tensor of shape (num_segments,) with the
+                  segment ids. There can be multiple segments with the same id
+                  if they belong to the same stuff class.
+                - "scores": Tensor of shape (num_segments,) with the confidence
+                  score for each segment.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = torch.stack(tensors, dim=0)
+        batch = self.preprocess_batch(batch)
+        raw = self.forward_backend(batch)
+        return self.postprocess(
+            raw,
+            metadata,
             threshold=threshold,
             mask_threshold=mask_threshold,
             mask_overlap_threshold=mask_overlap_threshold,
         )
-
-        # Map internal class IDs to class IDs.
-        masks[..., 0] = self.internal_class_to_class[masks[..., 0]]
-
-        return {
-            "masks": masks,
-            "segment_ids": segment_ids,
-            "scores": scores,
-        }
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         # NOTE(Guarin, 11/25): This implementation only supports batch size 1.
@@ -370,7 +465,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1)
         # Q = num_queries, K = num_stuff_classes + num_thing_classes
-        mask_logits, class_logits = self._forward_logits(x)
+        mask_logits, class_logits = self.forward_backend(x)
         # (H, W, 2), (num_segments), (num_segments)
         masks, segment_ids, scores = self.get_image_masks_segment_ids_scores(
             mask_logits=mask_logits[0],
@@ -486,24 +581,6 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             mask_logits_per_layer,
             class_logits_per_layer,
         )
-
-    def _forward_logits(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        """Forward pass that returns the logits of the last layer. Intended for
-        inference."""
-        # x is a batch of images with shape (B, C, H, W).
-        H, W = x.shape[-2:]
-
-        # Forward pass.
-        # Only the logits of the last layer are returned.
-        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
-            x, return_logits_per_layer=False
-        )
-        mask_logits = mask_logits_per_layer[-1]
-        class_logits = class_logits_per_layer[-1]
-
-        # Interpolate.
-        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
-        return mask_logits, class_logits
 
     def _predict(self, x: Tensor, grid_size: tuple[int, int]) -> tuple[Tensor, Tensor]:
         # TODO(Guarin, 08/25): Investigate if having different norms for queries and
@@ -995,12 +1072,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
         input_names = ["images"]
         output_names = ["masks", "segment_ids", "scores"]
 
-        # Define dynamic axes.
-        dynamic_axes = {
-            "masks": {1: "num_segments"},
-            "segment_ids": {1: "num_segments"},
-            "scores": {1: "num_segments"},
-        }
+        check_onnx_dynamo_requirements()
 
         torch.onnx.export(
             self,
@@ -1009,8 +1081,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version,
-            dynamo=False,
-            dynamic_axes=dynamic_axes,
+            dynamo=True,
             **(format_args or {}),
         )
 
@@ -1032,7 +1103,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
-            reference_outputs = reference_model(
+            reference_outputs: tuple[Tensor, ...] = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -1056,7 +1127,7 @@ class DINOv3EoMTPanopticSegmentation(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     # Absolute and relative tolerances are a bit arbitrary and taken from here:
                     # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                     torch.testing.assert_close(

@@ -13,6 +13,7 @@ from lightly_train._methods import method_helpers
 from lightly_train._methods.densecl.densecl import DenseCL
 from lightly_train._methods.dino.dino import DINO
 from lightly_train._methods.dinov2.dinov2 import DINOv2
+from lightly_train._methods.dinov31.dinov31 import DINOv31
 from lightly_train._methods.distillation.distillation import Distillation
 from lightly_train._methods.distillationv2.distillationv2 import DistillationV2
 from lightly_train._methods.distillationv3.distillationv3 import DistillationV3
@@ -29,6 +30,7 @@ from ..helpers import DummyCustomModel
         ("densecl", DenseCL),
         ("dino", DINO),
         ("dinov2", DINOv2),
+        ("dinov31", DINOv31),
         ("simclr", SimCLR),
         ("distillationv1", Distillation),
         ("distillationv2", DistillationV2),
@@ -45,6 +47,7 @@ def test_list_methods_private() -> None:
         "densecl",
         "dino",
         "dinov2",
+        "dinov31",
         "distillation",
         "distillationv1",
         "distillationv2",
@@ -57,6 +60,7 @@ def test_list_methods_public() -> None:
     assert method_helpers.list_methods() == [
         "dino",
         "dinov2",
+        "dinov31",
         "distillation",
         "distillationv1",
         "distillationv2",

@@ -19,8 +19,8 @@ jobs:
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           list-files: shell
@@ -37,19 +37,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set Up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         id: setup-uv
         with:
-          version: 0.10.0
+          version: 0.11.15
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-          python-version: "3.13"
-      - name: Set Up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       - name: Set Up Environment
         run: |
           make install-dist

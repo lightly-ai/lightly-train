@@ -21,6 +21,7 @@ from filelock import FileLock
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from lightning_fabric.loggers.logger import Logger as FabricLogger
+from PIL.Image import Image as PILImage
 from pydantic import TypeAdapter
 from torch.nn import Module
 from torch.optim import Optimizer  # type: ignore[attr-defined]
@@ -37,6 +38,7 @@ from lightly_train._data._serialize.memory_mapped_sequence import (
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._env import Env
+from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.mlflow import MLFlowLogger, MLFlowLoggerArgs
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
 from lightly_train._loggers.tensorboard import TensorBoardLogger
@@ -56,12 +58,6 @@ from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.train_model import (
     DINOv2EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov2_linear_semantic_segmentation.train_model import (
-    DINOv2LinearSemanticSegmentationTrain,
-)
-from lightly_train._task_models.dinov2_ltdetr_object_detection.train_model import (
-    DINOv2LTDETRObjectDetectionTrain,
-)
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.train_model import (
     DINOv3EoMTInstanceSegmentationTrain,
 )
@@ -71,14 +67,20 @@ from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.train_model im
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.train_model import (
     DINOv3EoMTSemanticSegmentationTrain,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.train_model import (
-    DINOv3LTDETRObjectDetectionTrain,
-)
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
 )
 from lightly_train._task_models.image_classification_multihead.train_model import (
     ImageClassificationMultiheadTrain,
+)
+from lightly_train._task_models.linear_semantic_segmentation.train_model import (
+    LinearSemanticSegmentationTrain,
+)
+from lightly_train._task_models.ltdetr_instance_segmentation.train_model import (
+    LTDETRInstanceSegmentationTrain,
+)
+from lightly_train._task_models.ltdetr_object_detection.train_model import (
+    LTDETRObjectDetectionTrain,
 )
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
@@ -87,6 +89,7 @@ from lightly_train._task_models.semantic_segmentation_multihead.train_model impo
     SemanticSegmentationMultiheadTrain,
 )
 from lightly_train._task_models.train_model import (
+    TaskStepResult,
     TrainModel,
     TrainModelArgs,
 )
@@ -98,6 +101,7 @@ from lightly_train._train_task_state import (
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
 from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
 )
@@ -122,11 +126,11 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
     DINOv3EoMTInstanceSegmentationTrain,
     DINOv3EoMTPanopticSegmentationTrain,
     DINOv2EoMTSemanticSegmentationTrain,
-    DINOv2LinearSemanticSegmentationTrain,
+    LinearSemanticSegmentationTrain,
     DINOv3EoMTSemanticSegmentationTrain,
     SemanticSegmentationMultiheadTrain,
-    DINOv2LTDETRObjectDetectionTrain,
-    DINOv3LTDETRObjectDetectionTrain,
+    LTDETRObjectDetectionTrain,
+    LTDETRInstanceSegmentationTrain,
     PicoDetObjectDetectionTrain,
 ]
 
@@ -159,6 +163,8 @@ TASK_TO_METRICS: dict[str, dict[str, str]] = {
         "val_metric/map_large": "Val mAP (large)",
     },
 }
+
+_IMAGE_EXAMPLES_DIR = "image_examples"
 
 
 def get_out_dir(
@@ -353,9 +359,13 @@ def pretty_format_args_dict(args: dict[str, Any]) -> dict[str, Any]:
 
 def get_transform_args(
     train_model_cls: type[TrainModel],
+    model_name: str,
     transform_args: dict[str, Any] | None,
     ignore_index: int | None,
     model_init_args: dict[str, Any],
+    total_steps: int,
+    train_num_batches: int,
+    gradient_accumulation_steps: int,
 ) -> tuple[TaskTransformArgs, TaskTransformArgs]:
     if (
         train_model_cls.task
@@ -377,16 +387,23 @@ def get_transform_args(
     # }
     val_args = transform_args.pop("val", {})
 
-    train_transform_args_cls = train_model_cls.train_transform_cls.transform_args_cls
-    val_transform_args_cls = train_model_cls.val_transform_cls.transform_args_cls
+    train_transform_args_cls = train_model_cls.get_train_transform_cls(
+        model_name
+    ).transform_args_cls
+    val_transform_args_cls = train_model_cls.get_val_transform_cls(
+        model_name
+    ).transform_args_cls
     train_transform_args: TaskTransformArgs
     val_transform_args: TaskTransformArgs
 
     train_transform_args = validate.pydantic_model_validate(
         train_transform_args_cls, transform_args
     )
-    train_transform_args.resolve_auto(
-        model_init_args=model_init_args,
+    train_transform_args.resolve_auto(model_init_args=model_init_args)
+    train_transform_args.resolve_step_schedule(
+        total_steps=total_steps,
+        train_num_batches=train_num_batches,
+        gradient_accumulation_steps=gradient_accumulation_steps,
     )
     train_transform_args.resolve_incompatible()
 
@@ -404,8 +421,11 @@ def get_transform_args(
     val_transform_args = validate.pydantic_model_validate(
         val_transform_args_cls, val_args_dict
     )
-    val_transform_args.resolve_auto(
-        model_init_args=model_init_args,
+    val_transform_args.resolve_auto(model_init_args=model_init_args)
+    val_transform_args.resolve_step_schedule(
+        total_steps=total_steps,
+        train_num_batches=train_num_batches,
+        gradient_accumulation_steps=gradient_accumulation_steps,
     )
     val_transform_args.resolve_incompatible()
 
@@ -420,9 +440,12 @@ def get_transform_args(
 
 def get_train_transform(
     train_model_cls: type[TrainModel],
+    model_name: str,
     train_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return train_model_cls.train_transform_cls(transform_args=train_transform_args)
+    return train_model_cls.get_train_transform_cls(model_name)(
+        transform_args=train_transform_args
+    )
 
 
 def get_metric_args(
@@ -450,9 +473,12 @@ def get_metric_args(
 
 def get_val_transform(
     train_model_cls: type[TrainModel],
+    model_name: str,
     val_transform_args: TaskTransformArgs,
 ) -> TaskTransform:
-    return train_model_cls.val_transform_cls(transform_args=val_transform_args)
+    return train_model_cls.get_val_transform_cls(model_name)(
+        transform_args=val_transform_args
+    )
 
 
 def get_sha256(value: Any) -> str:
@@ -474,27 +500,23 @@ def _unlink_and_ignore(path: Path) -> None:
 @contextlib.contextmanager
 def get_dataset_temp_mmap_path(
     fabric: Fabric,
-    data: PathLike,
+    data_hash: str,
     out: PathLike,
 ) -> Generator[Path, Any, Any]:
     """Generate file in temporary directory to be used for memory-mapping the dataset.
 
-    Creates a unique filename for the memory-mapped file based on the `out` or `data`
-    arguments. We use those arguments as they are consistent across all ranks on the
-    same node for the same run. Additionally, we can cache the file if required, since
-    the hash directly reflects the used config.
-
-    Use the same file on all ranks across all nodes, unless the filesystem is not shared.
+    Creates a unique filename for the memory-mapped file based on ``out`` and
+    ``data_hash``. The caller is responsible for producing a ``data_hash`` that
+    uniquely identifies the dataset configuration. The same file is used on all
+    ranks across all nodes, unless the filesystem is not shared.
     """
     if Env.LIGHTLY_TRAIN_MMAP_REUSE_FILE.value:
-        # Use data as identifier to share the mmap file across multiple runs.
-        # NOTE(Guarin, 09/25): Hash of data might be slow if data is a long list of
-        # filenames or directories.
-        identifier = str(Path(data).resolve())
+        # Use data_hash as identifier to share the mmap file across multiple runs.
+        identifier = data_hash
     else:
         # Use out as identifier to create a unique mmap file for each run. We assume
         # that only one run is using a specific out directory at a time.
-        identifier = str(Path(out).resolve()) + str(Path(data).resolve())
+        identifier = str((str(Path(out).resolve()), data_hash))
 
     mmap_filepath = (cache.get_data_cache_dir() / get_sha256(identifier)).with_suffix(
         ".mmap"
@@ -610,8 +632,8 @@ def get_dataset_mmap_file(
 def get_dataset(
     fabric: Fabric,
     dataset_args: TaskDatasetArgs,
-    transform: TaskTransform,
     mmap_filepath: Path,
+    transform: TaskTransform | None = None,
 ) -> TaskDataset:
     image_info = dataset_args.list_image_info()
 
@@ -630,20 +652,12 @@ def get_dataset(
 def get_train_dataloader(
     fabric: Fabric,
     dataset: TaskDataset,
-    transform_args: TaskTransformArgs,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
     # TODO(Guarin, 07/25): Persistent workers by default?
-    collate_fn = dataset.batch_collate_fn_cls(
-        split="train", transform_args=transform_args
-    )
-    requires_worker_refresh = (
-        dataset.transform.uses_step_dependent_worker_state()
-        or collate_fn.uses_step_dependent_worker_state()
-    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -651,7 +665,6 @@ def get_train_dataloader(
         num_workers=num_workers,
         drop_last=True,
         timeout=timeout,
-        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -660,32 +673,17 @@ def get_train_dataloader(
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
-    if requires_worker_refresh and num_workers > 0:
-        persistent_workers = bool(dataloader_kwargs.get("persistent_workers", False))
-        if persistent_workers:
-            warning_message = (
-                "Step-aware transform/collate requires "
-                "persistent_workers=False. Overriding user-provided "
-                "persistent_workers=True."
-            )
-            logger.warning(warning_message)
-        dataloader_kwargs["persistent_workers"] = False
-    dataloader = DataLoader(**dataloader_kwargs)
-    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
+    return DataLoader(**dataloader_kwargs)
 
 
 def get_val_dataloader(
     fabric: Fabric,
     dataset: TaskDataset,
-    transform_args: TaskTransformArgs,
     batch_size: int,
     num_workers: int,
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
-    collate_fn = dataset.batch_collate_fn_cls(
-        split="val", transform_args=transform_args
-    )
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -693,7 +691,6 @@ def get_val_dataloader(
         num_workers=num_workers,
         drop_last=False,
         timeout=timeout,
-        collate_fn=collate_fn,
     )
     if loader_args is not None:
         logger.debug(f"Using additional dataloader arguments {loader_args}.")
@@ -702,8 +699,25 @@ def get_val_dataloader(
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
         dataloader_kwargs.update(**loader_args)
-    dataloader = DataLoader(**dataloader_kwargs)
-    return fabric.setup_dataloaders(dataloader)  # type: ignore[return-value,no-any-return]
+    return DataLoader(**dataloader_kwargs)
+
+
+def disable_persistent_workers_for_step_aware_transforms(
+    dataloader: DataLoader[Any],
+    transform: TaskTransform,
+    collate_fn: TaskCollateFunction,
+) -> None:
+    """Force ``persistent_workers=False`` when transform/collate are step-aware."""
+    needs_refresh = (
+        transform.uses_step_dependent_worker_state()
+        or collate_fn.uses_step_dependent_worker_state()
+    )
+    if needs_refresh and dataloader.num_workers > 0 and dataloader.persistent_workers:
+        logger.warning(
+            "Step-aware transform/collate requires persistent_workers=False. "
+            "Overriding user-provided persistent_workers=True."
+        )
+        dataloader.persistent_workers = False
 
 
 def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
@@ -756,6 +770,8 @@ def get_train_model_args(
     model_args: dict[str, Any] | TrainModelArgs | None,
     model_args_cls: type[TrainModelArgs],
     total_steps: int,
+    gradient_accumulation_steps: int,
+    train_num_batches: int,
     model_name: str,
     model_init_args: dict[str, Any],
     data_args: TaskDataArgs,
@@ -766,6 +782,8 @@ def get_train_model_args(
     args = validate.pydantic_model_validate(model_args_cls, model_args)
     args.resolve_auto(
         total_steps=total_steps,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        train_num_batches=train_num_batches,
         model_name=model_name,
         model_init_args=model_init_args,
         data_args=data_args,
@@ -818,6 +836,7 @@ def log_step(
     global_batch_size: int,
     gradient_accumulation_steps: int = 1,
     learning_rate: float | None = None,
+    gradient_norm: float | None = None,
 ) -> None:
     split_cap = split.capitalize()
     name_to_display_name = {
@@ -842,6 +861,9 @@ def log_step(
 
     if learning_rate is not None:
         parts.append(f"lr: {learning_rate:2.8f}")
+
+    if gradient_norm is not None:
+        parts.append(f"grad_norm: {gradient_norm:4.4f}")
 
     # Add profiling information.
     profiling_parts = []
@@ -1496,3 +1518,68 @@ def get_torch_compile_args(
         train_model_cls.torch_compile_args_cls, torch_compile_args
     )
     return args
+
+
+def save_train_step_visualizations(
+    *,
+    result: TaskStepResult,
+    out_dir: Path,
+    step: int,
+    loggers: Iterable[FabricLogger],
+) -> None:
+    image = result.create_label_image()
+    _save_images_to_dir_and_loggers(
+        image=image,
+        path=_image_examples_dir(out_dir) / f"train_labels_{step}.jpg",
+        loggers=loggers,
+        key=f"train_images/labels_{step}",
+        step=step,
+    )
+
+
+def save_val_step_visualizations(
+    *,
+    result: TaskStepResult,
+    out_dir: Path,
+    val_step: int,
+    global_step: int,
+    loggers: Iterable[FabricLogger],
+) -> None:
+    viz_dir = _image_examples_dir(out_dir)
+    _save_images_to_dir_and_loggers(
+        image=result.create_prediction_image(),
+        path=viz_dir / f"val_predictions_{val_step}.jpg",
+        loggers=loggers,
+        key=f"val_images/predictions_{val_step}",
+        step=global_step,
+    )
+    label_path = viz_dir / f"val_labels_{val_step}.jpg"
+    if not label_path.exists():
+        _save_images_to_dir_and_loggers(
+            image=result.create_label_image(),
+            path=label_path,
+            loggers=loggers,
+            key=f"val_images/labels_{val_step}",
+            step=global_step,
+        )
+
+
+def _image_examples_dir(out_dir: Path) -> Path:
+    return out_dir / _IMAGE_EXAMPLES_DIR
+
+
+def _save_images_to_dir_and_loggers(
+    *,
+    image: PILImage | None,
+    path: Path,
+    loggers: Iterable[FabricLogger],
+    key: str,
+    step: int,
+) -> None:
+    if image is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+    logger_helpers.log_image_to_loggers(
+        loggers=loggers, key=key, image=image, step=step
+    )

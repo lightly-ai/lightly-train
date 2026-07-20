@@ -29,8 +29,12 @@ class TestDINOv2ViTPackage:
             ("dinov2/vitb14", True),
             ("dinov2/vitl14", True),
             ("dinov2/vitg14", True),
-            # These models are False because they are not listed but they can still be
-            # instantiated if needed.
+            ("dinov2/vits14-notpretrained", True),
+            ("dinov2/vitb14-notpretrained", True),
+            ("dinov2/vitl14-notpretrained", True),
+            ("dinov2/vitg14-notpretrained", True),
+            # These models are not listed: noreg variants are secondary options and
+            # noreg-notpretrained / other variants are for advanced use only.
             ("dinov2/vits14-noreg", False),
             ("dinov2/vitb14-noreg", False),
             ("dinov2/vitl14-noreg", False),

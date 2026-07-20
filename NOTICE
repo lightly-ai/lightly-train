@@ -2,6 +2,23 @@ This project incorporates the following third-party components:
 
 ---
 
+**DEIMv2**
+- Source: https://github.com/Intellindust-AI-Lab/DEIMv2
+- License: Apache License 2.0
+- License file: licenses/DEIMv2_LICENSE
+- Modifications: 
+    - Added errors for states that are considered invalid (i.e no cosine phase).
+    - Refactored the code and logic to adheres to our standards.
+
+**EdgeCrafter**
+- Source: https://github.com/Intellindust-AI-Lab/EdgeCrafter
+- License: Apache License 2.0
+- License file: licences/EDGECRAFTER_LICENSE
+- Modifications:
+  - Ported the ECViT backbone adapter to LightlyTrain. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+  - Removed EdgeCrafter registry/distributed dependencies. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+  - Added typed LTDETR-compatible tuple output. Affected file: `src/lightly_train/_models/ecvit/ecvit.py`.
+
 **DINOv2**
 - Source: https://github.com/facebookresearch/dinov2
 - License: Apache License 2.0
@@ -13,6 +30,13 @@ This project incorporates the following third-party components:
 - Source: https://github.com/tue-mps/eomt
 - License: MIT License
 - License file: licences/EOMT_LICENSE
+
+**HuggingFace Transformers**
+- Source: https://github.com/huggingface/transformers
+- License: Apache License 2.0
+- License file: licences/HUGGINGFACE_TRANSFORMERS_LICENSE
+- Modifications:
+  - Vendored the minimal subset of `transformers.debug_utils` (the `DebugUnderflowOverflow` class plus `get_abs_min_max`/`detect_overflow` helpers) used by the underflow/overflow debugger. The `transformers` package remains a runtime dependency for other code paths in LightlyTrain. Affected file: `src/lightly_train/_debug/huggingface_debug_utils.py`.
 
 **PyTorch Lightning**
 - Source: https://github.com/Lightning-AI/pytorch-lightning
@@ -27,6 +51,18 @@ This project incorporates the following third-party components:
   - Added compatibility for PyTorch < 2.2.
   - Added parameter to load SAT493M weights with different filenames.
   - Added small test models.
+
+**LingBot Vision**
+- Source: https://github.com/Robbyant/lingbot-vision
+- License: Apache License 2.0
+- License file: licences/LINGBOT_VISION_LICENSE
+- Note: LingBot Vision is built on DINOv3
+  (https://github.com/facebookresearch/dinov3). In addition to the Apache License 2.0
+  under which LingBot Vision is released, the terms of the DINOv3 License Agreement
+  (licences/DINOv3_LICENSE.md) apply to the models and weights.
+- Modifications:
+  - No source code is vendored. LightlyTrain redistributes the pretrained LingBot
+    Vision backbone weights, loaded with the DINOv3 model implementation.
 
 **RT-DETR**
 - Source: https://github.com/lyuwenyu/RT-DETR
@@ -43,6 +79,21 @@ This project incorporates the following third-party components:
   - Remove `de_parallel` usage and `ExponentialMovingAverage` class in `ema.py`.
   - Let `ModelEMA` inherit from `torch.nn.Module` in `ema.py`.
   - Remove `to`, `state_dict`, and `load_state_dict` methods from `ModelEMA` in `ema.py`.
+  - Registered `score_head_reuse_or_reinit_hook` and (when denoising is enabled) `denoising_class_embed_reuse_or_reinit_hook` as load-state-dict pre-hooks in `rtdetrv2_decoder.py`, so pretrained RT-DETR checkpoints can be adapted to a new `num_classes` at load time. The hook implementations have been extracted into a shared `hooks.py` module so they can be reused by D-FINE.
+  - Added FP32 guards around bbox refinement in `rtdetrv2_decoder.py` for stability in mixed precision.
+
+**D-FINE**
+- Source: https://github.com/Peterande/D-FINE
+- License: Apache License 2.0
+- License file: licences/DFINE_LICENSE.txt
+- Modifications:
+  - Removed upstream registry hooks and adapted imports for LightlyTrain. Affected file: .../dfine_decoder.py
+  - Registered ``score_head_reuse_or_reinit_hook`` and (when denoising is enabled) ``denoising_class_embed_reuse_or_reinit_hook`` as load-state-dict pre-hooks, so pretrained D-FINE checkpoints can be adapted to a new ``num_classes`` at load time. Affected file: .../dfine_decoder.py
+  - Registered ``anchors`` / ``valid_mask`` for evaluation as non-persistent buffers so they are not written into checkpoints. Affected file: .../dfine_decoder.py
+  - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor to reuse existing ``deformable_attention_core_func_v2`` in ``utils.py``. Affected file: .../dfine_decoder.py
+  - Added FP32 guards around bbox refinement for stability in mixed precision. Affected file: .../dfine_decoder.py
+  - Added type annotations. Affected file: .../dfine_utils.py
+  - Adapted criterion for LightlyTrain: removed upstream registry hooks, added explicit ``world_size`` forwarding for the Fabric training loop, supports validation-time loss computation when auxiliary outputs are absent, and added FP32 guards around bbox refinement for stability in mixed precision. Affected file: .../dfine_criterion.py
 
 **PicoDet (Picodet_Pytorch)**
 - Source: https://github.com/Bo396543018/Picodet_Pytorch
@@ -62,6 +113,37 @@ This project incorporates the following third-party components:
 - Modifications:
   - Minor typing and docstrings modifications in ` from 
     `src/lightly_train/_models/dinov3/dinov3_src/layers/patch_embed.py`.
+
+**Depth Anything V2**
+- Source: https://github.com/DepthAnything/Depth-Anything-V2
+- License: Apache License 2.0
+- License file: licences/DEPTH_ANYTHING_2_LICENSE
+- Modifications:
+  - Ported the DAv2 relative and metric depth-estimation models to LightlyTrain as
+    `TaskModel`s that pair a DINOv2 backbone with the shared DPT head. Affected files:
+    `src/lightly_train/_task_models/dinov2_dav2_relative_depth_estimation/task_model.py`,
+    `src/lightly_train/_task_models/dinov2_dav2_metric_depth_estimation/task_model.py`.
+  - Reimplemented the DAv2 cubic image preprocessing. Affected file:
+    `src/lightly_train/_task_models/depth_estimation_components/image_utils.py`
+    (`process_image_dav2`).
+
+**Depth Anything V3**
+- Source: https://github.com/ByteDance-Seed/Depth-Anything-3
+- License: Apache License 2.0
+- License file: licences/DEPTH_ANYTHING_3_LICENSE
+- Modifications:
+  - Ported the DPT dense-prediction head and its head utilities, specialized to
+    monocular inference (no sequence/time chunking and no Gaussian-splatting `images`
+    branch). These are also reused by the DAv2 models above. Affected files:
+    `src/lightly_train/_task_models/depth_estimation_components/dpt.py`,
+    `src/lightly_train/_task_models/depth_estimation_components/head_utils.py`.
+  - Ported the DAv3 relative and metric depth-estimation models to LightlyTrain as
+    `TaskModel`s that pair a DINOv2 backbone with the DPT head. Affected files:
+    `src/lightly_train/_task_models/dinov2_dav3_relative_depth_estimation/task_model.py`,
+    `src/lightly_train/_task_models/dinov2_dav3_metric_depth_estimation/task_model.py`.
+  - Reimplemented the DAv3 boundary-resize image preprocessing. Affected file:
+    `src/lightly_train/_task_models/depth_estimation_components/image_utils.py`
+    (`process_image_dav3`).
 ---
 
 All third-party code is used in accordance with their respective licenses.

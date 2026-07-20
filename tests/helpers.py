@@ -14,7 +14,7 @@ import random
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Literal
+from typing import Any, Callable, Iterable, Literal, Sequence
 
 import numpy as np
 import torch
@@ -786,6 +786,68 @@ def create_coco_object_detection_dataset(
             json.dump(coco_dict, f)
 
 
+def create_coco_instance_segmentation_dataset(
+    tmp_path: Path,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 2,
+    annotations_per_image: list[list[dict[str, Any]]] | None = None,
+) -> None:
+    """Create a minimal COCO instance segmentation dataset.
+
+    Args:
+        annotations_per_image: Per-image list of partial annotation dicts (without
+            "id" and "image_id"). Must have length num_files. If None, defaults to
+            one annotation per image with category_id=0, a bbox, and a polygon.
+    """
+    if annotations_per_image is None:
+        annotations_per_image = [
+            [
+                {
+                    "category_id": 0,
+                    "bbox": [10, 10, 30, 40],
+                    "segmentation": [[10.0, 10.0, 40.0, 10.0, 40.0, 50.0, 10.0, 50.0]],
+                }
+            ]
+            for _ in range(num_files)
+        ]
+
+    classes = {i: f"class_{i}" for i in range(num_classes)}
+
+    for split in ["train", "val"]:
+        image_dir = tmp_path / split
+        image_dir.mkdir(parents=True, exist_ok=True)
+        create_images(image_dir=image_dir, files=num_files, height=height, width=width)
+
+        image_paths = sorted(image_dir.glob("*.png"))
+        categories = [{"id": k, "name": v} for k, v in classes.items()]
+        images = []
+        annotations = []
+        ann_id = 0
+        for idx, img_path in enumerate(image_paths):
+            images.append(
+                {
+                    "id": idx,
+                    "file_name": img_path.name,
+                    "width": width,
+                    "height": height,
+                }
+            )
+            for ann in annotations_per_image[idx]:
+                annotations.append({"id": ann_id, "image_id": idx, **ann})
+                ann_id += 1
+
+        coco_dict = {
+            "images": images,
+            "annotations": annotations,
+            "categories": categories,
+        }
+        annotations_path = tmp_path / f"{split}.json"
+        with open(annotations_path, "w") as f:
+            json.dump(coco_dict, f)
+
+
 def create_coco_panoptic_segmentation_dataset(
     tmp_path: Path,
     num_files: int = 2,
@@ -1014,3 +1076,48 @@ def dummy_dinov3_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv3ViTModel
 
 def dummy_dinov3_convnext_model(**kwargs: Any) -> DINOv3VConvNeXtModelWrapper:
     return DINOv3VConvNeXtModelWrapper(model=_dinov3_convnext_test(**kwargs))
+
+
+def assert_onnx_outputs_close(
+    onnx_outputs: Sequence[np.ndarray],
+    torch_outputs: Sequence[Tensor],
+    *,
+    atol: float = 5e-3,
+    rtol: float = 1e-1,
+    min_close_fraction: float = 0.95,
+) -> None:
+    """Assert ONNX Runtime outputs match a PyTorch reference for LT-DETR exports.
+
+    The LT-DETR postprocessors apply a top-k over queries, so the per-query order
+    is not stable across backends when scores are near-tied. Float outputs are
+    therefore compared after summing over the query dim (dim=1), which makes the
+    comparison order-invariant, and integer ``labels`` are compared as sorted
+    multisets. This mirrors the summing done by the model's own
+    ``export_onnx(verify=True)`` check.
+
+    Args:
+        onnx_outputs:
+            Outputs from ``onnxruntime.InferenceSession.run``, in the model's
+            ``get_export_output_names`` order.
+        torch_outputs:
+            Reference outputs from the eager model's ``forward``, same order.
+        atol:
+            Absolute tolerance for the float comparison.
+        rtol:
+            Relative tolerance for the float comparison.
+        min_close_fraction:
+            Minimum fraction of elements that must be close for float outputs.
+    """
+    assert len(onnx_outputs) == len(torch_outputs)
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+        onnx_tensor = torch.from_numpy(onnx_out)
+        assert onnx_tensor.shape == torch_out.shape
+        if torch_out.is_floating_point():
+            onnx_summed = onnx_tensor.float().sum(dim=1)
+            torch_summed = torch_out.float().sum(dim=1)
+            close = torch.isclose(onnx_summed, torch_summed, atol=atol, rtol=rtol)
+            assert close.float().mean() > min_close_fraction
+        else:
+            assert np.array_equal(
+                np.sort(onnx_out.ravel()), np.sort(torch_out.numpy().ravel())
+            )

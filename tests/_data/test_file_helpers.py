@@ -489,12 +489,8 @@ def test_open_yolo_instance_segmentation_label(tmp_path: Path) -> None:
         label_path=tmp_path / "label.txt"
     )
     assert len(polygons) == 2
-    np.testing.assert_array_almost_equal(
-        polygons[0], np.array([0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
-    )
-    np.testing.assert_array_almost_equal(
-        polygons[1], np.array([0.3, 0.3, 0.3, 0.4, 0.4, 0.4])
-    )
+    assert polygons[0] == [[0.1, 0.1, 0.1, 0.2, 0.2, 0.2]]
+    assert polygons[1] == [[0.3, 0.3, 0.3, 0.4, 0.4, 0.4]]
     np.testing.assert_array_almost_equal(
         bboxes, np.array([[0.15, 0.15, 0.1, 0.1], [0.35, 0.35, 0.1, 0.1]])
     )

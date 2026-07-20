@@ -51,12 +51,12 @@ class LossMetricCollection(Module):
                     "train_loss_running_mean_window must be specified for train split"
                 )
             try:
-                from torchmetrics.wrappers import (
-                    Running as TorchmetricsRunning,  # type: ignore[attr-defined]
+                from torchmetrics.wrappers import (  # type: ignore[attr-defined]
+                    Running as TorchmetricsRunning,
                 )
 
                 def metric_cls() -> TorchmetricsMetric:
-                    return TorchmetricsRunning(
+                    return TorchmetricsRunning(  # type: ignore[no-any-return]
                         TorchmetricsMeanMetric(),
                         window=train_loss_running_mean_window,
                     )

@@ -7,6 +7,8 @@
 #
 from __future__ import annotations
 
+from typing import Sequence
+
 import torch
 from torch import Tensor
 from torch.nn import Identity, Module, ModuleList
@@ -22,11 +24,11 @@ from lightly_train._models.model_wrapper import (
     ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    ModelWrapper,
+    MultiScaleFeatureViT,
 )
 
 
-class DINOv3ViTModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
+class DINOv3ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettable):
     def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
         self._model = model
@@ -34,6 +36,9 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
 
     def feature_dim(self) -> int:
         return self._feature_dim
+
+    def patch_size(self) -> int:
+        return int(self._model.patch_size)
 
     def forward_features(
         self, x: Tensor, masks: Tensor | None = None, n_blocks: int = 1
@@ -81,6 +86,17 @@ class DINOv3ViTModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
 
     def architecture_info(self) -> ArchitectureInfo:
         return {"model_type": "transformer", "norm_type": "layernorm"}
+
+    def multiscale_feature_dims(self) -> list[int]:
+        return [self._feature_dim] * self._model.n_blocks
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        rt = self._model.get_intermediate_layers(
+            x, n=list(layer_indices), reshape=True, return_class_token=True
+        )
+        return [{"features": feat, "cls_token": cls} for feat, cls in rt]
 
 
 def update_blocks_student_to_teacher(blocks: ModuleList) -> None:

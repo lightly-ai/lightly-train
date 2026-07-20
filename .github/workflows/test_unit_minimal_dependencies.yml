@@ -23,8 +23,8 @@ jobs:
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           list-files: shell
@@ -41,32 +41,20 @@ jobs:
     runs-on: "ubuntu-latest"
     strategy:
       matrix:
-        python: ["3.8"]
         dependencies: ["minimal", "minimal-extras"]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Set Up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         id: setup-uv
         with:
-          version: 0.10.0
+          version: 0.11.15
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
-          python-version: ${{ matrix.python }}
-      - name: Set Up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-      # Disabled because FFmpeg install fails too often in CI. See https://github.com/federicocarboni/setup-ffmpeg/issues/29
-      # - name: Set Up FFmpeg
-      #   if: ${{ matrix.dependencies == 'minimal-extras' }}
-      #   uses: FedericoCarboni/setup-ffmpeg@v3
-      #   with:
-      #     ffmpeg-version: 4.3.1
       - name: Set Up Environment
         run: |
           make install-${{ matrix.dependencies }}
       - name: Run Pytest
         run: |
-          make test-ci
+          make test-ci-minimal

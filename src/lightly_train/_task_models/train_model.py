@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from lightning_fabric import Fabric
+from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
@@ -34,6 +35,8 @@ class TrainModelArgs(PydanticConfig):
     def resolve_auto(
         self,
         total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
@@ -56,6 +59,33 @@ class TrainModel(Module):
     val_transform_cls: ClassVar[type[TaskTransform]]
     torch_compile_args_cls: ClassVar[type[TorchCompileArgs]]
 
+    @classmethod
+    def get_train_model_args_cls(cls, model_name: str) -> type[TrainModelArgs]:
+        """Return the TrainModelArgs class for the given model name.
+
+        Subclasses may override this to return different args classes
+        depending on the model.
+        """
+        return cls.train_model_args_cls
+
+    @classmethod
+    def get_train_transform_cls(cls, model_name: str) -> type[TaskTransform]:
+        """Return the train TaskTransform class for the given model name.
+
+        Subclasses may override this to return different transform classes
+        depending on the model.
+        """
+        return cls.train_transform_cls
+
+    @classmethod
+    def get_val_transform_cls(cls, model_name: str) -> type[TaskTransform]:
+        """Return the val TaskTransform class for the given model name.
+
+        Subclasses may override this to return different transform classes
+        depending on the model.
+        """
+        return cls.val_transform_cls
+
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
     # names that are called within a Fabric context will raise an error if they have
@@ -74,7 +104,7 @@ class TrainModel(Module):
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
 
-    def validation_step(self, fabric: Fabric, batch) -> TaskStepResult:  # type: ignore[no-untyped-def]
+    def validation_step(self, fabric: Fabric, batch, step: int) -> TaskStepResult:  # type: ignore[no-untyped-def]
         # Forward pass for validation step.
         # Return dictionary with loss and metrics for logging.
         raise NotImplementedError()
@@ -111,11 +141,26 @@ class TrainModel(Module):
         """Returns the state dict for exporting."""
         return self.state_dict()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        pass
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        # Clip the gradients. Returns the total gradient norm before clipping if
+        # the norm-based clipping algorithm is used, otherwise None. Returning None
+        # here means that the gradient norm is not logged for this model.
+        return None
 
     def on_train_batch_end(self) -> None:
         pass
+
+
+class TaskStepVisualization(Protocol):
+    """Lazy visualization payload returned by task-specific training steps."""
+
+    def create_label_image(self) -> PILImage | None:
+        """Create a grid of label images for debugging purposes."""
+        ...
+
+    def create_prediction_image(self) -> PILImage | None:
+        """Create a grid of prediction images for debugging purposes."""
+        ...
 
 
 @dataclass
@@ -131,3 +176,16 @@ class TaskStepResult:
     # Dictionary with extra values to log. These values will only be logged to external
     # loggers like wandb, tensorboard, etc and are currently not shown in the console logs.
     log_dict: dict[str, float]
+
+    # Lazy visualization payload for task-specific label and prediction images.
+    visualization: TaskStepVisualization | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        if self.visualization is None:
+            return None
+        return self.visualization.create_label_image()
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.visualization is None:
+            return None
+        return self.visualization.create_prediction_image()

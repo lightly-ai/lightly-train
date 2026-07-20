@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -28,6 +29,9 @@ from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKA
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Attention
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
+)
+from lightly_train._task_models.dinov2_eomt_semantic_segmentation.config import (
+    DINOV2_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
 )
 from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block import (
     ScaleBlock,
@@ -96,7 +100,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 If False, then no pretrained weights are loaded.
         """
         super().__init__(locals(), ignore_args={"backbone_weights", "load_weights"})
-        parsed_name = self.parse_model_name(model_name=model_name)
+        parsed_name = self._resolve_model_name(model_name=model_name)
         self.model_name = parsed_name["model_name"]
         self.classes = classes
         self.class_ignore_index = class_ignore_index
@@ -119,6 +123,16 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             torch.tensor(internal_class_to_class, dtype=torch.long),
             persistent=False,  # No need to save it in the state dict.
         )
+
+        # GT masks contain the raw `class_ignore_index` value (e.g. -100) for
+        # ignored pixels, so we register that key directly for the legend.
+        # Predictions drop the ignore channel, so this key never appears in them.
+        self.included_classes: dict[int, str] = {
+            internal_class_id: class_name
+            for internal_class_id, class_name in enumerate(self.classes.values())
+        }
+        if self.class_ignore_index is not None:
+            self.included_classes[self.class_ignore_index] = "ignored"
 
         # Disable drop path by default.
         backbone_model_args = {
@@ -192,55 +206,37 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
     @classmethod
     def list_model_names(cls) -> list[str]:
-        return [
-            f"{name}-{cls.model_suffix}"
-            for name in DINOV2_VIT_PACKAGE.list_model_names()
-        ]
+        return list(DINOV2_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases())
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
-        try:
-            cls.parse_model_name(model_name=model)
-        except ValueError:
-            return False
-        else:
-            return True
+        return model in DINOV2_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.list_aliases()
 
     @classmethod
-    def parse_model_name(cls, model_name: str) -> dict[str, str]:
-        def raise_invalid_name() -> None:
+    def _resolve_model_name(cls, model_name: str) -> dict[str, str]:
+        try:
+            config = DINOV2_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                alias=model_name
+            )()
+        except KeyError:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}. See the documentation for "
                 "more information: https://docs.lightly.ai/train/stable/semantic_segmentation.html"
-            )
+            ) from None
 
-        if not model_name.endswith(f"-{cls.model_suffix}"):
-            raise_invalid_name()
-
-        backbone_name = model_name[: -len(f"-{cls.model_suffix}")]
-
-        try:
-            package_name, backbone_name = package_helpers.parse_model_name(
-                backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
-
-        if package_name != DINOV2_VIT_PACKAGE.name:
-            raise_invalid_name()
-
-        try:
-            backbone_name = DINOV2_VIT_PACKAGE.parse_model_name(
-                model_name=backbone_name
-            )
-        except ValueError:
-            raise_invalid_name()
+        package_name, backbone_name = package_helpers.parse_model_name(
+            config.backbone_name
+        )
 
         return {
-            "model_name": f"{DINOV2_VIT_PACKAGE.name}/{backbone_name}-{cls.model_suffix}",
+            "model_name": f"{package_name}/{backbone_name}-{cls.model_suffix}",
             "backbone_name": backbone_name,
         }
+
+    @classmethod
+    def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        return cls._resolve_model_name(model_name=model_name)
 
     @torch.no_grad()
     def predict(self, image: PathLike | PILImage | Tensor) -> Tensor:
@@ -261,38 +257,138 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         self._track_inference()
         if self.training:
             self.eval()
+        x, metadata = self.preprocess_image(image)
+        batch = self.preprocess_batch([x])
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, [metadata])[0]
 
+    def preprocess_image(
+        self, image: PathLike | PILImage | Tensor
+    ) -> tuple[Tensor, dict[str, Any]]:
         first_param = next(self.parameters())
-        device = first_param.device
-        dtype = first_param.dtype
+        device, dtype = first_param.device, first_param.dtype
 
-        # Load image
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
         x = transforms_functional.normalize(
-            x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
+            x,
+            mean=list(self.image_normalize["mean"]),
+            std=list(self.image_normalize["std"]),
         )
 
         # Crop size is the short side of the training image size. We resize the image
-        # such that the short side of the image matches the crop size.
+        # such that the short side of the image matches the crop size. The long side
+        # therefore varies per image, so preprocessed tensors are not stackable across
+        # the batch.
         crop_size = min(self.image_size)
-        # (C, H, W) -> (C, H', W')
         x = transforms_functional.resize(x, size=[crop_size])
-        x = x.unsqueeze(0)  # (1, C, H', W')
 
-        logits = self._forward_logits(x)  # (1, K+1, H', W'), K = len(self.classes)
-        # Restrict logits to known classes only.
-        logits = logits[:, :-1]  # (1, K, H', W')
-        logits = F.interpolate(
-            logits, size=(image_h, image_w), mode="bilinear"
-        )  # (1, K|K+1, H, W)
+        # Origins describe where each crop sits in the resized image. They are
+        # computed here (image_idx=0) so `postprocess` can untile without
+        # recomputing them.
+        _, origins = self.tile(images=[x])
+        return x, {
+            "orig_h": image_h,
+            "orig_w": image_w,
+            "resized_h": int(x.shape[-2]),
+            "resized_w": int(x.shape[-1]),
+            "origins": origins,
+            "num_crops": len(origins),
+        }
 
-        masks = logits.argmax(dim=1)  # (1, H, W)
-        # Map internal class IDs to class IDs.
-        masks = self.internal_class_to_class[masks]  # (1, H, W)
-        return masks[0]
+    def preprocess_batch(  # type: ignore[override]
+        self, batch: Sequence[Tensor]
+    ) -> Tensor:
+        # Tile each variable-size image into square crops of size
+        # `min(image_size)` and stack them into a single (B, C, H, W) tensor.
+        crops_list, _ = self.tile(images=list(batch))
+        return torch.stack(crops_list)
+
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        """Forward pass that returns the logits of the last layer. Intended for
+        inference."""
+        # x is a batch of square crops with shape (B, C, H, W).
+        H, W = x.shape[-2:]
+
+        # Forward pass.
+        # Only the logits of the last layer are returned.
+        mask_logits_per_layer, class_logits_per_layer = self.forward_train(
+            x, return_logits_per_layer=False
+        )
+        mask_logits = mask_logits_per_layer[-1]
+        class_logits = class_logits_per_layer[-1]
+
+        # Interpolate.
+        mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
+        return mask_logits, class_logits
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw_outputs: tuple[Tensor, Tensor],
+        metadata: Sequence[dict[str, Any]],
+    ) -> list[Tensor]:
+        mask_logits, class_logits = raw_outputs
+        # (sum N_i, K+1, crop_h, crop_w)
+        crop_logits_all = self.to_per_pixel_logits_semantic(mask_logits, class_logits)
+
+        # Split the batched crop logits back into one chunk per image.
+        crop_logits_per_image = torch.split(
+            crop_logits_all, [meta["num_crops"] for meta in metadata], dim=0
+        )
+
+        out: list[Tensor] = []
+        for image_crops, meta in zip(crop_logits_per_image, metadata):
+            # Untile back to the resized image size.
+            logits = self.untile(
+                crop_logits=image_crops,
+                origins=meta["origins"],
+                image_sizes=[(meta["resized_h"], meta["resized_w"])],
+            )[0]  # (K+1, H', W')
+
+            # Restrict to known classes and interpolate to original image size.
+            logits = logits[:-1].unsqueeze(0)  # (1, K, H', W')
+            logits = F.interpolate(
+                logits, size=(meta["orig_h"], meta["orig_w"]), mode="bilinear"
+            )
+            masks = logits.argmax(dim=1)  # (1, H, W)
+            masks = self.internal_class_to_class[masks]
+            out.append(masks[0])
+
+        return out
+
+    @torch.no_grad()
+    def predict_batch(
+        self,
+        images: Sequence[PathLike | PILImage | Tensor],
+    ) -> list[Tensor]:
+        """Returns the predicted masks for the given batch of images.
+
+        Args:
+            images:
+                Sequence of input images. Each can be a path, URL, PIL image, or
+                tensor of shape (C, H, W).
+
+        Returns:
+            A list of predicted masks, one per input image. Each mask is a tensor
+            of shape (H, W) where the values represent the class IDs as defined in
+            the `classes` argument of your dataset. The model will always predict
+            the pixels as one of the known classes even when your dataset contains
+            ignored classes defined by the `ignore_classes` argument.
+        """
+        self._track_inference()
+        if self.training:
+            self.eval()
+        tensors: list[Tensor] = []
+        metadata: list[dict[str, Any]] = []
+        for image in images:
+            x, meta = self.preprocess_image(image)
+            tensors.append(x)
+            metadata.append(meta)
+        batch = self.preprocess_batch(tensors)
+        raw = self.forward_backend(batch)
+        return self.postprocess(raw, metadata)
 
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         # Function used for ONNX export
@@ -687,6 +783,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         *,
         precision: Literal["auto", "fp32", "fp16"] = "auto",
         batch_size: int = 1,
+        dynamic_batch_size: bool = True,
         height: int | None = None,
         width: int | None = None,
         opset_version: int | None = None,
@@ -696,10 +793,11 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
     ) -> None:
         """Exports the model to ONNX for inference.
 
-        The export uses a dummy input of shape (batch_size, C, H, W) where C is inferred
-        from the first model parameter and (H, W) come from `self.image_size`.
-        The ONNX graph uses dynamic batch size for both inputs and produces
-        two outputs: masks and logits.
+        The export uses a dummy input of shape (batch_size, C, H, W) where C is
+        inferred from the first model parameter and (H, W) come from
+        `self.image_size`. If `dynamic_batch_size` is True, the ONNX graph will
+        have a dynamic batch dimension for the input. The graph produces two
+        outputs: masks and logits.
 
         Optionally simplifies the exported model in-place using onnxslim and
         verifies numerical closeness against a float32 CPU reference via
@@ -713,6 +811,9 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 uses the model's current precision.
             batch_size:
                 Batch size for the ONNX input.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension for the
+                input. If False, the batch dimension is fixed to `batch_size`.
             height:
                 Height of the ONNX input. If None, will be taken from `self.image_size`.
             width:
@@ -758,6 +859,10 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
         width = self.image_size[1] if width is None else width
         num_channels = len(self.image_normalize["mean"])
 
+        if dynamic_batch_size:
+            batch_size = 2
+        dynamic_axes = {"images": {0: "N"}} if dynamic_batch_size else None
+
         dummy_input = torch.randn(
             batch_size,
             num_channels,
@@ -783,7 +888,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
             output_names=output_names,
             opset_version=opset_version,
             dynamo=False,
-            dynamic_axes={"images": {0: "N"}},
+            dynamic_axes=dynamic_axes,
             **(format_args or {}),
         )
 
@@ -809,7 +914,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
 
             # Always run the reference input in float32 and on cpu for consistency.
             reference_model = copy.deepcopy(self).cpu().to(torch.float32).eval()
-            reference_outputs = reference_model(
+            reference_outputs: tuple[Tensor, ...] = reference_model(
                 dummy_input.cpu().to(torch.float32),
             )
 
@@ -833,7 +938,7 @@ class DINOv2EoMTSemanticSegmentation(TaskModel):
                 def msg(s: str) -> str:
                     return f'ONNX validation failed for output "{output_name}": {s}'
 
-                if output_model.is_floating_point:
+                if output_model.is_floating_point():
                     # Absolute and relative tolerances are a bit arbitrary and taken from here:
                     # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
                     torch.testing.assert_close(

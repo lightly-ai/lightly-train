@@ -65,7 +65,10 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 - **Commercial License**: Ideal for businesses and organizations that need proprietary development freedom.
   Enjoy all the benefits of LightlyTrain while keeping your code and models private.
 
-We're committed to supporting both open-source and commercial users.
+- **Free Community License**: Available for students, researchers, startups in early stages, or anyone
+  exploring or experimenting with LightlyTrain.
+
+See the [Licensing](licensing.md) page for pricing details and plan inclusions.
 Please [contact us](https://www.lightly.ai/contact) to discuss the best licensing option for your project!
 ```
 
@@ -121,7 +124,7 @@ for any visual task, especially when you have limited labeled data or domain-spe
 ```{dropdown} <h6>Which models does LightlyTrain support?<a class="headerlink" id="which-models-does-lightlytrain-support" href="#which-models-does-lightlytrain-support" title="Link to this heading">¶</a></h6>
 LightlyTrain supports the latest model architectures in computer vision such as:
 
-- YOLO (YOLOv5, YOLOv6, YOLOv8, YOLOv11, YOLOv12)
+- YOLO (YOLOv5, YOLOv6, YOLOv8, YOLOv11, YOLOv12, YOLO26)
 - RF-DETR
 - RT-DETR
 - Vision Transformers

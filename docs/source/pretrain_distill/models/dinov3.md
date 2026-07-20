@@ -1,0 +1,157 @@
+(models-dinov3)=
+
+# DINOv3
+
+This page describes how to use DINOv3 models with LightlyTrain.
+
+[DINOv3](https://github.com/facebookresearch/dinov3) models are Vision Transformers
+(ViTs) and ConvNeXt models pretrained by Meta using the DINOv3 self-supervised learning
+method on the large-scale LVD-1689M dataset. They are state-of-the-art vision foundation
+models and serve as strong backbones for downstream tasks such as object detection,
+segmentation, and image classification.
+
+```{note}
+DINOv3 models are released under the
+[DINOv3 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/DINOv3_LICENSE.md).
+Use [DINOv2](#models-dinov2) models instead for a more permissive Apache 2.0 license.
+```
+
+## Pretrain and Fine-tune a DINOv3 Model
+
+### Pretrain
+
+DINOv3 ViT-T/16 models (`dinov3/vitt16` and `dinov3/vitt16plus`) are efficient tiny
+models trained by Lightly using the [distillation method](#methods-distillation) with
+DINOv3 ViT-L/16 as the teacher on ImageNet-1K. They are not part of Meta's official
+DINOv3 release but follow the same architecture. The ViT-T architecture is based on the
+design proposed in [Touvron et al., 2022](https://arxiv.org/abs/2207.10666).
+
+You can distill your own DINOv3 ViT-T/16 model from DINOv3 ViT-L/16 on your custom
+dataset as follows:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.pretrain(
+        out="out/my_experiment",                # Output directory.
+        data="my_data_dir",                     # Directory with images.
+        model="dinov3/vitt16",                  # Student: DINOv3 ViT-T/16.
+        method="distillation",
+        method_args={
+            "teacher": "dinov3/vitl16",         # Teacher: DINOv3 ViT-L/16.
+        },
+    )
+```
+````
+
+````{tab} Command Line
+```bash
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="dinov3/vitt16" method="distillation" method_args.teacher="dinov3/vitl16"
+````
+
+See [Distillation method](#methods-distillation) for more details on the pretraining
+method and its configuration options.
+
+### Fine-tune
+
+DINOv3 models come with high-quality pretrained weights from Meta and can be used
+directly as fine-tuning backbones without additional pretraining. After pretraining on a
+custom dataset, the exported backbone can also be loaded via the `backbone_weights`
+argument. Refer to the following pages for fine-tuning instructions and example code:
+
+- [Object Detection](#object-detection) — fine-tune a DINOv3-based LTDETR model;
+  supports loading custom pretrained backbone weights via `backbone_weights`.
+- [Semantic Segmentation](#semantic-segmentation) — fine-tune a DINOv3-based EoMT model;
+  supports loading custom pretrained backbone weights via `backbone_weights` (see
+  [Pretrain and Fine-tune](#semantic-segmentation-pretrain-finetune)).
+- [Instance Segmentation](#instance-segmentation) — fine-tune a DINOv3-based EoMT model.
+- [Panoptic Segmentation](#panoptic-segmentation) — fine-tune a DINOv3-based EoMT model.
+- [Image Classification](#image-classification) — fine-tune a DINOv3 backbone for
+  classification.
+
+## Supported Models
+
+### ViT Models
+
+The following ViT models are supported. The LVD-1689M and SAT-493M models are
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
+and are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). The
+EUPE models are pretrained by Meta using the
+[EUPE method](https://github.com/facebookresearch/EUPE) and are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+The LingBot Vision models are pretrained by Robbyant using
+[masked boundary modeling](https://github.com/Robbyant/lingbot-vision) for dense spatial
+perception. They are released under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
+As they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models and weights. The ViT-T/16 models, except the EUPE one, are trained
+by Lightly using knowledge distillation from DINOv3 ViT-L/16.
+
+- ViT-T
+  - `dinov3/vitt16` (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K) —
+    distillationv2 weights; recommended for dense tasks (object detection, segmentation)
+  - `dinov3/vitt16plus` (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K) —
+    distillationv2 weights; recommended for dense tasks
+  - `dinov3/vitt16-distillationv1` (Lightly, distilled from DINOv3 ViT-L/16 on
+    ImageNet-1K) — distillationv1 weights; recommended for global tasks (image
+    classification)
+  - `dinov3/vitt16plus-distillationv1` (Lightly, distilled from DINOv3 ViT-L/16 on
+    ImageNet-1K) — distillationv1 weights; recommended for global tasks
+  - `dinov3/vitt16-notpretrained` — random initialization; for training from scratch
+  - `dinov3/vitt16plus-notpretrained` — random initialization; for training from scratch
+  - `dinov3/vitt16-eupe` (Meta,
+    [EUPE weights](https://github.com/facebookresearch/EUPE))
+- ViT-S
+  - `dinov3/vits16` (Meta, LVD-1689M)
+  - `dinov3/vits16-eupe` (Meta,
+    [EUPE weights](https://github.com/facebookresearch/EUPE))
+  - `dinov3/vits16-lingbot` (Robbyant,
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision))
+  - `dinov3/vits16plus` (Meta, LVD-1689M)
+- ViT-B
+  - `dinov3/vitb16` (Meta, LVD-1689M)
+  - `dinov3/vitb16-eupe` (Meta,
+    [EUPE weights](https://github.com/facebookresearch/EUPE))
+  - `dinov3/vitb16-lingbot` (Robbyant,
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision))
+- ViT-L
+  - `dinov3/vitl16` (Meta, LVD-1689M)
+  - `dinov3/vitl16-sat493m` (Meta, SAT-493M)
+  - `dinov3/vitl16-lingbot` (Robbyant,
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision))
+- ViT-H
+  - `dinov3/vith16plus` (Meta, LVD-1689M)
+- ViT-7B
+  - `dinov3/vit7b16` (Meta, LVD-1689M)
+  - `dinov3/vit7b16-sat493m` (Meta, SAT-493M)
+
+For ViT models, the patch size is encoded in the model name by default (for example,
+`vitt16` or `vits16`). You can still override it via `model_args["patch_size"]` when
+loading the model. If you provide `model_args["patch_size"]` for a ViT model whose name
+already encodes a patch size, LightlyTrain will log a warning. See the
+[Training Settings](#train-settings) page for details.
+
+### ConvNeXt Models
+
+The following ConvNeXt models are supported. All are
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The DINOv3 models are pretrained on the LVD-1689M dataset and are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). The
+EUPE models are pretrained by Meta using the
+[EUPE method](https://github.com/facebookresearch/EUPE) and are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+
+- `dinov3/convnext-tiny` (Meta, LVD-1689M)
+- `dinov3/convnext-tiny-eupe` (Meta,
+  [EUPE weights](https://github.com/facebookresearch/EUPE))
+- `dinov3/convnext-small` (Meta, LVD-1689M)
+- `dinov3/convnext-small-eupe` (Meta,
+  [EUPE weights](https://github.com/facebookresearch/EUPE))
+- `dinov3/convnext-base` (Meta, LVD-1689M)
+- `dinov3/convnext-base-eupe` (Meta,
+  [EUPE weights](https://github.com/facebookresearch/EUPE))
+- `dinov3/convnext-large` (Meta, LVD-1689M)

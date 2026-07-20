@@ -30,6 +30,7 @@ dependencies = [
     "filelock>=3.0.0",     # Cross-platform file locking
     "fsspec>=2023.1.0",
     "lightly>=1.5.20",
+    "matplotlib>=3.5",
     "omegaconf>=2.3",
     "psutil>=5.0",
     "pyarrow>=15.0.0",
@@ -46,25 +47,31 @@ dependencies = [
                             # 4.46 is last version that supports Python 3.8.
                             # 4.51.3 is the default for EoMT
     "tqdm>=4.0.0",
+    "pycocotools>=2.0.11; python_version>='3.9'",
+    "rich>=13.0",
+    "numpy>1.23.0; python_version>='3.12'",  # numpy<=1.23 fails to build on Python>3.12 (no distutils).
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "licenseheaders>=0.8.8",
     "mdformat>=0.7.21; python_version>='3.9'",  # Older versions change formatting behavior
-    "mdformat-myst>=0.3.0; python_version>='3.9'", # MyST support for mdformat
+    "mdformat-myst>=0.3.0; python_version>='3.10'", # MyST support for mdformat
     "mypy>=1.10.0",
     "pillow>=10.3.0,<12.0.0",  # helpers.create_image currently fails for newer pillow versions
     "pre-commit>=3.5.0",
+    "types-pycocotools>=0.1.1; python_version>='3.9'",
     "pytest-examples>=0.0.13,<0.0.16", # 0.0.16 and 0.0.17 (latest to date) will cause the following failure when running pytest: "TypeError: 'ABCMeta' object is not subscriptable"
     "pytest-mock>=3.14.0",
     "pytest>=8.0.0",
     "ruff>=0.4.0",
     "types-PyYAML>=6.0.12",
     "types-tqdm>=4.0.0",
+    "jinja2>=3.1.6",
 
     # Docs
     "furo>=2024.04.27",
+    "myst_nb>=1.1.0; python_version>='3.9'",           # Jupyter notebook support (requires Python >=3.9)
     "myst_parser>=3.0",
     "sphinx-autoapi>=3.0",
     "sphinx-copybutton>=0.5.2",
@@ -73,11 +80,47 @@ dev = [
     "sphinxcontrib-googleanalytics>=0.4",
     "sphinx>=7.1",              # Allow old sphinx version for Python 3.8 compatibility
 ]
+dist = [
+    "build>=1.2.2",
+    "twine>=6.1.0",
+    "wheel>=0.45.1",
+]
+benchmarks = [
+    "onnxruntime-gpu==1.25.1; python_version>='3.11' and platform_system == 'Linux'",
+    "tensorrt-cu13==10.16.1.11; platform_system == 'Linux'",
+]
+
+# Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
+# on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
+# They are the latest versions available before 2024-08-28.
+# Torch 2.5+ is no longer compatible with Python 3.8.
+# Be careful when making changes on the CI machine as other repositories also depend on
+# the installed CUDA/driver versions.
+minimal-torch = [
+    "torch==2.1.0; python_version<'3.9'",
+    "torchvision==0.16.0; python_version<'3.9'",
+]
+pinned-torch-minimal = [
+    "torch==2.4.0; python_version<'3.9'",
+    "torchvision==0.19.0; python_version<'3.9'",
+]
+pinned-torch-maximal = [
+    "torch==2.7.0; python_version>='3.9'",
+    "torchvision==0.22.0; python_version>='3.9'",
+]
+
+[project.optional-dependencies]
+bitsandbytes = [
+    # Optional 8-bit optimizer state (optim_type="adamw8bit"). Imported lazily,
+    # so the dependency is only required when that optimizer is selected.
+    "bitsandbytes>=0.43.0",
+]
 dicom = [
     "pydicom>=2.1.0",
 ]
 mlflow = [
-    "mlflow>=2.0.0", # contain fixes for numpy>=2.0 support
+    "mlflow>=2.8.0", # 2.8.0 added stepped image logging (key/step args to log_image)
+    "pandas>=2.2.3; python_version>='3.12'",  # pandas<2.2.3 fails to build on Python>3.12 (no pkg_resources).
 ]
 notebook = [
     "notebook>=7.2.3",
@@ -85,12 +128,12 @@ notebook = [
 # Note: rfdetr, or one of its dependencies, installs opencv-python and opencv-python-headless
 # which can result in conflicts.
 rfdetr = [
-    "rfdetr>=1.4.1,<1.6.0", # TODO (Lionel, 03/26): Remove upper bound once unit test are fixed.
-    "onnxruntime>=1.21.0", # onnxruntime is required for onnxsim, which is required for rfdetr
+    "rfdetr>=1.4.1,<1.6.0; python_version>='3.10'", # TODO (Lionel, 03/26): Remove upper bound once unit test are fixed.
+    "onnxruntime>=1.21.0; python_version>='3.10'", # onnxruntime is required for onnxsim, which is required for rfdetr
 ]
 super-gradients = [
-    "albumentations>=1.3.1,<1.4.0", # SuperGradients requires albumentations 1.3
-    "super-gradients>=3.7",
+    "albumentations>=1.3.1,<1.4.0; python_version<'3.12'", # SuperGradients requires albumentations 1.3
+    "super-gradients>=3.7; python_version<'3.12'",  # SuperGradients depends on numpy<=1.23 which requires distutils (removed in Python 3.12).
 ]
 tensorboard = [] # Keep for backwards compatibility
 timm = [
@@ -107,9 +150,12 @@ xformers = [
 ]
 onnx = [
     "onnx>=1.15.0",
+    "onnx>=1.18.0; python_version>='3.9'",  # onnx 1.18+ requires Python 3.9+
+    "onnx>=1.20.0; python_version>='3.10'",  # no wheels built anymore for Python<3.10
+    "onnxscript>=0.7.0; python_version>='3.9'",
 ]
 onnxruntime = [
-    "onnxruntime>=1.21.0",
+    "onnxruntime>=1.21.0; python_version>='3.10'",
 ] # inference engines
 onnxslim = [
     "onnxslim>=0.1.67",
@@ -136,6 +182,7 @@ module = [
     "albumentations.*",
     "fsspec.*",
     "lightly.*",
+    "matplotlib.*",
     "lightning_fabric.*",
     "lightning_fabric.loggers.logger",
     "pydicom.*",
@@ -191,9 +238,57 @@ convention = "google"
 
 [tool.uv]
 override-dependencies = [
-  "sphinx>=7.1",              # Override dependency from SuperGradients on sphinx<=4.1
+    # Override dependency from SuperGradients on sphinx<=4.1
+    "sphinx>=7.1",
+    # Floor for transitive onnx dependencies (e.g. from onnxslim) to prevent the
+    # resolver from picking ancient versions like onnx==0.1 under --resolution=lowest-direct.
+    # The onnx extra's Python-versioned lower bounds (>=1.18 for 3.9+, >=1.20 for 3.10+)
+    # are intentionally left to the resolver; the conflict declaration below prevents
+    # super-gradients' onnx==1.15.0 pin from pulling those down.
+    "onnx>=1.15.0",
+]
+conflicts = [
+    [ # conflicting due to incompatible versions of onnxruntime
+        { extra = "super-gradients" },
+        { extra = "onnxruntime" },
+    ],
+    [ # conflicting due to incompatible versions of onnxruntime
+        { extra = "super-gradients" },
+        { extra = "rfdetr" },
+    ],
+    [ # super-gradients requires onnx==1.15.0 which is incompatible with onnx>=1.18.0 for Python>=3.9
+        { extra = "super-gradients" },
+        { extra = "onnx" },
+    ],
+    [ # conflicting pinned versions of torch and torchvision for Python 3.8
+        { group = "minimal-torch" },
+        { group = "pinned-torch-minimal" },
+        { group = "pinned-torch-maximal" },
+    ]
 ]
 
+[tool.uv.sources]
+# LightlySSL from the PatchKernelAlignmentLoss merge commit
+# (https://github.com/lightly-ai/lightly/pull/1953).
+# TODO(Igor, 07/2026): Remove this git override once a lightly release contains
+# PatchKernelAlignmentLoss and roi_resample_to_grid, so the plain "lightly"
+# dependency on PyPI suffices.
+lightly = { git = "https://github.com/lightly-ai/lightly.git", rev = "f03d012df6486e885dac5d6c2e14780b6455d9cb" }
+# The CI versions are pinned to specific indices to make sure that a version
+# compatible with the CUDA driver of CI is installed.
+torch = [
+    { index = "pytorch-cu118", group = "pinned-torch-minimal" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal" },
+]
+torchvision = [
+    { index = "pytorch-cu118", group = "pinned-torch-minimal" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
 
 [tool.pytest.ini_options]
 # Make pytest discover all files in the tests directory. This is usuful for showing

@@ -27,6 +27,7 @@ from scipy.optimize import linear_sum_assignment
 from lightly_train._task_models.object_detection_components.box_ops import (
     box_cxcywh_to_xyxy,
     generalized_box_iou,
+    sanitize_boxes_cxcywh_normalized,
 )
 
 
@@ -91,6 +92,7 @@ class HungarianMatcher(nn.Module):
             )  # [batch_size * num_queries, num_classes]
 
         out_bbox = outputs["pred_boxes"].flatten(0, 1)  # [batch_size * num_queries, 4]
+        out_bbox = sanitize_boxes_cxcywh_normalized(out_bbox)
 
         # Also concat the target labels and boxes
         tgt_ids = torch.cat([v["labels"] for v in targets])

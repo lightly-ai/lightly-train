@@ -11,9 +11,9 @@ from typing import Any, Literal, Sequence
 
 from pydantic import Field
 
-from lightly_train._transforms.semantic_segmentation_transform import (
-    SemanticSegmentationTransform,
-    SemanticSegmentationTransformArgs,
+from lightly_train._transforms.eomt_transforms.semantic_segmentation import (
+    EoMTSemanticSegmentationTransform,
+    EoMTSemanticSegmentationTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -54,7 +54,7 @@ class SemanticSegmentationMultiheadRandomCropArgs(RandomCropArgs):
 
 
 class SemanticSegmentationMultiheadTrainTransformArgs(
-    SemanticSegmentationTransformArgs
+    EoMTSemanticSegmentationTransformArgs
 ):
     """
     Defines default transform arguments for semantic segmentation multihead training.
@@ -103,7 +103,9 @@ class SemanticSegmentationMultiheadTrainTransformArgs(
                 self.num_channels = len(self.normalize.mean)
 
 
-class SemanticSegmentationMultiheadValTransformArgs(SemanticSegmentationTransformArgs):
+class SemanticSegmentationMultiheadValTransformArgs(
+    EoMTSemanticSegmentationTransformArgs
+):
     """
     Defines default transform arguments for semantic segmentation multihead validation.
     """
@@ -149,9 +151,9 @@ class SemanticSegmentationMultiheadValTransformArgs(SemanticSegmentationTransfor
                 self.num_channels = len(self.normalize.mean)
 
 
-class SemanticSegmentationMultiheadTrainTransform(SemanticSegmentationTransform):
+class SemanticSegmentationMultiheadTrainTransform(EoMTSemanticSegmentationTransform):
     transform_args_cls = SemanticSegmentationMultiheadTrainTransformArgs
 
 
-class SemanticSegmentationMultiheadValTransform(SemanticSegmentationTransform):
+class SemanticSegmentationMultiheadValTransform(EoMTSemanticSegmentationTransform):
     transform_args_cls = SemanticSegmentationMultiheadValTransformArgs

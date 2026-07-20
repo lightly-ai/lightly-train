@@ -206,8 +206,10 @@ if __name__ == "__main__":
 
 ### Changing the Patch Size
 
-Increasing the patch size is an effective way to speed up inference and training. You
-can change the patch size via the `model_args` parameter:
+Increasing the patch size is an effective way to speed up inference and training. The
+patch size is encoded in the model name: for DINOv3 ViT models, `dinov3/vits16-eomt`
+uses a patch size of 16, while `dinov3/vits32-eomt` uses a patch size of 32. To train at
+a larger patch size, simply select a `vit*32` model:
 
 ```python
 import lightly_train
@@ -216,16 +218,16 @@ if __name__ == "__main__":
 
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vits16-eomt-coco",
-        model_args={"patch_size": 32},
+        model="dinov3/vits32-eomt-coco",
         # ...,
     )
 ```
 
-As shown above, the patch size can be set to a value different from the one used in the
-pretrained model without harming compatibility of the pretrained weights. Internally,
-the patch embedding weights are automatically resized to the requested patch size using
-the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
+The patch-32 checkpoints are derived from the corresponding patch-16 pretrained weights
+by resizing the patch embedding using the method introduced in
+[FlexiViT](https://arxiv.org/pdf/2212.08013), so the pretrained weights remain
+compatible. The available models are listed
+[here](#semantic-segmentation-benchmark-results) in the "Model" column of the tables.
 
 As illustrated in this {ref}`figure <fig-miou-latency>`, increasing the patch size leads
 to a significant speed-up with only a moderate impact on performance.
@@ -285,6 +287,11 @@ Every image must have a corresponding mask whose filename either matches that of
 image (under a different directory) or follows a specific template pattern. The masks
 must be PNG images in either grayscale integer format, where each pixel value
 corresponds to a class ID, or multi-channel (e.g., RGB) format.
+
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits.
 
 The following image formats are supported:
 
@@ -441,8 +448,8 @@ We support two mask formats:
 - Single-channel integer masks, where each integer value determines a label
 - Multi-channel masks (e.g., RGB masks), where each pixel value determines a label
 
-Use the `classes` dict in the `data` dict to map class IDs to labels. In this document,
-a **class ID** is a key in the `classes` dictionary and a **label** is its value.
+Use `classes` in the `data` dict to map class IDs to labels. In this document, a **class
+ID** is a key in the `classes` dictionary and a **label** is its value.
 
 #### Using Integer Masks
 
@@ -500,6 +507,65 @@ are single-channel masks with those class IDs. Again, each label can map to only
 class ID, and you cannot mix integer and tuple-valued labels in a single `classes`
 dictionary.
 
+#### Loading Classes from a JSON File
+
+Instead of specifying `classes` inline, you can pass a path to a `.json` file directly
+as the `classes` value. The JSON file supports the same formats as the inline `classes`
+dict.
+
+**Simple format** — maps each class ID to a name (label defaults to the class ID):
+
+```json
+{
+  "0": "background",
+  "1": "airplane",
+  "2": "car",
+  "3": "bicycle"
+}
+```
+
+**Single-channel with explicit labels** — merges multiple mask labels into one class:
+
+```json
+{
+  "0": {"name": "background", "labels": [0, 1]},
+  "1": {"name": "vehicle", "labels": [2, 3]}
+}
+```
+
+**Multi-channel** — maps RGB (or other multi-channel) pixel tuples to class IDs:
+
+```json
+{
+  "0": {"name": "background", "labels": [[0, 0, 0], [255, 255, 255]]},
+  "1": {"name": "road", "labels": [[128, 128, 128]]}
+}
+```
+
+Pass the path to this file as `classes`:
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data={
+            "train": {
+                "images": "my_data_dir/train/images",
+                "masks": "my_data_dir/train/masks",
+            },
+            "val": {
+                "images": "my_data_dir/val/images",
+                "masks": "my_data_dir/val/masks",
+            },
+            "classes": "my_data_dir/classes.json",  # Path to the JSON class mapping file
+            "ignore_classes": [0],
+        },
+    )
+```
+
 (semantic-segmentation-model)=
 
 ## Model
@@ -509,16 +575,40 @@ following models are available:
 
 ### DINOv3 Models
 
+- `dinov3/vitt32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitt32plus-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vits32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitb32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitl32-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitt16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitt16plus-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vits16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitb16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vitl16-eomt-coco` (fine-tuned on COCO-Stuff)
+- `dinov3/vits16-eomt-cityscapes` (fine-tuned on Cityscapes)
+- `dinov3/vitb16-eomt-cityscapes` (fine-tuned on Cityscapes)
+- `dinov3/vitl16-eomt-cityscapes` (fine-tuned on Cityscapes)
+- `dinov3/vitt16-eomt`
+- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
+- `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
+- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
+- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-eomt`
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
 
-All DINOv3 models are
+Unless noted otherwise, all DINOv3 backbones are initialized from weights
 [pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
+DINOv3 backbone weights instead. Models marked as EUPE use
+[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+models are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
 ### DINOv2 Models
 
@@ -680,7 +770,7 @@ See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_onnx` for all available op
 when exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/semantic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation_export.ipynb)
 
 (semantic-segmentation-tensorrt)=
 
@@ -722,4 +812,4 @@ See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_tensorrt` for all availabl
 options when exporting to TensorRT.
 
 You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/semantic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation_export.ipynb)

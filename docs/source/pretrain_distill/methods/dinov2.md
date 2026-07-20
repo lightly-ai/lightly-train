@@ -41,15 +41,24 @@ lightly-train pretrain out=out/my_experiment data=my_data_dir model="dinov2/vitb
 ```
 ````
 
-The following models are available for DINOv2 pretraining:
+The following models are available for DINOv2 pretraining. Pretrained models initialize
+from Meta's weights and are recommended when fine-tuning on domain-specific data.
+Not-pretrained models start from random initialization and are useful for training from
+scratch on large custom datasets.
 
-- `dinov2/vits14`
-- `dinov2/vitb14`
-- `dinov2/vitl14`
-- `dinov2/vitg14`
+- Pretrained (Meta weights)
+  - `dinov2/vits14`
+  - `dinov2/vitb14`
+  - `dinov2/vitl14`
+  - `dinov2/vitg14`
+- Not pretrained (random initialization)
+  - `dinov2/vits14-notpretrained`
+  - `dinov2/vitb14-notpretrained`
+  - `dinov2/vitl14-notpretrained`
+  - `dinov2/vitg14-notpretrained`
 
-All models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+See [DINOv2 models](#models-dinov2) for a full list including models without register
+tokens.
 
 ## What's under the Hood
 
