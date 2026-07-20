@@ -25,6 +25,7 @@ from lightly_train._transforms.ltdetr_transforms.components import (
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
     filter_degenerate_yolo_boxes,
+    filter_normalized_cxcywh_min_size,
     normalize_bboxes_and_labels,
 )
 from lightly_train._transforms.mixup import MixUp
@@ -96,6 +97,7 @@ class LTDETRObjectDetectionTransformArgs(TaskTransformArgs):
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
     normalize: NormalizeArgs | Literal["auto"] | None
+    min_bbox_size_px: float = 0.0
 
     # Necessary for BboxParams, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -350,6 +352,19 @@ class LTDETRObjectDetectionCollateFunction(TaskCollateFunction):
         classes = [
             torch.from_numpy(item["class_labels"]).long() for item in augment_batch
         ]
+
+        # Drop boxes made too small by the batch-level transforms (mixup,
+        # copyblend, scale-jitter, ToTensorV2). Uses the final image size so
+        # the threshold is in the same units as the boxes at this stage.
+        height, width = image.shape[-2:]
+        for index, (item_bboxes, item_classes) in enumerate(zip(bboxes, classes)):
+            keep = filter_normalized_cxcywh_min_size(
+                item_bboxes,
+                image_size=(height, width),
+                min_size_px=self.transform_args.min_bbox_size_px,
+            )
+            bboxes[index] = item_bboxes[keep]
+            classes[index] = item_classes[keep]
 
         out = ObjectDetectionBatch(
             image_path=[item["image_path"] for item in batch],

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import random
+from typing import Any
 
 import pytest
 import torch
@@ -16,8 +17,13 @@ from torch import Size, Tensor
 from torch.nn import Module
 
 from lightly_train._methods.dinov2.dinov2 import DINOv2, DINOv2AdamWViTArgs, DINOv2Args
-from lightly_train._methods.dinov31.dinov31 import DINOv31, DINOv31Args
+from lightly_train._methods.dinov31.dinov31 import (
+    DINOv31,
+    DINOv31AdamW8bitArgs,
+    DINOv31Args,
+)
 from lightly_train._models.embedding_model import EmbeddingModel
+from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 from lightly_train.types import Batch
 
@@ -235,6 +241,19 @@ class TestDINOv31:
         bad_sd["totally.unexpected.key"] = torch.zeros(1)
         with pytest.raises(RuntimeError, match="Unexpected key"):
             dinov31.load_state_dict(bad_sd, strict=True)
+
+    @pytest.mark.parametrize(
+        "optim_type, expected",
+        [
+            (OptimizerType.ADAMW8BIT, DINOv31AdamW8bitArgs),
+            ("auto", DINOv2AdamWViTArgs),
+            (OptimizerType.ADAMW, DINOv2AdamWViTArgs),
+        ],
+    )
+    def test_optimizer_args_cls(self, optim_type: Any, expected: type) -> None:
+        # 8-bit AdamW resolves to the DINOv31 args; everything else delegates to
+        # DINOv2 unchanged.
+        assert DINOv31.optimizer_args_cls(optim_type=optim_type) == expected
 
 
 class TestDINOv31Args:

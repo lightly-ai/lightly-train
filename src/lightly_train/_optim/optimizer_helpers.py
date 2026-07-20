@@ -15,6 +15,7 @@ from torch.nn.modules import CrossMapLRN2d, GroupNorm, LayerNorm, LocalResponseN
 from torch.nn.modules.batchnorm import _NormBase
 from torch.optim.optimizer import Optimizer
 
+from lightly_train._optim.adamw8bit_args import AdamW8bitArgs
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.lars_args import LARSArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
@@ -24,6 +25,7 @@ from lightly_train._optim.trainable_modules import TrainableModules
 
 _OPTIM_TYPE_TO_ARGS: dict[OptimizerType, type[OptimizerArgs]] = {
     AdamWArgs.type(): AdamWArgs,
+    AdamW8bitArgs.type(): AdamW8bitArgs,
     SGDArgs.type(): SGDArgs,
     LARSArgs.type(): LARSArgs,
 }
