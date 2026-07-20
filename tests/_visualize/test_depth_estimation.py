@@ -18,8 +18,8 @@ from lightly_train.types import DepthEstimationBatch
 
 def _far_pixel() -> tuple[int, int, int]:
     # Non-positive depth is rendered with the low end of the active colormap.
-    rgb = matplotlib.colormaps[depth_estimation._DEPTH_COLORMAP](0.0)[:3]
-    return tuple(int(channel * 255) for channel in rgb)
+    r, g, b = matplotlib.colormaps[depth_estimation._DEPTH_COLORMAP](0.0)[:3]
+    return int(r * 255), int(g * 255), int(b * 255)
 
 
 def _make_batch(*, depth: Tensor, sky: Tensor) -> DepthEstimationBatch:
