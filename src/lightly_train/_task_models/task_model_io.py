@@ -47,7 +47,7 @@ class ModelInputSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     input_specs: dict[str, TensorSpec]
-    input_dynamic_shapes: dict[str, tuple[Dim | Any, ...]] = Field(
+    input_dynamic_shapes: dict[str, tuple[Any, ...]] = Field(
         ...,
         description=(
             "Dynamic shapes of the model's named inputs, should be either of type "
