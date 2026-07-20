@@ -366,9 +366,10 @@ def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
 
-    # DINOv2 needs special model
+    # DINOv2 / DINOv31 need special model
     model = {
         "dinov2": "dinov2/_vittest14",
+        "dinov31": "dinov2/_vittest14",
     }.get(method, "torchvision/resnet18")
 
     # Use smaller teacher for unit tests.
