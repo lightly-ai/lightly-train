@@ -12,6 +12,7 @@ import math
 from typing import Any
 
 import numpy as np
+import torch
 from albumentations import (
     BasicTransform,
     HorizontalFlip,
@@ -22,6 +23,7 @@ from albumentations import (
     VerticalFlip,
 )
 from lightning_utilities.core.imports import RequirementCache
+from torch import Tensor
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._task_models.object_detection_components.ltdetr_geometry import (
@@ -303,3 +305,33 @@ def filter_degenerate_yolo_boxes(
     if indices is None:
         return bboxes[valid], class_labels[valid], None
     return bboxes[valid], class_labels[valid], indices[valid]
+
+
+def filter_normalized_cxcywh_min_size(
+    bboxes: Tensor,
+    *,
+    image_size: tuple[int, int],
+    min_size_px: float,
+) -> Tensor:
+    """Return a boolean keep-mask for normalized YOLO ``(cx, cy, w, h)`` boxes.
+
+    ``image_size`` is the spatial ``(H, W)`` of the current image, so
+    ``w_px = bboxes[:, 2] * W`` and ``h_px = bboxes[:, 3] * H``. Pass
+    ``min_size_px <= 0`` to disable filtering (returns an all-``True`` mask).
+    """
+    if len(bboxes) == 0:
+        # Some upstream dataset items represent "no boxes" with a 1-D empty
+        # tensor instead of shape (0, 4); nothing to filter either way.
+        return torch.zeros(0, dtype=torch.bool, device=bboxes.device)
+
+    if bboxes.ndim != 2 or bboxes.shape[1] != 4:
+        raise ValueError(f"Expected bboxes with shape (N, 4), got {bboxes.shape}.")
+
+    if min_size_px <= 0.0:
+        return torch.ones(len(bboxes), dtype=torch.bool, device=bboxes.device)
+
+    height, width = image_size
+    width_px = bboxes[:, 2] * width
+    height_px = bboxes[:, 3] * height
+
+    return (width_px >= min_size_px) & (height_px >= min_size_px)
