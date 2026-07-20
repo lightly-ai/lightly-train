@@ -36,6 +36,9 @@ from lightly_train._task_models.linear_semantic_segmentation.transforms import (
     LinearSemanticSegmentationValTransformArgs,
 )
 from lightly_train._transforms.transform import NormalizeArgs
+from lightly_train._visualize.semantic_segmentation import (
+    SemanticSegmentationTaskStepVisualization,
+)
 from lightly_train.types import MaskSemanticSegmentationBatch
 
 
@@ -139,3 +142,55 @@ class TestLinearSemanticSegmentationTrain:
 
         assert result.loss.shape == ()
         assert torch.isfinite(result.loss)
+
+    def test_validation_step__untiles_overlap_across_chunks(self) -> None:
+        # A single wide image whose crops overlap and span multiple forward
+        # chunks. Because each chunk's logits are scattered into the accumulators
+        # directly (rather than concatenated first), the overlap averaging must
+        # still match un-tiling all crops at once.
+        train_model = _make_train_model()
+        train_model.eval()
+        model = train_model.model
+
+        # Short side 16 (= crop size), long side 40 -> 3 overlapping crops.
+        image = torch.rand(3, 16, 40)
+        images = [image, image]  # Batch of 2 -> chunk size 2, so 3 crops = 2 chunks.
+        masks = [torch.randint(0, 2, size=image.shape[-2:]) for image in images]
+        batch: MaskSemanticSegmentationBatch = {
+            "image_path": ["image_0.png", "image_1.png"],
+            "image": images,
+            "mask": masks,
+            "binary_masks": [],
+        }
+
+        with torch.no_grad():
+            result = train_model.validation_step(
+                fabric=Fabric(accelerator="cpu"), batch=batch, step=0
+            )
+            # Reference: forward the crops in the same chunks the step uses (chunk
+            # size == batch size == 2), concatenate, then un-tile them together.
+            # Chunking identically avoids floating-point batch-size effects, so any
+            # difference would come from the un-tiling itself.
+            crops_list, origins = model.tile([image])
+            crop_logits = torch.cat(
+                [
+                    model.forward_train(torch.stack(crops_list[start : start + 2]))
+                    for start in range(0, len(crops_list), 2)
+                ]
+            )
+            if model.class_ignore_index is not None:
+                crop_logits = crop_logits[:, :-1]
+            expected = model.untile(
+                crop_logits=crop_logits,
+                origins=origins,
+                image_sizes=[(image.shape[-2], image.shape[-1])],
+            )[0]
+
+        # The visualization keeps the per-image (CPU) logits the step accumulated.
+        # The first one must equal the reference full-resolution un-tiled logits.
+        assert isinstance(
+            result.visualization, SemanticSegmentationTaskStepVisualization
+        )
+        assert result.visualization.logits is not None
+        actual = result.visualization.logits[0]
+        assert torch.allclose(actual, expected, atol=1e-6)
