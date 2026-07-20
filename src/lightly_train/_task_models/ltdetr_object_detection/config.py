@@ -21,6 +21,7 @@ from lightly_train._configs.model_registry import (
     ModelAlias,
     ModelRegistry,
 )
+from lightly_train._export.onnx_helpers import check_model_input_spec_requirements
 from lightly_train._task_models.task_model_io import ModelInputSpec, TensorSpec
 
 logger = logging.getLogger(__name__)
@@ -659,6 +660,7 @@ class DetectorConfig(PydanticConfig):
         image_size: tuple[int, int],
         input_channels: int,
     ) -> ModelInputSpec:
+        check_model_input_spec_requirements()
         return ModelInputSpec(
             input_specs={
                 "images": TensorSpec(

@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 _TORCH_DYNAMO_MIN_VERSION = "2.5.0"
 _TORCH_DYNAMO_AVAILABLE = RequirementCache(f"torch>={_TORCH_DYNAMO_MIN_VERSION}")
 
+_TORCH_DIM_HINTS_MIN_VERSION = "2.6.0"
+_TORCH_DIM_HINTS_AVAILABLE = RequirementCache(f"torch>={_TORCH_DIM_HINTS_MIN_VERSION}")
+
 
 def check_onnx_dynamo_requirements() -> None:
     """Raise if the installed torch version does not support dynamo ONNX export."""
@@ -33,6 +36,15 @@ def check_onnx_dynamo_requirements() -> None:
         raise RuntimeError(
             f"ONNX export for this model requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
             f"(dynamo export), but found torch {torch.__version__}."
+        )
+
+
+def check_model_input_spec_requirements() -> None:
+    """Raise if torch lacks the Dim.STATIC/Dim.DYNAMIC hints ModelInputSpec needs."""
+    if not _TORCH_DIM_HINTS_AVAILABLE:
+        raise RuntimeError(
+            f"ModelInputSpec requires torch >= {_TORCH_DIM_HINTS_MIN_VERSION} "
+            f"(Dim.STATIC/Dim.DYNAMIC hints), but found torch {torch.__version__}."
         )
 
 

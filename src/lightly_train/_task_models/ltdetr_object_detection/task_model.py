@@ -25,6 +25,7 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
+    check_model_input_spec_requirements,
     check_onnx_dynamo_requirements,
     fix_topological_order,
     remove_duplicate_cast_nodes,
@@ -668,6 +669,7 @@ class LTDETRObjectDetection(TaskModel):
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
         check_onnx_dynamo_requirements()
+        check_model_input_spec_requirements()
 
         if precision not in ("fp32", "fp16"):
             raise ValueError(

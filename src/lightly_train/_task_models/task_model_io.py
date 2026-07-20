@@ -18,6 +18,8 @@ from torch import Tensor
 from torch.export.dynamic_shapes import Dim
 from typing_extensions import Self
 
+from lightly_train._export.onnx_helpers import check_model_input_spec_requirements
+
 
 class TensorSpec(BaseModel):
     """Specification of a single tensor used for model inputs or outputs."""
@@ -63,6 +65,7 @@ class ModelInputSpec(BaseModel):
         the batch dimension for batched inputs. Only that leading batch dimension
         may be dynamic; all remaining dimensions must be static.
         """
+        check_model_input_spec_requirements()
         if self.input_specs.keys() != self.input_dynamic_shapes.keys():
             raise ValueError(
                 "input_specs and input_dynamic_shapes must contain the same names."

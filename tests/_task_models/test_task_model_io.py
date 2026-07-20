@@ -12,10 +12,19 @@ import torch
 from torch import Tensor
 from torch.export import Dim
 
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DIM_HINTS_AVAILABLE,
+    _TORCH_DIM_HINTS_MIN_VERSION,
+)
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
     TensorSpec,
+)
+
+requires_dim_hints = pytest.mark.skipif(
+    not _TORCH_DIM_HINTS_AVAILABLE,
+    reason=f"torch >= {_TORCH_DIM_HINTS_MIN_VERSION} required",
 )
 
 
@@ -32,6 +41,7 @@ def test_tensor_spec__example_tensor() -> None:
     assert tensor.dtype == torch.float32
 
 
+@requires_dim_hints
 def test_model_input_spec__example_inputs_and_dynamic_batch() -> None:
     spec = ModelInputSpec(
         input_specs={
@@ -46,6 +56,7 @@ def test_model_input_spec__example_inputs_and_dynamic_batch() -> None:
     assert spec.dynamic_shapes(dynamic_batch_size=False)["images"][0] == Dim.STATIC
 
 
+@requires_dim_hints
 def test_model_input_spec__example_inputs_shape_overrides() -> None:
     spec = ModelInputSpec(
         input_specs={
@@ -64,6 +75,7 @@ def test_model_input_spec__example_inputs_shape_overrides() -> None:
     assert spec.input_specs["images"].shape == (3, 8, 8)
 
 
+@requires_dim_hints
 def test_model_input_spec__rejects_dynamic_non_batch_dimension() -> None:
     with pytest.raises(ValueError, match="Only the batch dimension may be dynamic"):
         ModelInputSpec(
