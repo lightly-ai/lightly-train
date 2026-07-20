@@ -7,11 +7,8 @@
 #
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
-from copy import deepcopy
-from dataclasses import fields
 from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
@@ -20,19 +17,11 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from typing_extensions import Self, override
 
-import lightly_train
-from lightly_train import _logging, _torch_testing
-from lightly_train._commands import _warnings
 from lightly_train._export import tensorrt_helpers
-from lightly_train._export.onnx_helpers import (
-    check_model_input_spec_requirements,
-    check_onnx_dynamo_requirements,
-    fix_topological_order,
-    remove_duplicate_cast_nodes,
-    remove_redundant_casts,
-    write_onnx_metadata,
+from lightly_train._export.export_onnx import (
+    ONNXExportMixin,
+    ONNXExportPrecisionPolicy,
 )
-from lightly_train._license import LICENSE_INFO
 from lightly_train._models import package_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
@@ -81,7 +70,7 @@ from lightly_train._task_models.object_detection_components.rtdetrv2_decoder imp
     RTDETRTransformerv2,
 )
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train._task_models.task_model_io import ModelInputSpec
+from lightly_train._task_models.task_model_io import BaseModelOutput, ModelInputSpec
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -123,7 +112,7 @@ def _resolve_transformer_config(
     return config_factory()
 
 
-class LTDETRObjectDetection(TaskModel):
+class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
     model_suffix = "ltdetr"
 
     def __init__(
@@ -345,6 +334,43 @@ class LTDETRObjectDetection(TaskModel):
             input_channels=self._expected_input_channels,
         )
 
+    @property
+    def onnx_export_precision_policy(self) -> ONNXExportPrecisionPolicy:
+        return ONNXExportPrecisionPolicy(fp32_onnx_op_types=("Softmax", "MatMul"))
+
+    def verify_onnx_export_outputs(
+        self,
+        *,
+        torch_outputs: BaseModelOutput,
+        onnx_outputs: BaseModelOutput,
+    ) -> None:
+        if not isinstance(torch_outputs, ObjectDetectionOutput) or not isinstance(
+            onnx_outputs, ObjectDetectionOutput
+        ):
+            raise TypeError(
+                "LTDETRObjectDetection ONNX verification expects "
+                "ObjectDetectionOutput instances."
+            )
+        for output_name in ("logits", "boxes"):
+            output_model = getattr(torch_outputs, output_name).sum(dim=1)
+            output_onnx = getattr(onnx_outputs, output_name)
+            if output_onnx.is_floating_point():
+                output_onnx = output_onnx.float()
+            output_onnx = output_onnx.sum(dim=1)
+            torch.testing.assert_close(
+                output_onnx,
+                output_model,
+                msg=lambda message: (
+                    f'ONNX validation failed for output "{output_name}": {message}'
+                ),
+                equal_nan=True,
+                check_device=False,
+                check_dtype=False,
+                check_layout=False,
+                atol=5e-3,
+                rtol=1e-1,
+            )
+
     def forward_backend(self, x: Tensor) -> Any:
         x = self.backbone(x)
         x = self.encoder(x)
@@ -378,6 +404,10 @@ class LTDETRObjectDetection(TaskModel):
     def freeze_backbone(self) -> None:
         self.backbone.eval()
         self.backbone.requires_grad_(False)
+
+    @property
+    def is_deploy_mode(self) -> bool:
+        return self._deployed
 
     def deploy(self) -> Self:
         self.eval()
@@ -446,7 +476,7 @@ class LTDETRObjectDetection(TaskModel):
             A list with one prediction dict per input image.
         """
         self._track_inference()
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
         tensors: list[Tensor] = []
@@ -477,7 +507,7 @@ class LTDETRObjectDetection(TaskModel):
             A task-specific prediction dictionary.
         """
         self._track_inference()
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
         x, metadata = self.preprocessor.preprocess_image(
@@ -531,7 +561,7 @@ class LTDETRObjectDetection(TaskModel):
                 - "scores": Tensor of shape (N,) with confidence scores for each prediction.
         """
 
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
         batch, metadata = self.preprocessor.preprocess_sahi_image(
@@ -563,7 +593,7 @@ class LTDETRObjectDetection(TaskModel):
         self._track_inference()
         if not images:
             raise ValueError("images must contain at least one image.")
-        if self.training or not self._deployed:
+        if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
         batches: list[Tensor] = []
@@ -600,22 +630,6 @@ class LTDETRObjectDetection(TaskModel):
             start = end
         return out
 
-    def onnx_export_metadata(self) -> dict[str, str]:
-        """Return metadata embedded in exported LT-DETR ONNX models."""
-        metadata = {
-            "lightly_train_version": lightly_train.__version__,
-            "license_info": LICENSE_INFO,
-        }
-        if self.image_normalize is not None:
-            metadata["image_normalize"] = json.dumps(
-                self.image_normalize, sort_keys=True
-            )
-        metadata["classes"] = json.dumps(self.classes, sort_keys=True)
-        model_name = self.init_args.get("model_name")
-        if model_name is not None:
-            metadata["model_name"] = str(model_name)
-        return metadata
-
     @torch.no_grad()
     def export_onnx(
         self,
@@ -630,232 +644,26 @@ class LTDETRObjectDetection(TaskModel):
         format_args: dict[str, Any] | None = None,
         num_channels: int | None = None,
     ) -> None:
-        """Export the model to ONNX using its declared model I/O specification.
+        """Export raw LT-DETR predictions to ONNX.
 
-        The export uses example inputs defined by ``self.model_input_spec``. If
-        ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch
-        dimension and is traced with batch size 2; otherwise it uses ``batch_size``.
-        ``num_channels`` optionally overrides the declared image-channel count.
-
-        The exported graph returns raw class logits and normalized ``cxcywh`` boxes.
-        Image preprocessing, top-k selection, thresholding, box rescaling, and SAHI
-        merging are intentionally kept outside the graph.
-
-        Optionally simplifies the exported model in-place using onnxslim and
-        verifies numerical closeness against a float32 CPU reference via ONNX Runtime.
-
-        Args:
-            out:
-                Path where the ONNX model will be written.
-            precision:
-                Precision for the ONNX model. Either "fp32", or "fp16".
-            batch_size:
-                Batch size for the ONNX input when ``dynamic_batch_size`` is False.
-            dynamic_batch_size:
-                If True, the ONNX graph will have a dynamic batch dimension.
-            opset_version:
-                ONNX opset version to target. If None, PyTorch's default opset is used.
-            simplify:
-                If True, run onnxslim to simplify and overwrite the exported model.
-            verify:
-                If True, validate the ONNX file and compare outputs to a float32 CPU
-                reference forward pass.
-            format_args:
-                Optional extra keyword arguments forwarded to ``torch.onnx.export``.
-            num_channels:
-                Optional override for the image input's channel count.
+        The graph returns logits and normalized ``cxcywh`` boxes. Image
+        preprocessing and detection postprocessing remain outside the graph.
         """
-        # Set up logging.
-        _warnings.filter_export_warnings()
-        _logging.set_up_console_logging()
-        check_onnx_dynamo_requirements()
-        check_model_input_spec_requirements()
-
-        if precision not in ("fp32", "fp16"):
-            raise ValueError(
-                f"Invalid precision '{precision}'. Must be one of 'fp32', 'fp16'."
-            )
-        if precision == "fp16" and not simplify:
-            raise ValueError("fp16 precision requires simplify=True.")
-
-        # Set the model in eval and deploy mode.
-        self.eval()
-        # Always trace in fp32 to avoid dtype mismatches in the decoder's
-        # autocast(enabled=False) blocks. fp16 conversion is applied
-        # post-export via onnxruntime.transformers.
-        self.to(torch.float32)
-        self.deploy()
-        model_device = next(self.parameters()).device
-
-        # TODO(Thomas, 12/25): Allow passing different image size.
-        spec = self.model_input_spec
-        trace_batch_size = 2 if dynamic_batch_size else batch_size
-        example_inputs = spec.example_inputs(
-            batch_size=trace_batch_size,
-            device=model_device,
-            dtype=torch.float32,
+        super().export_onnx(
+            out,
+            precision=precision,
+            batch_size=batch_size,
+            dynamic_batch_size=dynamic_batch_size,
+            opset_version=opset_version,
+            simplify=simplify,
+            verify=verify,
+            format_args=format_args,
             shape_overrides=(
                 {"images": (num_channels, None, None)}
                 if num_channels is not None
                 else None
             ),
         )
-        dynamic_shapes = spec.dynamic_shapes(dynamic_batch_size=dynamic_batch_size)
-
-        # TODO(Thomas, 12/25): Add warm-up forward if needed.
-        with torch.no_grad():
-            program = torch.export.export(
-                self,
-                args=(),
-                kwargs=example_inputs,
-                dynamic_shapes=dynamic_shapes,
-                strict=True,
-            )
-            example_output = self(**example_inputs)
-
-        input_names = list(spec.input_specs)
-        output_names = [field.name for field in fields(example_output)]
-        logger.info(f"Exporting ONNX model to '{out}'")
-        torch.onnx.export(
-            program,
-            f=str(out),
-            input_names=input_names,
-            output_names=output_names,
-            opset_version=opset_version,
-            dynamo=True,
-            report=False,
-            optimize=True,
-            verify=True,
-            dynamic_shapes=dynamic_shapes,
-            **(format_args or {}),
-        )
-
-        if precision == "fp16":
-            # convert_float_to_float16 creates nodes with duplicate names. In order to avoid downstream issues
-            # we require simplify to be True, as this correctly renames nodes.
-            import onnx
-            from onnxruntime.transformers import float16 as ort_float16
-
-            model_onnx = onnx.load(str(out))
-            # If the input to Softmax are too large the output of Softmax will be NaN values. Therefore we run
-            #  the Softmax computation in fp32. The nodes before Softmax are always MatMul.
-            # TODO (simon, 05/26) Ideally we would only block operators were a Matmul directly feeds into a Softmax.
-            op_block_list = list(ort_float16.DEFAULT_OP_BLOCK_LIST) + [
-                "Softmax",
-                "MatMul",
-            ]
-            model_fp16 = ort_float16.convert_float_to_float16(
-                model_onnx, op_block_list=op_block_list
-            )
-            # convert_float_to_float16 can also insert one identical Cast node
-            # per consumption site when a tensor feeds several op_block_list
-            # ops, all sharing the same autogenerated output name. This is an
-            # invalid (non-SSA) graph, so collapse the duplicates first.
-            remove_duplicate_cast_nodes(model_fp16)
-            # Using the op blocklist on a graph that looks like Softmax -> MatMul creates a graph that looks like
-            #  Cast32 -> MatMul -> Cast16 -> Cast32 -> Softmax -> Cast16. Therefore, we need to remove the middle
-            #  Cast16 -> Cast32.
-            remove_redundant_casts(model_fp16)
-            fix_topological_order(model_fp16)
-            onnx.save(model_fp16, str(out))
-
-        if simplify:
-            import onnxslim  # type: ignore [import-not-found,import-untyped]
-
-            onnxslim.slim(
-                str(out),
-                output_model=out,
-                skip_optimizations=["constant_folding"],
-            )
-
-        # Graph conversion and simplification can drop metadata, so write it last.
-        write_onnx_metadata(out=out, metadata=self.onnx_export_metadata())
-
-        if verify:
-            logger.info("Verifying ONNX model")
-            import onnx
-            import onnxruntime as ort
-
-            onnx.checker.check_model(str(out), full_check=True)
-            providers = ort.get_available_providers()
-            if precision == "fp16" and "CUDAExecutionProvider" not in providers:
-                logger.warning(
-                    "Skipping ONNX runtime verification for fp16 model because "
-                    "CUDAExecutionProvider is not available in onnxruntime. "
-                    "Install onnxruntime-gpu to enable full verification."
-                )
-            else:
-                # Always run the reference input in float32 and on cpu for consistency.
-                reference_model = deepcopy(self).cpu().to(torch.float32).eval()
-                reference_model.deploy()
-                reference_inputs = {
-                    name: tensor.detach().cpu().to(torch.float32)
-                    for name, tensor in example_inputs.items()
-                }
-                reference_output = reference_model(**reference_inputs)
-                reference_values = [
-                    getattr(reference_output, field.name)
-                    for field in fields(reference_output)
-                ]
-
-                session = ort.InferenceSession(str(out))
-                session_input_types = {
-                    input_.name: input_.type for input_ in session.get_inputs()
-                }
-                input_feed = {}
-                for name, tensor in example_inputs.items():
-                    tensor = tensor.detach().cpu()
-                    if session_input_types.get(name) == "tensor(float16)":
-                        tensor = tensor.half()
-                    input_feed[name] = tensor.numpy()
-                outputs_onnx = [
-                    torch.from_numpy(output) for output in session.run(None, input_feed)
-                ]
-
-                if len(outputs_onnx) != len(reference_values):
-                    raise AssertionError(
-                        "Number of ONNX outputs should be "
-                        f"{len(reference_values)} but is {len(outputs_onnx)}"
-                    )
-                for output_onnx, output_model, output_name in zip(
-                    outputs_onnx, reference_values, output_names
-                ):
-
-                    def msg(message: str) -> str:
-                        return (
-                            f'ONNX validation failed for output "{output_name}": '
-                            f"{message}"
-                        )
-
-                    # Decoder query order can differ between backends while the raw
-                    # predictions remain equivalent, so compare query-reduced tensors.
-                    output_model = output_model.sum(dim=1)
-                    if output_onnx.is_floating_point():
-                        # Convert to fp32 to avoid overflow issues when summing in fp16.
-                        output_onnx = output_onnx.float()
-                    output_onnx = output_onnx.sum(dim=1)
-                    if output_model.is_floating_point():
-                        # Absolute and relative tolerances are a bit arbitrary and taken from here:
-                        # https://github.com/pytorch/pytorch/blob/main/torch/onnx/_internal/exporter/_core.py#L1611-L1618
-                        torch.testing.assert_close(
-                            output_onnx,
-                            output_model,
-                            msg=msg,
-                            equal_nan=True,
-                            check_device=False,
-                            check_dtype=False,
-                            check_layout=False,
-                            atol=5e-3,
-                            rtol=1e-1,
-                        )
-                    else:
-                        _torch_testing.assert_most_equal(
-                            output_onnx,
-                            output_model,
-                            msg=msg,
-                        )
-
-        logger.info(f"Successfully exported ONNX model to '{out}'")
 
     def export_tensorrt(
         self,
