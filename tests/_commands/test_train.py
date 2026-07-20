@@ -361,6 +361,8 @@ def test_pretrain__distillation_different_teachers(
 def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
+    if method == "dinov31" and not RequirementCache("albumentations>=2.0.0"):
+        pytest.skip("DINOv31 requires albumentations>=2.0.0.")
 
     out = tmp_path / "out"
     data = tmp_path / "data"
