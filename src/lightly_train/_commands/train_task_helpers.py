@@ -112,7 +112,6 @@ from lightly_train._train_task_state import (
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
 from lightly_train._transforms.task_transform import (
-    TaskCollateFunction,
     TaskTransform,
     TaskTransformArgs,
 )
@@ -675,7 +674,6 @@ def get_train_dataloader(
     loader_args: dict[str, Any] | None = None,
 ) -> DataLoader[TaskDatasetItem]:
     timeout = Env.LIGHTLY_TRAIN_DATALOADER_TIMEOUT_SEC.value if num_workers > 0 else 0
-    # TODO(Guarin, 07/25): Persistent workers by default?
     dataloader_kwargs: dict[str, Any] = dict(
         dataset=dataset,
         batch_size=batch_size // fabric.world_size,
@@ -690,6 +688,7 @@ def get_train_dataloader(
         # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
+        _drop_unsupported_persistent_workers(loader_args, split="train")
         dataloader_kwargs.update(**loader_args)
     return DataLoader(**dataloader_kwargs)
 
@@ -716,26 +715,30 @@ def get_val_dataloader(
         # handled through dedicated function arguments.
         loader_args.pop("batch_size", None)
         loader_args.pop("num_workers", None)
+        _drop_unsupported_persistent_workers(loader_args, split="validation")
         dataloader_kwargs.update(**loader_args)
     return DataLoader(**dataloader_kwargs)
 
 
-def disable_persistent_workers_for_step_aware_transforms(
-    dataloader: DataLoader[Any],
-    transform: TaskTransform,
-    collate_fn: TaskCollateFunction,
+def _drop_unsupported_persistent_workers(
+    loader_args: dict[str, Any], split: str
 ) -> None:
-    """Force ``persistent_workers=False`` when transform/collate are step-aware."""
-    needs_refresh = (
-        transform.uses_step_dependent_worker_state()
-        or collate_fn.uses_step_dependent_worker_state()
-    )
-    if needs_refresh and dataloader.num_workers > 0 and dataloader.persistent_workers:
+    """Remove ``persistent_workers`` from user-provided loader args.
+
+    Persistent workers are owned by the DataLoader (not by the iterator), so they
+    survive ``StopIteration`` and cannot be released between the training and
+    validation phases. Keeping them alive means the train and validation worker
+    pools coexist (num_workers per split, per rank), which is exactly the process
+    blow-up we want to avoid. We therefore always run with ``persistent_workers=
+    False`` for the internal train/validation dataloaders and ignore any user
+    override.
+    """
+    if loader_args.pop("persistent_workers", None):
         logger.warning(
-            "Step-aware transform/collate requires persistent_workers=False. "
-            "Overriding user-provided persistent_workers=True."
+            f"'persistent_workers' is not supported for the {split} dataloader and "
+            "will be ignored: workers must be released between the training and "
+            "validation phases. Continuing with persistent_workers=False."
         )
-        dataloader.persistent_workers = False
 
 
 def get_steps(steps: int | Literal["auto"], default_steps: int) -> int:
