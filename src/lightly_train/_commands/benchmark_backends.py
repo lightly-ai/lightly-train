@@ -233,10 +233,10 @@ class ONNXBackend(ObjectDetectionBackend):
         outputs = dict(zip(self.output_names, raw_outputs))
         if "logits" in outputs:
             results = self.model.postprocess(
-                raw_outputs=(
-                    torch.from_numpy(outputs["logits"]),
-                    torch.from_numpy(outputs["boxes"]),
-                ),
+                raw_outputs={
+                    "pred_logits": torch.from_numpy(outputs["logits"]),
+                    "pred_boxes": torch.from_numpy(outputs["boxes"]),
+                },
                 metadata=metadata,
                 threshold=self.threshold,
             )
