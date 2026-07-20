@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+import math
+from typing import Any, cast
 
 import torch
 from torch import Tensor
@@ -56,3 +57,55 @@ def patch_embed_adjust_input_channels_hook(
                     [proj_weight, proj_weight[:, :remainder, :, :]], dim=1
                 )
         state_dict[proj_weight_key] = proj_weight
+
+
+def interpolate_pos_embed_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Bicubic-resize a mismatched ``pos_embed`` so a checkpoint trained at one
+    image size restores into a DINOv2 ViT at another (e.g. a 224px DINOv2
+    checkpoint into a 518px model).
+
+    Only fires on a genuine shape mismatch with a square patch grid; a no-op
+    otherwise. Mutates ``state_dict`` in place.
+
+    Note: assumes a single leading non-patch (cls) token. Models with register
+    tokens (``num_register_tokens > 0``) carry additional leading tokens that
+    this heuristic would mis-parse; the common DINOv2 init path (``vits14``,
+    no registers) is handled correctly.
+    """
+    key = f"{prefix}pos_embed"
+    value = state_dict.get(key)
+    if value is None:
+        return
+    target = cast(Tensor, module.pos_embed)
+    if value.shape == target.shape:
+        return
+    # Expect [1, 1 + n_patches, dim] (cls token + a square patch grid).
+    if value.dim() != 3 or value.shape[0] != 1 or value.shape[-1] != target.shape[-1]:
+        return
+    n_old = value.shape[1] - 1
+    n_new = target.shape[1] - 1
+    grid_old = int(round(math.sqrt(n_old)))
+    grid_new = int(round(math.sqrt(n_new)))
+    if grid_old * grid_old != n_old or grid_new * grid_new != n_new:
+        return
+    dim = value.shape[-1]
+    cls_token = value[:, :1]
+    patches = value[:, 1:].reshape(1, grid_old, grid_old, dim).permute(0, 3, 1, 2)
+    patches = torch.nn.functional.interpolate(
+        patches,
+        size=(grid_new, grid_new),
+        mode="bicubic",
+        align_corners=False,
+    )
+    patches = patches.permute(0, 2, 3, 1).reshape(1, n_new, dim)
+    state_dict[key] = torch.cat([cls_token, patches], dim=1).to(value.dtype)
+    logger.info(
+        f"Interpolated '{key}' pos_embed {tuple(value.shape)} -> "
+        f"{tuple(target.shape)} for checkpoint load."
+    )

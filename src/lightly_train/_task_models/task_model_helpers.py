@@ -89,6 +89,10 @@ def _get_downloadable_model_url_and_hashes(
 #    model name, file name, and hash.
 DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     #### Depth Estimation
+    "dinov2/dav3-relative-small": (
+        "dinov2_dav3_relative_small_260710_dcc2463f.pt",
+        "dcc2463f7fa07606cb1352236889e636a10cc3db64ec31a227a20cc88ce6c21d",
+    ),
     "dinov2/dav3-relative-large": (
         "dinov2_dav3_relative_large_260629_9c2e9320.pt",
         "9c2e932085843bbd960e16bc80917b6591e99fc6fd3907ded7bda68d35368e49",
@@ -96,6 +100,26 @@ DOWNLOADABLE_MODEL_URL_AND_HASH: dict[str, tuple[str, str]] = {
     "dinov2/dav3-metric-large": (
         "dinov2_dav3_metric_large_260629_6fd208f2.pt",
         "6fd208f22eaccf9007e9e67fb9cad95cc47016c8d00bc74c7fe69ec34185c06b",
+    ),
+    "dinov2/dav3-metric-small": (
+        "dinov2_dav3_metric_small_260713_96a7cd93.pt",
+        "96a7cd93ea7175b49bf83f061c76e1e61a807358552b79b5da62f4139b9e862a",
+    ),
+    "dinov3/dav3-relative-tiny-plus": (
+        "dinov3_dav3_relative_tiny_plus_260713_5bff49b8.pt",
+        "5bff49b8b07810cd0b6f1551a5be85538a2eab1d0aaf9f2a34ab3bb2124a48d0",
+    ),
+    "dinov3/dav3-metric-tiny-plus": (
+        "dinov3_dav3_metric_tiny_plus_260714_c7b1e414.pt",
+        "c7b1e4143d63c73eb0bbdf40e3d94d77f1cc4af027fe223fdeb6f97256d7f964",
+    ),
+    "dinov3/dav3-metric-tiny": (
+        "dinov3_dav3_metric_tiny_260716_111dd31c.pt",
+        "111dd31cd8d19caaaaeca92ba109e5f01f6ff02293386e0c42e30d035ec590a2",
+    ),
+    "dinov3/dav3-relative-tiny": (
+        "dinov3_dav3_relative_tiny_260714_90a26f4b.pt",
+        "90a26f4bfadc24d30192094c3f4dc52852c70a7f15ceec95b9d303cec3ea1647",
     ),
     # Only the Apache-2.0 Depth Anything V2 models are hosted. The CC-BY-NC-4.0 models
     # (relative base/large and the non-small metric variants) are not redistributed:
