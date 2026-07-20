@@ -215,6 +215,27 @@ class DINOv3EoMTPanopticSegmentationConfigRegistry(ConfigsNamespace):
         backbone_name: str = "dinov3/vitb16-eupe"
         num_joint_blocks: int = 3
 
+    @DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vits16-lingbot-eomt"
+    )
+    class ViTSmallLingBot(EoMTPanopticSegmentationConfig):
+        backbone_name: str = "dinov3/vits16-lingbot"
+        num_joint_blocks: int = 3
+
+    @DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vitb16-lingbot-eomt"
+    )
+    class ViTBaseLingBot(EoMTPanopticSegmentationConfig):
+        backbone_name: str = "dinov3/vitb16-lingbot"
+        num_joint_blocks: int = 3
+
+    @DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vitl16-lingbot-eomt"
+    )
+    class ViTLargeLingBot(EoMTPanopticSegmentationConfig):
+        backbone_name: str = "dinov3/vitl16-lingbot"
+        num_joint_blocks: int = 4
+
     @DINOV3_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.register("dinov3/vitt32-eomt")
     class ViTTiny32(EoMTPanopticSegmentationConfig):
         backbone_name: str = "dinov3/vitt32"
