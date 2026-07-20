@@ -142,6 +142,7 @@ class ONNXBackend(ObjectDetectionBackend):
 
         import onnxruntime as ort
 
+        self.model = model
         self.threshold = threshold
 
         self.device = torch.device(device)
@@ -230,6 +231,16 @@ class ONNXBackend(ObjectDetectionBackend):
 
         # postprocess
         outputs = dict(zip(self.output_names, raw_outputs))
+        if "logits" in outputs:
+            results = self.model.postprocess(
+                raw_outputs=(
+                    torch.from_numpy(outputs["logits"]),
+                    torch.from_numpy(outputs["boxes"]),
+                ),
+                metadata=metadata,
+                threshold=self.threshold,
+            )
+            return results, time_predict
         labels = torch.from_numpy(outputs["labels"])
         boxes_unscaled = torch.from_numpy(outputs["boxes"])
         scores = torch.from_numpy(outputs["scores"])
@@ -261,6 +272,7 @@ class TensorRTBackend(ObjectDetectionBackend):
     ) -> None:
         import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
 
+        self.model = model
         self.device = torch.device(device)
         self.precision = backend_args.precision
         self.threshold = threshold
@@ -356,6 +368,13 @@ class TensorRTBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # Postprocess.
+        if "logits" in outputs:
+            results = self.model.postprocess(
+                raw_outputs=(outputs["logits"], outputs["boxes"]),
+                metadata=metadata,
+                threshold=self.threshold,
+            )
+            return results, time_predict
         labels_batch = outputs["labels"].cpu()
         boxes_batch = outputs["boxes"].cpu()
         scores_batch = outputs["scores"].cpu()
