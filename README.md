@@ -396,12 +396,12 @@ Depth accuracy is evaluated zero-shot on the NYUv2 test split (654 images) with 
 eigen crop and a depth range of 0.1 m to 10 m. NYUv2 was not used during training.
 **Metric** models are scored directly against the ground-truth depth:
 
-| Model                          | Params (M) |  δ1   | AbsRel | RMSE  |
-| ------------------------------ | :--------: | :---: | :----: | :---: |
-| `dinov2/dav3-metric-large`     |   334.2M   | 0.950 | 0.078  | 0.339 |
-| `dinov2/dav3-metric-small`     |   24.7M    | 0.912 | 0.099  | 0.377 |
-| `dinov3/dav3-metric-tiny-plus` |    7.9M    | 0.846 | 0.123  | 0.457 |
-| `dinov3/dav3-metric-tiny`      |    6.2M    | 0.818 | 0.131  | 0.506 |
+| Model                                                   | Params (M) |  δ1   | AbsRel | RMSE  |
+| ------------------------------------------------------- | :--------: | :---: | :----: | :---: |
+| `dinov3/dav3-metric-tiny` (LightlyTrain-distilled)      |    6.2M    | 0.818 | 0.131  | 0.506 |
+| `dinov3/dav3-metric-tiny-plus` (LightlyTrain-distilled) |    7.9M    | 0.846 | 0.123  | 0.457 |
+| `dinov2/dav3-metric-small` (LightlyTrain-distilled)     |   24.7M    | 0.912 | 0.099  | 0.377 |
+| `dinov2/dav3-metric-large`                              |   334.2M   | 0.950 | 0.078  | 0.339 |
 
 #### Inference Speed
 
