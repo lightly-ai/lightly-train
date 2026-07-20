@@ -142,7 +142,10 @@ class ONNXBackend(ObjectDetectionBackend):
 
         import onnxruntime as ort
 
-        self.model = model
+        # ONNX Runtime always returns host-side numpy outputs regardless of
+        # the execution provider, so the model (and its postprocessing
+        # buffers) must live on CPU to match.
+        self.model = model.to("cpu")
         self.threshold = threshold
 
         self.device = torch.device(device)
