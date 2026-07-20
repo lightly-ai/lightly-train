@@ -5,11 +5,3 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from enum import Enum
-
-
-class OptimizerType(Enum):
-    ADAMW = "adamw"
-    ADAMW8BIT = "adamw8bit"
-    SGD = "sgd"
-    LARS = "lars"

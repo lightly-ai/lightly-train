@@ -184,7 +184,7 @@ def pretrain(
             respective arguments:
             ``callbacks={"model_checkpoint": {"every_n_epochs": 5}}``.
         optim:
-            Optimizer name. Must be one of ['auto', 'adamw', 'sgd']. 'auto' automatically
+            Optimizer name. Must be one of ['auto', 'adamw', 'adamw8bit', 'sgd']. 'auto' automatically
             selects the optimizer based on the method.
         optim_args:
             Optimizer arguments. Available arguments depend on the optimizer.

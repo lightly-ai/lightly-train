@@ -978,9 +978,7 @@ class DepthAnythingDepthEstimation(TaskModel):
             max_batchsize=max_batchsize,
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
-            # FP32 attention scores required for FP16 model stability. Otherwise output
-            # contains NaN.
-            fp32_attention_scores=True,
+            fp32_attention_scores=False,
             verbose=verbose,
         )
 

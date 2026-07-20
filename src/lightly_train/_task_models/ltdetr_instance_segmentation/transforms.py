@@ -202,6 +202,7 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
+    min_bbox_size_px: float = 4.0
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         patch_size: int | None = model_init_args.get("patch_size")
