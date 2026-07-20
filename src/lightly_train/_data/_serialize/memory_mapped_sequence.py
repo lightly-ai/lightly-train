@@ -180,7 +180,7 @@ def _stream_write_table_to_file(
         first_item = next(it)
     except StopIteration:
         # Create an empty file with no rows and no columns
-        with ipc.new_file(
+        with ipc.new_file(  # type: ignore[no-untyped-call]
             sink=str(mmap_filepath.resolve()), schema=pa.schema([])
         ) as writer:
             pass
@@ -189,7 +189,9 @@ def _stream_write_table_to_file(
     column_names = list(first_item.keys())
     schema = pa.schema([(name, _infer_type(first_item[name])) for name in column_names])
 
-    with ipc.new_file(sink=str(mmap_filepath.resolve()), schema=schema) as writer:
+    with ipc.new_file(  # type: ignore[no-untyped-call]
+        sink=str(mmap_filepath.resolve()), schema=schema
+    ) as writer:
         chunks: list[list[Primitive]] = list([] for _ in column_names)
 
         for item_count, item in enumerate(chain([first_item], it), 1):
@@ -207,4 +209,4 @@ def _stream_write_table_to_file(
 
 def _mmap_table_from_file(mmap_filepath: Path) -> Table:
     with pa.memory_map(str(mmap_filepath.resolve())) as source:
-        return ipc.open_file(source).read_all()
+        return ipc.open_file(source).read_all()  # type: ignore[no-untyped-call]

@@ -22,6 +22,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
 )
@@ -450,9 +451,9 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     model.eval()
     model.deploy()
     with torch.no_grad():
-        logits, boxes = model(torch.randn(1, 3, 224, 224))
-    assert logits.shape == (1, 300, 2)
-    assert boxes.shape == (1, 300, 4)
+        output = model(torch.randn(1, 3, 224, 224))
+    assert output.logits.shape == (1, 300, 2)
+    assert output.boxes.shape == (1, 300, 4)
 
 
 @pytest.mark.parametrize(
@@ -662,8 +663,8 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     # postprocess receives forward_backend's output and per-image metadata.
     assert postprocess_spy.call_count == 1
     raw_in, metadata, _ = postprocess_spy.call_args.args
-    assert raw_in[0] is forward_backend_spy.spy_return["pred_logits"]
-    assert raw_in[1] is forward_backend_spy.spy_return["pred_boxes"]
+    assert raw_in.logits is forward_backend_spy.spy_return["pred_logits"]
+    assert raw_in.boxes is forward_backend_spy.spy_return["pred_boxes"]
     assert len(metadata) == 2
 
     # predict_batch returns whatever the standalone postprocessor produced.
@@ -706,7 +707,9 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     mocker.patch.object(
         model,
         "forward",
-        return_value=(torch.zeros(5, 4, 2), torch.zeros(5, 4, 4)),
+        return_value=ObjectDetectionOutput(
+            logits=torch.zeros(5, 4, 2), boxes=torch.zeros(5, 4, 4)
+        ),
     )
     postprocess_sahi = mocker.patch.object(
         model.postprocessor,
@@ -728,8 +731,8 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     output = model.predict_sahi_batch([torch.zeros(3, 20, 20), torch.zeros(3, 40, 40)])
 
     assert [int(item["labels"].item()) for item in output] == [1, 2]
-    assert postprocess_sahi.call_args_list[0].args[0][0].shape[0] == 2
-    assert postprocess_sahi.call_args_list[1].args[0][0].shape[0] == 3
+    assert postprocess_sahi.call_args_list[0].args[0].logits.shape[0] == 2
+    assert postprocess_sahi.call_args_list[1].args[0].logits.shape[0] == 3
 
 
 def test_predict_sahi_batch__rejects_empty_input() -> None:
@@ -764,7 +767,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
+    assert input_batch_dim.dim_param == "batch_size"
 
     import torch
 
