@@ -7,9 +7,17 @@
 #
 from __future__ import annotations
 
+import pytest
 import torch
 from lightning_fabric import Fabric
+from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
+
+if RequirementCache("torchmetrics<1.5"):
+    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
+    # is installed which requires torchmetrics==0.8
+    pytest.skip("Old torchmetrics version", allow_module_level=True)
+
 
 from lightly_train._data.mask_semantic_segmentation_dataset import (
     MaskSemanticSegmentationDataArgs,
