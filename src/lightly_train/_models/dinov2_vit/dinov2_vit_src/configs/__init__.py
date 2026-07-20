@@ -170,24 +170,27 @@ MODELS: dict[str, _Model] = {
         list=False,
         alias_for="vitg14-noreg",
     ),
-    # TIPS models.
+    # TIPSv2 vision backbones. IMPORTANT: upstream TIPSv2 inference uses 448x448
+    # images in [0, 1] without ImageNet normalization. LightlyTrain deliberately
+    # keeps its current generic 224px/ImageNet transform defaults for now; add
+    # model-specific preprocessing in a follow-up before changing that behavior.
     "vitb14-tipsv2": _Model(
-        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_b14_vision.npz",
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitb14_tipsv2.pt",
         config="eval/vitb14_tipsv2_pretrain",
         list=True,
     ),
     "vitl14-tipsv2": _Model(
-        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_l14_vision.npz",
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitl14_tipsv2.pt",
         config="eval/vitl14_tipsv2_pretrain",
         list=True,
     ),
-    "vitso14-tipsv2": _Model(
-        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_so14_vision.npz",
-        config="eval/vitso14_tipsv2_pretrain",
+    "vitso400m14-tipsv2": _Model(
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitso400m14_tipsv2.pt",
+        config="eval/vitso400m14_tipsv2_pretrain",
         list=True,
     ),
     "vitg14-tipsv2": _Model(
-        url="https://storage.googleapis.com/tips_data/v2_0/checkpoints/pytorch/tips_v2_oss_g14_vision.npz",
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitg14_tipsv2.pt",
         config="eval/vitg14_tipsv2_pretrain",
         list=True,
     ),

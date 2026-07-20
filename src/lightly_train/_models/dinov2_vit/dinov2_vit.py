@@ -70,6 +70,9 @@ class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettab
         return {"features": features_reshaped, "cls_token": rt["x_norm_clstoken"]}
 
     def forward_pool(self, x: ForwardFeaturesOutput) -> ForwardPoolOutput:
+        # TIPSv2 repurposes its sole DINOv2 register token as a second class token.
+        # The common LightlyTrain wrapper API exposes the primary class token only;
+        # the second token remains internal and is intentionally not a multimodal API.
         return {"pooled_features": x["cls_token"][..., None, None]}
 
     def get_model(self) -> DinoVisionTransformer:

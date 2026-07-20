@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`,
+  `dinov2/vitl14-tipsv2`, `dinov2/vitso400m14-tipsv2`, and
+  `dinov2/vitg14-tipsv2`.
 - Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
   `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
 - Add tiny, tiny-plus, and small Depth Anything V3 depth estimation models — the
