@@ -183,7 +183,7 @@ identifier without a dataset suffix (e.g. `-coco`, `-cityscapes`, etc.).
 
 ```{note}
 To log per-class metrics (for example AP or IoU per class), use the
-[`classwise`](#classwise) key of [`metric_args`](#metric_args) rather than `model_args`.
+[`classwise`](#classwise) key of [`metric_args`](#metric_args).
 ```
 
 #### `scheduler_name`
