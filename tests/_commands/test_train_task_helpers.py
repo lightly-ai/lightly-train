@@ -174,6 +174,41 @@ def test_load_checkpoint__supported_architecture_does_not_load_checkpoint(
     fabric.load.assert_not_called()
 
 
+def test_load_checkpoint__local_model_path_loads_checkpoint(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    model_path = tmp_path / "model.pt"
+    model_path.touch()
+    checkpoint_dict = {
+        "train_model": {"model.weight": "pretrained"},
+        "model_class_path": "package.TaskModel",
+        "model_init_args": {"model_name": "ltdetrv2-s"},
+    }
+    fabric = mocker.MagicMock()
+    fabric.load.return_value = checkpoint_dict
+    download_checkpoint = mocker.patch(
+        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint",
+        return_value=model_path,
+    )
+
+    checkpoint, resolved_path, resolved_model, model_init_args = load_checkpoint(
+        fabric=fabric,
+        out_dir=tmp_path / "out",
+        resume_interrupted=False,
+        model=str(model_path),
+        checkpoint=None,
+        task="object_detection",
+    )
+
+    download_checkpoint.assert_called_once_with(checkpoint=str(model_path))
+    fabric.load.assert_called_once_with(path=model_path)
+    assert resolved_path == model_path
+    assert resolved_model == "ltdetrv2-s"
+    assert model_init_args == checkpoint_dict["model_init_args"]
+    assert checkpoint is not None
+    assert checkpoint["train_model_state_dict"] == checkpoint_dict["train_model"]
+
+
 def test_load_checkpoint__explicit_checkpoint_overrides_downloadable_model(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
