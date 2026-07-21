@@ -199,6 +199,7 @@ class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
             config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
             self.decoder_name = config.transformer.decoder_name
 
+
 class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
     default_batch_size: ClassVar[int] = 32
     default_steps: ClassVar[int] = (
