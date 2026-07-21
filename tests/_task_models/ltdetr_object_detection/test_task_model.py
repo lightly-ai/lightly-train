@@ -801,6 +801,24 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     )
 
 
+def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="shape_overrides is not supported for LT-DETR object detection.",
+    ):
+        model.export_onnx(
+            out=tmp_path / "model.onnx",
+            shape_overrides={"images": (3, None, None)},
+        )
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
