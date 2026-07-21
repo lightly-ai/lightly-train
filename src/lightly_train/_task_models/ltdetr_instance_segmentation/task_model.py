@@ -658,6 +658,12 @@ class LTDETRInstanceSegmentation(TaskModel):
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
+        x = self._validate_channels(x)
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def _validate_channels(self, x: Tensor) -> Tensor:
         # Expand grayscale to the expected channel count so images can be stacked.
         # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
         # 1-channel expansion is a convenience inherited from RGB-only models.
@@ -668,10 +674,7 @@ class LTDETRInstanceSegmentation(TaskModel):
             raise ValueError(
                 f"Image has {x.shape[-3]} channels but model expects {expected_c}."
             )
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.resize(x, self.image_size)
-        return x, {"orig_h": image_h, "orig_w": image_w}
+        return x
 
     def preprocess_batch(self, batch: Tensor) -> Tensor:
         if self.image_normalize is not None:
@@ -801,6 +804,7 @@ class LTDETRInstanceSegmentation(TaskModel):
         x = file_helpers.as_image_tensor(image).to(device)
         orig_h, orig_w = x.shape[-2:]
         tile_h, tile_w = self.image_size
+        x = self._validate_channels(x)
 
         # Scale to float once up front. Normalization happens per batch in
         # ``preprocess_batch`` (unlike the EoMT models, whose ``preprocess_batch``
