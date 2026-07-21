@@ -1,0 +1,1 @@
+Never change `.txt` files in `requirements/` directly. Instead, edit the corresponding `.in` file and run `make lock` to update the `.txt` file.
