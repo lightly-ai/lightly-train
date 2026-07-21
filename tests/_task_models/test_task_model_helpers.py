@@ -29,6 +29,12 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
 )
+from lightly_train._task_models.object_detection_components.dfine_decoder import (
+    DFINETransformer,
+)
+from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
+    RTDETRTransformerv2,
+)
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
 )
@@ -187,6 +193,39 @@ def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic() 
 
     assert isinstance(model, LTDETRObjectDetection)
     assert model.init_args["model_name"] == "dinov3/vitt16-notpretrained-ltdetr"
-    assert model.init_args["decoder_name"] == "rtdetrv2"
+    assert model.init_args["decoder_name"] is None
+    assert isinstance(model.decoder, RTDETRTransformerv2)
+    for name, param in model.state_dict().items():
+        assert torch.equal(param, reference_model.state_dict()[name])
+
+
+def test_init_model_from_checkpoint__missing_decoder_uses_dfine_architecture() -> None:
+    reference_model = LTDETRObjectDetection(
+        model_name="ltdetrv2-s",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+    train_state_dict = {
+        f"model.{name}": param for name, param in reference_model.state_dict().items()
+    }
+
+    model = task_model_helpers.init_model_from_checkpoint(
+        {
+            "model_class_path": (
+                "lightly_train._task_models.ltdetr_object_detection.task_model"
+                ".LTDETRObjectDetection"
+            ),
+            "model_init_args": {
+                "model_name": "ltdetrv2-s",
+                "classes": {0: "class_0", 1: "class_1"},
+                "image_size": (256, 256),
+            },
+            "train_model": train_state_dict,
+        },
+        device="cpu",
+    )
+
+    assert isinstance(model.decoder, DFINETransformer)
     for name, param in model.state_dict().items():
         assert torch.equal(param, reference_model.state_dict()[name])

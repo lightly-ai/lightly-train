@@ -256,15 +256,8 @@ def test_dino_legacy_backbone_prefix_is_remapped() -> None:
 
 
 def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
-    # Backwards compatibility: a checkpoint trained with the previous
-    # RTDETRv2 default must reconstruct with the RTDETRv2 architecture when
-    # the user does not explicitly set ``decoder_name``, even though the new
-    # default is dfine. This round-trip simulates loading such a checkpoint:
-    # we save the task model's ``init_args`` and ``state_dict`` (mirroring
-    # what ``lightly_train`` persists in the checkpoint file), build a fresh
-    # train model from defaults, feed it the saved ``init_args`` as the
-    # checkpoint payload, and verify the state dict loads cleanly into an
-    # RTDETRv2 decoder.
+    # Legacy checkpoints do not store ``decoder_name``. In that case the train
+    # args must resolve it from the registered architecture before loading weights.
     model_name = "dinov3/vitt16-notpretrained-ltdetr"
 
     # Source: an old-style RTDETRv2 checkpoint.
@@ -276,8 +269,9 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
         source_args,
         model_name=model_name,
     )
-    checkpoint_model_init_args = source_train_model.get_task_model().init_args
+    checkpoint_model_init_args = dict(source_train_model.get_task_model().init_args)
     assert checkpoint_model_init_args["decoder_name"] == "rtdetrv2"
+    checkpoint_model_init_args.pop("decoder_name")
     checkpoint_state_dict = source_train_model.state_dict()
 
     # Pick a stable decoder tensor to compare before/after the round trip.
@@ -285,9 +279,8 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
     assert decoder_keys, "expected at least one decoder tensor in the state dict"
     source_decoder_tensor = checkpoint_state_dict[decoder_keys[0]].clone()
 
-    # Target: a fresh train model built from the new defaults. The user does
-    # not explicitly set ``decoder_name``; ``model_init_args`` carries the
-    # checkpoint payload.
+    # Target: the user does not explicitly set ``decoder_name`` and the legacy
+    # checkpoint does not contain it either.
     target_args = LTDETRObjectDetectionTrainArgs(use_ema_model=False)
     target_train_model = _create_train_model(
         target_args,
@@ -295,7 +288,7 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
         model_init_args=dict(checkpoint_model_init_args),
     )
 
-    # Architecture was reconstructed as RTDETRv2 via the compatibility shim.
+    # The DINOv3 v1 architecture selects RTDETRv2.
     assert target_args.decoder_name == "rtdetrv2"
     target_task_model = target_train_model.get_task_model()
     assert isinstance(target_task_model.decoder, RTDETRTransformerv2)
@@ -331,6 +324,49 @@ def test_resolve_transformer_config__selects_decoder_family(
     )
 
     assert isinstance(transformer_config, expected_config_type)
+
+
+@pytest.mark.parametrize(
+    ("model_name", "expected_decoder_name"),
+    [
+        ("dinov3/vitt16-notpretrained-ltdetr", "rtdetrv2"),
+        ("ltdetrv2-s", "dfine"),
+    ],
+)
+def test_resolve_auto__uses_architecture_decoder(
+    model_name: str,
+    expected_decoder_name: Literal["rtdetrv2", "dfine"],
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name=model_name,
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == expected_decoder_name
+
+
+def test_resolve_auto__checkpoint_decoder_overrides_architecture(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_init_args={"decoder_name": "dfine"},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == "dfine"
 
 
 def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
