@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **DINOv3**-based instance segmentation models
+LightlyTrain now supports training **DINOv3**-based instance segmentation models
 with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
 ```
 
@@ -45,8 +45,10 @@ using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
 ## Train an Instance Segmentation Model
 
 Training an instance segmentation model with LightlyTrain is straightforward and only
-requires a few lines of code. See [data](#instance-segmentation-data) for more details
-on how to prepare your dataset.
+requires a few lines of code using the
+{py:func}`train_instance_segmentation <lightly_train.train_instance_segmentation>`
+function. See [data](#instance-segmentation-data) for more details on how to prepare
+your dataset.
 
 ```python
 import lightly_train
@@ -57,9 +59,9 @@ if __name__ == "__main__":
         model="dinov3/vitl16-eomt-inst-coco", 
         data={
             "format": "yolo",           # either "yolo" or "coco"
-            "path": "my_data_dir",      # Path to dataset directory
-            "train": "images/train",    # Path to training images
-            "val": "images/val",        # Path to validation images
+            "path": "my_data_dir",      # Root directory of the dataset
+            "train": "images/train",    # Training images, relative to "path" (i.e. my_data_dir/images/train)
+            "val": "images/val",        # Validation images, relative to "path" (i.e. my_data_dir/images/val)
             "names": {                  # Classes in the dataset
                 0: "background",
                 1: "car",
@@ -78,13 +80,15 @@ if __name__ == "__main__":
 ```
 
 During training, the best and last model weights are exported to
-`out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`:
+`out/my_experiment/exported_models/`, unless disabled in
+[`save_checkpoint_args`](settings/train_settings.md#save_checkpoint_args):
 
 - best (highest validation mask mAP): `exported_best.pt`
 - last: `exported_last.pt`
 
 You can use these weights to continue fine-tuning on another dataset by loading the
-weights with `model="<checkpoint path>"`:
+weights via the [`model`](settings/train_settings.md#model) argument
+(`model="<checkpoint path>"`):
 
 ```python
 import lightly_train
@@ -191,7 +195,8 @@ results["masks"]    # Binary masks, tensor of shape (num_instances, height, widt
 results["scores"]   # Confidence scores, tensor of shape (num_instances,)
 ```
 
-You can customize the behavior via the following parameters:
+You can customize the behavior of
+{py:meth}`~.DINOv3EoMTInstanceSegmentation.predict_sahi` via the following parameters:
 
 - `overlap`: Fraction of overlap between neighboring tiles. Higher values increase
   small-instance recall but also increase computation.
@@ -485,8 +490,8 @@ The following image formats are supported:
 
 ## Model
 
-The `model` argument defines the model used for instance segmentation training. The
-following models are available:
+The [`model`](settings/train_settings.md#model) argument defines the model used for
+instance segmentation training. The following models are available:
 
 ### DINOv3 Models
 
@@ -522,6 +527,13 @@ DINOv3 backbone weights instead. Models marked as EUPE use
 [DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
 models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+Models marked as LingBot use
+[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), which are released
+under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
+As they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models.
 
 ### DINOv2 Models
 
@@ -646,6 +658,7 @@ You can also learn more about exporting EoMT to TensorRT using our Colab noteboo
 ## Default Image Transform Arguments
 
 The following are the default image transform arguments. See
+[`transform_args`](settings/train_settings.md#transform_args) and
 [](train-settings-transforms) on how to customize transform settings.
 
 `````{dropdown} LTDETR Instance Segmentation Default Transform Arguments
