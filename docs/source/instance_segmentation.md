@@ -527,6 +527,13 @@ DINOv3 backbone weights instead. Models marked as EUPE use
 [DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
 models are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+Models marked as LingBot use
+[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), which are released
+under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
+As they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models.
 
 ### DINOv2 Models
 
