@@ -1,6 +1,6 @@
 (depth-estimation-doc)=
 
-# Depth Estimation (NEW)
+# Depth Estimation
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/depth_estimation.ipynb)
 
@@ -8,7 +8,6 @@
 LightlyTrain supports depth estimation inference with
 [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) and
 [Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) models.
-Training support will be released soon!
 ```
 
 LightlyTrain ports the Depth Anything V2 (DAv2) and V3 (DAv3) monocular depth estimation

@@ -111,7 +111,6 @@ def dump_transform_args_for_tasks(dest_dir: Path) -> None:
         variants = [("", train_model_cls.__name__.lower())]
         if train_model_cls.__name__ == "LTDETRObjectDetectionTrain":
             variants.append(("dinov2/", "dinov2ltdetrobjectdetectiontrain"))
-            variants.append(("dinov3/", "dinov3ltdetrobjectdetectiontrain"))
 
         for model_name, name in variants:
             train_transform_args_cls = train_model_cls.get_train_transform_cls(
