@@ -9,3 +9,15 @@ lock:
 .PHONY: benchmark-tensorrt
 benchmark-tensorrt:
 	uv run --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_benchmark.py --coco-root $(COCO_ROOT)
+
+.PHONY: format
+format:
+	$(MAKE) -C .. format
+
+.PHONY: format-check
+format-check:
+	$(MAKE) -C .. format-check
+
+.PHONY: type-check
+type-check:
+	$(MAKE) -C .. type-check

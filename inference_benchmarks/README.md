@@ -5,16 +5,16 @@ speed and accuracy across different export backends and precisions.
 
 ## TensorRT Benchmark
 
-Runs every COCO-pretrained detection checkpoint through TensorRT export (fp32 and
-fp16) and evaluates it on the COCO val2017 split, reporting mAP, latency, and
-throughput.
+Runs every COCO-pretrained detection checkpoint through TensorRT export (fp32 and fp16)
+and evaluates it on the COCO val2017 split, reporting mAP, latency, and throughput.
 
 Benchmarked models (see `MODEL_NAMES` in
 [run_tensorrt_benchmark.py](./run_tensorrt_benchmark.py)):
 
 - `picodet-s-coco`, `picodet-l-coco`
 - `ltdetrv2-s-coco`
-- `dinov3/vitt16-ltdetr-coco`, `dinov3/vitt16plus-ltdetr-coco`, `dinov3/vits16-ltdetr-coco`
+- `dinov3/vitt16-ltdetr-coco`, `dinov3/vitt16plus-ltdetr-coco`,
+  `dinov3/vits16-ltdetr-coco`
 - `dinov3/convnext-{tiny,small,base,large}-ltdetr-coco`
 - `dinov2/vits14-noreg-ltdetr-coco`
 
@@ -54,10 +54,10 @@ Results are written to `out/tensorrt_benchmark/<model>/<precision>/`:
 - `benchmark_results.json` — raw metrics and timing data.
 - `benchmark_summary.md` — human-readable report for that model/precision.
 
-A combined `out/tensorrt_benchmark/summary.md` aggregates mAP, latency, and
-throughput for every model/precision combination into a single table.
+A combined `out/tensorrt_benchmark/summary.md` aggregates mAP, latency, and throughput
+for every model/precision combination into a single table.
 
 ## Managing dependencies
 
-Never edit the `.txt` files in `requirements/` directly. Instead, edit the
-corresponding `.in` file and run `make lock` to regenerate the pinned `.txt` file.
+Never edit the `.txt` files in `requirements/` directly. Instead, edit the corresponding
+`.in` file and run `make lock` to regenerate the pinned `.txt` file.

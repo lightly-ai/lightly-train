@@ -1,3 +1,10 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
 """Benchmark all COCO-pretrained object detection checkpoints with the TensorRT
 backend, in both fp32 and fp16, on the COCO val2017 split.
 
