@@ -47,7 +47,13 @@ class ModelEMA(Module):
 
         self.decay = decay
         self.warmups = warmups
-        self.updates = 0  # number of EMA updates
+        # Track the number of EMA updates as a buffer so it is saved in the model
+        # state_dict and restored on resume. If it were a plain Python int it would
+        # reset to 0 when resuming from a checkpoint, restarting the decay warmup ramp
+        # (decay_fn(step=1) ~= 0) and overwriting the accumulated EMA weights with the
+        # raw model weights on the first post-resume update. Since validation uses the
+        # EMA weights, that produces a spurious drop in val metrics after resuming.
+        self.register_buffer("updates", torch.zeros((), dtype=torch.long))
         self.decay_fn = decay_fn  # decay exponential ramp (to help early epochs)
 
         for p in self.model.parameters():
@@ -58,7 +64,7 @@ class ModelEMA(Module):
         with torch.no_grad():
             self.updates += 1
             d = self.decay_fn(
-                decay=self.decay, warmup_steps=self.warmups, step=self.updates
+                decay=self.decay, warmup_steps=self.warmups, step=int(self.updates)
             )
             msd = model.state_dict()
             ema_tensors = []
