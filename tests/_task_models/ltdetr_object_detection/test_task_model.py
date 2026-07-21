@@ -40,6 +40,7 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
     _resolve_transformer_config,
 )
 from lightly_train._task_models.ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrainArgsV2,
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
 )
@@ -327,18 +328,26 @@ def test_resolve_transformer_config__selects_decoder_family(
 
 
 @pytest.mark.parametrize(
-    ("model_name", "expected_decoder_name"),
+    ("model_name", "train_args_cls", "expected_decoder_name"),
     [
-        ("dinov3/vitt16-notpretrained-ltdetr", "rtdetrv2"),
-        ("ltdetrv2-s", "dfine"),
+        (
+            "dinov2/vits14-noreg-ltdetr-coco",
+            DINOv2LTDETRObjectDetectionTrainArgsV2,
+            "rtdetrv2",
+        ),
+        ("dinov3/vitt16-ltdetr", LTDETRObjectDetectionTrainArgs, "rtdetrv2"),
+        ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, "dfine"),
     ],
 )
 def test_resolve_auto__uses_architecture_decoder(
     model_name: str,
+    train_args_cls: type[
+        LTDETRObjectDetectionTrainArgs | DINOv2LTDETRObjectDetectionTrainArgsV2
+    ],
     expected_decoder_name: Literal["rtdetrv2", "dfine"],
     dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
 ) -> None:
-    model_args = LTDETRObjectDetectionTrainArgs()
+    model_args = train_args_cls()
 
     model_args.resolve_auto(
         total_steps=1000,

@@ -98,60 +98,6 @@ def test_load_checkpoint__downloadable_supported_alias_loads_checkpoint(
     }
 
 
-def test_load_checkpoint__legacy_ltdetr_metadata_resolves_architecture_decoder(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
-    checkpoint_path = tmp_path / "model.pt"
-    checkpoint_path.touch()
-    fabric = mocker.MagicMock()
-    fabric.load.return_value = {
-        "train_model": {"model.weight": "pretrained"},
-        "model_class_path": (
-            "lightly_train._task_models.dinov3_ltdetr_object_detection.task_model"
-            ".DINOv3LTDETRObjectDetection"
-        ),
-        "model_init_args": {
-            "model_name": "dinov3/vitt16-ltdetr",
-            # Legacy hosted checkpoints do not contain decoder_name.
-        },
-    }
-    mocker.patch(
-        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint",
-        return_value=checkpoint_path,
-    )
-
-    _, _, model_name, model_init_args = load_checkpoint(
-        fabric=fabric,
-        out_dir=tmp_path / "out",
-        resume_interrupted=False,
-        model="dinov3/vitt16-ltdetr-coco",
-        checkpoint=None,
-        task="object_detection",
-    )
-    assert model_init_args is not None
-
-    model_args = cast(
-        LTDETRObjectDetectionTrainArgs,
-        get_train_model_args(
-            model_args=None,
-            model_args_cls=LTDETRObjectDetectionTrainArgs,
-            total_steps=1000,
-            gradient_accumulation_steps=1,
-            train_num_batches=100,
-            model_name=model_name,
-            model_init_args=model_init_args,
-            data_args=YOLOObjectDetectionDataArgs(
-                path=tmp_path,
-                train=Path("train/images"),
-                val=Path("val/images"),
-                names={0: "class_0", 1: "class_1"},
-            ),
-        ),
-    )
-
-    assert model_args.decoder_name == "rtdetrv2"
-
-
 def test_load_checkpoint__supported_architecture_does_not_load_checkpoint(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
