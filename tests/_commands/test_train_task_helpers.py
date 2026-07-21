@@ -47,6 +47,11 @@ from lightly_train._training_step_timer import TimerAggregateMetrics
 @pytest.mark.parametrize(
     ("model", "task", "checkpoint_model_name"),
     [
+        (
+            "dinov2/vits14-noreg-ltdetr-coco",
+            "object_detection",
+            "dinov2/vits14-noreg-ltdetr",
+        ),
         ("ltdetrv2-s-coco", "object_detection", "edgecrafter/ecvitt-ltdetr"),
         (
             "dinov3/vits16-eomt-coco",

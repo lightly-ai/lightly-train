@@ -335,6 +335,11 @@ def test_resolve_transformer_config__selects_decoder_family(
             DINOv2LTDETRObjectDetectionTrainArgsV2,
             "rtdetrv2",
         ),
+        (
+            "dinov2/vits14-noreg-ltdetr",
+            DINOv2LTDETRObjectDetectionTrainArgsV2,
+            "rtdetrv2",
+        ),
         ("dinov3/vitt16-ltdetr", LTDETRObjectDetectionTrainArgs, "rtdetrv2"),
         ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, "dfine"),
     ],
