@@ -1317,7 +1317,23 @@ def load_checkpoint(
     checkpoint: PathLike | None,
     task: str,
 ) -> tuple[CheckpointDict | None, Path | None, str, dict[str, Any] | None]:
-    """Build a checkpoint context from the current run configuration.
+    """Resolve model initialization and resume checkpoints.
+
+    Resolution follows these rules, in order:
+
+    1. ``resume_interrupted=True`` restores the full training state from
+       ``out/checkpoints/last.ckpt``. The ``model`` argument is not resolved because
+       the resume checkpoint is authoritative.
+    2. An explicit ``checkpoint`` starts a new fine-tuning run. Its metadata determines
+       the exact architecture, while ``model`` is used to verify the task-model family
+       and as a fallback for legacy checkpoints without model metadata. Only model
+       weights are returned.
+    3. A local path passed as ``model`` starts a new fine-tuning run from that file.
+    4. A downloadable model alias is downloaded and used to initialize the model.
+    5. Any other supported model name is treated as an architecture-only model.
+
+    Local paths take precedence over downloadable aliases. Downloadable weights for
+    ``model`` are never resolved when ``checkpoint`` or ``resume_interrupted`` is used.
 
     Args:
         fabric: Fabric instance used to load checkpoint files.
@@ -1337,27 +1353,11 @@ def load_checkpoint(
         ValueError: If resume and checkpoint options are requested simultaneously.
         FileNotFoundError: If the resolved checkpoint file does not exist.
     """
-    model_path: Path | None
     model_name = model
-    model_name_from_checkpoint = False
-    try:
-        get_train_model_cls(model_name=model, task=task)
-    except ValueError:
-        # Download checkpoint only from rank zero. Other ranks will load from cache.
-        with fabric.rank_zero_first():
-            model_path = task_model_helpers.download_checkpoint(checkpoint=model)
-        model_name_from_checkpoint = True
-    else:
-        model_path = None
 
-    ckpt_path: Path
+    # Resume checkpoints are authoritative. In particular, do not resolve or download
+    # model here: users normally repeat the original model argument when resuming.
     if resume_interrupted:
-        if model_path is not None:
-            logger.warning(
-                "`model` is set to a pretrained checkpoint while `resume_interrupted` "
-                "is True. Loading weights from the interrupted run and ignoring "
-                f"model='{model}'."
-            )
         if checkpoint is not None:
             raise ValueError(
                 f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
@@ -1378,19 +1378,39 @@ def load_checkpoint(
             model_name,
             model_init_args,
         )
-    elif checkpoint is not None:
-        if model_path is not None:
-            logger.warning(
-                "`model` is set to a pretrained checkpoint while `checkpoint` is also "
-                "set to a pretrained checkpoint. Loading weights from checkpoint "
-                f"'{checkpoint}' and ignoring model='{model}'."
-            )
+
+    model_name_from_checkpoint = False
+    if checkpoint is not None:
+        # The explicit checkpoint supplies the weights and exact architecture. Resolve
+        # model only as an architecture to validate the task-model family; a hosted
+        # alias must not trigger a second checkpoint download in this branch.
+        requested_train_model_cls = get_train_model_cls(model_name=model, task=task)
         ckpt_path = Path(checkpoint).resolve()
-    elif model_path is not None:
-        ckpt_path = model_path
     else:
-        # No checkpoint to load. Backbone will be initialized from model name.
-        return (None, None, model_name, None)
+        requested_train_model_cls = None
+        model_path = Path(model).resolve()
+        if model_path.exists():
+            should_load_model_checkpoint = True
+        elif model in task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH:
+            should_load_model_checkpoint = True
+        else:
+            try:
+                get_train_model_cls(model_name=model, task=task)
+            except ValueError:
+                # Preserve the established error handling for missing paths and unknown
+                # model names in download_checkpoint().
+                should_load_model_checkpoint = True
+            else:
+                should_load_model_checkpoint = False
+
+        if not should_load_model_checkpoint:
+            # No checkpoint to load. Backbone will be initialized from model name.
+            return (None, None, model_name, None)
+
+        # Download/resolve checkpoint only from rank zero. Other ranks load from cache.
+        with fabric.rank_zero_first():
+            ckpt_path = task_model_helpers.download_checkpoint(checkpoint=model)
+        model_name_from_checkpoint = True
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
@@ -1403,7 +1423,19 @@ def load_checkpoint(
         ckpt = fabric.load(path=ckpt_path)
 
     model_init_args = ckpt.get("model_init_args", {})
-    if model_name_from_checkpoint:
+    checkpoint_model_name = model_init_args.get("model_name")
+    if checkpoint is not None and checkpoint_model_name is not None:
+        checkpoint_train_model_cls = get_train_model_cls(
+            model_name=checkpoint_model_name,
+            task=task,
+        )
+        if checkpoint_train_model_cls is not requested_train_model_cls:
+            raise ValueError(
+                f"Model '{model}' and checkpoint '{ckpt_path}' use incompatible "
+                "task-model families."
+            )
+        model_name = checkpoint_model_name
+    elif model_name_from_checkpoint:
         model_name = model_init_args.get("model_name", model)
 
     model_class_path = ckpt.get("model_class_path", "")
