@@ -18,6 +18,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module
 
+import lightly_train
 from lightly_train import _logging
 from lightly_train._commands import _warnings
 from lightly_train._export.export import ExportMixin
@@ -27,6 +28,7 @@ from lightly_train._export.onnx_helpers import (
     remove_redundant_casts,
     write_onnx_metadata,
 )
+from lightly_train._license import LICENSE_INFO
 from lightly_train._task_models import task_model_io
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.task_model_io import BaseModelOutput
@@ -59,11 +61,8 @@ class ONNXExportMixin(ExportMixin):
 
     def onnx_export_metadata(self) -> dict[str, str]:
         """Return standard metadata embedded in the exported ONNX model."""
-        from lightly_train import __version__
-        from lightly_train._license import LICENSE_INFO
-
         metadata = {
-            "lightly_train_version": __version__,
+            "lightly_train_version": lightly_train.__version__,
             "license_info": LICENSE_INFO,
         }
         image_normalize = getattr(self, "image_normalize", None)
