@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **DINOv2** and **DINOv3**-based panoptic
+LightlyTrain now supports training **DINOv2** and **DINOv3**-based panoptic
 segmentation models with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by
 Kerssies et al.!
 ```
@@ -48,8 +48,10 @@ single NVIDIA T4 GPU with FP16 precision.
 ## Train a Panoptic Segmentation Model
 
 Training a panoptic segmentation model with LightlyTrain is straightforward and only
-requires a few lines of code. See [data](#panoptic-segmentation-data) for more details
-on how to prepare your dataset.
+requires a few lines of code using the
+{py:func}`train_panoptic_segmentation <lightly_train.train_panoptic_segmentation>`
+function. See [data](#panoptic-segmentation-data) for more details on how to prepare
+your dataset.
 
 ```python
 import lightly_train
@@ -74,13 +76,15 @@ if __name__ == "__main__":
 ```
 
 During training, the best and last model weights are exported to
-`out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`:
+`out/my_experiment/exported_models/`, unless disabled in
+[`save_checkpoint_args`](settings/train_settings.md#save_checkpoint_args):
 
 - best (highest validation PQ): `exported_best.pt`
 - last: `exported_last.pt`
 
 You can use these weights to continue fine-tuning on another dataset by loading the
-weights with `model="<checkpoint path>"`:
+weights via the [`model`](settings/train_settings.md#model) argument
+(`model="<checkpoint path>"`):
 
 ```python
 import lightly_train
@@ -127,6 +131,7 @@ You can visualize the predicted masks like this:
 
 ```python skip_ruff
 import matplotlib.pyplot as plt
+import torch
 from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
@@ -237,8 +242,8 @@ for an example dataset and how to set up the data for training.
 
 ## Model
 
-The `model` argument defines the model used for panoptic segmentation training. The
-following models are available:
+The [`model`](settings/train_settings.md#model) argument defines the model used for
+panoptic segmentation training. The following models are available:
 
 ### DINOv3 Models
 
@@ -307,6 +312,7 @@ See [](train-settings-resume-training) on how to resume training.
 ## Default Image Transform Arguments
 
 The following are the default image transform arguments. See
+[`transform_args`](settings/train_settings.md#transform_args) and
 [](train-settings-transforms) on how to customize transform settings.
 
 `````{dropdown} EoMT Panoptic Segmentation DINOv3 Default Transform Arguments

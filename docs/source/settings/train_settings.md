@@ -103,14 +103,13 @@ restored correctly.
 Dictionary with model-specific training parameters. The available keys vary by
 architecture. The table lists the most commonly tuned options:
 
-| Key                                             | Type                      | Description                         |
-| ----------------------------------------------- | ------------------------- | ----------------------------------- |
-| [`lr`](#lr)                                     | `float`                   | Base learning rate.                 |
-| [`backbone_weights`](#backbone_weights)         | `Path`<br>`str`<br>`None` | Path to backbone weights to load.   |
-| [`metric_log_classwise`](#metric_log_classwise) | `bool`                    | Whether to log class-wise metrics.  |
-| [`scheduler_name`](#scheduler_name)             | `str`                     | Scheduler mode for LTDETR training. |
-| `scheduler_flat_steps`                          | `int`<br>`"auto"`         | Flat-cosine flat phase boundary.    |
-| `scheduler_no_aug_steps`                        | `int`<br>`"auto"`         | Flat-cosine final tail length.      |
+| Key                                     | Type                      | Description                         |
+| --------------------------------------- | ------------------------- | ----------------------------------- |
+| [`lr`](#lr)                             | `float`                   | Base learning rate.                 |
+| [`backbone_weights`](#backbone_weights) | `Path`<br>`str`<br>`None` | Path to backbone weights to load.   |
+| [`scheduler_name`](#scheduler_name)     | `str`                     | Scheduler mode for LTDETR training. |
+| `scheduler_flat_steps`                  | `int`<br>`"auto"`         | Flat-cosine flat phase boundary.    |
+| `scheduler_no_aug_steps`                | `int`<br>`"auto"`         | Flat-cosine final tail length.      |
 
 #### `lr`
 
@@ -182,21 +181,9 @@ lightly_train.train_object_detection(
 The backbone weights are only loaded when training starts from scratch using a model
 identifier without a dataset suffix (e.g. `-coco`, `-cityscapes`, etc.).
 
-#### `metric_log_classwise`
-
-If set to `True`, class-wise metrics (for example AP per class) are logged during
-validation. Default is `False` to reduce logging overhead. Not all models support this
-feature.
-
-```python
-import lightly_train
-
-lightly_train.train_object_detection(
-    ...,
-    model_args={
-        "metric_log_classwise": True,
-    },
-)
+```{note}
+To log per-class metrics (for example AP or IoU per class), use the
+[`classwise`](#classwise) key of [`metric_args`](#metric_args) rather than `model_args`.
 ```
 
 #### `scheduler_name`
