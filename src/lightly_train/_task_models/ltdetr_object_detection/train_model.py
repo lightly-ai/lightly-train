@@ -130,8 +130,9 @@ class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
     Only holds fields whose defaults are identical across both subclasses.
     Fields that differ (lr, backbone_lr_factor, scheduler_name, lr_warmup_steps,
-    patch_size) as well as default_batch_size/default_steps and resolve_auto are
-    defined individually on each subclass.
+    patch_size) as well as default_batch_size/default_steps, resolve_auto, and the
+    effective_loss_weight_dict/effective_losses computed fields are defined
+    individually on each subclass.
     """
 
     backbone_weights: PathLike | None = None
@@ -197,24 +198,6 @@ class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
         else:
             config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
             self.decoder_name = config.transformer.decoder_name
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def effective_loss_weight_dict(self) -> dict[str, float]:
-        if no_auto(self.decoder_name) == "dfine":
-            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
-        return dict(self.loss_weight_dict)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def effective_losses(self) -> list[str]:
-        if no_auto(self.decoder_name) == "dfine":
-            return [
-                *self.losses,
-                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
-            ]
-        return list(self.losses)
-
 
 class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
     default_batch_size: ClassVar[int] = 32
@@ -312,6 +295,23 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
                     total_steps - scheduler_step_schedule.step_stop
                 )
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_loss_weight_dict(self) -> dict[str, float]:
+        if self.decoder_name == "dfine":
+            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
+        return dict(self.loss_weight_dict)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_losses(self) -> list[str]:
+        if self.decoder_name == "dfine":
+            return [
+                *self.losses,
+                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
+            ]
+        return list(self.losses)
+
 
 class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs):
     default_batch_size: ClassVar[int] = 16
@@ -363,6 +363,23 @@ class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs)
                 self.scheduler_no_aug_steps = (
                     total_steps - scheduler_step_schedule.step_stop
                 )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_loss_weight_dict(self) -> dict[str, float]:
+        if self.decoder_name == "dfine":
+            return {**_DFINE_EXTRA_LOSS_WEIGHT_DICT, **self.loss_weight_dict}
+        return dict(self.loss_weight_dict)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_losses(self) -> list[str]:
+        if self.decoder_name == "dfine":
+            return [
+                *self.losses,
+                *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
+            ]
+        return list(self.losses)
 
 
 class LTDETRObjectDetectionTrain(TrainModel):
