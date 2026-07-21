@@ -1,5 +1,6 @@
 EXCLUDE_NEWER := 2026-04-30
 COCO_ROOT := "/datasets/coco"
+PINNED_PYTHON_VERSION := 3.13
 
 .PHONY: lock
 lock:
@@ -8,7 +9,7 @@ lock:
 
 .PHONY: benchmark-tensorrt
 benchmark-tensorrt:
-	uv run --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_benchmark.py --coco-root $(COCO_ROOT)
+	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_benchmark.py --coco-root $(COCO_ROOT)
 
 .PHONY: format
 format:
