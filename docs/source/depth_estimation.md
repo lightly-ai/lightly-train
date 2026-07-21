@@ -8,7 +8,6 @@
 LightlyTrain supports depth estimation inference with
 [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) and
 [Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) models.
-Training support will be released soon!
 ```
 
 LightlyTrain ports the Depth Anything V2 (DAv2) and V3 (DAv3) monocular depth estimation

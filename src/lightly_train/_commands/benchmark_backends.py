@@ -142,7 +142,10 @@ class ONNXBackend(ObjectDetectionBackend):
 
         import onnxruntime as ort
 
-        self.model = model
+        # ONNX Runtime always returns host-side numpy outputs regardless of
+        # the execution provider, so the model (and its postprocessing
+        # buffers) must live on CPU to match.
+        self.model = model.to("cpu")
         self.threshold = threshold
 
         self.device = torch.device(device)
@@ -233,10 +236,10 @@ class ONNXBackend(ObjectDetectionBackend):
         outputs = dict(zip(self.output_names, raw_outputs))
         if "logits" in outputs:
             results = self.model.postprocess(
-                raw_outputs=(
-                    torch.from_numpy(outputs["logits"]),
-                    torch.from_numpy(outputs["boxes"]),
-                ),
+                raw_outputs={
+                    "pred_logits": torch.from_numpy(outputs["logits"]),
+                    "pred_boxes": torch.from_numpy(outputs["boxes"]),
+                },
                 metadata=metadata,
                 threshold=self.threshold,
             )
@@ -370,7 +373,10 @@ class TensorRTBackend(ObjectDetectionBackend):
         # Postprocess.
         if "logits" in outputs:
             results = self.model.postprocess(
-                raw_outputs=(outputs["logits"], outputs["boxes"]),
+                raw_outputs={
+                    "pred_logits": outputs["logits"],
+                    "pred_boxes": outputs["boxes"],
+                },
                 metadata=metadata,
                 threshold=self.threshold,
             )
