@@ -336,6 +336,8 @@ class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
 
     @property
     def onnx_export_precision_policy(self) -> ONNXExportPrecisionPolicy:
+        # TODO (Lionel, 07/26): This is specific to weights and model size etc., so
+        # we should move it to individual model configs in the future.
         return ONNXExportPrecisionPolicy(fp32_onnx_op_types=("Softmax", "MatMul"))
 
     def verify_onnx_export_outputs(
