@@ -84,7 +84,8 @@ def test_onnx_export_mixin__rejects_invalid_precision(tmp_path) -> None:  # type
         match="Invalid precision 'bf16'. Must be one of 'fp32', 'fp16'.",
     ):
         model.export_onnx(
-            tmp_path / "model.onnx", precision="bf16"  # type: ignore[arg-type]
+            tmp_path / "model.onnx",
+            precision="bf16",  # type: ignore[arg-type]
         )
 
     assert not model.deployed
