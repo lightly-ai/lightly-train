@@ -179,7 +179,12 @@ class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
     def _resolve_decoder_name(
         self, model_name: str, model_init_args: dict[str, Any]
     ) -> None:
-        """Resolve the decoder from user args, checkpoint metadata, or architecture."""
+        """Resolve the decoder from user args, checkpoint metadata, or architecture.
+
+        ``decoder_name`` is optional checkpoint metadata, not a checkpoint-version
+        marker. If it is absent, the checkpoint's stored model name determines the
+        versioned architecture through ``LTDETR_MODEL_REGISTRY``.
+        """
         checkpoint_decoder_name = model_init_args.get("decoder_name")
         if self.decoder_name != "auto":
             if (
@@ -195,9 +200,10 @@ class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
 
         if checkpoint_decoder_name is not None:
             self.decoder_name = checkpoint_decoder_name
-        else:
-            config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
-            self.decoder_name = config.transformer.decoder_name
+            return
+
+        config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        self.decoder_name = config.transformer.decoder_name
 
 
 class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
