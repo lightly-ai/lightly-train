@@ -44,7 +44,9 @@ class ExportMixin(ABC):
         module.eval()
         first_parameter = next(module.parameters(), None)
         device = (
-            first_parameter.device if first_parameter is not None else torch.device("cpu")
+            first_parameter.device
+            if first_parameter is not None
+            else torch.device("cpu")
         )
         dtype = first_parameter.dtype if first_parameter is not None else None
         example_inputs = self.model_input_spec.example_inputs(

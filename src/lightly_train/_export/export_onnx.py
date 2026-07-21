@@ -93,7 +93,9 @@ class ONNXExportMixin(ExportMixin):
         _warnings.filter_export_warnings()
         _logging.set_up_console_logging()
         if not isinstance(self, TaskModel):
-            raise TypeError("ONNXExportMixin can only be used with TaskModel subclasses.")
+            raise TypeError(
+                "ONNXExportMixin can only be used with TaskModel subclasses."
+            )
         if precision == "fp16" and not simplify:
             raise ValueError("fp16 precision requires simplify=True.")
 
@@ -111,7 +113,9 @@ class ONNXExportMixin(ExportMixin):
         )
         first_parameter = next(module.parameters(), None)
         device = (
-            first_parameter.device if first_parameter is not None else torch.device("cpu")
+            first_parameter.device
+            if first_parameter is not None
+            else torch.device("cpu")
         )
         example_inputs = self.model_input_spec.example_inputs(
             batch_size=2 if dynamic_batch_size else batch_size,
@@ -190,7 +194,10 @@ class ONNXExportMixin(ExportMixin):
         import onnxruntime as ort
 
         onnx.checker.check_model(str(out), full_check=True)
-        if precision == "fp16" and "CUDAExecutionProvider" not in ort.get_available_providers():
+        if (
+            precision == "fp16"
+            and "CUDAExecutionProvider" not in ort.get_available_providers()
+        ):
             logger.warning(
                 "Skipping ONNX runtime verification for fp16 model because "
                 "CUDAExecutionProvider is not available in onnxruntime."
@@ -209,7 +216,9 @@ class ONNXExportMixin(ExportMixin):
             for name, tensor in example_inputs.items()
         }
         reference_output = reference_model(**reference_inputs)
-        reference_values, context = task_model_io._model_output_flatten(reference_output)
+        reference_values, context = task_model_io._model_output_flatten(
+            reference_output
+        )
 
         session = ort.InferenceSession(str(out))
         session_input_types = {
@@ -218,10 +227,15 @@ class ONNXExportMixin(ExportMixin):
         input_feed = {}
         for name, tensor in example_inputs.items():
             tensor = tensor.detach().cpu()
-            if tensor.is_floating_point() and session_input_types.get(name) == "tensor(float16)":
+            if (
+                tensor.is_floating_point()
+                and session_input_types.get(name) == "tensor(float16)"
+            ):
                 tensor = tensor.half()
             input_feed[name] = tensor.numpy()
-        onnx_values = [torch.from_numpy(value) for value in session.run(None, input_feed)]
+        onnx_values = [
+            torch.from_numpy(value) for value in session.run(None, input_feed)
+        ]
         if len(onnx_values) != len(reference_values):
             raise AssertionError(
                 f"Number of ONNX outputs should be {len(reference_values)} but is "
