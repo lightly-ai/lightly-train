@@ -97,13 +97,10 @@ class TestLinearSemanticSegmentationTrain:
                 fabric=Fabric(accelerator="cpu"), batch=batch, step=0
             )
 
-        # Images are tiled, forwarded, and un-tiled one at a time so that at most a
-        # single image's full-resolution logits are held on the device at once
-        # (independent of the validation batch size). Each image's crops are then
-        # forwarded in chunks of at most the batch size (3), so the three images
-        # (2, 3, and 1 crops) each need exactly one forward call.
-        assert spy.call_count == 3
-        assert [call.args[0].shape[0] for call in spy.call_args_list] == [2, 3, 1]
+        # Crops from all images are collected and forwarded in batches of 3. This
+        # fills both forward calls instead of processing each image separately.
+        assert spy.call_count == 2
+        assert [call.args[0].shape[0] for call in spy.call_args_list] == [3, 3]
         for call in spy.call_args_list:
             assert call.args[0].shape[0] <= len(images)
 

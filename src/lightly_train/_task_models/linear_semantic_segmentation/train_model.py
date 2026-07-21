@@ -198,54 +198,48 @@ class LinearSemanticSegmentationTrain(TrainModel):
         images = batch["image"]
         masks = batch["mask"]
 
-        # Tile, forward, un-tile, and score one image at a time. Tiling produces
-        # one crop per aspect-ratio unit, so the total number of crops (and the
-        # full-resolution logits kept for them) is unbounded across the batch;
-        # holding them all at once runs out of memory for wide or tall validation
-        # images. Consuming each image's logits into the loss/metrics before moving
-        # on keeps peak memory to a single image, independent of the validation
-        # batch size. Only the first ``viz_max_images`` predictions are retained
-        # (on CPU) for the visualization.
+        # Collect crops from all images so every forward pass is filled up to the
+        # dataloader batch size, even when an image produces only a few crops.
+        image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
+        crops, origins = self.model.tile(images)
+
+        # Number of classes the head predicts, dropping the ignore channel to
+        # match ``untile``'s inputs.
+        num_classes = len(self.model.internal_class_to_class)
+        if self.model.class_ignore_index is not None:
+            num_classes -= 1
+
+        # Scatter each crop batch into per-image accumulators immediately. This
+        # bounds forward activation and crop-logit memory by the dataloader batch
+        # size instead of retaining logits for every crop at once.
+        logit_sums = [
+            torch.zeros((num_classes, *size), device=image.device)
+            for image, size in zip(images, image_sizes)
+        ]
+        logit_counts = [torch.zeros_like(logit_sum) for logit_sum in logit_sums]
+
+        crop_batch_size = len(images)
+        for start in range(0, len(crops), crop_batch_size):
+            crop_origins = origins[start : start + crop_batch_size]
+            crop_logits_batch = self.model.forward_train(
+                torch.stack(crops[start : start + crop_batch_size])
+            )
+            if self.model.class_ignore_index is not None:
+                crop_logits_batch = crop_logits_batch[:, :-1]
+
+            for crop_logits, (image_index, crop_start, crop_end, is_tall) in zip(
+                crop_logits_batch, crop_origins
+            ):
+                if is_tall:
+                    logit_sums[image_index][:, crop_start:crop_end, :] += crop_logits
+                    logit_counts[image_index][:, crop_start:crop_end, :] += 1
+                else:
+                    logit_sums[image_index][:, :, crop_start:crop_end] += crop_logits
+                    logit_counts[image_index][:, :, crop_start:crop_end] += 1
+
         loss = torch.tensor(0.0, device=images[0].device)
         viz_logits: list[Tensor] = []
-        for image, image_mask in zip(images, masks):
-            image_size = (image.shape[-2], image.shape[-1])
-
-            crops_list, origins = self.model.tile([image])
-
-            # Number of classes the head predicts, dropping the ignore channel to
-            # match ``untile``'s inputs.
-            num_classes = len(self.model.internal_class_to_class)
-            if self.model.class_ignore_index is not None:
-                num_classes -= 1
-
-            # Full-resolution accumulators for a single image. Forwarding the crops
-            # in chunks of at most the dataloader batch size and scattering each
-            # chunk's logits into these accumulators right away keeps only the
-            # running sum/count (one image) rather than every chunk's logits, so the
-            # retained output memory no longer grows with the number of crops.
-            logit_sum = torch.zeros((num_classes, *image_size), device=image.device)
-            logit_count = torch.zeros_like(logit_sum)
-
-            chunk_size = len(images)
-            for start in range(0, len(crops_list), chunk_size):
-                chunk_origins = origins[start : start + chunk_size]
-                chunk_logits = self.model.forward_train(
-                    torch.stack(crops_list[start : start + chunk_size])
-                )
-                if self.model.class_ignore_index is not None:
-                    chunk_logits = chunk_logits[:, :-1]
-
-                for crop_logits, (_, crop_start, crop_end, is_tall) in zip(
-                    chunk_logits, chunk_origins
-                ):
-                    if is_tall:
-                        logit_sum[:, crop_start:crop_end, :] += crop_logits
-                        logit_count[:, crop_start:crop_end, :] += 1
-                    else:
-                        logit_sum[:, :, crop_start:crop_end] += crop_logits
-                        logit_count[:, :, crop_start:crop_end] += 1
-
+        for logit_sum, logit_count, image_mask in zip(logit_sums, logit_counts, masks):
             # Average the logits in the regions of overlap.
             image_logits = logit_sum / logit_count
 
