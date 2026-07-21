@@ -76,6 +76,20 @@ def test_export_mixin__creates_strict_exported_program() -> None:
     assert program.example_inputs[1]["images"].shape == (2, 3, 8, 8)
 
 
+def test_onnx_export_mixin__rejects_invalid_precision(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    model = _Model()
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid precision 'bf16'. Must be one of 'fp32', 'fp16'.",
+    ):
+        model.export_onnx(  # type: ignore[arg-type]
+            tmp_path / "model.onnx", precision="bf16"
+        )
+
+    assert not model.deployed
+
+
 def test_onnx_export_mixin__deploys_model_and_embeds_metadata(tmp_path) -> None:  # type: ignore[no-untyped-def]
     onnx = pytest.importorskip("onnx")
 

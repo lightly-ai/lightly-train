@@ -96,6 +96,10 @@ class ONNXExportMixin(ExportMixin):
             raise TypeError(
                 "ONNXExportMixin can only be used with TaskModel subclasses."
             )
+        if precision not in ("fp32", "fp16"):
+            raise ValueError(
+                f"Invalid precision '{precision}'. Must be one of 'fp32', 'fp16'."
+            )
         if precision == "fp16" and not simplify:
             raise ValueError("fp16 precision requires simplify=True.")
 
