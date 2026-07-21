@@ -1473,6 +1473,7 @@ def resume_from_checkpoint(
 def finetune_from_checkpoint(
     state: TrainTaskState,
     checkpoint: CheckpointDict,
+    checkpoint_path: PathLike,
 ) -> None:
     """Restore model state from the checkpoint for fine-tuning.
 
@@ -1480,6 +1481,7 @@ def finetune_from_checkpoint(
         state: Training state container to populate with checkpoint data.
         checkpoint: Checkpoint context the state dicts to load.
     """
+    logger.info(f"Fine-tuning from checkpoint '{checkpoint_path}'")
 
     train_model = cast(TrainModel, state["train_model"])
 
