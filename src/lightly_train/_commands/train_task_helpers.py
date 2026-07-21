@@ -1306,7 +1306,8 @@ def read_model_init_args_from_ckpt(ckpt_path: PathLike) -> dict[str, Any]:
     except (TypeError, RuntimeError, NotImplementedError, AttributeError):
         ckpt = torch.load(p, map_location="cpu", weights_only=False)
 
-    return cast(dict[str, Any], ckpt["model_init_args"])
+    model_init_args: dict[str, Any] = ckpt["model_init_args"]
+    return model_init_args
 
 
 def load_checkpoint(
