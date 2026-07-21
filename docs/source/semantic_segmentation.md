@@ -658,8 +658,8 @@ fine-tune it on your segmentation dataset. This is especially useful if your dat
 only partially labeled or if you have access to a large amount of unlabeled data.
 
 The following example shows how to pretrain and fine-tune the model. Check out the page
-on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
-data.
+on the [DINOv2 method](#methods-dinov2) to learn more about pretraining DINOv2 models on
+unlabeled data.
 
 ```python
 import lightly_train

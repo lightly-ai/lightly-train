@@ -43,6 +43,9 @@ It has the following advantages:
   efficient.
 - **No Hyperparameter Tuning**: It has strong default parameters that require no or
   minimal tuning, simplifying the training process.
+- **Strong Default Teacher**: Out of the box, `distillation` / `distillationv3` uses
+  `dinov3/vitb16` as the teacher, so you don't need to specify one. See
+  {ref}`methods-distillation-default-teacher` for the per-version default table.
 
 #### Cons
 
