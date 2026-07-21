@@ -153,19 +153,20 @@ def train_image_classification(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Any downloadable
-            weights associated with ``model`` are not loaded. Optimizer, scheduler, and
-            training progress from the checkpoint are also not restored. Use
-            ``resume_interrupted`` instead to restore a crashed run.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
-            off, including the optimizer state and the current step. The checkpoint at
-            ``out/checkpoints/last.ckpt`` determines the architecture and full training
-            state; ``model`` is not resolved or downloaded while resuming.
+            off, including the optimizer state and the current step.
 
             - You must use the same ``out`` directory as the interrupted run.
             - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
@@ -332,16 +333,11 @@ def train_image_classification_multihead(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Downloadable model
-            weights and training progress are not restored from other sources.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint.
         resume_interrupted:
             Set this to True if you want to resume training from an interrupted or
-            crashed training run. The checkpoint at ``out/checkpoints/last.ckpt``
-            determines the architecture and full training state; ``model`` is not
-            resolved or downloaded while resuming.
+            crashed training run.
         reuse_class_head:
             Set this to True if you want to keep the class head from the provided
             checkpoint.
@@ -491,22 +487,23 @@ def train_instance_segmentation(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Any downloadable
-            weights associated with ``model`` are not loaded. Optimizer, scheduler, and
-            training progress from the checkpoint are also not restored. Use
-            ``resume_interrupted`` instead to restore a crashed run.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
         reuse_class_head:
             Deprecated. Now the model will reuse the classification head by default only when the num_classes
             in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
-            off, including the optimizer state and the current step. The checkpoint at
-            ``out/checkpoints/last.ckpt`` determines the architecture and full training
-            state; ``model`` is not resolved or downloaded while resuming.
+            off, including the optimizer state and the current step.
 
             - You must use the same ``out`` directory as the interrupted run.
             - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
@@ -659,22 +656,23 @@ def train_object_detection(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Any downloadable
-            weights associated with ``model`` are not loaded. Optimizer, scheduler, and
-            training progress from the checkpoint are also not restored. Use
-            ``resume_interrupted`` instead to restore a crashed run.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
         reuse_class_head:
             Deprecated. Now the model will reuse the classification head by default only when the num_classes
             in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
-            off, including the optimizer state and the current step. The checkpoint at
-            ``out/checkpoints/last.ckpt`` determines the architecture and full training
-            state; ``model`` is not resolved or downloaded while resuming.
+            off, including the optimizer state and the current step.
 
             - You must use the same ``out`` directory as the interrupted run.
             - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
@@ -827,13 +825,16 @@ def train_panoptic_segmentation(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Any downloadable
-            weights associated with ``model`` are not loaded. Optimizer, scheduler, and
-            training progress from the checkpoint are also not restored. Use
-            ``resume_interrupted`` instead to restore a crashed run.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
         reuse_class_head:
             Set this to True if you want to keep the class head from the provided
             checkpoint. The default behavior removes the class head before loading so
@@ -841,9 +842,7 @@ def train_panoptic_segmentation(
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
-            off, including the optimizer state and the current step. The checkpoint at
-            ``out/checkpoints/last.ckpt`` determines the architecture and full training
-            state; ``model`` is not resolved or downloaded while resuming.
+            off, including the optimizer state and the current step.
 
             - You must use the same ``out`` directory as the interrupted run.
             - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
@@ -996,22 +995,23 @@ def train_semantic_segmentation(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Any downloadable
-            weights associated with ``model`` are not loaded. Optimizer, scheduler, and
-            training progress from the checkpoint are also not restored. Use
-            ``resume_interrupted`` instead to restore a crashed run.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint. The checkpoint must be a path to a checkpoint file, for example
+            "checkpoints/model.ckpt". This will only load the model weights from the
+            previous run. All other training state (e.g. optimizer state, epochs) from
+            the previous run are not loaded.
+
+            This option is equivalent to setting ``model="<path_to_checkpoint>"``.
+
+            If you want to resume training from an interrupted or crashed run, use the
+            ``resume_interrupted`` parameter instead.
         reuse_class_head:
             Deprecated. Now the model will reuse the classification head by default only when the num_classes
             in the data config matches that in the checkpoint. Otherwise, the classification head will be re-initialized.
         resume_interrupted:
             Set this to True if you want to resume training from an **interrupted or
             crashed** training run. This will pick up exactly where the training left
-            off, including the optimizer state and the current step. The checkpoint at
-            ``out/checkpoints/last.ckpt`` determines the architecture and full training
-            state; ``model`` is not resolved or downloaded while resuming.
+            off, including the optimizer state and the current step.
 
             - You must use the same ``out`` directory as the interrupted run.
             - You must **NOT** change any training parameters (e.g., learning rate, batch size, data, etc.).
@@ -1160,16 +1160,11 @@ def train_semantic_segmentation_multihead(
         num_nodes:
             Number of nodes for distributed training.
         checkpoint:
-            Path to a checkpoint whose model weights initialize a new fine-tuning run.
-            The checkpoint metadata determines the exact architecture. ``model`` must
-            name a supported model from the same task-model family and is used as a
-            fallback for legacy checkpoints without model metadata. Downloadable model
-            weights and training progress are not restored from other sources.
+            Use this parameter to further fine-tune a model from a previous fine-tuned
+            checkpoint.
         resume_interrupted:
             Set this to True if you want to resume training from an interrupted or
-            crashed training run. The checkpoint at ``out/checkpoints/last.ckpt``
-            determines the architecture and full training state; ``model`` is not
-            resolved or downloaded while resuming.
+            crashed training run.
         overwrite:
             Overwrite the output directory if it already exists.
         accelerator:
