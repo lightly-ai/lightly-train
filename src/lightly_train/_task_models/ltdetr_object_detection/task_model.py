@@ -645,15 +645,18 @@ class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
         verify: bool = True,
         format_args: dict[str, Any] | None = None,
         num_channels: int | None = None,
+        shape_overrides: dict[str, tuple[int | None, ...]] | None = None,
     ) -> None:
         """Export raw LT-DETR predictions to ONNX.
 
         The graph returns logits and normalized ``cxcywh`` boxes. Image
         preprocessing and detection postprocessing remain outside the graph.
         """
-        # TODO (Lionel, 07/26): Remove this implementation once the public interface
-        # in ONNXExportMixin is finalized. For now, we make sure to not introduce
-        # breaking changes.
+        if shape_overrides is not None:
+            raise ValueError(
+                "shape_overrides is not supported for LT-DETR object detection."
+            )
+
         super().export_onnx(
             out,
             precision=precision,

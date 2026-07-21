@@ -12,7 +12,7 @@ import json
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass, fields
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 from torch import Tensor
@@ -86,7 +86,7 @@ class ONNXExportMixin(ExportMixin):
         opset_version: int | None = None,
         simplify: bool = True,
         verify: bool = True,
-        format_args: dict[str, object] | None = None,
+        format_args: dict[str, Any] | None = None,
         shape_overrides: dict[str, tuple[int | None, ...]] | None = None,
     ) -> None:
         """Export the model to ONNX from its ``ModelInputSpec``."""
