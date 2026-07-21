@@ -647,10 +647,47 @@ class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
         num_channels: int | None = None,
         shape_overrides: dict[str, tuple[int | None, ...]] | None = None,
     ) -> None:
-        """Export raw LT-DETR predictions to ONNX.
+        """Export the model to ONNX using its declared model I/O specification.
 
-        The graph returns logits and normalized ``cxcywh`` boxes. Image
-        preprocessing and detection postprocessing remain outside the graph.
+        The export uses example inputs defined by ``self.model_input_spec``. If
+        ``dynamic_batch_size`` is True, the ONNX graph has a dynamic batch
+        dimension and is traced with batch size 2; otherwise it uses ``batch_size``.
+        ``num_channels`` optionally overrides the declared image-channel count.
+
+        The exported graph returns raw class logits and normalized ``cxcywh`` boxes.
+        Image preprocessing, top-k selection, thresholding, box rescaling, and SAHI
+        merging are intentionally kept outside the graph.
+
+        Optionally simplifies the exported model in-place using onnxslim and
+        verifies numerical closeness against a float32 CPU reference via ONNX Runtime.
+
+        Args:
+            out:
+                Path where the ONNX model will be written.
+            precision:
+                Precision for the ONNX model. Either "fp32", or "fp16".
+            batch_size:
+                Batch size for the ONNX input when ``dynamic_batch_size`` is False.
+            dynamic_batch_size:
+                If True, the ONNX graph will have a dynamic batch dimension.
+            opset_version:
+                ONNX opset version to target. If None, PyTorch's default opset is used.
+            simplify:
+                If True, run onnxslim to simplify and overwrite the exported model.
+            verify:
+                If True, validate the ONNX file and compare outputs to a float32 CPU
+                reference forward pass.
+            format_args:
+                Optional extra keyword arguments forwarded to ``torch.onnx.export``.
+            num_channels:
+                Optional override for the image input's channel count.
+            shape_overrides:
+                Reserved for compatibility with the shared ONNX export interface.
+                Custom shape overrides are not supported for LT-DETR object detection.
+
+        Raises:
+            ValueError:
+                If ``shape_overrides`` is not None.
         """
         if shape_overrides is not None:
             raise ValueError(
