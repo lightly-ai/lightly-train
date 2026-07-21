@@ -227,15 +227,12 @@ class LinearSemanticSegmentationTrain(TrainModel):
             if self.model.class_ignore_index is not None:
                 crop_logits_batch = crop_logits_batch[:, :-1]
 
-            for crop_logits, (image_index, crop_start, crop_end, is_tall) in zip(
-                crop_logits_batch, crop_origins
-            ):
-                if is_tall:
-                    logit_sums[image_index][:, crop_start:crop_end, :] += crop_logits
-                    logit_counts[image_index][:, crop_start:crop_end, :] += 1
-                else:
-                    logit_sums[image_index][:, :, crop_start:crop_end] += crop_logits
-                    logit_counts[image_index][:, :, crop_start:crop_end] += 1
+            self.model.accumulate_crop_logits(
+                crop_logits=crop_logits_batch,
+                origins=crop_origins,
+                logit_sums=logit_sums,
+                logit_counts=logit_counts,
+            )
 
         loss = torch.tensor(0.0, device=images[0].device)
         viz_logits: list[Tensor] = []

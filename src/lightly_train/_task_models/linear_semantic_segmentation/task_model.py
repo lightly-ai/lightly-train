@@ -426,21 +426,36 @@ class LinearSemanticSegmentation(TaskModel):
                 torch.zeros((crop_logits.shape[1], *size), device=crop_logits.device)
             )
 
-        for crop_index, (image_index, start, end, is_tall) in enumerate(origins):
-            # Image is tall.
-            if is_tall:
-                logit_sums[image_index][:, start:end, :] += crop_logits[crop_index]
-                logit_counts[image_index][:, start:end, :] += 1
-            # Image is wide.
-            else:
-                logit_sums[image_index][:, :, start:end] += crop_logits[crop_index]
-                logit_counts[image_index][:, :, start:end] += 1
+        self.accumulate_crop_logits(
+            crop_logits=crop_logits,
+            origins=origins,
+            logit_sums=logit_sums,
+            logit_counts=logit_counts,
+        )
 
         # Average the logits in the regions of overlap.
         return [
             logit_sum / logit_count
             for logit_sum, logit_count in zip(logit_sums, logit_counts)
         ]
+
+    @staticmethod
+    def accumulate_crop_logits(
+        crop_logits: Tensor,
+        origins: Sequence[tuple[int, int, int, bool]],
+        logit_sums: Sequence[Tensor],
+        logit_counts: Sequence[Tensor],
+    ) -> None:
+        """Scatter crop logits into per-image sum and count accumulators."""
+        for crop_logit, (image_index, start, end, is_tall) in zip(crop_logits, origins):
+            # Image is tall.
+            if is_tall:
+                logit_sums[image_index][:, start:end, :] += crop_logit
+                logit_counts[image_index][:, start:end, :] += 1
+            # Image is wide.
+            else:
+                logit_sums[image_index][:, :, start:end] += crop_logit
+                logit_counts[image_index][:, :, start:end] += 1
 
     def _forward_logits(self, x: Tensor) -> Tensor:
         """Forward pass that returns the logits of the last layer. Intended for
