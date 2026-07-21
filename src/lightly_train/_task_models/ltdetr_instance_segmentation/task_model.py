@@ -870,7 +870,7 @@ class LTDETRInstanceSegmentation(TaskModel):
                 )
                 full_masks[
                     :, y_start : y_start + valid_h, x_start : x_start + valid_w
-                ] = masks[:, :valid_h, :valid_w]
+                ] = masks
 
                 all_labels.append(labels)
                 all_masks.append(full_masks)
@@ -902,10 +902,24 @@ class LTDETRInstanceSegmentation(TaskModel):
             global_local_iou_threshold=global_local_iou_threshold,
         )
 
+        # Drop instances whose binarized mask has no positive pixels. Such masks
+        # can survive the score threshold (the filter is on score, not mask
+        # occupancy) and would make ``masks_to_boxes`` raise on the empty
+        # reduction.
+        if masks.numel() > 0:
+            non_empty = masks.flatten(start_dim=1).any(dim=1)
+            labels = labels[non_empty]
+            masks = masks[non_empty]
+            scores = scores[non_empty]
+
         # ``combine_instance_segmentation_tiles`` returns only labels/masks/scores.
         # Derive tight bboxes from the merged masks so the output matches the
         # ``predict`` contract and stays consistent with the post-NMS masks.
-        bboxes = masks_to_boxes(masks) if masks.numel() > 0 else masks.new_zeros((0, 4))
+        bboxes = (
+            masks_to_boxes(masks)
+            if masks.numel() > 0
+            else masks.new_zeros((0, 4), dtype=torch.float32)
+        )
 
         return {
             "labels": labels,
