@@ -15,6 +15,12 @@ from torch import Tensor
 from torch.export import ExportedProgram
 
 from lightly_train._export.export_onnx import ONNXExportMixin
+from lightly_train._export.onnx_helpers import (
+    _TORCH_DIM_HINTS_AVAILABLE,
+    _TORCH_DIM_HINTS_MIN_VERSION,
+    _TORCH_DYNAMO_AVAILABLE,
+    _TORCH_DYNAMO_MIN_VERSION,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
@@ -67,6 +73,13 @@ class _Model(TaskModel, ONNXExportMixin):
         torch.testing.assert_close(torch_outputs.scores, onnx_outputs.scores)
 
 
+@pytest.mark.skipif(
+    not (_TORCH_DYNAMO_AVAILABLE and _TORCH_DIM_HINTS_AVAILABLE),
+    reason=(
+        f"torch >= {_TORCH_DYNAMO_MIN_VERSION} (dynamo export) and "
+        f"torch >= {_TORCH_DIM_HINTS_MIN_VERSION} (Dim hints) required"
+    ),
+)
 def test_export_mixin__creates_strict_exported_program() -> None:
     model = _Model()
 
@@ -91,6 +104,13 @@ def test_onnx_export_mixin__rejects_invalid_precision(tmp_path) -> None:  # type
     assert not model.deployed
 
 
+@pytest.mark.skipif(
+    not (_TORCH_DYNAMO_AVAILABLE and _TORCH_DIM_HINTS_AVAILABLE),
+    reason=(
+        f"torch >= {_TORCH_DYNAMO_MIN_VERSION} (dynamo export) and "
+        f"torch >= {_TORCH_DIM_HINTS_MIN_VERSION} (Dim hints) required"
+    ),
+)
 def test_onnx_export_mixin__deploys_model_and_embeds_metadata(tmp_path) -> None:  # type: ignore[no-untyped-def]
     onnx = pytest.importorskip("onnx")
 
