@@ -593,10 +593,16 @@ following models are available:
 - `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
 - `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
+- `dinov3/vits16-lingbot-eomt` -
+  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
 - `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
+- `dinov3/vitb16-lingbot-eomt` -
+  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - `dinov3/vitl16-eomt`
+- `dinov3/vitl16-lingbot-eomt` -
+  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
@@ -652,8 +658,8 @@ fine-tune it on your segmentation dataset. This is especially useful if your dat
 only partially labeled or if you have access to a large amount of unlabeled data.
 
 The following example shows how to pretrain and fine-tune the model. Check out the page
-on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
-data.
+on the [DINOv2 method](#methods-dinov2) to learn more about pretraining DINOv2 models on
+unlabeled data.
 
 ```python
 import lightly_train

@@ -11,6 +11,7 @@ import pytest
 import torch
 
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPreprocessor,
 )
@@ -89,7 +90,8 @@ class TestObjectDetectionPostprocessor:
             [[[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.2, 0.2], [0.8, 0.5, 0.1, 0.2]]]
         )
         labels, decoded_boxes, scores = _postprocessor().decode(
-            (logits, boxes), torch.tensor([[100, 200]])
+            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            torch.tensor([[100, 200]]),
         )
         torch.testing.assert_close(labels, torch.tensor([[10, 20, 10]]))
         torch.testing.assert_close(
@@ -101,7 +103,9 @@ class TestObjectDetectionPostprocessor:
         logits = torch.full((1, 3, 2), -10.0)
         boxes = torch.rand(1, 3, 4)
         output = _postprocessor().postprocess(
-            (logits, boxes), [{"orig_h": 20, "orig_w": 30}], threshold=0.5
+            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            [{"orig_h": 20, "orig_w": 30}],
+            threshold=0.5,
         )
         assert output[0]["labels"].shape == (0,)
         assert output[0]["bboxes"].shape == (0, 4)
@@ -113,9 +117,9 @@ class TestObjectDetectionPostprocessor:
             internal_class_to_class=torch.tensor([7]),
         )
         output = postprocessor.postprocess_sahi(
-            (
-                torch.tensor([[[10.0]], [[9.0]], [[-10.0]]]),
-                torch.tensor(
+            ObjectDetectionOutput(
+                logits=torch.tensor([[[10.0]], [[9.0]], [[-10.0]]]),
+                boxes=torch.tensor(
                     [
                         [[0.5, 0.5, 0.2, 0.2]],
                         [[0.5, 0.5, 0.2, 0.2]],
