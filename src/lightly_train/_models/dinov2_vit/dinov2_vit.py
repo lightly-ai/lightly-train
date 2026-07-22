@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Sequence
 
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 from torch import Tensor
 from torch.nn import Identity, Module, ModuleList
 
@@ -27,10 +28,23 @@ from lightly_train._models.model_wrapper import (
 
 
 class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettable):
+    _input_mean: Tensor
+    _input_std: Tensor
+
     def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
+        self.register_buffer(
+            "_input_mean",
+            torch.tensor(IMAGENET_NORMALIZE["mean"]).view(1, -1, 1, 1),
+            persistent=False,
+        )
+        self.register_buffer(
+            "_input_std",
+            torch.tensor(IMAGENET_NORMALIZE["std"]).view(1, -1, 1, 1),
+            persistent=False,
+        )
 
     def feature_dim(self) -> int:
         return self._feature_dim
@@ -41,6 +55,7 @@ class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettab
     def forward_features(
         self, x: Tensor, masks: Tensor | None = None, n_blocks: int = 1
     ) -> ForwardFeaturesOutput:
+        x = self._prepare_input(x)
         if n_blocks > 1:
             # ViT blocks all produce the same spatial resolution — no interpolation needed.
             x_list = list(
@@ -94,10 +109,20 @@ class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettab
     def forward_multiscale_features(
         self, x: Tensor, layer_indices: Sequence[int]
     ) -> list[ForwardFeaturesOutput]:
+        x = self._prepare_input(x)
         rt = self._model.get_intermediate_layers(
             x, n=list(layer_indices), reshape=True, return_class_token=True
         )
         return [{"features": feat, "cls_token": cls} for feat, cls in rt]
+
+    def _prepare_input(self, x: Tensor) -> Tensor:
+        if self._model.input_normalization == "none":
+            # TiPSv2 is trained on images in [0, 1], while LightlyTrain's default
+            # transforms apply ImageNet normalization.
+            return x * self._input_std.to(dtype=x.dtype) + self._input_mean.to(
+                dtype=x.dtype
+            )
+        return x
 
 
 def update_blocks_student_to_teacher(blocks: ModuleList) -> None:

@@ -119,6 +119,9 @@ class DINOv2ViTPackage(MultiScaleFeaturePackage):
             drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
             in_chans=num_input_channels,
+            input_normalization=(
+                "none" if model_name.endswith("-tipsv2") else "imagenet"
+            ),
         )
         kwargs.update(model_args or {})
 
