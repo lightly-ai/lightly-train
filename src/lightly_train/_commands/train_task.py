@@ -1643,9 +1643,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     checkpoint_path=checkpoint_path,
                 )
             elif checkpoint is not None:
+                assert checkpoint_path is not None
                 helpers.finetune_from_checkpoint(
                     state=state,
                     checkpoint=checkpoint,
+                    checkpoint_path=checkpoint_path,
                 )
 
             # Add license info after loading as it might be missing from the checkpoint.
