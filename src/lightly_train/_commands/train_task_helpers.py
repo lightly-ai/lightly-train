@@ -14,7 +14,17 @@ import logging
 from dataclasses import dataclass
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Generator, Iterable, Literal, Mapping, cast
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    Iterable,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    cast,
+)
 
 import torch
 from filelock import FileLock
@@ -27,6 +37,7 @@ from torch.nn import Module
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
+from typing_extensions import TypeAlias
 
 from lightly_train._configs import validate
 from lightly_train._data import cache
@@ -116,6 +127,13 @@ except ImportError:
     mlflow = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+_CheckpointLoadResult: TypeAlias = Tuple[
+    Optional[CheckpointDict],
+    Optional[Path],
+    str,
+    Optional[Dict[str, Any]],
+]
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
@@ -1306,7 +1324,8 @@ def read_model_init_args_from_ckpt(ckpt_path: PathLike) -> dict[str, Any]:
     except (TypeError, RuntimeError, NotImplementedError, AttributeError):
         ckpt = torch.load(p, map_location="cpu", weights_only=False)
 
-    return cast(dict[str, Any], ckpt["model_init_args"])
+    model_init_args: dict[str, Any] = ckpt["model_init_args"]
+    return model_init_args
 
 
 def load_checkpoint(
@@ -1316,8 +1335,24 @@ def load_checkpoint(
     model: str,
     checkpoint: PathLike | None,
     task: str,
-) -> tuple[CheckpointDict | None, Path | None, str, dict[str, Any] | None]:
-    """Build a checkpoint context from the current run configuration.
+) -> _CheckpointLoadResult:
+    """Dispatch to the checkpoint flow selected by the training configuration.
+
+    Resolution follows these rules, in order:
+
+    1. ``resume_interrupted=True`` restores the full training state from
+       ``out/checkpoints/last.ckpt``. The ``model`` argument is not resolved because
+       the resume checkpoint is authoritative.
+    2. An explicit ``checkpoint`` starts a new fine-tuning run. Its metadata determines
+       the exact architecture, while ``model`` is used to verify the task-model family
+       and as a fallback for legacy checkpoints without model metadata. Only model
+       weights are returned.
+    3. A local path passed as ``model`` starts a new fine-tuning run from that file.
+    4. A downloadable model alias is downloaded and used to initialize the model.
+    5. Any other supported model name is treated as an architecture-only model.
+
+    Local paths take precedence over downloadable aliases. Downloadable weights for
+    ``model`` are never resolved when ``checkpoint`` or ``resume_interrupted`` is used.
 
     Args:
         fabric: Fabric instance used to load checkpoint files.
@@ -1328,84 +1363,195 @@ def load_checkpoint(
         task: The training task.
 
     Returns:
-        (checkpoint, checkpoint_path, model_name) tuple. Checkpoint contains the loaded
-        checkpoint if available. model_name is the name of the model to initialize the
-        backbone from. Checkpoint is None if no checkpoint was loaded or if
-        resume_interrupted is True.
+        A tuple containing the checkpoint weights, checkpoint path, resolved model name,
+        and model initialization arguments. Checkpoint weights are None when no
+        checkpoint is loaded or when resuming an interrupted run.
 
     Raises:
         ValueError: If resume and checkpoint options are requested simultaneously.
         FileNotFoundError: If the resolved checkpoint file does not exist.
     """
-    model_path: Path | None
-    model_name = model
-    model_name_from_checkpoint = False
-    try:
-        get_train_model_cls(model_name=model, task=task)
-    except ValueError:
-        # Download checkpoint only from rank zero. Other ranks will load from cache.
-        with fabric.rank_zero_first():
-            model_path = task_model_helpers.download_checkpoint(checkpoint=model)
-        model_name_from_checkpoint = True
-    else:
-        model_path = None
-
-    ckpt_path: Path
     if resume_interrupted:
-        if model_path is not None:
-            logger.warning(
-                "`model` is set to a pretrained checkpoint while `resume_interrupted` "
-                "is True. Loading weights from the interrupted run and ignoring "
-                f"model='{model}'."
-            )
         if checkpoint is not None:
             raise ValueError(
                 f"resume_interrupted={resume_interrupted} and checkpoint='{checkpoint}' "
                 "cannot be set at the same time! Please set only one of them. "
             )
-        ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
-        # We don't return the loaded checkpoint here because it has to be loaded with
-        # fabric.load(ckpt_path, state) for resume to work properly.
+        return _load_resume_checkpoint(out_dir=out_dir)
 
-        # Get the model_init_args and update the model_name from the checkpoint.
-        # This is needed when resuming from a crashed run and the model_name contains
-        # an extra suffix, e.g., '-coco'.
-        model_init_args = read_model_init_args_from_ckpt(ckpt_path)
-        model_name = model_init_args["model_name"]
-        return (
-            None,
-            ckpt_path,
-            model_name,
-            model_init_args,
+    if checkpoint is not None:
+        return _load_explicit_checkpoint(
+            fabric=fabric,
+            model=model,
+            checkpoint=checkpoint,
+            task=task,
         )
-    elif checkpoint is not None:
-        if model_path is not None:
-            logger.warning(
-                "`model` is set to a pretrained checkpoint while `checkpoint` is also "
-                "set to a pretrained checkpoint. Loading weights from checkpoint "
-                f"'{checkpoint}' and ignoring model='{model}'."
-            )
-        ckpt_path = Path(checkpoint).resolve()
-    elif model_path is not None:
-        ckpt_path = model_path
-    else:
-        # No checkpoint to load. Backbone will be initialized from model name.
-        return (None, None, model_name, None)
+
+    if Path(model).resolve().exists():
+        return _load_local_model_checkpoint(fabric=fabric, model=model)
+
+    if model in task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH:
+        return _load_downloadable_model_checkpoint(fabric=fabric, model=model)
+
+    try:
+        return _load_architecture_only_model(model=model, task=task)
+    except ValueError:
+        return _load_unknown_model_checkpoint(fabric=fabric, model=model)
+
+
+def _load_resume_checkpoint(out_dir: Path) -> _CheckpointLoadResult:
+    ckpt_path = get_checkpoint_path(out_dir, best_or_last="last")
+    # The checkpoint must later be loaded with fabric.load(ckpt_path, state) for a full
+    # training resume, so only its model initialization arguments are read here.
+    model_init_args = read_model_init_args_from_ckpt(ckpt_path)
+    model_name = model_init_args["model_name"]
+    return (None, ckpt_path, model_name, model_init_args)
+
+
+def _load_explicit_checkpoint(
+    fabric: Fabric,
+    model: str,
+    checkpoint: PathLike,
+    task: str,
+) -> _CheckpointLoadResult:
+    requested_train_model_cls = get_train_model_cls(model_name=model, task=task)
+    ckpt_path = Path(checkpoint).resolve()
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
     logger.info(f"Loading model checkpoint from '{ckpt_path}'")
-
-    # Need context manager because fabric.load doesn't expose weights_only parameter and
-    # the checkpoint might contain more than just model weights.
     with _torch_weights_only_false():
         ckpt = fabric.load(path=ckpt_path)
 
     model_init_args = ckpt.get("model_init_args", {})
-    if model_name_from_checkpoint:
-        model_name = model_init_args.get("model_name", model)
+    checkpoint_model_name = model_init_args.get("model_name")
+    model_name = model
+    if checkpoint_model_name is not None:
+        checkpoint_train_model_cls = get_train_model_cls(
+            model_name=checkpoint_model_name,
+            task=task,
+        )
+        if checkpoint_train_model_cls is not requested_train_model_cls:
+            raise ValueError(
+                f"Model '{model}' and checkpoint '{ckpt_path}' use incompatible "
+                "task-model families."
+            )
+        model_name = checkpoint_model_name
 
+    model_class_path = ckpt.get("model_class_path", "")
+    train_model_state_dict = ckpt.get("train_model")
+    if train_model_state_dict is None:
+        raise ValueError(
+            f"Checkpoint file '{ckpt_path}' does not contain model state dict."
+        )
+
+    return (
+        CheckpointDict(
+            train_model_state_dict=train_model_state_dict,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
+        ),
+        ckpt_path,
+        model_name,
+        model_init_args,
+    )
+
+
+def _load_local_model_checkpoint(
+    fabric: Fabric,
+    model: str,
+) -> _CheckpointLoadResult:
+    with fabric.rank_zero_first():
+        ckpt_path = task_model_helpers.download_checkpoint(checkpoint=model)
+
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+    logger.info(f"Loading model checkpoint from '{ckpt_path}'")
+    with _torch_weights_only_false():
+        ckpt = fabric.load(path=ckpt_path)
+
+    model_init_args = ckpt.get("model_init_args", {})
+    model_name = model_init_args.get("model_name", model)
+    model_class_path = ckpt.get("model_class_path", "")
+    train_model_state_dict = ckpt.get("train_model")
+    if train_model_state_dict is None:
+        raise ValueError(
+            f"Checkpoint file '{ckpt_path}' does not contain model state dict."
+        )
+
+    return (
+        CheckpointDict(
+            train_model_state_dict=train_model_state_dict,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
+        ),
+        ckpt_path,
+        model_name,
+        model_init_args,
+    )
+
+
+def _load_downloadable_model_checkpoint(
+    fabric: Fabric,
+    model: str,
+) -> _CheckpointLoadResult:
+    with fabric.rank_zero_first():
+        ckpt_path = task_model_helpers.download_checkpoint(checkpoint=model)
+
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+    logger.info(f"Loading model checkpoint from '{ckpt_path}'")
+    with _torch_weights_only_false():
+        ckpt = fabric.load(path=ckpt_path)
+
+    model_init_args = ckpt.get("model_init_args", {})
+    model_name = model_init_args.get("model_name", model)
+    model_class_path = ckpt.get("model_class_path", "")
+    train_model_state_dict = ckpt.get("train_model")
+    if train_model_state_dict is None:
+        raise ValueError(
+            f"Checkpoint file '{ckpt_path}' does not contain model state dict."
+        )
+
+    return (
+        CheckpointDict(
+            train_model_state_dict=train_model_state_dict,
+            model_class_path=model_class_path,
+            model_init_args=model_init_args,
+        ),
+        ckpt_path,
+        model_name,
+        model_init_args,
+    )
+
+
+def _load_architecture_only_model(model: str, task: str) -> _CheckpointLoadResult:
+    get_train_model_cls(model_name=model, task=task)
+    return (None, None, model, None)
+
+
+def _load_unknown_model_checkpoint(
+    fabric: Fabric,
+    model: str,
+) -> _CheckpointLoadResult:
+    # Calling download_checkpoint preserves the detailed error for unknown paths and
+    # non-hosted models. Keep this as a complete flow in case it resolves a model added
+    # by a downstream registry.
+    with fabric.rank_zero_first():
+        ckpt_path = task_model_helpers.download_checkpoint(checkpoint=model)
+
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+    logger.info(f"Loading model checkpoint from '{ckpt_path}'")
+    with _torch_weights_only_false():
+        ckpt = fabric.load(path=ckpt_path)
+
+    model_init_args = ckpt.get("model_init_args", {})
+    model_name = model_init_args.get("model_name", model)
     model_class_path = ckpt.get("model_class_path", "")
     train_model_state_dict = ckpt.get("train_model")
     if train_model_state_dict is None:
@@ -1441,6 +1587,7 @@ def resume_from_checkpoint(
 def finetune_from_checkpoint(
     state: TrainTaskState,
     checkpoint: CheckpointDict,
+    checkpoint_path: PathLike,
 ) -> None:
     """Restore model state from the checkpoint for fine-tuning.
 
@@ -1448,6 +1595,7 @@ def finetune_from_checkpoint(
         state: Training state container to populate with checkpoint data.
         checkpoint: Checkpoint context the state dicts to load.
     """
+    logger.info(f"Fine-tuning from checkpoint '{checkpoint_path}'")
 
     train_model = cast(TrainModel, state["train_model"])
 
