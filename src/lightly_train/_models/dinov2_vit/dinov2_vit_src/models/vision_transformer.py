@@ -24,7 +24,9 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
+from lightly_train import _torch_helpers
 from lightly_train._export.onnx_helpers import is_in_precalculate_for_onnx_export
+from lightly_train._models import _model_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
     MemEffAttention,
     Mlp,
@@ -96,6 +98,7 @@ class DinoVisionTransformer(nn.Module):
         num_register_tokens=0,
         interpolate_antialias=False,
         interpolate_offset=0.1,
+        input_normalization: Literal["imagenet", "none"] = "imagenet",
     ):
         """
         Args:
@@ -121,6 +124,8 @@ class DinoVisionTransformer(nn.Module):
             num_register_tokens: (int) number of extra cls tokens (so-called "registers")
             interpolate_antialias: (str) flag to apply anti-aliasing when interpolating positional embeddings
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
+            input_normalization: Expected input normalization. ``"none"`` expects
+                RGB values in the [0, 1] range.
         """
         check_xformers()
         super().__init__()
@@ -136,6 +141,7 @@ class DinoVisionTransformer(nn.Module):
         self.num_register_tokens = num_register_tokens
         self.interpolate_antialias = interpolate_antialias
         self.interpolate_offset = interpolate_offset
+        self.input_normalization = input_normalization
 
         self.patch_embed = embed_layer(
             img_size=img_size,
@@ -214,6 +220,14 @@ class DinoVisionTransformer(nn.Module):
         self.head = nn.Identity()
 
         self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
+
+        # Resize a mismatched pos_embed (e.g. a 224px DINOv2 checkpoint into a
+        # 518px model) when weights are loaded, so cross-resolution init works
+        # without callers having to interpolate manually. DINOv2-ViT-specific,
+        # hence registered here rather than in the generic checkpoint loader.
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, _model_helpers.interpolate_pos_embed_hook
+        )
 
         self.init_weights()
 
@@ -495,6 +509,23 @@ def vit_giant2(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTran
         depth=40,
         num_heads=24,
         mlp_ratio=4,
+        block_fn=partial(Block, attn_class=MemEffAttention),
+        num_register_tokens=num_register_tokens,
+        **kwargs,
+    )
+    return model
+
+
+def vit_so400m(patch_size=16, num_register_tokens=0, **kwargs) -> DinoVisionTransformer:
+    """
+    SoViT-400M model (https://arxiv.org/abs/2305.13035)
+    """
+    model = DinoVisionTransformer(
+        patch_size=patch_size,
+        embed_dim=1152,
+        depth=27,
+        num_heads=16,
+        mlp_ratio=4304 / 1152,
         block_fn=partial(Block, attn_class=MemEffAttention),
         num_register_tokens=num_register_tokens,
         **kwargs,

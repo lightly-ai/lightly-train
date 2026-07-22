@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-🔥 LightlyTrain's **LTDETRv2** is out with great improvements from SOTA research! We achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP<sub>50:95</sub> from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
+LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! Among real-time detectors, we achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP<sub>50:95</sub> from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
@@ -24,7 +24,7 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
 |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
 |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
-|     **ltdetrv2-s-coco (NEW)**     |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
+|        **ltdetrv2-s-coco**        |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
@@ -48,8 +48,9 @@ DINOv3 ViT and ConvNext backbones (also with EUPE weights). See
 ### Train an LTDETR model
 
 Training an object detection model with LightlyTrain is straightforward and only
-requires a few lines of code. See [data](#object-detection-data) for details on how to
-prepare your dataset.
+requires a few lines of code using the
+{py:func}`train_object_detection <lightly_train.train_object_detection>` function. See
+[data](#object-detection-data) for details on how to prepare your dataset.
 
 ```python
 import lightly_train
@@ -60,9 +61,9 @@ if __name__ == "__main__":
         model="ltdetrv2-s-coco",
         data={
             "format": "yolo",
-            "path": "my_data_dir",
-            "train": "images/train2017",
-            "val": "images/val2017",
+            "path": "my_data_dir",           # Root directory of the dataset
+            "train": "images/train2017",      # Training images, relative to "path" (i.e. my_data_dir/images/train2017)
+            "val": "images/val2017",          # Validation images, relative to "path" (i.e. my_data_dir/images/val2017)
             "names": {
                 0: "person",
                 1: "bicycle",
@@ -83,11 +84,12 @@ During training, both the
 
 - best (with highest validation mAP<sub>50:95</sub>) and
 - last (last validation round as determined by
-  `save_checkpoint_args.save_every_num_steps`)
+  [`save_checkpoint_args.save_every_num_steps`](settings/train_settings.md#save_every_num_steps))
 
 model weights are exported to `out/my_experiment/exported_models/`, unless disabled in
-`save_checkpoint_args`. You can use these weights to continue fine-tuning on another
-task by loading the weights via `model="<checkpoint path>"`:
+[`save_checkpoint_args`](settings/train_settings.md#save_checkpoint_args). You can use
+these weights to continue fine-tuning on another task by loading the weights via the
+[`model`](settings/train_settings.md#model) argument (`model="<checkpoint path>"`):
 
 ```python
 import lightly_train
@@ -183,7 +185,8 @@ results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
 results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
-You can customize the behavior via the following parameters:
+You can customize the behavior of {py:meth}`~.LTDETRObjectDetection.predict_sahi` via
+the following parameters:
 
 - `overlap`: Fraction of overlap between neighboring tiles. Higher values increase
   small-object recall but also increase computation.
@@ -227,8 +230,9 @@ fig.show()
 
 ## Out
 
-The `out` argument specifies the output directory where all training logs, model
-exports, and checkpoints are saved. It looks like this after training:
+The [`out`](settings/train_settings.md#out) argument specifies the output directory
+where all training logs, model exports, and checkpoints are saved. It looks like this
+after training:
 
 ```text
 out/my_experiment
@@ -533,8 +537,8 @@ For more details on LightlyTrain's support for data input, please check the
 
 ## Model
 
-The `model` argument defines the model used for object detection training. The following
-models are available:
+The [`model`](settings/train_settings.md#model) argument defines the model used for
+object detection training. The following models are available:
 
 ### LTDETRv2
 
@@ -640,6 +644,7 @@ See [](train-settings-resume-training) on how to resume training.
 ## Default Image Transform Arguments
 
 The following are the default image transform arguments. See
+[`transform_args`](settings/train_settings.md#transform_args) and
 [](train-settings-transforms) on how to customize transforms.
 
 `````{dropdown} LTDETR / LTDETRv2 Default Transform Arguments
@@ -713,7 +718,7 @@ model.export_onnx(
 )
 ```
 
-See {py:meth}`~.DINOv3LTDETRObjectDetection.export_onnx` for all available options when
+See {py:meth}`~.LTDETRObjectDetection.export_onnx` for all available options when
 exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
@@ -755,8 +760,8 @@ model.export_tensorrt(
 )
 ```
 
-See {py:meth}`~.DINOv3LTDETRObjectDetection.export_tensorrt` for all available options
-when exporting to TensorRT.
+See {py:meth}`~.LTDETRObjectDetection.export_tensorrt` for all available options when
+exporting to TensorRT.
 
 You can also learn more about exporting LTDETR to TensorRT using our Colab notebook:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
@@ -770,11 +775,12 @@ The benchmark command is in **beta**. Its API and report format may change in fu
 releases.
 ```
 
-The `benchmark_object_detection` command measures the **inference performance** of an
-object detection model on a validation dataset. It runs inference over the validation
-split and reports both detection accuracy (mAP/mAR, including per-class mAP) and timing
-statistics (latency and throughput). This is useful to compare inference backends and
-precisions before deploying a model to production.
+The {py:func}`benchmark_object_detection <lightly_train.benchmark_object_detection>`
+command measures the **inference performance** of an object detection model on a
+validation dataset. It runs inference over the validation split and reports both
+detection accuracy (mAP/mAR, including per-class mAP) and timing statistics (latency and
+throughput). This is useful to compare inference backends and precisions before
+deploying a model to production.
 
 ### Basic Usage
 
@@ -835,7 +841,10 @@ device info, performance metrics, and a throughput & latency table, for example:
 
 ### Parameters
 
-The most relevant parameters are:
+The most relevant parameters of
+{py:func}`benchmark_object_detection <lightly_train.benchmark_object_detection>` are
+(see the {py:func}`API reference <lightly_train.benchmark_object_detection>` for the
+full list):
 
 - `batch_size`: Number of images processed at once. Default `1`.
 - `warmup_steps`: Number of warmup batches run before measuring. Warmup results are
@@ -872,8 +881,8 @@ result = lightly_train.benchmark_object_detection(
 #### ONNX
 
 Runs inference through ONNX Runtime. The model is exported to ONNX internally (see
-[Exporting a Checkpoint to ONNX](#exporting-a-checkpoint-to-onnx)). Choose the execution
-provider with `provider`.
+[Exporting a Checkpoint to ONNX](object-detection-onnx)). Choose the execution provider
+with `provider`.
 
 ```python
 result = lightly_train.benchmark_object_detection(

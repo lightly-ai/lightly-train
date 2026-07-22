@@ -32,18 +32,20 @@ image_classification
 depth_estimation
 eomt_semantic_segmentation
 eomt_instance_segmentation
+ltdetr_instance_segmentation
 eomt_panoptic_segmentation
 ```
 
 ```{toctree}
 ---
 maxdepth: 1
-caption: Export Tutorials
+caption: ONNX & TENSORRT EXPORT TUTORIALS
 ---
 object_detection_export
-instance_segmentation_export
-semantic_segmentation_export
-panoptic_segmentation_export
+eomt_instance_segmentation_export
+ltdetr_instance_segmentation_export
+eomt_semantic_segmentation_export
+eomt_panoptic_segmentation_export
 depth_estimation_export
 ```
 

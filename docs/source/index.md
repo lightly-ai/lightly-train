@@ -113,7 +113,7 @@ Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 Train image classification models with any backbone.<br>
 ```
 
-```{grid-item-card} Depth Estimation (NEW)
+```{grid-item-card} Depth Estimation
 :link: depth_estimation.html
 <img src="_static/images/tasks/depth_estimation.png" height="64"><br>
 Run Depth Anything V2 and V3 monocular depth inference.<br>
@@ -216,6 +216,14 @@ LightlyTrain supports the following model and workflow combinations.
 | RF-DETR                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)               |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)     |
 | YOLOv12                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)              |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)    |
 | Custom PyTorch Model                       |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html)           | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
+
+```{note}
+For DINOv2/DINOv3, the model is paired with the matching training method or serves as
+distillation teacher (e.g. the DINOv2 model with `method="dinov2"` for pretraining, or
+as teacher for the `distillation` method). For all other models, the listed model is the
+student: "Pretraining" trains that model directly, and "Distillation" distills a default
+teacher's knowledge into it.
+```
 
 [Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 

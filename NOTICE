@@ -59,6 +59,26 @@ This project incorporates the following third-party components:
 - Modifications: Corrected the C-RADIOv3-B checkpoint URL in `c_radio_v3_src/common.py` to NVIDIA's published filename (`c-radio_v3-b_half.pth.tar`). All other retained C-RADIO v3 and v4 runtime source files are vendored unchanged. LightlyTrain-owned loader code dispatches to the matching vendored runtime and downloads the published checkpoints.
 - Attribution: Licensed by NVIDIA Corporation under the NVIDIA Open Model License.
 
+**LingBot Vision**
+- Source: https://github.com/Robbyant/lingbot-vision
+- License: Apache License 2.0
+- License file: licences/LINGBOT_VISION_LICENSE
+- Note: LingBot Vision is built on DINOv3
+  (https://github.com/facebookresearch/dinov3). In addition to the Apache License 2.0
+  under which LingBot Vision is released, the terms of the DINOv3 License Agreement
+  (licences/DINOv3_LICENSE.md) apply to the models and weights.
+- Modifications:
+  - No source code is vendored. LightlyTrain redistributes the pretrained LingBot
+    Vision backbone weights, loaded with the DINOv3 model implementation.
+
+**TIPSv2**
+- Source: https://github.com/google-deepmind/tips
+- License: Apache License 2.0
+- License file: licences/TIPSv2_LICENSE
+- Modifications:
+  - Added TIPSv2 vision-backbone architecture configuration and standard PyTorch
+    checkpoint loading. No TIPSv2 source code is vendored.
+
 **RT-DETR**
 - Source: https://github.com/lyuwenyu/RT-DETR
 - License: Apache License 2.0

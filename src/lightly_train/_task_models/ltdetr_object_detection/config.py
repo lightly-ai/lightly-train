@@ -10,7 +10,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
+import torch
 from pydantic import Field
+from torch.export import Dim
 from typing_extensions import Annotated
 
 from lightly_train._configs.config import ConfigsNamespace, PydanticConfig
@@ -19,6 +21,8 @@ from lightly_train._configs.model_registry import (
     ModelAlias,
     ModelRegistry,
 )
+from lightly_train._export.onnx_helpers import check_model_input_spec_requirements
+from lightly_train._task_models.task_model_io import ModelInputSpec, TensorSpec
 
 logger = logging.getLogger(__name__)
 
@@ -650,6 +654,37 @@ class DetectorConfig(PydanticConfig):
         self.hybrid_encoder.resolve_auto(patch_size=patch_size)
         self.transformer.resolve_auto(patch_size=patch_size)
 
+    def model_input_spec(
+        self,
+        *,
+        image_size: tuple[int, int],
+        input_channels: int,
+    ) -> ModelInputSpec:
+        check_model_input_spec_requirements()
+        return ModelInputSpec(
+            input_specs={
+                "images": TensorSpec(
+                    shape=(
+                        input_channels,
+                        image_size[0],
+                        image_size[1],
+                    ),
+                    dtype=torch.float32,
+                    is_batched=True,
+                )
+            },
+            input_dynamic_shapes={
+                "images": (
+                    # Batch dim has to stay within int32 range on the entire tracing,
+                    # which is sometimes larger than the number here.
+                    Dim("batch_size", min=1, max=128),
+                    Dim.STATIC,
+                    Dim.STATIC,
+                    Dim.STATIC,
+                )
+            },
+        )
+
 
 class LTDETRBaseConfig(ConfigsNamespace):
     class CNNLarge(DetectorConfig):
@@ -1086,6 +1121,12 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
+
+    @LTDETR_MODEL_REGISTRY.register(
+        "_ltdetrv2-s-notpretrained", include_in_model_list=False
+    )
+    class EdgeCrafterECViTTinyNotPretrained(EdgeCrafterECViTTiny):
+        backbone_name: str = "edgecrafter/_ecvitt-notpretrained"
 
     @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvittplus-ltdetr",

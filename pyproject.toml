@@ -85,10 +85,6 @@ dist = [
     "twine>=6.1.0",
     "wheel>=0.45.1",
 ]
-benchmarks = [
-    "onnxruntime-gpu==1.25.1; python_version>='3.11' and platform_system == 'Linux'",
-    "tensorrt-cu13==10.16.1.11; platform_system == 'Linux'",
-]
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
 # on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
@@ -108,8 +104,21 @@ pinned-torch-maximal = [
     "torch==2.7.0; python_version>='3.9'",
     "torchvision==0.22.0; python_version>='3.9'",
 ]
+pinned-rocm-torch = [
+    "torch==2.4.1+rocm6.1; python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "torchvision==0.19.1+rocm6.1; python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "pytorch-triton-rocm==3.0.0; python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "torch==2.13.0+rocm7.2; python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "torchvision==0.28.0+rocm7.2; python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+    "triton-rocm; python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'",
+]
 
 [project.optional-dependencies]
+bitsandbytes = [
+    # Optional 8-bit optimizer state (optim_type="adamw8bit"). Imported lazily,
+    # so the dependency is only required when that optimizer is selected.
+    "bitsandbytes>=0.43.0",
+]
 dicom = [
     "pydicom>=2.1.0",
 ]
@@ -152,6 +161,7 @@ onnx = [
     "onnx>=1.18.0; python_version>='3.9'",  # onnx 1.18+ requires Python 3.9+
     "onnx>=1.20.0; python_version>='3.10'",  # no wheels built anymore for Python<3.10
     "onnxscript>=0.7.0; python_version>='3.9'",
+    "netron>=9.0.0; python_version>='3.9'",
 ]
 onnxruntime = [
     "onnxruntime>=1.21.0; python_version>='3.10'",
@@ -270,28 +280,54 @@ conflicts = [
         { extra = "super-gradients" },
         { extra = "onnx" },
     ],
+    [ # super-gradients pins einops==0.3.2, whereas radio requires einops>=0.6
+        { extra = "super-gradients" },
+        { extra = "radio" },
+    ],
     [ # conflicting pinned versions of torch and torchvision for Python 3.8
         { group = "minimal-torch" },
         { group = "pinned-torch-minimal" },
         { group = "pinned-torch-maximal" },
-    ]
+        { group = "pinned-rocm-torch" },
+    ],
 ]
 
 [tool.uv.sources]
+# LightlySSL from the PatchKernelAlignmentLoss merge commit
+# (https://github.com/lightly-ai/lightly/pull/1953).
+# TODO(Igor, 07/2026): Remove this git override once a lightly release contains
+# PatchKernelAlignmentLoss and roi_resample_to_grid, so the plain "lightly"
+# dependency on PyPI suffices.
+lightly = { git = "https://github.com/lightly-ai/lightly.git", rev = "f03d012df6486e885dac5d6c2e14780b6455d9cb" }
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [
-    { index = "pytorch-cu118", group = "pinned-torch-minimal" },
-    { index = "pytorch-cu118", group = "pinned-torch-maximal" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9'" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version>='3.9'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
 ]
 torchvision = [
-    { index = "pytorch-cu118", group = "pinned-torch-minimal" },
-    { index = "pytorch-cu118", group = "pinned-torch-maximal" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9'" },
+    { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version>='3.9'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+]
+pytorch-triton-rocm = [
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
+]
+triton-rocm = [
+    { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
 ]
 
 [[tool.uv.index]]
 name = "pytorch-cu118"
 url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm-all"
+url = "https://download.pytorch.org/whl"
 explicit = true
 
 [tool.pytest.ini_options]

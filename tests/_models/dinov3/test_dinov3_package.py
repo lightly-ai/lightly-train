@@ -56,6 +56,10 @@ class TestDINOv3Package:
             ("dinov3/convnext-small", True),
             ("dinov3/convnext-base", True),
             ("dinov3/convnext-large", True),
+            # LingBot Vision models (Robbyant).
+            ("dinov3/vits16-lingbot", True),
+            ("dinov3/vitb16-lingbot", True),
+            ("dinov3/vitl16-lingbot", True),
         ],
     )
     def test_list_model_names(self, model_name: str, listed: bool) -> None:
@@ -93,6 +97,15 @@ class TestDINOv3Package:
     def test_get_model__convnext(self) -> None:
         model = DINOv3Package.get_model("_convnexttest")
         assert isinstance(model, ConvNeXt)
+
+    @pytest.mark.parametrize("model_name", ["_vittest16", "_convnexttest"])
+    def test_get_model__drop_path_rate_does_not_collide(self, model_name: str) -> None:
+        # Regression: DINOv3 builders hardcode drop_path_rate; passing it in model_args
+        # must not raise "got multiple values for keyword argument 'drop_path_rate'".
+        model = DINOv3Package.get_model(
+            model_name, model_args={"drop_path_rate": 0.0}, load_weights=False
+        )
+        assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
 
     def test_get_model_wrapper__vit(self) -> None:
         model = backbones._dinov3_vit_test()

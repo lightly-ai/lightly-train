@@ -33,6 +33,7 @@ from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
 from lightly_train._events import tracker
+from lightly_train._license import LICENSE_INFO
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -183,7 +184,7 @@ def pretrain(
             respective arguments:
             ``callbacks={"model_checkpoint": {"every_n_epochs": 5}}``.
         optim:
-            Optimizer name. Must be one of ['auto', 'adamw', 'sgd']. 'auto' automatically
+            Optimizer name. Must be one of ['auto', 'adamw', 'adamw8bit', 'sgd']. 'auto' automatically
             selects the optimizer based on the method.
         optim_args:
             Optimizer arguments. Available arguments depend on the optimizer.
@@ -388,16 +389,6 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             batch_size=config.batch_size,
             devices=config.devices,
             epochs=config.epochs,
-        )
-
-        LICENSE_INFO = (
-            "LightlyTrain License Notice\n"
-            "\n"
-            "Model training and inference in commercial settings require a valid Commercial License.\n"
-            "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
-            "please ensure your usage complies with the respective terms.\n"
-            "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
-            "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
         )
 
         callback_instances = callback_helpers.get_callbacks(

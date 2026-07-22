@@ -22,6 +22,7 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
 )
@@ -39,6 +40,7 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
     _resolve_transformer_config,
 )
 from lightly_train._task_models.ltdetr_object_detection.train_model import (
+    DINOv2LTDETRObjectDetectionTrainArgsV2,
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
 )
@@ -255,15 +257,8 @@ def test_dino_legacy_backbone_prefix_is_remapped() -> None:
 
 
 def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
-    # Backwards compatibility: a checkpoint trained with the previous
-    # RTDETRv2 default must reconstruct with the RTDETRv2 architecture when
-    # the user does not explicitly set ``decoder_name``, even though the new
-    # default is dfine. This round-trip simulates loading such a checkpoint:
-    # we save the task model's ``init_args`` and ``state_dict`` (mirroring
-    # what ``lightly_train`` persists in the checkpoint file), build a fresh
-    # train model from defaults, feed it the saved ``init_args`` as the
-    # checkpoint payload, and verify the state dict loads cleanly into an
-    # RTDETRv2 decoder.
+    # Legacy checkpoints do not store ``decoder_name``. In that case the train
+    # args must resolve it from the registered architecture before loading weights.
     model_name = "dinov3/vitt16-notpretrained-ltdetr"
 
     # Source: an old-style RTDETRv2 checkpoint.
@@ -275,8 +270,9 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
         source_args,
         model_name=model_name,
     )
-    checkpoint_model_init_args = source_train_model.get_task_model().init_args
+    checkpoint_model_init_args = dict(source_train_model.get_task_model().init_args)
     assert checkpoint_model_init_args["decoder_name"] == "rtdetrv2"
+    checkpoint_model_init_args.pop("decoder_name")
     checkpoint_state_dict = source_train_model.state_dict()
 
     # Pick a stable decoder tensor to compare before/after the round trip.
@@ -284,9 +280,8 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
     assert decoder_keys, "expected at least one decoder tensor in the state dict"
     source_decoder_tensor = checkpoint_state_dict[decoder_keys[0]].clone()
 
-    # Target: a fresh train model built from the new defaults. The user does
-    # not explicitly set ``decoder_name``; ``model_init_args`` carries the
-    # checkpoint payload.
+    # Target: the user does not explicitly set ``decoder_name`` and the legacy
+    # checkpoint does not contain it either.
     target_args = LTDETRObjectDetectionTrainArgs(use_ema_model=False)
     target_train_model = _create_train_model(
         target_args,
@@ -294,7 +289,7 @@ def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() ->
         model_init_args=dict(checkpoint_model_init_args),
     )
 
-    # Architecture was reconstructed as RTDETRv2 via the compatibility shim.
+    # The DINOv3 v1 architecture selects RTDETRv2.
     assert target_args.decoder_name == "rtdetrv2"
     target_task_model = target_train_model.get_task_model()
     assert isinstance(target_task_model.decoder, RTDETRTransformerv2)
@@ -330,6 +325,62 @@ def test_resolve_transformer_config__selects_decoder_family(
     )
 
     assert isinstance(transformer_config, expected_config_type)
+
+
+@pytest.mark.parametrize(
+    ("model_name", "train_args_cls", "expected_decoder_name"),
+    [
+        (
+            "dinov2/vits14-noreg-ltdetr-coco",
+            DINOv2LTDETRObjectDetectionTrainArgsV2,
+            "rtdetrv2",
+        ),
+        (
+            "dinov2/vits14-noreg-ltdetr",
+            DINOv2LTDETRObjectDetectionTrainArgsV2,
+            "rtdetrv2",
+        ),
+        ("dinov3/vitt16-ltdetr", LTDETRObjectDetectionTrainArgs, "rtdetrv2"),
+        ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, "dfine"),
+    ],
+)
+def test_resolve_auto__uses_architecture_decoder(
+    model_name: str,
+    train_args_cls: type[
+        LTDETRObjectDetectionTrainArgs | DINOv2LTDETRObjectDetectionTrainArgsV2
+    ],
+    expected_decoder_name: Literal["rtdetrv2", "dfine"],
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = train_args_cls()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name=model_name,
+        model_init_args={},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == expected_decoder_name
+
+
+def test_resolve_auto__checkpoint_decoder_overrides_architecture(
+    dummy_yolo_detection_data_args: YOLOObjectDetectionDataArgs,
+) -> None:
+    model_args = LTDETRObjectDetectionTrainArgs()
+
+    model_args.resolve_auto(
+        total_steps=1000,
+        gradient_accumulation_steps=1,
+        train_num_batches=100,
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_init_args={"decoder_name": "dfine"},
+        data_args=dummy_yolo_detection_data_args,
+    )
+
+    assert model_args.decoder_name == "dfine"
 
 
 def test_resolve_auto__warns_on_explicit_checkpoint_decoder_conflict(
@@ -450,10 +501,9 @@ def test_dinov2_vits14_ltdetr__constructs_and_runs_forward() -> None:
     model.eval()
     model.deploy()
     with torch.no_grad():
-        labels, boxes, scores = model(torch.randn(1, 3, 224, 224))
-    assert labels.shape == (1, 300)
-    assert boxes.shape == (1, 300, 4)
-    assert scores.shape == (1, 300)
+        output = model(torch.randn(1, 3, 224, 224))
+    assert output.logits.shape == (1, 300, 2)
+    assert output.boxes.shape == (1, 300, 4)
 
 
 @pytest.mark.parametrize(
@@ -639,10 +689,10 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
         load_weights=False,
     )
 
-    preprocess_image_spy = mocker.spy(model, "preprocess_image")
-    preprocess_batch_spy = mocker.spy(model, "preprocess_batch")
+    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
+    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
     forward_backend_spy = mocker.spy(model, "forward_backend")
-    postprocess_spy = mocker.spy(model, "postprocess")
+    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
@@ -662,12 +712,88 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     # postprocess receives forward_backend's output and per-image metadata.
     assert postprocess_spy.call_count == 1
-    raw_in, metadata = postprocess_spy.call_args.args
-    assert raw_in is forward_backend_spy.spy_return
+    raw_in, metadata, _ = postprocess_spy.call_args.args
+    assert raw_in.logits is forward_backend_spy.spy_return["pred_logits"]
+    assert raw_in.boxes is forward_backend_spy.spy_return["pred_boxes"]
     assert len(metadata) == 2
 
-    # predict_batch returns whatever postprocess produced.
+    # predict_batch returns whatever the standalone postprocessor produced.
     assert result is postprocess_spy.spy_return
+
+
+def test_predict_sahi_batch__splits_raw_outputs_per_image(
+    mocker: MockerFixture,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(64, 64),
+        load_weights=False,
+    )
+    model._deployed = True
+    metadata = [
+        {
+            "orig_h": 20,
+            "orig_w": 20,
+            "tiles_coordinates": torch.zeros(1, 2, dtype=torch.int64),
+        },
+        {
+            "orig_h": 40,
+            "orig_w": 40,
+            "tiles_coordinates": torch.zeros(2, 2, dtype=torch.int64),
+        },
+    ]
+    mocker.patch.object(
+        model.preprocessor,
+        "preprocess_sahi_image",
+        side_effect=[
+            (torch.zeros(2, 3, 16, 16), metadata[0]),
+            (torch.zeros(3, 3, 16, 16), metadata[1]),
+        ],
+    )
+    mocker.patch.object(
+        model.preprocessor, "preprocess_sahi_batch", side_effect=lambda batch: batch
+    )
+    mocker.patch.object(
+        model,
+        "forward",
+        return_value=ObjectDetectionOutput(
+            logits=torch.zeros(5, 4, 2), boxes=torch.zeros(5, 4, 4)
+        ),
+    )
+    postprocess_sahi = mocker.patch.object(
+        model.postprocessor,
+        "postprocess_sahi",
+        side_effect=[
+            {
+                "labels": torch.tensor([1]),
+                "bboxes": torch.zeros(1, 4),
+                "scores": torch.ones(1),
+            },
+            {
+                "labels": torch.tensor([2]),
+                "bboxes": torch.zeros(1, 4),
+                "scores": torch.ones(1),
+            },
+        ],
+    )
+
+    output = model.predict_sahi_batch([torch.zeros(3, 20, 20), torch.zeros(3, 40, 40)])
+
+    assert [int(item["labels"].item()) for item in output] == [1, 2]
+    assert postprocess_sahi.call_args_list[0].args[0].logits.shape[0] == 2
+    assert postprocess_sahi.call_args_list[1].args[0].logits.shape[0] == 3
+
+
+def test_predict_sahi_batch__rejects_empty_input() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(64, 64),
+        load_weights=False,
+    )
+    with pytest.raises(ValueError, match="at least one image"):
+        model.predict_sahi_batch([])
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
@@ -691,7 +817,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 
     onnx_model = onnx.load(out)
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
-    assert input_batch_dim.dim_param == "N"
+    assert input_batch_dim.dim_param == "batch_size"
 
     import torch
 
@@ -703,9 +829,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     with torch.no_grad():
         torch_outputs = model(torch.from_numpy(inputs))
 
-    # Compare via the shared helper: it sums over the query dim before comparing
-    # floats (order-invariant, since the postprocessor's top-k can reorder
-    # queries across backends) and treats labels as sorted multisets.
+    # Compare via the shared helper, which accounts for query ordering differences.
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
@@ -725,6 +849,24 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model.export_onnx(
         out=out, batch_size=3, dynamic_batch_size=False, simplify=False, verify=True
     )
+
+
+def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="shape_overrides is not supported for LT-DETR object detection.",
+    ):
+        model.export_onnx(
+            out=tmp_path / "model.onnx",
+            shape_overrides={"images": (3, None, None)},
+        )
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")

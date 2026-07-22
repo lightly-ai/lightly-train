@@ -285,6 +285,24 @@ class DINOv3EoMTSemanticSegmentationConfigRegistry(ConfigsNamespace):
         backbone_name: str = "dinov3/vitb16-eupe"
 
     @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vits16-lingbot-eomt"
+    )
+    class ViTSmallLingBot16(EoMTSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vits16-lingbot"
+
+    @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vitb16-lingbot-eomt"
+    )
+    class ViTBaseLingBot16(EoMTSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vitb16-lingbot"
+
+    @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vitl16-lingbot-eomt"
+    )
+    class ViTLargeLingBot16(EoMTSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vitl16-lingbot"
+
+    @DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY.register(
         ModelAlias(
             name="dinov3/vitt32-eomt-coco",
             downloadable_checkpoint=DownloadableCheckpoint(

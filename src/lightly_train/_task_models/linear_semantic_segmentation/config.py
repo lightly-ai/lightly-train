@@ -74,6 +74,39 @@ class LinearSegConfigRegistry(ConfigsNamespace):
         )
         freeze_mask_token: bool = True
 
+    # --- TIPSv2 (pretrained vision backbones) ---
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitb14-tipsv2-linear")
+    class TIPSv2ViTB14(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitb14-tipsv2"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitl14-tipsv2-linear")
+    class TIPSv2ViTL14(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitl14-tipsv2"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitso400m14-tipsv2-linear")
+    class TIPSv2ViTSO400M14(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitso400m14-tipsv2"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vitg14-tipsv2-linear")
+    class TIPSv2ViTG14(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov2/vitg14-tipsv2"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"drop_path_rate": 0.0}
+        )
+        freeze_mask_token: bool = True
+
     # --- DINOv2 (not pretrained) ---
     # Map to the "-notpretrained" backbones so no pretrained weights are loaded.
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov2/vits14-notpretrained-linear")
@@ -174,6 +207,18 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitb16-eupe-linear")
     class DINOv3ViTB16Eupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitb16-eupe"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vits16-lingbot-linear")
+    class DINOv3ViTS16Lingbot(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vits16-lingbot"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitb16-lingbot-linear")
+    class DINOv3ViTB16Lingbot(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vitb16-lingbot"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitl16-lingbot-linear")
+    class DINOv3ViTL16Lingbot(LinearSemanticSegmentationConfig):
+        backbone_name: str = "dinov3/vitl16-lingbot"
 
     # --- DINOv3 ConvNeXt variants ---
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-tiny-linear")
