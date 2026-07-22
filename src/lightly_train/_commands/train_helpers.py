@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Literal, Sized
 
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
@@ -47,14 +48,6 @@ from lightly_train.errors import UnknownModelError
 from lightly_train.types import DatasetItem, PathLike
 
 logger = logging.getLogger(__name__)
-
-_DISTILLATION_METHODS = {
-    "distillation",
-    "distillationv1",
-    "distillationv2",
-    "distillationv3",
-}
-_IMAGENET_NORMALIZED_TEACHER_PACKAGES = {"dinov2", "dinov3", "radio"}
 
 
 def get_transform_args(
@@ -99,7 +92,12 @@ def warn_if_distillation_normalization_mismatch(
     normalize_args: NormalizeArgs,
 ) -> None:
     """Warn if a built-in teacher receives unexpected input normalization."""
-    if method not in _DISTILLATION_METHODS or normalize_args == NormalizeArgs():
+    distillation_methods = [
+        available_method
+        for available_method in method_helpers.list_methods()
+        if available_method.startswith("distillation")
+    ]
+    if method not in distillation_methods:
         return
 
     teacher = getattr(method_args, "teacher", None)
@@ -122,15 +120,19 @@ def warn_if_distillation_normalization_mismatch(
     else:
         return
 
-    if package_name not in _IMAGENET_NORMALIZED_TEACHER_PACKAGES:
+    if package_name not in package_helpers.IMAGENET_NORMALIZED_PACKAGE_NAMES:
         return
 
-    expected = NormalizeArgs()
+    imagenet_mean = tuple(IMAGENET_NORMALIZE["mean"])
+    imagenet_std = tuple(IMAGENET_NORMALIZE["std"])
+    if normalize_args.mean == imagenet_mean and normalize_args.std == imagenet_std:
+        return
+
     logger.warning(
         f"The distillation teacher '{teacher_name}' expects LightlyTrain's ImageNet "
         "normalization, but `transform_args.normalize` was changed. This can produce "
         "invalid teacher features. Remove the normalization override or use "
-        f"mean={expected.mean} and std={expected.std}. Current values are "
+        f"mean={imagenet_mean} and std={imagenet_std}. Current values are "
         f"mean={normalize_args.mean} and std={normalize_args.std}."
     )
 

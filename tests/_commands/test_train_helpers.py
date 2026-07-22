@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 import pytest
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 from pytest_mock import MockerFixture
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from torch import Tensor
@@ -22,6 +23,7 @@ from torchvision.datasets import FakeData
 
 from lightly_train._commands import train_helpers
 from lightly_train._loggers.jsonl import JSONLLogger
+from lightly_train._methods import method_helpers
 from lightly_train._methods.distillationv3.distillationv3 import DistillationV3Args
 from lightly_train._methods.simclr.simclr import (
     SimCLR,
@@ -480,20 +482,30 @@ def test_get_transform_args__failure() -> None:
         "radio/c-radio_v4-h",
     ],
 )
+@pytest.mark.parametrize(
+    "method",
+    [
+        method
+        for method in method_helpers.list_methods()
+        if method.startswith("distillation")
+    ],
+)
 def test_warn_if_distillation_normalization_mismatch__warns(
-    teacher: str, caplog: pytest.LogCaptureFixture
+    method: str, teacher: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     normalize_args = NormalizeArgs(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0))
 
     with caplog.at_level(logging.WARNING):
         train_helpers.warn_if_distillation_normalization_mismatch(
-            method="distillation",
+            method=method,
             method_args=DistillationV3Args(teacher=teacher),
             normalize_args=normalize_args,
         )
 
     assert caplog.text.count("expects LightlyTrain's ImageNet normalization") == 1
     assert teacher in caplog.text
+    assert f"mean={tuple(IMAGENET_NORMALIZE['mean'])}" in caplog.text
+    assert f"std={tuple(IMAGENET_NORMALIZE['std'])}" in caplog.text
     assert f"mean={normalize_args.mean}" in caplog.text
     assert f"std={normalize_args.std}" in caplog.text
 
@@ -516,7 +528,14 @@ def test_warn_if_distillation_normalization_mismatch__model_instance(
 @pytest.mark.parametrize(
     "method, teacher, normalize_args",
     [
-        ("distillation", "dinov3/vitb16", NormalizeArgs()),
+        (
+            "distillation",
+            "dinov3/vitb16",
+            NormalizeArgs(
+                mean=tuple(IMAGENET_NORMALIZE["mean"]),
+                std=tuple(IMAGENET_NORMALIZE["std"]),
+            ),
+        ),
         (
             "distillation",
             "timm/vit_base_patch16_224",

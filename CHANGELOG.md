@@ -11,6 +11,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
   `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.3] - 2026-07-22
+
+### Added
+
 - Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
   `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
 - Add LingBot Vision backbones to the DINOv3 EoMT semantic, panoptic, and instance
