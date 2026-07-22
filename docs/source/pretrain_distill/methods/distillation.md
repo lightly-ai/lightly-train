@@ -83,19 +83,14 @@ lightly-train pretrain out=out/my_experiment data=my_data_dir model="torchvision
 Distillation passes the same transformed image to the student and teacher. LightlyTrain
 uses ImageNet normalization by default, with mean `(0.485, 0.456, 0.406)` and standard
 deviation `(0.229, 0.224, 0.225)`. Keep this default when using LightlyTrain's
-`dinov2/*`, `dinov3/*`, or `radio/*` models as either the student or teacher. This also
-applies to TIPSv2, EUPE, and LingBot variants in those packages.
-
-Some upstream models, including RADIO and TIPSv2, natively consume images in the
-`[0, 1]` range. Their LightlyTrain wrappers convert the ImageNet-normalized input back
-to the model's native range internally, so do not change `transform_args.normalize` for
-these models.
+`dinov2/*`, `dinov3/*`, or `radio/*` models as the teacher, or else the features might
+degrade. This also applies to TIPSv2, EUPE, and LingBot variants in those packages.
 
 Custom teachers can have a different input contract. In that case, set
-`transform_args.normalize` to the statistics expected by the custom teacher. The same
-normalization is also applied to the student, so its wrapper must accept that input or
-convert it internally. See {ref}`pretrain-transform-normalize` for configuration
-details.
+`transform_args.normalize` to the statistics expected by the custom teacher. If your
+downstream student requires a different normalization from the teacher, you can either
+denormalize in the students forward pass or just adjust the normalization during the
+downstream fine-tuning stage – the normalization will adapt very quickly!
 
 (methods-distillation-dinov3)=
 
