@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
 from pydantic import Field
 
+from lightly_train._task_models.ltdetr_instance_segmentation.schedule import (
+    resolve_no_aug_steps,
+)
 from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
     LTDETRInstanceSegmentationTransform,
     LTDETRInstanceSegmentationTransformArgs,
@@ -40,11 +42,6 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import ImageSizeTuple
 
 logger = logging.getLogger(__name__)
-
-# Following the released EdgeCrafter ECSeg COCO recipes, Mosaic and MixUp are disabled
-# halfway through the augmentation-enabled schedule. Photometric distortion, zoom-out, and
-# IoU-crop are disabled for the final ``_SEG_STRONG_AUG_NO_AUG_EPOCHS`` epochs.
-_SEG_STRONG_AUG_NO_AUG_EPOCHS = 2
 
 
 class LTDETRInstanceSegmentationRandomPhotometricDistortArgs(
@@ -259,9 +256,10 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
         train_num_batches: int,
         gradient_accumulation_steps: int,
     ) -> None:
-        steps_per_epoch = train_num_batches / gradient_accumulation_steps
-        strong_aug_step_stop = total_steps - math.floor(
-            _SEG_STRONG_AUG_NO_AUG_EPOCHS * steps_per_epoch
+        strong_aug_step_stop = total_steps - resolve_no_aug_steps(
+            total_steps=total_steps,
+            train_num_batches=train_num_batches,
+            gradient_accumulation_steps=gradient_accumulation_steps,
         )
         resolve_ltdetr_step_schedule_for_augmentation(
             args=self,

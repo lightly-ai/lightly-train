@@ -40,6 +40,9 @@ from lightly_train._task_models.instance_segmentation_components.edgecrafter_cri
 from lightly_train._task_models.instance_segmentation_components.matcher import (
     MaskAwareHungarianMatcher,
 )
+from lightly_train._task_models.ltdetr_instance_segmentation.schedule import (
+    resolve_no_aug_steps,
+)
 from lightly_train._task_models.ltdetr_instance_segmentation.task_model import (
     LTDETRInstanceSegmentation,
 )
@@ -204,8 +207,10 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
             if self.scheduler_flat_steps == "auto":
                 self.scheduler_flat_steps = scheduler_step_schedule.step_flat
             if self.scheduler_no_aug_steps == "auto":
-                self.scheduler_no_aug_steps = (
-                    total_steps - scheduler_step_schedule.step_stop
+                self.scheduler_no_aug_steps = resolve_no_aug_steps(
+                    total_steps=total_steps,
+                    train_num_batches=train_num_batches,
+                    gradient_accumulation_steps=gradient_accumulation_steps,
                 )
 
 
