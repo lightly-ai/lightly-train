@@ -197,29 +197,58 @@ class LinearSemanticSegmentationTrain(TrainModel):
     ) -> TaskStepResult:
         images = batch["image"]
         masks = batch["mask"]
+
+        # Collect crops from all images so every forward pass is filled up to the
+        # dataloader batch size, even when an image produces only a few crops.
         image_sizes = [(image.shape[-2], image.shape[-1]) for image in images]
+        crops, origins = self.model.tile(images)
 
-        # Tile the images.
-        crops_list, origins = self.model.tile(images)
-        crops = torch.stack(crops_list)
-
-        crop_logits = self.model.forward_train(crops)
+        # Number of classes the head predicts, dropping the ignore channel to
+        # match ``untile``'s inputs.
+        num_classes = len(self.model.internal_class_to_class)
         if self.model.class_ignore_index is not None:
-            crop_logits = crop_logits[:, :-1]
+            num_classes -= 1
 
-        # Un-tile the predictions.
-        logits = self.model.untile(
-            crop_logits=crop_logits, origins=origins, image_sizes=image_sizes
-        )
+        # Scatter each crop batch into per-image accumulators immediately. This
+        # bounds forward activation and crop-logit memory by the dataloader batch
+        # size instead of retaining logits for every crop at once.
+        logit_sums = [
+            torch.zeros((num_classes, *size), device=image.device)
+            for image, size in zip(images, image_sizes)
+        ]
+        logit_counts = [torch.zeros_like(logit_sum) for logit_sum in logit_sums]
 
-        loss = torch.tensor(0.0, device=crop_logits.device)
-        for image_logits, image_mask in zip(logits, masks):
+        crop_batch_size = len(images)
+        for start in range(0, len(crops), crop_batch_size):
+            crop_origins = origins[start : start + crop_batch_size]
+            crop_logits_batch = self.model.forward_train(
+                torch.stack(crops[start : start + crop_batch_size])
+            )
+            if self.model.class_ignore_index is not None:
+                crop_logits_batch = crop_logits_batch[:, :-1]
+
+            self.model.accumulate_crop_logits(
+                crop_logits=crop_logits_batch,
+                origins=crop_origins,
+                logit_sums=logit_sums,
+                logit_counts=logit_counts,
+            )
+
+        loss = torch.tensor(0.0, device=images[0].device)
+        viz_logits: list[Tensor] = []
+        for logit_sum, logit_count, image_mask in zip(logit_sums, logit_counts, masks):
+            # Average the logits in the regions of overlap.
+            image_logits = logit_sum / logit_count
+
             image_logits = image_logits.unsqueeze(0)  # Add batch dimension.
             image_mask = image_mask.unsqueeze(0)  # Add batch dimension.
             loss += self.criterion(image_logits, image_mask)
             self.val_metrics.update_with_predictions(
                 image_logits.argmax(dim=1), image_mask
             )
+
+            if len(viz_logits) < self.viz_max_images:
+                viz_logits.append(image_logits.squeeze(0).cpu())
         loss /= len(images)
 
         self.val_metrics.update_with_losses({"loss": loss.detach()}, weight=len(images))
@@ -230,7 +259,7 @@ class LinearSemanticSegmentationTrain(TrainModel):
             visualization=(
                 semantic_segmentation.SemanticSegmentationTaskStepVisualization(
                     batch=batch,
-                    logits=logits,
+                    logits=viz_logits,
                     class_names=self.model.included_classes,
                     image_normalize=self.model.image_normalize,
                     max_images=self.viz_max_images,

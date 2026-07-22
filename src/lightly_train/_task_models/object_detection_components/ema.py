@@ -12,6 +12,8 @@
 # limitations under the License.#
 """Copyright(c) 2023 lyuwenyu. All Rights Reserved."""
 
+from __future__ import annotations
+
 import math
 from copy import deepcopy
 from typing import Any
@@ -88,11 +90,20 @@ class ModelEMA(Module):
             raise TypeError(f"Expected EMA updates to be an int, got {type(updates)}.")
         self._updates = updates
 
+    def _save_to_state_dict(
+        self, destination: dict[str, Any], prefix: str, keep_vars: bool
+    ) -> None:
+        # Sync the buffer from the Python counter only when saving, instead of on
+        # every update, to avoid a GPU kernel launch in the training hot loop.
+        self.updates.fill_(self._updates)
+        super()._save_to_state_dict(
+            destination=destination, prefix=prefix, keep_vars=keep_vars
+        )
+
     def update(self, model: nn.Module):
         # Update EMA parameters
         with torch.no_grad():
             self._updates += 1
-            self.updates.fill_(self._updates)
             d = self.decay_fn(
                 decay=self.decay, warmup_steps=self.warmups, step=self._updates
             )
