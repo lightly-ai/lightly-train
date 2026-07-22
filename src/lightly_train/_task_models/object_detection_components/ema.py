@@ -14,6 +14,7 @@
 
 import math
 from copy import deepcopy
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -54,17 +55,46 @@ class ModelEMA(Module):
         # raw model weights on the first post-resume update. Since validation uses the
         # EMA weights, that produces a spurious drop in val metrics after resuming.
         self.register_buffer("updates", torch.zeros((), dtype=torch.long))
+        # Use a Python int for the decay calculation to avoid synchronizing with the
+        # device on every update when the buffer is on CUDA.
+        self._updates = 0
         self.decay_fn = decay_fn  # decay exponential ramp (to help early epochs)
 
         for p in self.model.parameters():
             p.requires_grad_(False)
 
+    def _load_from_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        prefix: str,
+        local_metadata: dict[str, Any],
+        strict: bool,
+        missing_keys: list[str],
+        unexpected_keys: list[str],
+        error_msgs: list[str],
+    ) -> None:
+        super()._load_from_state_dict(
+            state_dict=state_dict,
+            prefix=prefix,
+            local_metadata=local_metadata,
+            strict=strict,
+            missing_keys=missing_keys,
+            unexpected_keys=unexpected_keys,
+            error_msgs=error_msgs,
+        )
+        # Synchronize the Python counter once after loading instead of on every update.
+        updates = self.updates.item()
+        if not isinstance(updates, int):
+            raise TypeError(f"Expected EMA updates to be an int, got {type(updates)}.")
+        self._updates = updates
+
     def update(self, model: nn.Module):
         # Update EMA parameters
         with torch.no_grad():
-            self.updates += 1
+            self._updates += 1
+            self.updates.fill_(self._updates)
             d = self.decay_fn(
-                decay=self.decay, warmup_steps=self.warmups, step=int(self.updates)
+                decay=self.decay, warmup_steps=self.warmups, step=self._updates
             )
             msd = model.state_dict()
             ema_tensors = []
