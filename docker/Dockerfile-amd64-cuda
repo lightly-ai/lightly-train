@@ -15,8 +15,9 @@ ENV UV_SYSTEM_PYTHON="true" \
     # Do not cache dependencies as they would also be saved in the docker image.
     UV_NO_CACHE="true"
 
-# Required for uv installation.
-RUN apt-get update && apt-get install -y make curl
+# Required for uv installation. Git is required to install the lightly git
+# dependency pinned in pyproject.toml.
+RUN apt-get update && apt-get install -y make curl git
 
 # Install Pillow-SIMD dependencies.
 RUN apt-get update && apt-get install -y python3.11-dev libjpeg8-dev libjpeg-turbo-progs libtiff5-dev libwebp-dev gcc
