@@ -89,7 +89,7 @@ degrade. This also applies to TIPSv2, EUPE, and LingBot variants in those packag
 Custom teachers can have a different input contract. In that case, set
 `transform_args.normalize` to the statistics expected by the custom teacher. If your
 downstream student requires a different normalization from the teacher, you can either
-denormalize in the students forward pass or just adjust the normalization during the
+denormalize in the student's forward pass or just adjust the normalization during the
 downstream fine-tuning stage – the normalization will adapt very quickly!
 
 (methods-distillation-dinov3)=
