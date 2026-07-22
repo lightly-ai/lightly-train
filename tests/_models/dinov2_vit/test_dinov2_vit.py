@@ -9,6 +9,7 @@ import copy
 
 import pytest
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
@@ -53,6 +54,40 @@ class TestDINOv2ViTModelWrapper:
         assert not torch.allclose(
             feats_cls["cls_token"], feats_cls_masked["cls_token"], atol=1e-6
         )
+
+    def test_forward_features__tipsv2_reverses_imagenet_normalization(self) -> None:
+        model = vit_small(input_normalization="none")
+        feature_extractor = DINOv2ViTModelWrapper(model=model)
+        image = torch.rand(1, 3, 224, 224)
+        mean = torch.tensor(IMAGENET_NORMALIZE["mean"]).view(1, 3, 1, 1)
+        std = torch.tensor(IMAGENET_NORMALIZE["std"]).view(1, 3, 1, 1)
+        inputs: list[torch.Tensor] = []
+
+        handle = model.register_forward_pre_hook(
+            lambda _, args: inputs.append(args[0].detach().clone())
+        )
+        try:
+            feature_extractor.forward_features((image - mean) / std)
+        finally:
+            handle.remove()
+
+        assert torch.allclose(inputs[0], image, rtol=0.0, atol=1e-6)
+
+    def test_forward_features__dinov2_keeps_imagenet_normalization(self) -> None:
+        model = vit_small()
+        feature_extractor = DINOv2ViTModelWrapper(model=model)
+        image = torch.rand(1, 3, 224, 224)
+        inputs: list[torch.Tensor] = []
+
+        handle = model.register_forward_pre_hook(
+            lambda _, args: inputs.append(args[0].detach().clone())
+        )
+        try:
+            feature_extractor.forward_features(image)
+        finally:
+            handle.remove()
+
+        assert torch.equal(inputs[0], image)
 
     def test_forward_pool(self) -> None:
         model = vit_small()

@@ -29,6 +29,9 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model imp
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
 )
+from lightly_train._task_models.object_detection_components.rtdetrv2_decoder import (
+    RTDETRTransformerv2,
+)
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
 )
@@ -158,9 +161,10 @@ def test_download_checkpoint__unknown_name__raises_generic() -> None:
     assert "convert_checkpoint_dav2" not in message
 
 
-def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic() -> None:
+def test_init_model_from_checkpoint__legacy_dinov2_uses_registered_decoder() -> None:
+    model_name = "dinov2/vits14-noreg-ltdetr"
     reference_model = LTDETRObjectDetection(
-        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        model_name=model_name,
         classes={0: "class_0", 1: "class_1"},
         image_size=(256, 256),
         load_weights=False,
@@ -176,9 +180,11 @@ def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic() 
                 ".DINOv2LTDETRObjectDetection"
             ),
             "model_init_args": {
-                "model_name": "dinov3/vitt16-notpretrained-ltdetr",
+                "model_name": model_name,
                 "classes": {0: "class_0", 1: "class_1"},
                 "image_size": (256, 256),
+                # This matches the hosted legacy checkpoint: decoder_name was not
+                # stored, so the versioned model registry defines the architecture.
             },
             "train_model": train_state_dict,
         },
@@ -186,7 +192,8 @@ def test_init_model_from_checkpoint__legacy_dinov2_ltdetr_reroutes_to_generic() 
     )
 
     assert isinstance(model, LTDETRObjectDetection)
-    assert model.init_args["model_name"] == "dinov3/vitt16-notpretrained-ltdetr"
-    assert model.init_args["decoder_name"] == "rtdetrv2"
+    assert model.init_args["model_name"] == model_name
+    assert model.init_args["decoder_name"] is None
+    assert isinstance(model.decoder, RTDETRTransformerv2)
     for name, param in model.state_dict().items():
-        assert torch.equal(param, reference_model.state_dict()[name])
+        torch.testing.assert_close(param, reference_model.state_dict()[name])

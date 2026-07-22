@@ -13,6 +13,7 @@ from typing import Any
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
+from typing_extensions import Self
 
 from lightly_train._events import tracker
 from lightly_train.types import PathLike
@@ -81,6 +82,15 @@ class TaskModel(Module):
         This is useful for serialization of the model.
         """
         return f"{self.__module__}.{self.__class__.__name__}"
+
+    @property
+    def is_deploy_mode(self) -> bool:
+        """Whether the model has been transformed for inference deployment."""
+        return False
+
+    def deploy(self) -> Self:
+        """Optimize the model in place for inference when supported."""
+        return self
 
     def predict(self, image: PathLike | PILImage | Tensor) -> Any:
         """Returns predictions for the given image.
