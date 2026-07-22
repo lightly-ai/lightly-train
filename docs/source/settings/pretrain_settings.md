@@ -571,11 +571,23 @@ lightly_train.pretrain(
 )
 ```
 
+(pretrain-transform-normalize)=
+
 #### `normalize`
 
 Dictionary specifying the mean and standard deviation used for input normalization.
-ImageNet statistics are used by default. Change these values when working with datasets
-that have different color distributions.
+ImageNet statistics are used by default. For non-distillation methods, you can change
+these values if your model or training setup expects different input statistics.
+
+```{important}
+During distillation, the same normalized image is passed to the student and teacher.
+Keep the ImageNet defaults when using LightlyTrain's `dinov2/*`, `dinov3/*`, or
+`radio/*` teachers, including TIPSv2, EUPE, and LingBot variants. LightlyTrain handles
+any conversion to a model's native input range inside its wrapper. Override
+`normalize` only when using a custom teacher that expects different normalization, and
+ensure that the student accepts the same input contract. See
+{ref}`methods-distillation-input-normalization` for details.
+```
 
 ```python
 import lightly_train
