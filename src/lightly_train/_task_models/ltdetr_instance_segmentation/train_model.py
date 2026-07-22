@@ -104,9 +104,7 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
     """
 
     default_batch_size: ClassVar[int] = 32
-    default_steps: ClassVar[int] = (
-        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
-    )
+    default_steps: ClassVar[int] = 273_504  # ECSeg schedule (74 epochs at batch 32)
 
     # ECViT (EdgeCrafter) backbones all use a fixed patch size of 16.
     patch_size: int | Literal["auto"] | None = "auto"

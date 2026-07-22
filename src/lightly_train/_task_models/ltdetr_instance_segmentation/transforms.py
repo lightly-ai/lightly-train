@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
@@ -39,6 +40,11 @@ from lightly_train._transforms.transform import (
 from lightly_train.types import ImageSizeTuple
 
 logger = logging.getLogger(__name__)
+
+# Following the released EdgeCrafter ECSeg COCO recipes, Mosaic and MixUp are disabled
+# halfway through the augmentation-enabled schedule. Photometric distortion, zoom-out, and
+# IoU-crop are disabled for the final ``_SEG_STRONG_AUG_NO_AUG_EPOCHS`` epochs.
+_SEG_STRONG_AUG_NO_AUG_EPOCHS = 2
 
 
 class LTDETRInstanceSegmentationRandomPhotometricDistortArgs(
@@ -101,7 +107,7 @@ class LTDETRInstanceSegmentationRandomFlipArgs(RandomFlipArgs):
 
 
 class LTDETRInstanceSegmentationMosaicArgs(MosaicArgs):
-    prob: float = 0.5
+    prob: float = 0.75
 
     output_size: int = 320
     max_size: int | None = None
@@ -150,7 +156,7 @@ def _resolve_normalize_num_channels(
 
 
 class LTDETRInstanceSegmentationMixUpArgs(MixUpArgs):
-    prob: float = 0.5
+    prob: float = 0.75
     step_start: int | Literal["auto"] = "auto"
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -253,11 +259,18 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
         train_num_batches: int,
         gradient_accumulation_steps: int,
     ) -> None:
+        steps_per_epoch = train_num_batches / gradient_accumulation_steps
+        strong_aug_step_stop = total_steps - math.floor(
+            _SEG_STRONG_AUG_NO_AUG_EPOCHS * steps_per_epoch
+        )
         resolve_ltdetr_step_schedule_for_augmentation(
             args=self,
             total_steps=total_steps,
             train_num_batches=train_num_batches,
             gradient_accumulation_steps=gradient_accumulation_steps,
+            # Mosaic/MixUp stop halfway through the augmentation-enabled portion.
+            mosaic_mixup_step_stop=strong_aug_step_stop // 2,
+            strong_aug_step_stop=strong_aug_step_stop,
         )
 
 
