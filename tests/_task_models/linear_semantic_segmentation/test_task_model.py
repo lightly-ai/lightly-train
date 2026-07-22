@@ -40,6 +40,10 @@ class TestLinearSemanticSegmentation:
         "model_name",
         [
             "dinov2/vits14-linear",
+            "dinov2/vitb14-tipsv2-linear",
+            "dinov2/vitl14-tipsv2-linear",
+            "dinov2/vitso400m14-tipsv2-linear",
+            "dinov2/vitg14-tipsv2-linear",
             "dinov3/vitt16-linear",
             "dinov3/convnext-tiny-linear",
             "dinov2/_vittest14-linear",
@@ -94,6 +98,24 @@ class TestLinearSemanticSegmentation:
         """
         model = _make_model("dinov2/vits14-linear", image_size=(14, 14))
         assert model.backbone.get_model().mask_token.requires_grad is False
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "dinov2/vitb14-tipsv2-linear",
+            "dinov2/vitl14-tipsv2-linear",
+            "dinov2/vitso400m14-tipsv2-linear",
+            "dinov2/vitg14-tipsv2-linear",
+        ],
+    )
+    def test_tipsv2_config__freezes_mask_token(self, model_name: str) -> None:
+        from lightly_train._task_models.linear_semantic_segmentation.config import (
+            LINEAR_SEG_MODEL_REGISTRY,
+        )
+
+        config = LINEAR_SEG_MODEL_REGISTRY.get(model_name)()
+        assert config.backbone_name == model_name[: -len("-linear")]
+        assert config.freeze_mask_token is True
 
 
 class TestLinearSemanticSegmentationConfig:
