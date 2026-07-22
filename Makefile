@@ -110,9 +110,10 @@ add-header:
 		-x src/lightly_train/_task_models/depth_estimation_components/dpt.py \
 		-x src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
 		-x src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
+			"src/lightly_train/_models/radio/c_radio_v3_src/*" \
+			"src/lightly_train/_models/radio/c_radio_v4_src/*" \
 		-E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d tests
-
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	uv run --frozen licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
 		-d src/lightly_train/_models/dinov2_vit/dinov2_vit_src \
@@ -289,7 +290,7 @@ EXTRAS_PY313 := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rf
 
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
 # bitsandbytes: see EXTRAS_PY313 above (exercised in dev/CI; no Python 3.8 wheel).
-EXTRAS_DEV := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+EXTRAS_DEV := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,radio,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
