@@ -579,7 +579,7 @@ Dictionary specifying the mean and standard deviation used for input normalizati
 ImageNet statistics are used by default. For non-distillation methods, you can change
 these values if your model or training setup expects different input statistics.
 
-```{important}
+```{warning}
 During distillation, the same normalized image is passed to the student and teacher.
 Keep the ImageNet defaults when using LightlyTrain's `dinov2/*`, `dinov3/*`, or
 `radio/*` teachers, including TIPSv2, EUPE, and LingBot variants. For teachers from 
