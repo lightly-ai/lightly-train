@@ -125,10 +125,10 @@ import lightly_train
 
 model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict("image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
                     # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 Any other LTDETR model name (e.g. a `dinov3/...` model from the same family) works the
@@ -151,8 +151,8 @@ results = model.predict("image.jpg")
 # Visualize predictions.
 image_with_boxes = utils.draw_bounding_boxes(
     image=io.read_image("image.jpg"),
-    boxes=results["bboxes"],
-    labels=[model.classes[i.item()] for i in results["labels"]],
+    boxes=results.bboxes,
+    labels=[model.classes[i.item()] for i in results.labels],
 )
 
 fig, ax = plt.subplots(figsize=(30, 30))
@@ -179,10 +179,10 @@ import lightly_train
 
 model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict_sahi(image="image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
                     # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 You can customize the behavior of {py:meth}`~.LTDETRObjectDetection.predict_sahi` via
@@ -215,8 +215,8 @@ urllib.request.urlretrieve(img, "/tmp/image.jpg")
 image = decode_image("/tmp/image.jpg")
 image_with_boxes = draw_bounding_boxes(
     image,
-    boxes=results["bboxes"],
-    labels=[model.classes[label.item()] for label in results["labels"]],
+    boxes=results.bboxes,
+    labels=[model.classes[label.item()] for label in results.labels],
 )
 fig, ax = plt.subplots(1, 1, figsize=(12, 8))
 ax.imshow(image_with_boxes.permute(1, 2, 0))

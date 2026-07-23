@@ -22,7 +22,11 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionOutput,
+    ObjectDetectionPrediction,
+    ObjectDetectionSahiPreprocessedBatch,
+)
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
 )
@@ -689,7 +693,7 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
         load_weights=False,
     )
 
-    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
+    preprocess_images_spy = mocker.spy(model.preprocessor, "preprocess_images")
     preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
     forward_backend_spy = mocker.spy(model, "forward_backend")
     postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
@@ -697,25 +701,24 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
 
-    # Each input image goes through preprocess_image once.
-    assert preprocess_image_spy.call_count == 2
+    assert preprocess_images_spy.call_count == 1
 
     # The stacked batch is preprocessed in a single call with shape (B, C, H, W).
     assert preprocess_batch_spy.call_count == 1
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    # forward_backend receives the output of preprocess_batch.
+    # forward_backend receives the dense preprocessed batch.
     assert forward_backend_spy.call_count == 1
     (forward_in,) = forward_backend_spy.call_args.args
-    assert forward_in is preprocess_batch_spy.spy_return
+    assert forward_in is preprocess_images_spy.spy_return.images
 
-    # postprocess receives forward_backend's output and per-image metadata.
+    # postprocess receives forward_backend's output and tensor target sizes.
     assert postprocess_spy.call_count == 1
-    raw_in, metadata, _ = postprocess_spy.call_args.args
+    raw_in, target_sizes, _ = postprocess_spy.call_args.args
     assert raw_in.logits is forward_backend_spy.spy_return["pred_logits"]
     assert raw_in.boxes is forward_backend_spy.spy_return["pred_boxes"]
-    assert len(metadata) == 2
+    assert target_sizes.shape == (2, 2)
 
     # predict_batch returns whatever the standalone postprocessor produced.
     assert result is postprocess_spy.spy_return
@@ -731,28 +734,17 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
         load_weights=False,
     )
     model._deployed = True
-    metadata = [
-        {
-            "orig_h": 20,
-            "orig_w": 20,
-            "tiles_coordinates": torch.zeros(1, 2, dtype=torch.int64),
-        },
-        {
-            "orig_h": 40,
-            "orig_w": 40,
-            "tiles_coordinates": torch.zeros(2, 2, dtype=torch.int64),
-        },
-    ]
     mocker.patch.object(
         model.preprocessor,
-        "preprocess_sahi_image",
-        side_effect=[
-            (torch.zeros(2, 3, 16, 16), metadata[0]),
-            (torch.zeros(3, 3, 16, 16), metadata[1]),
-        ],
-    )
-    mocker.patch.object(
-        model.preprocessor, "preprocess_sahi_batch", side_effect=lambda batch: batch
+        "preprocess_sahi_images",
+        return_value=ObjectDetectionSahiPreprocessedBatch(
+            images=torch.zeros(5, 3, 16, 16),
+            target_sizes=torch.tensor(
+                [[20, 20], [16, 16], [40, 40], [16, 16], [16, 16]]
+            ),
+            tile_offsets=torch.tensor([0, 2, 5]),
+            tile_coordinates=torch.zeros(5, 2, dtype=torch.int64),
+        ),
     )
     mocker.patch.object(
         model,
@@ -764,25 +756,20 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     postprocess_sahi = mocker.patch.object(
         model.postprocessor,
         "postprocess_sahi",
-        side_effect=[
-            {
-                "labels": torch.tensor([1]),
-                "bboxes": torch.zeros(1, 4),
-                "scores": torch.ones(1),
-            },
-            {
-                "labels": torch.tensor([2]),
-                "bboxes": torch.zeros(1, 4),
-                "scores": torch.ones(1),
-            },
+        return_value=[
+            ObjectDetectionPrediction(
+                torch.tensor([1]), torch.zeros(1, 4), torch.ones(1)
+            ),
+            ObjectDetectionPrediction(
+                torch.tensor([2]), torch.zeros(1, 4), torch.ones(1)
+            ),
         ],
     )
 
     output = model.predict_sahi_batch([torch.zeros(3, 20, 20), torch.zeros(3, 40, 40)])
 
-    assert [int(item["labels"].item()) for item in output] == [1, 2]
-    assert postprocess_sahi.call_args_list[0].args[0].logits.shape[0] == 2
-    assert postprocess_sahi.call_args_list[1].args[0].logits.shape[0] == 3
+    assert [int(item.labels.item()) for item in output] == [1, 2]
+    assert postprocess_sahi.call_args.args[0].logits.shape[0] == 5
 
 
 def test_predict_sahi_batch__rejects_empty_input() -> None:

@@ -112,7 +112,7 @@ def _decode_predictions_for_metrics(
     outputs: dict[str, Tensor],
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
-    labels, boxes, scores = model.postprocessor.decode(
+    decoded = model.postprocessor.decode(
         ObjectDetectionOutput(
             logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
         ),
@@ -120,7 +120,9 @@ def _decode_predictions_for_metrics(
     )
     return [
         {"labels": labels_i, "boxes": boxes_i, "scores": scores_i}
-        for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
+        for labels_i, boxes_i, scores_i in zip(
+            decoded.labels, decoded.bboxes, decoded.scores
+        )
     ]
 
 

@@ -16,7 +16,7 @@ import numpy as np
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
-from torch import Tensor
+from lightly_train._pre_post_processing.object_detection import ObjectDetectionPrediction
 from torch.utils.data import DataLoader
 
 from lightly_train._configs.validate import pydantic_model_validate
@@ -209,14 +209,14 @@ def save_mask(mask: NDArrayMask, mask_filepath: Path) -> None:
 
 
 def prepare_coco_entries(
-    predictions: dict[str, Tensor],
+    predictions: ObjectDetectionPrediction,
     image_size: tuple[int, int],
 ) -> list[dict[str, Any]]:
     width, height = image_size
 
-    labels: list[int] = predictions["labels"].detach().cpu().tolist()
-    boxes: list[list[float]] = predictions["bboxes"].detach().cpu().tolist()
-    scores: list[float] = predictions["scores"].detach().cpu().tolist()
+    labels: list[int] = predictions.labels.detach().cpu().tolist()
+    boxes: list[list[float]] = predictions.bboxes.detach().cpu().tolist()
+    scores: list[float] = predictions.scores.detach().cpu().tolist()
 
     entries = []
     for label, box, score in zip(labels, boxes, scores):

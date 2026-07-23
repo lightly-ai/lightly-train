@@ -17,10 +17,12 @@ from torch import Tensor
 from typing_extensions import override
 
 from lightly_train._commands.benchmark_types import (
-    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
+)
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPrediction,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import ObjectDetectionBatch
@@ -49,11 +51,7 @@ def _rescale_and_filter_predictions(
 
         keep = scores[i] > threshold
         results.append(
-            {
-                "bboxes": img_boxes[keep],
-                "scores": scores[i][keep],
-                "labels": labels[i][keep],
-            }
+            ObjectDetectionPrediction(labels[i][keep], img_boxes[keep], scores[i][keep])
         )
     return results
 
@@ -62,9 +60,7 @@ class ObjectDetectionBackend(ABC):
     """Object detection backend."""
 
     @abstractmethod
-    def run_batch(
-        self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
         pass
 
 
@@ -90,9 +86,7 @@ class TorchBackend(ObjectDetectionBackend):
             self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
 
     @override
-    def run_batch(
-        self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
         # preprocess
         images = batch["image"].to(self.device)
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
@@ -211,9 +205,7 @@ class ONNXBackend(ObjectDetectionBackend):
         self.output_names = [o.name for o in self.session.get_outputs()]
 
     @override
-    def run_batch(
-        self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
 
         # preprocess
         # ONNX Runtime session.run() takes numpy arrays. The provider
@@ -333,9 +325,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         self.trt = trt
 
     @override
-    def run_batch(
-        self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
         import numpy as np
 
         # Preprocess.
