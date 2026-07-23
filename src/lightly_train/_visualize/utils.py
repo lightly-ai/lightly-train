@@ -493,6 +493,8 @@ def _draw_labeled_boxes(
     draw = PILDraw(image)
     for i in range(bboxes_xyxy.shape[0]):
         x1, y1, x2, y2 = bboxes_xyxy[i].tolist()
+        x1, x2 = sorted((x1, x2))
+        y1, y2 = sorted((y1, y2))
         class_id = int(labels[i])
         class_name = class_names.get(class_id, f"Class {class_id}")
         color = _get_class_color(class_id)

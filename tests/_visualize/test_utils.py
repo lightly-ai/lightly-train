@@ -259,6 +259,26 @@ def test__draw_labeled_boxes__draws_outline_and_label_in_class_color() -> None:
     assert image.getpixel((34, 30)) == _CLASS_1_COLOR
 
 
+def test__draw_labeled_boxes__sorts_inverted_box_coords() -> None:
+    # Same box as the sibling test above, but with x1/x2 and y1/y2 swapped
+    # (e.g. a degenerate prediction from an undertrained decoder). PIL's
+    # draw.rectangle raises "y1 must be greater than or equal to y0" on
+    # unsorted coords, so this must not crash and must draw the same outline.
+    image = Image.new("RGB", (128, 128), color=_BACKGROUND_PIXEL)
+    bboxes = torch.tensor([[96.0, 96.0, 32.0, 32.0]])
+    labels = torch.tensor([1], dtype=torch.long)
+    utils._draw_labeled_boxes(
+        image=image,
+        bboxes_xyxy=bboxes,
+        labels=labels,
+        scores=None,
+        class_names={1: "dog"},
+    )
+    assert image.getpixel((32, 32)) == _CLASS_1_COLOR
+    assert image.getpixel((64, 64)) == _BACKGROUND_PIXEL
+    assert image.getpixel((34, 30)) == _CLASS_1_COLOR
+
+
 def test__draw_mask_contours__paints_boundary_keeps_interior() -> None:
     # Two stacked regions split between rows 3 and 4. Boundary pixels on both
     # sides of the split should be black; interior pixels of each region are
