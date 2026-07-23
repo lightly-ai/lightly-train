@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-_REFERENCE_TOTAL_EPOCHS = 74
+_NO_AUG_SCALE_EPOCHS = 14
 _REFERENCE_NO_AUG_EPOCHS = 2
 
 
@@ -24,6 +24,6 @@ def resolve_no_aug_steps(
     total_epochs = total_steps / steps_per_epoch
     no_aug_epochs = min(
         _REFERENCE_NO_AUG_EPOCHS,
-        round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _REFERENCE_TOTAL_EPOCHS),
+        round(total_epochs * _REFERENCE_NO_AUG_EPOCHS / _NO_AUG_SCALE_EPOCHS),
     )
     return math.floor(no_aug_epochs * steps_per_epoch)
