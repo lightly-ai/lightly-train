@@ -68,7 +68,8 @@ segmentation, etc.) has different dataset requirements. Refer to the task docume
 for details on the expected dataset structure and configuration options.
 
 - [Object Detection](object-detection-data)
-- [Instance Segmentation](instance-segmentation-data)
+- Instance Segmentation: [LTDETRv2](instance-segmentation-ltdetrv2-data),
+  [EoMT](instance-segmentation-eomt-data)
 - [Panoptic Segmentation](panoptic-segmentation-data)
 - [Semantic Segmentation](semantic-segmentation-data)
 
@@ -627,7 +628,8 @@ customized parameters are listed in the table below:
 Check the respective task pages for the default transforms applied:
 
 - [Object Detection](object-detection-transform-args)
-- [Instance Segmentation](instance-segmentation-transform-args)
+- Instance Segmentation: [LTDETRv2](instance-segmentation-ltdetrv2-transform-args),
+  [EoMT](instance-segmentation-eomt-transform-args)
 - [Panoptic Segmentation](panoptic-segmentation-transform-args)
 - [Semantic Segmentation](semantic-segmentation-transform-args)
 

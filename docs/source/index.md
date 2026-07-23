@@ -40,6 +40,12 @@ visualize your annotations and predictions.
 
 ## News
 
+- \[[0.17.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-17-0)\] -
+  2026-07-27: **LTDETRv2 for instance segmentation:** Train state-of-the-art
+  [LTDETRv2 instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
+  models with ECViT backbones from [EdgeCrafter](https://arxiv.org/abs/2603.18739),
+  matching the accuracy of the original ECSeg implementation while being 10-20% faster!
+  ONNX and TensorRT export is also out-of-the-box!
 - \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
   2026-06-25: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
   LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural
@@ -90,9 +96,9 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 ```
 
 ```{grid-item-card} Instance Segmentation
-:link: instance_segmentation.html
+:link: instance_segmentation/index.html
 <img src="_static/images/tasks/instance_segmentation.png" height="64"><br>
-Train EoMT segmentation models with DINOv3 backbones.<br>
+Train LTDETRv2 or EoMT segmentation models with EdgeCrafter, DINOv2, or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Semantic Segmentation
@@ -196,12 +202,12 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model       |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
-| ----------- | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
-| DINOv3      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| DINOv2      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| EdgeCrafter | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |                                                                          |                                                                          |                                                                                               |                                                                         |
-| Any         |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Model       |                         Object<br>Detection                         |                             Instance<br>Segmentation                              |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ----------- | :-----------------------------------------------------------------: | :-------------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |   ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)   | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |   ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)   | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| EdgeCrafter | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html) |                                                                          |                                                                                               |                                                                         |
+| Any         |                                                                     |                                                                                   |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -285,7 +291,7 @@ quick_start_object_detection
 quick_start_distillation
 installation
 object_detection
-instance_segmentation
+instance_segmentation/index
 panoptic_segmentation
 semantic_segmentation
 image_classification

@@ -1,54 +1,55 @@
-(instance-segmentation)=
+(instance-segmentation-ltdetrv2)=
 
-# Instance Segmentation
+# LTDETRv2 (NEW)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation.ipynb)
 
 ```{note}
-LightlyTrain now supports training **DINOv3**-based instance segmentation models
-with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by Kerssies et al.!
+LightlyTrain's **LTDETRv2** now also supports instance segmentation! It matches the
+accuracy of the original [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECSeg
+implementation on COCO, while being 10-20% faster on GPU.
 ```
 
-(instance-segmentation-benchmark-results)=
+(instance-segmentation-ltdetrv2-benchmark-results)=
 
 ## Benchmark Results
 
-Below we provide the models and report the validation mAP and inference latency of
-different DINOv3 models fine-tuned on COCO with LightlyTrain. You can check
-[here](instance-segmentation-train) how to use these models for further fine-tuning.
+Below we provide the model checkpoints and report the validation mAP<sub>50:95</sub> and
+inference latency of the LTDETRv2 instance segmentation family, fine-tuned on the COCO
+dataset. You can check [here](instance-segmentation-ltdetrv2-train) for how to use these
+model checkpoints for further fine-tuning.
 
 You can also explore running inference and training these models using our Colab
 notebook:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation.ipynb)
 
 ### COCO
 
-| Implementation | Model                            | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
-| -------------- | -------------------------------- | ------------ | ----------------- | ---------- | ---------- |
-| LightlyTrain   | dinov3/vitt16-eomt-inst-coco     | 25.4         | 12.7              | 6.0        | 640×640    |
-| LightlyTrain   | dinov3/vitt16plus-eomt-inst-coco | 27.6         | 13.3              | 7.7        | 640×640    |
-| LightlyTrain   | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
-| LightlyTrain   | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
-| LightlyTrain   | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
-| Original EoMT  | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
+| Implementation | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Input Size |
+| -------------- | ------------------- | :--------------------------: | :---------------: | :--------: |
+| LightlyTrain   | ltdetrv2-seg-s-coco |             42.7             |        7.8        |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-m-coco |             45.8             |       11.2        |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-l-coco |             47.5             |       14.0        |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-x-coco |             47.9             |       15.0        |  640×640   |
 
 Training follows the protocol in the original
-[EoMT paper](https://arxiv.org/abs/2503.19108). All models are trained on the COCO
-dataset with batch size `16` and learning rate `2e-4`. Models using `vitt16` or
-`vitt16plus` train for 540K steps (~72 epochs). The remaining ones are trained for 90K
-steps (~12 epochs). The average latency values were measured with model compilation
-using `torch.compile` on a single NVIDIA T4 GPU with FP16 precision.
+[EdgeCrafter](https://arxiv.org/abs/2603.18739) paper. All models use the default
+LTDETRv2 instance segmentation training settings: batch size `32` and learning rate
+`5e-4`. The `s` and `m` sizes train for 273,504 steps (~74 epochs), while the `l` and
+`x` sizes train for 184,800 steps (~50 epochs). The average latency values were measured
+using TensorRT version `10.13.3.9` and FP16 precision on a Nvidia T4 GPU with batch size
+1\.
 
-(instance-segmentation-train)=
+(instance-segmentation-ltdetrv2-train)=
 
-## Train an Instance Segmentation Model
+## Train an LTDETRv2 Instance Segmentation Model
 
 Training an instance segmentation model with LightlyTrain is straightforward and only
 requires a few lines of code using the
 {py:func}`train_instance_segmentation <lightly_train.train_instance_segmentation>`
-function. See [data](#instance-segmentation-data) for more details on how to prepare
-your dataset.
+function. See [data](#instance-segmentation-ltdetrv2-data) for more details on how to
+prepare your dataset.
 
 ```python
 import lightly_train
@@ -56,7 +57,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_instance_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitl16-eomt-inst-coco", 
+        model="ltdetrv2-seg-s-coco",
         data={
             "format": "yolo",           # either "yolo" or "coco"
             "path": "my_data_dir",      # Root directory of the dataset
@@ -81,13 +82,13 @@ if __name__ == "__main__":
 
 During training, the best and last model weights are exported to
 `out/my_experiment/exported_models/`, unless disabled in
-[`save_checkpoint_args`](settings/train_settings.md#save_checkpoint_args):
+[`save_checkpoint_args`](../settings/train_settings.md#save_checkpoint_args):
 
 - best (highest validation mask mAP): `exported_best.pt`
 - last: `exported_last.pt`
 
 You can use these weights to continue fine-tuning on another dataset by loading the
-weights via the [`model`](settings/train_settings.md#model) argument
+weights via the [`model`](../settings/train_settings.md#model) argument
 (`model="<checkpoint path>"`):
 
 ```python
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     )
 ```
 
-(instance-segmentation-inference)=
+(instance-segmentation-ltdetrv2-inference)=
 
 ### Load the Trained Model from Checkpoint and Predict
 
@@ -114,6 +115,8 @@ import lightly_train
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 results = model.predict("image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_instances,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_instances, 4).
 results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
                     # Height and width correspond to the original image size.
 results["scores"]   # Confidence scores, tensor of shape (num_instances,)
@@ -124,54 +127,27 @@ Or use one of the pretrained models directly from LightlyTrain:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov3/vitl16-eomt-inst-coco")
+model = lightly_train.load_model("ltdetrv2-seg-s-coco")
 results = model.predict("image.jpg")
 ```
 
 ### Visualize the Predictions
 
-You can visualize the predicted masks like this:
+You can visualize the predicted masks and boxes like this:
 
 ```python skip_ruff
 import matplotlib.pyplot as plt
 from torchvision.io import read_image
-from torchvision.utils import draw_segmentation_masks
+from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 
 image = read_image("image.jpg")
-image_with_masks = draw_segmentation_masks(image, results["masks"], alpha=0.6)
-plt.imshow(image_with_masks.permute(1, 2, 0))
-```
-
-<!--
-
-# Figure created with
-
-import lightly_train
-import matplotlib.pyplot as plt
-from torchvision.io import decode_image
-from torchvision.utils import draw_segmentation_masks
-import urllib.request
-
-model = lightly_train.load_model("251107_dinov3_vitb16_eomt_inst_coco.pt")
-img = "http://images.cocodataset.org/val2017/000000039769.jpg"
-results = model.predict(img)
-masks = results["masks"]
-scores = results["scores"]
-
-urllib.request.urlretrieve(img, "/tmp/image.jpg")
-image = decode_image("/tmp/image.jpg")
-image_with_masks = draw_segmentation_masks(image, masks, alpha=1.0)
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-ax1.imshow(image.permute(1, 2, 0))
-ax2.imshow(image_with_masks.permute(1, 2, 0))
-ax1.axis("off")
-ax2.axis("off")
-fig.savefig("out/preds/inst_seg.jpg", bbox_inches="tight")
-fig.show()
--->
-
-```{figure} /_static/images/instance_segmentation/cats.jpg
+image_with_masks = draw_segmentation_masks(image, masks=results["masks"], alpha=0.6)
+image_with_instances = draw_bounding_boxes(
+    image_with_masks,
+    boxes=results["bboxes"],
+    labels=[model.classes[label.item()] for label in results["labels"]],
+)
+plt.imshow(image_with_instances.permute(1, 2, 0))
 ```
 
 ### Improving Small Instance Segmentation
@@ -187,16 +163,18 @@ Using tiled inference requires no extra setup:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("dinov3/vitl16-eomt-inst-coco")
+model = lightly_train.load_model("ltdetrv2-seg-s-coco")
 results = model.predict_sahi(image="image.jpg")
 results["labels"]   # Class labels, tensor of shape (num_instances,)
+results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                    # coordinates of the original image. Tensor of shape (num_instances, 4).
 results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
                     # Height and width correspond to the original image size.
 results["scores"]   # Confidence scores, tensor of shape (num_instances,)
 ```
 
-You can customize the behavior of
-{py:meth}`~.DINOv3EoMTInstanceSegmentation.predict_sahi` via the following parameters:
+You can customize the behavior of {py:meth}`~.LTDETRInstanceSegmentation.predict_sahi`
+via the following parameters:
 
 - `overlap`: Fraction of overlap between neighboring tiles. Higher values increase
   small-instance recall but also increase computation.
@@ -210,13 +188,13 @@ You can customize the behavior of
 - `batch_size`: Number of tiles processed per forward pass. Defaults to `None`, which
   processes all tiles at once; lower it to reduce peak memory usage.
 
-(instance-segmentation-data)=
+(instance-segmentation-ltdetrv2-data)=
 
 ## Data
 
 Lightly**Train** supports training instance segmentation models with images and polygon
-masks. We support inputs in either the [YOLO](#instance-segmentation-data-yolo) or
-[COCO](#instance-segmentation-data-coco) instance segmentation formats.
+masks. We support inputs in either the [YOLO](#instance-segmentation-ltdetrv2-data-yolo)
+or [COCO](#instance-segmentation-ltdetrv2-data-coco) instance segmentation formats.
 
 We specify the training data with a `data` dictionary:
 
@@ -244,7 +222,7 @@ If you would like to skip specific classes during training, add their IDs to the
 optional `ignore_classes` list. The trainer omits these classes from loss computation
 and the exported model does not predict them.
 
-(instance-segmentation-data-yolo)=
+(instance-segmentation-ltdetrv2-data-yolo)=
 
 ### YOLO format
 
@@ -345,7 +323,7 @@ lightly_train.train_instance_segmentation(
 )
 ```
 
-(instance-segmentation-data-coco)=
+(instance-segmentation-ltdetrv2-data-coco)=
 
 ### COCO format
 
@@ -486,88 +464,71 @@ The following image formats are supported:
 - tiff
 - webp
 
-(instance-segmentation-model)=
+(instance-segmentation-ltdetrv2-model)=
 
 ## Model
 
-The [`model`](settings/train_settings.md#model) argument defines the model used for
+The [`model`](../settings/train_settings.md#model) argument defines the model used for
 instance segmentation training. The following models are available:
 
-### DINOv3 Models
+### LTDETRv2
 
-- `dinov3/vitt16-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vitt16plus-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vits16-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vitb16-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vitl16-eomt-inst-coco` (fine-tuned on COCO)
-- `dinov3/vitt16-eomt`
-- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vitt16plus-eomt`
-- `dinov3/vits16-eomt`
-- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vits16-lingbot-eomt` -
-  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
-- `dinov3/vits16plus-eomt`
-- `dinov3/vitb16-eomt`
-- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vitb16-lingbot-eomt` -
-  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
-- `dinov3/vitl16-eomt`
-- `dinov3/vitl16-lingbot-eomt` -
-  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
-- `dinov3/vitl16plus-eomt`
-- `dinov3/vith16plus-eomt`
-- `dinov3/vit7b16-eomt`
+The LTDETRv2 ECViT backbones are initialized from
+[EdgeCrafter](https://arxiv.org/abs/2603.18739) weights and are under the
+[Apache 2.0 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/EDGECRAFTER_LICENSE).
+They currently support RGB images only.
 
-Unless noted otherwise, all DINOv3 backbones are initialized from weights
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
-DINOv3 backbone weights instead. Models marked as EUPE use
-[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
-models are under the
-[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
-Models marked as LingBot use
-[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), which are released
-under the
-[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
-As they are built on DINOv3, the terms of the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
-apply to these models.
-
-### DINOv2 Models
-
-- `dinov2/vits16-eomt`
-- `dinov2/vitb16-eomt`
-- `dinov2/vitl16-eomt`
-- `dinov2/vitg16-eomt`
-
-All DINOv2 models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+- `ltdetrv2-seg-s-coco` (pretrained on COCO)
+- `ltdetrv2-seg-m-coco` (pretrained on COCO)
+- `ltdetrv2-seg-l-coco` (pretrained on COCO)
+- `ltdetrv2-seg-x-coco` (pretrained on COCO)
+- `ltdetrv2-seg-s`
+- `ltdetrv2-seg-m`
+- `ltdetrv2-seg-l`
+- `ltdetrv2-seg-x`
 
 ## Training Settings
 
 See [](train-settings) on how to configure training settings.
 
-(instance-segmentation-logging)=
+(instance-segmentation-ltdetrv2-logging)=
 
-(instance-segmentation-mlflow)=
+(instance-segmentation-ltdetrv2-mlflow)=
 
-(instance-segmentation-tensorboard)=
+(instance-segmentation-ltdetrv2-tensorboard)=
 
-(instance-segmentation-wandb)=
+(instance-segmentation-ltdetrv2-wandb)=
 
 ## Logging
 
 See [](train-settings-logging) on how to configure logging.
 
-(instance-segmentation-resume-training)=
+(instance-segmentation-ltdetrv2-resume-training)=
 
 ## Resume Training
 
 See [](train-settings-resume-training) on how to resume training.
 
-(instance-segmentation-onnx)=
+(instance-segmentation-ltdetrv2-transform-args)=
+
+## Default Image Transform Arguments
+
+The following are the default image transform arguments. See
+[`transform_args`](../settings/train_settings.md#transform_args) and
+[](train-settings-transforms) on how to customize transform settings.
+
+`````{dropdown} LTDETRv2 Instance Segmentation Default Transform Arguments
+````{dropdown} Train
+```{include} ../_auto/ltdetrinstancesegmentationtrain_train_transform_args.md
+```
+````
+````{dropdown} Val
+```{include} ../_auto/ltdetrinstancesegmentationtrain_val_transform_args.md
+```
+````
+`````
+
+(instance-segmentation-ltdetrv2-onnx)=
 
 ## Exporting a Checkpoint to ONNX
 
@@ -605,13 +566,13 @@ model.export_onnx(
 )
 ```
 
-See {py:meth}`~.DINOv3EoMTInstanceSegmentation.export_onnx` for all available options
-when exporting to ONNX.
+See {py:meth}`~.LTDETRInstanceSegmentation.export_onnx` for all available options when
+exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation_export.ipynb)
 
-(instance-segmentation-tensorrt)=
+(instance-segmentation-ltdetrv2-tensorrt)=
 
 ## Exporting a Checkpoint to TensorRT
 
@@ -647,49 +608,8 @@ model.export_tensorrt(
 )
 ```
 
-See {py:meth}`~.DINOv3EoMTInstanceSegmentation.export_tensorrt` for all available
-options when exporting to TensorRT.
+See {py:meth}`~.LTDETRInstanceSegmentation.export_tensorrt` for all available options
+when exporting to TensorRT.
 
-You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation_export.ipynb)
-
-(instance-segmentation-transform-args)=
-
-## Default Image Transform Arguments
-
-The following are the default image transform arguments. See
-[`transform_args`](settings/train_settings.md#transform_args) and
-[](train-settings-transforms) on how to customize transform settings.
-
-`````{dropdown} LTDETR Instance Segmentation Default Transform Arguments
-````{dropdown} Train
-```{include} _auto/ltdetrinstancesegmentationtrain_train_transform_args.md
-```
-````
-````{dropdown} Val
-```{include} _auto/ltdetrinstancesegmentationtrain_val_transform_args.md
-```
-````
-`````
-
-`````{dropdown} EoMT Instance Segmentation DINOv3 Default Transform Arguments
-````{dropdown} Train
-```{include} _auto/dinov3eomtinstancesegmentationtrain_train_transform_args.md
-```
-````
-````{dropdown} Val
-```{include} _auto/dinov3eomtinstancesegmentationtrain_val_transform_args.md
-```
-````
-`````
-
-`````{dropdown} EoMT Instance Segmentation DINOv2 Default Transform Arguments
-````{dropdown} Train
-```{include} _auto/dinov2eomtinstancesegmentationtrain_train_transform_args.md
-```
-````
-````{dropdown} Val
-```{include} _auto/dinov2eomtinstancesegmentationtrain_val_transform_args.md
-```
-````
-`````
+You can also learn more about exporting LTDETRv2 to TensorRT using our Colab notebook:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation_export.ipynb)
