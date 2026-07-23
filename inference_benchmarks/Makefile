@@ -11,6 +11,10 @@ lock:
 benchmark-tensorrt:
 	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_benchmark.py --coco-root $(COCO_ROOT)
 
+.PHONY: benchmark-tensorrt-resolutions
+benchmark-tensorrt-resolutions:
+	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_resolution_benchmark.py --coco-root $(COCO_ROOT)
+
 .PHONY: format
 format:
 	$(MAKE) -C .. format
