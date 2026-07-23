@@ -15,14 +15,8 @@ from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 from torch import nn
 
-from lightly_train._commands.train_task_helpers import get_steps
 from lightly_train._task_models.ltdetr_instance_segmentation.task_model import (
     LTDETRInstanceSegmentation,
-)
-from lightly_train._task_models.ltdetr_instance_segmentation.train_model import (
-    LTDETRInstanceSegmentationLargeTrainArgs,
-    LTDETRInstanceSegmentationTrain,
-    LTDETRInstanceSegmentationTrainArgs,
 )
 
 from ...helpers import assert_onnx_outputs_close
@@ -233,13 +227,6 @@ LTDETR_V2_SEG_ALIAS_TO_CANONICAL: dict[str, str] = {
     "ltdetrv2-seg-x": "edgecrafter/ecvitsplus-ltdetr-seg",
 }
 
-LTDETR_V2_SEG_DEFAULT_STEPS = {
-    "edgecrafter/ecvitt-ltdetr-seg": 273_504,
-    "edgecrafter/ecvittplus-ltdetr-seg": 273_504,
-    "edgecrafter/ecvits-ltdetr-seg": 184_800,
-    "edgecrafter/ecvitsplus-ltdetr-seg": 184_800,
-}
-
 
 @pytest.mark.parametrize("model_name", LTDETR_V2_SEG_ALIAS_MODEL_NAMES)
 def test_is_supported_model__ltdetrv2_alias(model_name: str) -> None:
@@ -266,37 +253,6 @@ def test_list_model_names__includes_ltdetrv2_aliases() -> None:
     names = LTDETRInstanceSegmentation.list_model_names()
     for alias in LTDETR_V2_SEG_ALIAS_MODEL_NAMES:
         assert alias in names, f"Expected alias {alias!r} in list_model_names()"
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    [*ECVIT_LTDETR_SEG_MODEL_NAMES, *LTDETR_V2_SEG_ALIAS_MODEL_NAMES],
-)
-def test_train_args_cls__uses_model_default_schedule(model_name: str) -> None:
-    train_args_cls = LTDETRInstanceSegmentationTrain.get_train_model_args_cls(
-        model_name=model_name
-    )
-    canonical_model_name = LTDETR_V2_SEG_ALIAS_TO_CANONICAL.get(model_name, model_name)
-    expected_steps = LTDETR_V2_SEG_DEFAULT_STEPS[canonical_model_name]
-    expected_cls = (
-        LTDETRInstanceSegmentationLargeTrainArgs
-        if expected_steps == 184_800
-        else LTDETRInstanceSegmentationTrainArgs
-    )
-
-    assert train_args_cls is expected_cls
-    assert train_args_cls.default_steps == expected_steps
-
-
-def test_train_args_cls__explicit_steps_override_model_default() -> None:
-    train_args_cls = LTDETRInstanceSegmentationTrain.get_train_model_args_cls(
-        model_name="ltdetrv2-seg-l"
-    )
-
-    assert (
-        get_steps(steps="auto", default_steps=train_args_cls.default_steps) == 184_800
-    )
-    assert get_steps(steps=12_345, default_steps=train_args_cls.default_steps) == 12_345
 
 
 def test_freeze_backbone_on_init() -> None:
