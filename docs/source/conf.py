@@ -75,6 +75,7 @@ html_sidebars = {
         "sidebar/scroll-end.html",
     ],
 }
+html_extra_path = ["instance_segmentation.html"]
 html_static_path = ["_static"]
 
 
