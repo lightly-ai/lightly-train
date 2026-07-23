@@ -163,6 +163,7 @@ def plot_object_detection_predictions(
             boxes[:, 1] = boxes[:, 1] * img_height / orig_height
             boxes[:, 2] = boxes[:, 2] * img_width / orig_width
             boxes[:, 3] = boxes[:, 3] * img_height / orig_height
+            boxes = utils._sort_xyxy_boxes(boxes)
 
             mask = scores >= score_threshold
             boxes = boxes[mask]

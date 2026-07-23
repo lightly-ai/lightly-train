@@ -313,6 +313,35 @@ class TestPlotObjectDetectionPredictions:
         # The box interior is never filled — only the outline is drawn.
         assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
 
+    def test_plot_object_detection_predictions_inverted_box_does_not_crash(
+        self,
+    ) -> None:
+        # A degenerate prediction (x1>x2, y1>y2) reaching PIL's draw.rectangle
+        # unsorted raises "y1 must be greater than or equal to y0" and used to
+        # crash the whole distributed training job. The box is corrected
+        # before drawing, so it renders the same as [0, 0, 64, 64].
+        batch = _make_batch_from_image(
+            image=torch.full((1, 3, 128, 128), _BACKGROUND_COLOR)
+        )
+        result = object_detection.plot_object_detection_predictions(
+            batch=batch,
+            results=[
+                {
+                    "boxes": torch.tensor([[64.0, 64.0, 0.0, 0.0]]),
+                    "labels": torch.zeros(1, dtype=torch.long),
+                    "scores": torch.tensor([0.9]),
+                }
+            ],
+            class_names={0: "cat"},
+            max_images=1,
+            score_threshold=0.5,
+            image_normalize=None,
+        )
+        _assert_bbox_corners_have_color(
+            image=result, xyxy=(0, 0, 64, 64), color=utils._get_class_color(0)
+        )
+        assert result.getpixel((32, 32)) == _BACKGROUND_PIXEL
+
     def test_plot_object_detection_predictions_unknown_class_draws_box(self) -> None:
         # Check that a box is drawn even when the class ID isn't in included_classes;
         # the label shows the numeric class ID.

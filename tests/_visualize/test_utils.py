@@ -259,24 +259,18 @@ def test__draw_labeled_boxes__draws_outline_and_label_in_class_color() -> None:
     assert image.getpixel((34, 30)) == _CLASS_1_COLOR
 
 
-def test__draw_labeled_boxes__sorts_inverted_box_coords() -> None:
-    # Same box as the sibling test above, but with x1/x2 and y1/y2 swapped
-    # (e.g. a degenerate prediction from an undertrained decoder). PIL's
-    # draw.rectangle raises "y1 must be greater than or equal to y0" on
-    # unsorted coords, so this must not crash and must draw the same outline.
-    image = Image.new("RGB", (128, 128), color=_BACKGROUND_PIXEL)
-    bboxes = torch.tensor([[96.0, 96.0, 32.0, 32.0]])
-    labels = torch.tensor([1], dtype=torch.long)
-    utils._draw_labeled_boxes(
-        image=image,
-        bboxes_xyxy=bboxes,
-        labels=labels,
-        scores=None,
-        class_names={1: "dog"},
+def test__sort_xyxy_boxes__handles_inverted_and_valid_boxes() -> None:
+    # A degenerate prediction from an undertrained decoder can come back with
+    # x1>x2 and/or y1>y2. Mixed with an already-valid box to check both are
+    # normalized to the same [32, 32, 96, 96] corners.
+    boxes = torch.tensor(
+        [
+            [32.0, 32.0, 96.0, 96.0],
+            [96.0, 96.0, 32.0, 32.0],
+        ]
     )
-    assert image.getpixel((32, 32)) == _CLASS_1_COLOR
-    assert image.getpixel((64, 64)) == _BACKGROUND_PIXEL
-    assert image.getpixel((34, 30)) == _CLASS_1_COLOR
+    result = utils._sort_xyxy_boxes(boxes)
+    assert torch.equal(result, torch.tensor([[32.0, 32.0, 96.0, 96.0]] * 2))
 
 
 def test__draw_mask_contours__paints_boundary_keeps_interior() -> None:
