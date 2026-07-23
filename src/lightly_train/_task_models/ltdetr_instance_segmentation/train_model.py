@@ -22,6 +22,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LinearLR,
     LRScheduler,
 )
+from typing_extensions import override
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.instance_segmentation_dataset import (
@@ -39,6 +40,9 @@ from lightly_train._task_models.instance_segmentation_components.edgecrafter_cri
 )
 from lightly_train._task_models.instance_segmentation_components.matcher import (
     MaskAwareHungarianMatcher,
+)
+from lightly_train._task_models.ltdetr_instance_segmentation.config import (
+    LTDETR_SEG_MODEL_REGISTRY,
 )
 from lightly_train._task_models.ltdetr_instance_segmentation.schedule import (
     resolve_no_aug_steps,
@@ -214,6 +218,16 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
                 )
 
 
+class LTDETRInstanceSegmentationLargeTrainArgs(LTDETRInstanceSegmentationTrainArgs):
+    default_steps: ClassVar[int] = 184_800  # ECSeg L/X schedule (50 epochs at batch 32)
+
+
+_LARGE_ECSEG_BACKBONES = {
+    "edgecrafter/ecvits",
+    "edgecrafter/ecvitsplus",
+}
+
+
 class LTDETRInstanceSegmentationTrain(TrainModel):
     task = "instance_segmentation"
     train_model_args_cls = LTDETRInstanceSegmentationTrainArgs
@@ -222,6 +236,16 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
     train_transform_cls = LTDETRInstanceSegmentationTrainTransform
     val_transform_cls = LTDETRInstanceSegmentationValTransform
     torch_compile_args_cls = TorchCompileArgs
+
+    @override
+    @classmethod
+    def get_train_model_args_cls(
+        cls, model_name: str
+    ) -> type[LTDETRInstanceSegmentationTrainArgs]:
+        config = LTDETR_SEG_MODEL_REGISTRY.get(alias=model_name)()
+        if config.backbone_name in _LARGE_ECSEG_BACKBONES:
+            return LTDETRInstanceSegmentationLargeTrainArgs
+        return LTDETRInstanceSegmentationTrainArgs
 
     def __init__(
         self,
