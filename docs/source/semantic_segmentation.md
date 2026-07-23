@@ -585,8 +585,30 @@ if __name__ == "__main__":
 The [`model`](settings/train_settings.md#model) argument defines the model used for
 semantic segmentation training. The following models are available:
 
-### DINOv3 Models
+Unless noted otherwise, all
+[DINOv2](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models)
+and
+[DINOv3](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
+backbones are initialized from weights pretrained by Meta. The non-EUPE DINOv3 models
+with `vitt16` and `vitt16plus` backbones use Lightly-pretrained DINOv3 backbone weights
+instead.
 
+DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file).
+Models marked as EUPE use [EUPE weights](https://github.com/facebookresearch/EUPE) and
+are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+Models marked as LingBot use
+[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), which are released
+under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file);
+as they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models.
+
+(dinov3-models)=
+
+```{dropdown} DINOv3 ViT backbones
 - `dinov3/vitt32-eomt-coco` (fine-tuned on COCO-Stuff)
 - `dinov3/vitt32plus-eomt-coco` (fine-tuned on COCO-Stuff)
 - `dinov3/vits32-eomt-coco` (fine-tuned on COCO-Stuff)
@@ -601,49 +623,34 @@ semantic segmentation training. The following models are available:
 - `dinov3/vitb16-eomt-cityscapes` (fine-tuned on Cityscapes)
 - `dinov3/vitl16-eomt-cityscapes` (fine-tuned on Cityscapes)
 - `dinov3/vitt16-eomt`
-- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
-- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vits16-lingbot-eomt` -
-  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
-- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/vitb16-lingbot-eomt` -
-  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - `dinov3/vitl16-eomt`
-- `dinov3/vitl16-lingbot-eomt` -
-  [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision)
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
+```
 
-Unless noted otherwise, all DINOv3 backbones are initialized from weights
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
-DINOv3 backbone weights instead. Models marked as EUPE use
-[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
-models are under the
-[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
-Models marked as LingBot use
-[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), which are released
-under the
-[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
-As they are built on DINOv3, the terms of the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
-apply to these models.
+```{dropdown} DINOv3 ViT backbones with EUPE weights
+- `dinov3/vitt16-eupe-eomt`
+- `dinov3/vits16-eupe-eomt`
+- `dinov3/vitb16-eupe-eomt`
+```
 
-### DINOv2 Models
+```{dropdown} DINOv3 ViT backbones with LingBot Vision weights
+- `dinov3/vits16-lingbot-eomt`
+- `dinov3/vitb16-lingbot-eomt`
+- `dinov3/vitl16-lingbot-eomt`
+```
 
+```{dropdown} DINOv2 ViT backbones
 - `dinov2/vits14-eomt`
 - `dinov2/vitb14-eomt`
 - `dinov2/vitl14-eomt`
 - `dinov2/vitg14-eomt`
-
-All DINOv2 models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+```
 
 ## Training Settings
 

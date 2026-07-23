@@ -84,7 +84,7 @@ pip install lightly-train
 ![Tasks](docs/source/_static/images/tasks/tasks.png)
 
 <details open>
-<summary><h3>Object Detection</h3></summary>
+<summary><strong>Object Detection</strong></summary>
 
 Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbones.
 
@@ -149,7 +149,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Instance Segmentation</h3></summary>
+<summary><strong>Instance Segmentation</strong></summary>
 
 Train state-of-the-art instance segmentation models with DINOv3 backbones using the EoMT
 method from CVPR 2025.
@@ -207,7 +207,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Semantic Segmentation</h3></summary>
+<summary><strong>Semantic Segmentation</strong></summary>
 
 Train state-of-the-art semantic segmentation models with DINOv2 or DINOv3 backbones
 using the EoMT method from CVPR 2025.
@@ -286,7 +286,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Panoptic Segmentation</h3></summary>
+<summary><strong>Panoptic Segmentation</strong></summary>
 
 Train state-of-the-art panoptic segmentation models with DINOv3 backbones using the EoMT
 method from CVPR 2025.
@@ -347,7 +347,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Depth Estimation</h3></summary>
+<summary><strong>Depth Estimation</strong></summary>
 
 Run monocular depth inference with Depth Anything V2 and V3 models.
 
@@ -400,7 +400,7 @@ Metric depth (in meters) and the full list of available models are covered in th
 </details>
 
 <details>
-<summary><h3>Image Classification</h3></summary>
+<summary><strong>Image Classification</strong></summary>
 
 Train multiclass or multilabel image classification models with any backbone.
 
@@ -438,7 +438,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Distillation (DINOv2/v3)</h3></summary>
+<summary><strong>Distillation (DINOv2/v3)</strong></summary>
 
 Pretrain any model architecture with unlabeled data by distilling the knowledge from
 DINOv2 or DINOv3 foundation models into your model. On the COCO dataset, YOLOv8-s models
@@ -477,7 +477,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Pretraining (DINOv2 Foundation Models)</h3></summary>
+<summary><strong>Pretraining (DINOv2 Foundation Models)</strong></summary>
 
 With LightlyTrain you can train your very own foundation model like DINOv2 on your data.
 
@@ -511,7 +511,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><h3>Autolabeling</h3></summary>
+<summary><strong>Autolabeling</strong></summary>
 
 LightlyTrain provides simple commands to autolabel your unlabeled data using DINOv2 or
 DINOv3 pretrained models. This allows you to efficiently boost performance of your
