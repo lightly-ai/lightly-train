@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import torch
@@ -16,6 +17,8 @@ from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
 from lightly_train.types import ObjectDetectionBatch
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -163,7 +166,18 @@ def plot_object_detection_predictions(
             boxes[:, 1] = boxes[:, 1] * img_height / orig_height
             boxes[:, 2] = boxes[:, 2] * img_width / orig_width
             boxes[:, 3] = boxes[:, 3] * img_height / orig_height
-            boxes = utils._sort_xyxy_boxes(boxes)
+
+            valid = utils._valid_box_mask(boxes)
+            if not bool(valid.all()):
+                logger.warning(
+                    "Skipped %d degenerate predicted box(es) (x1>x2 or y1>y2) in "
+                    "val-step visualization. This usually indicates unstable box "
+                    "regression.",
+                    int((~valid).sum()),
+                )
+                boxes = boxes[valid]
+                class_ids = class_ids[valid]
+                scores = scores[valid]
 
             mask = scores >= score_threshold
             boxes = boxes[mask]
