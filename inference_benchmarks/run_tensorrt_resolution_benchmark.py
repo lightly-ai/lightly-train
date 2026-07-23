@@ -21,7 +21,11 @@ import argparse
 from pathlib import Path
 from typing import Any
 
+import torch
+
 import lightly_train
+from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.task_model import TaskModel
 
 MODEL_RESOLUTIONS: dict[str, tuple[int, ...]] = {
     "dinov3/vitt16-ltdetr-coco": (480, 512, 544, 576, 608, 640),
@@ -88,6 +92,23 @@ def sanitize(model_name: str) -> str:
     return model_name.replace("/", "_")
 
 
+def load_model_at_resolution(
+    model_name: str, resolution: int, device: torch.device
+) -> TaskModel:
+    """Load a checkpoint and rebuild it with a different input resolution.
+
+    The trained weights don't depend on ``image_size`` (decoder anchors and
+    position embeddings are recomputed for the given size), so this loads the
+    same weights into a model reconstructed with the target resolution.
+    """
+    ckpt_path = task_model_helpers.download_checkpoint(checkpoint=model_name)
+    checkpoint = torch.load(ckpt_path, weights_only=False, map_location=device)
+    checkpoint["model_init_args"]["image_size"] = (resolution, resolution)
+    return task_model_helpers.init_model_from_checkpoint(
+        checkpoint=checkpoint, device=device
+    )
+
+
 def format_summary_row(
     model_name: str, resolution: int, result: lightly_train.BenchmarkResult
 ) -> str:
@@ -104,6 +125,7 @@ def main() -> None:
     args = parse_args()
     data = build_data_config(args.coco_root)
     out_root = Path(args.out)
+    device = torch.device("cuda")
 
     summary_rows: list[str] = []
     for model_name, resolutions in MODEL_RESOLUTIONS.items():
@@ -116,11 +138,13 @@ def main() -> None:
                 "(tensorrt, fp16) ==="
             )
             try:
+                model = load_model_at_resolution(
+                    model_name=model_name, resolution=resolution, device=device
+                )
                 result = lightly_train.benchmark_object_detection(
                     out=str(out_dir),
                     dataset_name="COCO val2017",
-                    model=model_name,
-                    image_size=(resolution, resolution),
+                    model=model,
                     data=data,
                     batch_size=args.batch_size,
                     warmup_steps=args.warmup_steps,
