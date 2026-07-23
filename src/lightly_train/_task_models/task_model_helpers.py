@@ -29,6 +29,9 @@ from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.config import 
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import (
     DINOV3_EOMT_SEMANTIC_SEGMENTATION_MODEL_REGISTRY,
 )
+from lightly_train._task_models.ltdetr_instance_segmentation.config import (
+    LTDETR_SEG_MODEL_REGISTRY,
+)
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
 )
@@ -153,6 +156,9 @@ DOWNLOADABLE_MODEL_URL_AND_HASH.update(
 )
 DOWNLOADABLE_MODEL_URL_AND_HASH.update(
     _get_downloadable_model_url_and_hashes(LTDETR_MODEL_REGISTRY)
+)
+DOWNLOADABLE_MODEL_URL_AND_HASH.update(
+    _get_downloadable_model_url_and_hashes(LTDETR_SEG_MODEL_REGISTRY)
 )
 
 
