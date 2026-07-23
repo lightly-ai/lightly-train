@@ -22,19 +22,27 @@ LTDETR_SEG_MODEL_REGISTRY: ModelRegistry[SegmentorConfig] = ModelRegistry()
 
 # COCO-pretrained ECViT LT-DETR instance-segmentation weights. The URLs are paths
 # relative to DOWNLOADABLE_MODEL_BASE_URL.
-_LTDETRV2_SEG_S_COCO_URL = "edgecrafter_ecvitt_ltdetr_seg_coco_260721_5c7e0089.pt"
+_LTDETRV2_SEG_S_COCO_URL = (
+    "ecvit_ltdetrv2_seg_coco/edgecrafter_ecvitt_ltdetr_seg_coco_260721_5c7e0089.pt"
+)
 _LTDETRV2_SEG_S_COCO_SHA256 = (
     "5c7e00895e10a5b8a14cb9ad1c164232a16af302719fd7a2f7de241264155c15"
 )
-_LTDETRV2_SEG_M_COCO_URL = "edgecrafter_ecvittplus_ltdetr_seg_coco_260722_4527278b.pt"
+_LTDETRV2_SEG_M_COCO_URL = (
+    "ecvit_ltdetrv2_seg_coco/edgecrafter_ecvittplus_ltdetr_seg_coco_260722_4527278b.pt"
+)
 _LTDETRV2_SEG_M_COCO_SHA256 = (
     "4527278b7e1d819fecbf72fb90554f665a506f178ef30b32f22c227107970384"
 )
-_LTDETRV2_SEG_L_COCO_URL = "edgecrafter_ecvits_ltdetr_seg_coco_260721_601b9d8b.pt"
+_LTDETRV2_SEG_L_COCO_URL = (
+    "ecvit_ltdetrv2_seg_coco/edgecrafter_ecvits_ltdetr_seg_coco_260721_601b9d8b.pt"
+)
 _LTDETRV2_SEG_L_COCO_SHA256 = (
     "601b9d8b51d73105ad11feae0dfc4d8d085a12d0afac3f991e7d83f9f493d58b"
 )
-_LTDETRV2_SEG_X_COCO_URL = "edgecrafter_ecvitsplus_ltdetr_seg_coco_260721_d55b16f4.pt"
+_LTDETRV2_SEG_X_COCO_URL = (
+    "ecvit_ltdetrv2_seg_coco/edgecrafter_ecvitsplus_ltdetr_seg_coco_260721_d55b16f4.pt"
+)
 _LTDETRV2_SEG_X_COCO_SHA256 = (
     "d55b16f48f05f18e6dd03e3c5c2a3894d0bdeaf468dc80280a727edf5086edcd"
 )
