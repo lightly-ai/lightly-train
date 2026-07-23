@@ -99,3 +99,12 @@ def test_base_model_output__is_registered_pytree() -> None:
     assert isinstance(restored, _Output)
     torch.testing.assert_close(restored.scores, output.scores)
     torch.testing.assert_close(restored.boxes, output.boxes)
+
+
+def test_base_model_output__supports_keyed_access() -> None:
+    output = _Output(scores=torch.ones(2), boxes=torch.zeros(2, 4))
+
+    assert output["scores"] is output.scores
+    assert output["boxes"] is output.boxes
+    with pytest.raises(KeyError, match="unknown"):
+        output["unknown"]

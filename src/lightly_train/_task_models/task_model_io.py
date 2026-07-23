@@ -186,6 +186,12 @@ class ModelInputSpec(BaseModel):
 class BaseModelOutput(ABC):
     """Base for named model outputs that can cross torch export boundaries."""
 
+    def __getitem__(self, key: str) -> Tensor:
+        """Return a declared output field by name."""
+        if key not in {field.name for field in fields(self)}:
+            raise KeyError(key)
+        return getattr(self, key)
+
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         torch.utils._pytree.register_pytree_node(
