@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Literal, Sized
 
 import torch
+from lightly.transforms.utils import IMAGENET_NORMALIZE
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.accelerators.cpu import CPUAccelerator
@@ -31,6 +32,7 @@ from lightly_train._env import Env
 from lightly_train._methods import method_helpers
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
+from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._optim import optimizer_helpers
@@ -40,7 +42,9 @@ from lightly_train._scaling import IMAGENET_SIZE, ScalingInfo
 from lightly_train._transforms.transform import (
     MethodTransform,
     MethodTransformArgs,
+    NormalizeArgs,
 )
+from lightly_train.errors import UnknownModelError
 from lightly_train.types import DatasetItem, PathLike
 
 logger = logging.getLogger(__name__)
@@ -80,6 +84,57 @@ def get_transform(
     transform_cls = method_cls.transform_cls()
     transform = transform_cls(transform_args=transform_args_resolved)
     return transform
+
+
+def warn_if_distillation_normalization_mismatch(
+    method: str,
+    method_args: MethodArgs,
+    normalize_args: NormalizeArgs,
+) -> None:
+    """Warn if a built-in teacher receives unexpected input normalization."""
+    distillation_methods = [
+        available_method
+        for available_method in method_helpers.list_methods()
+        if available_method.startswith("distillation")
+    ]
+    if method not in distillation_methods:
+        return
+
+    teacher = getattr(method_args, "teacher", None)
+    package_name: str | None = None
+    teacher_name: str
+    if isinstance(teacher, str):
+        package_name, _ = package_helpers.parse_model_name(teacher)
+        teacher_name = teacher
+    elif isinstance(teacher, (Module, ModelWrapper)):
+        teacher_name = teacher.__class__.__name__
+        try:
+            package = package_helpers.get_package_from_model(
+                model=teacher,
+                include_custom=False,
+                fallback_custom=False,
+            )
+        except UnknownModelError:
+            return
+        package_name = package.name
+    else:
+        return
+
+    if package_name not in package_helpers.IMAGENET_NORMALIZED_PACKAGE_NAMES:
+        return
+
+    imagenet_mean = tuple(IMAGENET_NORMALIZE["mean"])
+    imagenet_std = tuple(IMAGENET_NORMALIZE["std"])
+    if normalize_args.mean == imagenet_mean and normalize_args.std == imagenet_std:
+        return
+
+    logger.warning(
+        f"The distillation teacher '{teacher_name}' expects LightlyTrain's ImageNet "
+        "normalization, but `transform_args.normalize` was changed. This can produce "
+        "invalid teacher features. Remove the normalization override or use "
+        f"mean={imagenet_mean} and std={imagenet_std}. Current values are "
+        f"mean={normalize_args.mean} and std={normalize_args.std}."
+    )
 
 
 def get_total_num_devices(
