@@ -178,6 +178,7 @@ def test_get_trainer(tmp_path: Path) -> None:
     trainer = train_helpers.get_trainer(
         out=tmp_path,
         epochs=1,
+        gradient_accumulation_steps=1,
         accelerator="cpu",
         strategy="auto",
         devices="auto",
@@ -191,6 +192,48 @@ def test_get_trainer(tmp_path: Path) -> None:
     assert len(trainer.loggers) == 1
     assert trainer.loggers[0].__class__.__name__ == "JSONLLogger"
     assert trainer.max_epochs == 1
+    assert trainer.accumulate_grad_batches == 1
+
+
+def test_get_trainer_gradient_accumulation(tmp_path: Path) -> None:
+    trainer = train_helpers.get_trainer(
+        out=tmp_path,
+        epochs=1,
+        gradient_accumulation_steps=4,
+        accelerator="cpu",
+        strategy="auto",
+        devices="auto",
+        num_nodes=1,
+        precision=32,
+        log_every_n_steps=1,
+        loggers=[JSONLLogger(save_dir="logs")],
+        callbacks=[],
+        trainer_args=None,
+    )
+
+    assert trainer.accumulate_grad_batches == 4
+
+
+def test_get_trainer_gradient_accumulation_conflict(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="Specify only one"):
+        train_helpers.get_trainer(
+            out=tmp_path,
+            epochs=1,
+            gradient_accumulation_steps=4,
+            accelerator="cpu",
+            strategy="auto",
+            devices="auto",
+            num_nodes=1,
+            precision=32,
+            log_every_n_steps=1,
+            loggers=[JSONLLogger(save_dir="logs")],
+            callbacks=[],
+            trainer_args={
+                "accumulate_grad_batches": 8,
+            },
+        )
 
 
 def test_get_lightning_logging_interval() -> None:
