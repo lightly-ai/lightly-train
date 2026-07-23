@@ -13,6 +13,12 @@ from typing import Any, Literal, Sequence
 from albumentations import BboxParams
 from pydantic import Field
 
+from lightly_train._task_models.ltdetr_instance_segmentation.schedule import (
+    resolve_no_aug_steps,
+)
+from lightly_train._task_models.object_detection_components.ltdetr_schedule import (
+    resolve_ltdetr_step_schedule,
+)
 from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
     LTDETRInstanceSegmentationTransform,
     LTDETRInstanceSegmentationTransformArgs,
@@ -101,7 +107,7 @@ class LTDETRInstanceSegmentationRandomFlipArgs(RandomFlipArgs):
 
 
 class LTDETRInstanceSegmentationMosaicArgs(MosaicArgs):
-    prob: float = 0.5
+    prob: float = 0.75
 
     output_size: int = 320
     max_size: int | None = None
@@ -150,7 +156,7 @@ def _resolve_normalize_num_channels(
 
 
 class LTDETRInstanceSegmentationMixUpArgs(MixUpArgs):
-    prob: float = 0.5
+    prob: float = 0.75
     step_start: int | Literal["auto"] = "auto"
     step_stop: int | Literal["auto"] | None = "auto"
 
@@ -253,11 +259,26 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
         train_num_batches: int,
         gradient_accumulation_steps: int,
     ) -> None:
+        step_start = resolve_ltdetr_step_schedule(
+            total_steps=total_steps,
+            train_num_batches=train_num_batches,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+        ).step_start
+        strong_aug_step_stop = total_steps - resolve_no_aug_steps(
+            total_steps=total_steps,
+            train_num_batches=train_num_batches,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+        )
         resolve_ltdetr_step_schedule_for_augmentation(
             args=self,
             total_steps=total_steps,
             train_num_batches=train_num_batches,
             gradient_accumulation_steps=gradient_accumulation_steps,
+            # Mosaic/MixUp stop halfway through the augmentation-enabled portion.
+            mosaic_mixup_step_stop=(
+                step_start + (strong_aug_step_stop - step_start) // 2
+            ),
+            strong_aug_step_stop=strong_aug_step_stop,
         )
 
 

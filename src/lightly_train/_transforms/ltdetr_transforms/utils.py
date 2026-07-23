@@ -86,6 +86,9 @@ def resolve_ltdetr_step_schedule_for_augmentation(
     total_steps: int,
     train_num_batches: int,
     gradient_accumulation_steps: int,
+    *,
+    mosaic_mixup_step_stop: int | None = None,
+    strong_aug_step_stop: int | None = None,
 ) -> None:
     """Resolve LT-DETR augmentation step windows from ``"auto"``.
 
@@ -93,6 +96,12 @@ def resolve_ltdetr_step_schedule_for_augmentation(
       ``copyblend`` use [``step_start_resolved``, ``step_stop_resolved``)
     - ``mixup`` and ``mosaic`` use [``step_start_resolved``, ``step_flat_resolved``)
     - ``scale_jitter`` only resolves ``step_stop_resolved``
+
+    ``mosaic_mixup_step_stop`` and ``strong_aug_step_stop`` optionally override the
+    resolved ``step_stop`` for the mixup/mosaic and the photometric/zoom/crop/copyblend
+    groups respectively. When ``None`` (the default) the values derived from
+    ``resolve_ltdetr_step_schedule`` (``step_flat`` and ``step_stop``) are used, which
+    preserves the original behavior for callers that do not pass overrides.
 
     If an augmentation's final integer window is empty, it is disabled instead
     of clamped to a minimum length. In practice this means:
@@ -114,13 +123,21 @@ def resolve_ltdetr_step_schedule_for_augmentation(
             "copyblend",
         ),
         step_start_resolved=step_schedule.step_start,
-        step_stop_resolved=step_schedule.step_stop,
+        step_stop_resolved=(
+            strong_aug_step_stop
+            if strong_aug_step_stop is not None
+            else step_schedule.step_stop
+        ),
     )
     _resolve_aug_fields(
         args=args,
         field_names=("mixup", "mosaic"),
         step_start_resolved=step_schedule.step_start,
-        step_stop_resolved=step_schedule.step_flat,
+        step_stop_resolved=(
+            mosaic_mixup_step_stop
+            if mosaic_mixup_step_stop is not None
+            else step_schedule.step_flat
+        ),
     )
 
     scale_jitter = args.scale_jitter
