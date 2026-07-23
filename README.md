@@ -140,10 +140,10 @@ if __name__ == "__main__":
     # Or use one of the models provided by LightlyTrain
     # model = lightly_train.load_model("ltdetrv2-s-coco")
     results = model.predict("image.jpg")
-    results["labels"]   # Class labels, tensor of shape (num_boxes,)
-    results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
                         # coordinates of the original image. Tensor of shape (num_boxes, 4).
-    results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 </details>

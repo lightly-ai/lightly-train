@@ -13,7 +13,7 @@ from typing import Literal
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torchvision.ops import box_iou, nms
+from torchvision.ops import batched_nms, box_iou
 
 
 def _tile_starts(size: int, tile_size: int, step: int) -> list[int]:
@@ -204,9 +204,10 @@ def combine_object_detection_tiles(
     boxes_tiles = pred_tiles["bboxes"]
     scores_tiles = pred_tiles["scores"]
 
-    # NMS on tiles predictions is needed due overlapping tiles.
+    # NMS on tiles predictions is needed due overlapping tiles. Suppression is
+    # class-aware so a high-confidence prediction cannot hide another class.
     if boxes_tiles.numel() > 0:
-        keep = nms(boxes_tiles, scores_tiles, nms_iou_threshold)
+        keep = batched_nms(boxes_tiles, scores_tiles, labels_tiles, nms_iou_threshold)
         labels_tiles = labels_tiles[keep]
         boxes_tiles = boxes_tiles[keep]
         scores_tiles = scores_tiles[keep]

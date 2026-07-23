@@ -14,6 +14,7 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPreprocessor,
+    ObjectDetectionSahiPreprocessedBatch,
 )
 
 
@@ -89,32 +90,38 @@ class TestObjectDetectionPostprocessor:
         boxes = torch.tensor(
             [[[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.2, 0.2], [0.8, 0.5, 0.1, 0.2]]]
         )
-        labels, decoded_boxes, scores = _postprocessor().decode(
+        decoded = _postprocessor().decode(
             ObjectDetectionOutput(logits=logits, boxes=boxes),
             torch.tensor([[100, 200]]),
         )
-        torch.testing.assert_close(labels, torch.tensor([[10, 20, 10]]))
+        torch.testing.assert_close(decoded.labels, torch.tensor([[10, 20, 10]]))
         torch.testing.assert_close(
-            decoded_boxes[0, 0], torch.tensor([40.0, 60.0, 60.0, 140.0])
+            decoded.bboxes[0, 0], torch.tensor([40.0, 60.0, 60.0, 140.0])
         )
-        assert scores.shape == (1, 3)
+        assert decoded.scores.shape == (1, 3)
 
     def test_postprocess__filters_by_threshold(self) -> None:
         logits = torch.full((1, 3, 2), -10.0)
         boxes = torch.rand(1, 3, 4)
         output = _postprocessor().postprocess(
             ObjectDetectionOutput(logits=logits, boxes=boxes),
-            [{"orig_h": 20, "orig_w": 30}],
+            torch.tensor([[30, 20]]),
             threshold=0.5,
         )
-        assert output[0]["labels"].shape == (0,)
-        assert output[0]["bboxes"].shape == (0, 4)
+        assert output[0].labels.shape == (0,)
+        assert output[0].bboxes.shape == (0, 4)
 
     def test_postprocess_sahi__offsets_tiles(self) -> None:
         postprocessor = ObjectDetectionPostprocessor(
             num_classes=1,
             num_top_queries=1,
             internal_class_to_class=torch.tensor([7]),
+        )
+        batch = ObjectDetectionSahiPreprocessedBatch(
+            images=torch.zeros(3, 3, 10, 20),
+            target_sizes=torch.tensor([[100, 50], [20, 10], [20, 10]]),
+            tile_offsets=torch.tensor([0, 3]),
+            tile_coordinates=torch.tensor([[0, 0], [5, 7], [30, 20]]),
         )
         output = postprocessor.postprocess_sahi(
             ObjectDetectionOutput(
@@ -127,18 +134,13 @@ class TestObjectDetectionPostprocessor:
                     ]
                 ),
             ),
-            {
-                "orig_h": 50,
-                "orig_w": 100,
-                "tiles_coordinates": torch.tensor([[5, 7], [30, 20]]),
-            },
+            batch,
             threshold=0.5,
             nms_iou_threshold=0.3,
             global_local_iou_threshold=0.1,
-            tile_size=(10, 20),
-        )
-        torch.testing.assert_close(output["labels"], torch.tensor([7, 7]))
+        )[0]
+        torch.testing.assert_close(output.labels, torch.tensor([7, 7]))
         torch.testing.assert_close(
-            output["bboxes"],
+            output.bboxes,
             torch.tensor([[40.0, 20.0, 60.0, 30.0], [13.0, 11.0, 17.0, 13.0]]),
         )

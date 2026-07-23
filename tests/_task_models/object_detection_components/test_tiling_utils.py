@@ -205,6 +205,28 @@ def test_combine_object_detection_tiles__suppresses_tile_nms() -> None:
     torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.7]))
 
 
+def test_combine_object_detection_tiles__keeps_overlapping_different_labels() -> None:
+    boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 11.0, 11.0]])
+    labels_out, boxes_out, scores_out = tiling_utils.combine_object_detection_tiles(
+        pred_global={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        pred_tiles={
+            "labels": torch.tensor([1, 2]),
+            "bboxes": boxes,
+            "scores": torch.tensor([0.9, 0.8]),
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 2]))
+    torch.testing.assert_close(boxes_out, boxes)
+    torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.8]))
+
+
 def test_combine_object_detection_tiles__suppresses_same_label_global_overlap() -> None:
     labels_global = torch.tensor([1])
     boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])

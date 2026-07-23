@@ -11,7 +11,7 @@ import gc
 import statistics
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import torch
 from albumentations import BboxParams
@@ -37,7 +37,6 @@ from lightly_train._commands.benchmark_types import (
     CudaDeviceInfo,
     DescriptiveStatistics,
     DeviceInfo,
-    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
@@ -53,6 +52,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
+)
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPrediction,
 )
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.object_detection_components.utils import (
@@ -255,9 +257,9 @@ def _benchmark_object_detection_from_config(
             # Convert predictions from "bboxes" to "boxes" for torchmetrics.
             metric_preds: list[dict[str, Tensor]] = [
                 {
-                    "boxes": p["bboxes"],
-                    "scores": p["scores"],
-                    "labels": p["labels"],
+                    "boxes": _prediction_value(p, "bboxes"),
+                    "scores": _prediction_value(p, "scores"),
+                    "labels": _prediction_value(p, "labels"),
                 }
                 for p in predictions_cpu
             ]
@@ -444,10 +446,28 @@ def _create_val_dataloader(
     )
 
 
-def _to_cpu(
-    predictions: list[ObjectDetectionPrediction],
-) -> list[ObjectDetectionPrediction]:
-    return [{k: v.detach().cpu() for k, v in p.items()} for p in predictions]  # type: ignore[attr-defined,misc]
+def _to_cpu(predictions: list[Any]) -> list[Any]:
+    result: list[Any] = []
+    for prediction in predictions:
+        if isinstance(prediction, ObjectDetectionPrediction):
+            result.append(
+                ObjectDetectionPrediction(
+                    labels=prediction.labels.detach().cpu(),
+                    bboxes=prediction.bboxes.detach().cpu(),
+                    scores=prediction.scores.detach().cpu(),
+                )
+            )
+        else:
+            result.append(
+                {key: value.detach().cpu() for key, value in prediction.items()}
+            )
+    return result
+
+
+def _prediction_value(prediction: Any, name: str) -> Tensor:
+    if isinstance(prediction, ObjectDetectionPrediction):
+        return cast(Tensor, getattr(prediction, name))
+    return cast(Tensor, prediction[name])
 
 
 def _create_metric(
