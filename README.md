@@ -84,7 +84,7 @@ pip install lightly-train
 ![Tasks](docs/source/_static/images/tasks/tasks.png)
 
 <details open>
-<summary><strong>Object Detection</strong></summary>
+<summary><h3>Object Detection</h3></summary>
 
 Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbones.
 
@@ -149,68 +149,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>Panoptic Segmentation</strong></summary>
-
-Train state-of-the-art panoptic segmentation models with DINOv3 backbones using the EoMT
-method from CVPR 2025.
-
-#### COCO Results
-
-| Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
-| ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
-| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
-| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
-| LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
-| LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1             | 315.1      | 1280×1280  |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
-
-Tiny models are trained for 48 epochs, small and base models for 24 epochs and large
-models for 12 epochs on the COCO 2017 dataset and evaluated on the validation set with
-single-scale testing. Avg. Latency is measured on a single NVIDIA T4 GPU with batch size
-1\. All models are optimized using `torch.compile`.
-
-#### Usage
-
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    # Train an panoptic segmentation model with a DINOv3 backbone
-    lightly_train.train_panoptic_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitb16-eomt-panoptic-coco",
-        data={
-            "train": {
-                "images": "images/train",
-                "masks": "annotations/train",
-                "annotations": "annotations/train.json",
-            },
-            "val": {
-                "images": "images/val",
-                "masks": "annotations/val",
-                "annotations": "annotations/val.json",
-            },
-        },
-    )
-
-    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
-    results = model.predict("image.jpg")
-    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of
-                        # shape (height, width, 2). Height and width correspond to the
-                        # original image size.
-    results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
-    results["scores"]   # Confidence scores, tensor of shape (num_segments,)
-```
-
-</details>
-
-<details>
-<summary><strong>Instance Segmentation</strong></summary>
+<summary><h3>Instance Segmentation</h3></summary>
 
 Train state-of-the-art instance segmentation models with DINOv3 backbones using the EoMT
 method from CVPR 2025.
@@ -268,7 +207,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>Semantic Segmentation</strong></summary>
+<summary><h3>Semantic Segmentation</h3></summary>
 
 Train state-of-the-art semantic segmentation models with DINOv2 or DINOv3 backbones
 using the EoMT method from CVPR 2025.
@@ -347,45 +286,68 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>Image Classification</strong></summary>
+<summary><h3>Panoptic Segmentation</h3></summary>
 
-Train multiclass or multilabel image classification models with any backbone.
+Train state-of-the-art panoptic segmentation models with DINOv3 backbones using the EoMT
+method from CVPR 2025.
+
+#### COCO Results
+
+| Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
+| LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
+| LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1             | 315.1      | 1280×1280  |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
+
+Tiny models are trained for 48 epochs, small and base models for 24 epochs and large
+models for 12 epochs on the COCO 2017 dataset and evaluated on the validation set with
+single-scale testing. Avg. Latency is measured on a single NVIDIA T4 GPU with batch size
+1\. All models are optimized using `torch.compile`.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/image_classification.html)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/image_classification.ipynb)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ```python
 import lightly_train
 
 if __name__ == "__main__":
-    # Train an image classification model with a DINOv3 backbone
-    lightly_train.train_image_classification(
+    # Train an panoptic segmentation model with a DINOv3 backbone
+    lightly_train.train_panoptic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitt16",
+        model="dinov3/vitb16-eomt-panoptic-coco",
         data={
-            "train": "my_data_dir/train/",
-            "val": "my_data_dir/val/",
-            "classes": {
-                0: "cat",
-                1: "car",
-                2: "dog",
-                # ...
+            "train": {
+                "images": "images/train",
+                "masks": "annotations/train",
+                "annotations": "annotations/train.json",
+            },
+            "val": {
+                "images": "images/val",
+                "masks": "annotations/val",
+                "annotations": "annotations/val.json",
             },
         },
     )
 
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
-    results = model.predict("image.jpg", topk=1, threshold=0.5)
-    results["labels"]   # Class labels, tensor of shape (topk,)
-    results["scores"]   # Confidence scores, tensor of shape (topk,)
+    results = model.predict("image.jpg")
+    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of
+                        # shape (height, width, 2). Height and width correspond to the
+                        # original image size.
+    results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
+    results["scores"]   # Confidence scores, tensor of shape (num_segments,)
 ```
 
 </details>
 
 <details>
-<summary><strong>Depth Estimation</strong></summary>
+<summary><h3>Depth Estimation</h3></summary>
 
 Run monocular depth inference with Depth Anything V2 and V3 models.
 
@@ -438,7 +400,45 @@ Metric depth (in meters) and the full list of available models are covered in th
 </details>
 
 <details>
-<summary><strong>Distillation (DINOv2/v3)</strong></summary>
+<summary><h3>Image Classification</h3></summary>
+
+Train multiclass or multilabel image classification models with any backbone.
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/image_classification.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/image_classification.ipynb)
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    # Train an image classification model with a DINOv3 backbone
+    lightly_train.train_image_classification(
+        out="out/my_experiment",
+        model="dinov3/vitt16",
+        data={
+            "train": "my_data_dir/train/",
+            "val": "my_data_dir/val/",
+            "classes": {
+                0: "cat",
+                1: "car",
+                2: "dog",
+                # ...
+            },
+        },
+    )
+
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    results = model.predict("image.jpg", topk=1, threshold=0.5)
+    results["labels"]   # Class labels, tensor of shape (topk,)
+    results["scores"]   # Confidence scores, tensor of shape (topk,)
+```
+
+</details>
+
+<details>
+<summary><h3>Distillation (DINOv2/v3)</h3></summary>
 
 Pretrain any model architecture with unlabeled data by distilling the knowledge from
 DINOv2 or DINOv3 foundation models into your model. On the COCO dataset, YOLOv8-s models
@@ -477,7 +477,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>Pretraining (DINOv2 Foundation Models)</strong></summary>
+<summary><h3>Pretraining (DINOv2 Foundation Models)</h3></summary>
 
 With LightlyTrain you can train your very own foundation model like DINOv2 on your data.
 
@@ -511,7 +511,7 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>Autolabeling</strong></summary>
+<summary><h3>Autolabeling</h3></summary>
 
 LightlyTrain provides simple commands to autolabel your unlabeled data using DINOv2 or
 DINOv3 pretrained models. This allows you to efficiently boost performance of your
