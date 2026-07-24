@@ -28,6 +28,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix validation-step object detection visualization crashes caused by degenerate predicted
+  boxes. Invalid boxes are skipped and a warning is logged instead of passing them to PIL
+  drawing primitives.
+
 ### Security
 
 ## [0.16.3] - 2026-07-22
