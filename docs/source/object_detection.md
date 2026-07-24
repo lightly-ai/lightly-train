@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! It now ships in four sizes (`s`/`m`/`l`/`x`), with `ltdetrv2-l` reaching 56.0mAP<sub>50:95</sub> on COCO 2017 validation set among real-time detectors. Latency ranges from 5.4ms (`s`) to 10.78ms (`l`) on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
+LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! It now ships in three COCO-pretrained sizes (`s`/`m`/`l`), with `ltdetrv2-l` reaching 56.0mAP<sub>50:95</sub> on COCO 2017 validation set among real-time detectors. Latency ranges from 5.4ms (`s`) to 10.78ms (`l`) on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
