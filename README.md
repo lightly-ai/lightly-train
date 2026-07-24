@@ -95,7 +95,6 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 |     **ltdetrv2-s-coco (NEW)**     |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
 |     **ltdetrv2-m-coco (NEW)**     |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
 |     **ltdetrv2-l-coco (NEW)**     |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
-|     **ltdetrv2-x-coco (NEW)**     |           TBD           |  **12.14**   |  **40.7**  | **640×640** |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
