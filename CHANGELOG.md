@@ -44,6 +44,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,
   `dinov3/dav3-metric-tiny`, `dinov3/dav3-metric-tiny-plus`, and
   `dinov2/dav3-metric-small`.
+- Add COCO-pretrained checkpoints for the `ltdetrv2-m` (`edgecrafter/ecvittplus-ltdetr`)
+  and `ltdetrv2-l` (`edgecrafter/ecvits-ltdetr`) object detection models, available via
+  the `ltdetrv2-m-coco` and `ltdetrv2-l-coco` aliases.
 
 ### Changed
 
