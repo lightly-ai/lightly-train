@@ -213,7 +213,7 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}. See the documentation for "
-                "more information: https://docs.lightly.ai/train/stable/instance_segmentation.html"
+                "more information: https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html"
             ) from None
 
         package_name, backbone_name = package_helpers.parse_model_name(

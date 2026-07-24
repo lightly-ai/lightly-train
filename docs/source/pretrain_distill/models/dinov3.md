@@ -66,7 +66,8 @@ argument. Refer to the following pages for fine-tuning instructions and example 
 - [Semantic Segmentation](#semantic-segmentation) — fine-tune a DINOv3-based EoMT model;
   supports loading custom pretrained backbone weights via `backbone_weights` (see
   [Pretrain and Fine-tune](#semantic-segmentation-pretrain-finetune)).
-- [Instance Segmentation](#instance-segmentation) — fine-tune a DINOv3-based EoMT model.
+- [Instance Segmentation](#instance-segmentation-eomt) — fine-tune a DINOv3-based EoMT
+  model.
 - [Panoptic Segmentation](#panoptic-segmentation) — fine-tune a DINOv3-based EoMT model.
 - [Image Classification](#image-classification) — fine-tune a DINOv3 backbone for
   classification.

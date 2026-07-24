@@ -49,4 +49,5 @@ The following ECViT backbone models are supported:
 - `edgecrafter/ecvitsplus`
 
 For examples on how to fine-tune ECViT backbones inside LT-DETR for object detection,
-see [Object Detection](#object-detection).
+see [Object Detection](#object-detection). For instance segmentation, see
+[Instance Segmentation](#instance-segmentation-ltdetrv2).

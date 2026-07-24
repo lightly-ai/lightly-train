@@ -448,7 +448,7 @@ def train_instance_segmentation(
 ) -> None:
     """Train an instance segmentation model.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/instance_segmentation.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/instance_segmentation/index.html
 
         The training process can be monitored with TensorBoard:
 
@@ -465,7 +465,7 @@ def train_instance_segmentation(
         data:
             The dataset configuration or path to a YAML file with the configuration.
             See the documentation for more information:
-            https://docs.lightly.ai/train/stable/instance_segmentation.html#data
+            https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-data
         model:
             The model to train. For example, "dinov2/vits14-eomt",
             "dinov3/vits16-eomt-coco", or a path to a local model checkpoint.
@@ -532,7 +532,7 @@ def train_instance_segmentation(
             To disable a logger, set it to None: ``logger_args={"tensorboard": None}``.
             To configure a logger, pass the respective arguments:
             ``logger_args={"mlflow": {"experiment_name": "my_experiment", ...}}``.
-            See https://docs.lightly.ai/train/stable/instance_segmentation.html#logging
+            See https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-logging
             for more information.
         model_args:
             Model training arguments. Either None or a dictionary of model arguments.
