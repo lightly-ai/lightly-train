@@ -22,6 +22,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LinearLR,
     LRScheduler,
 )
+from typing_extensions import override
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.instance_segmentation_dataset import (
@@ -39,6 +40,12 @@ from lightly_train._task_models.instance_segmentation_components.edgecrafter_cri
 )
 from lightly_train._task_models.instance_segmentation_components.matcher import (
     MaskAwareHungarianMatcher,
+)
+from lightly_train._task_models.ltdetr_instance_segmentation.config import (
+    LTDETR_SEG_MODEL_REGISTRY,
+)
+from lightly_train._task_models.ltdetr_instance_segmentation.schedule import (
+    resolve_no_aug_steps,
 )
 from lightly_train._task_models.ltdetr_instance_segmentation.task_model import (
     LTDETRInstanceSegmentation,
@@ -104,9 +111,7 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
     """
 
     default_batch_size: ClassVar[int] = 32
-    default_steps: ClassVar[int] = (
-        266_112  # 6x ECDet-S schedule (72 epochs at batch 32)
-    )
+    default_steps: ClassVar[int] = 273_504  # ECSeg schedule (74 epochs at batch 32)
 
     # ECViT (EdgeCrafter) backbones all use a fixed patch size of 16.
     patch_size: int | Literal["auto"] | None = "auto"
@@ -206,9 +211,21 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
             if self.scheduler_flat_steps == "auto":
                 self.scheduler_flat_steps = scheduler_step_schedule.step_flat
             if self.scheduler_no_aug_steps == "auto":
-                self.scheduler_no_aug_steps = (
-                    total_steps - scheduler_step_schedule.step_stop
+                self.scheduler_no_aug_steps = resolve_no_aug_steps(
+                    total_steps=total_steps,
+                    train_num_batches=train_num_batches,
+                    gradient_accumulation_steps=gradient_accumulation_steps,
                 )
+
+
+class LTDETRInstanceSegmentationLargeTrainArgs(LTDETRInstanceSegmentationTrainArgs):
+    default_steps: ClassVar[int] = 184_800  # ECSeg L/X schedule (50 epochs at batch 32)
+
+
+_LARGE_ECSEG_BACKBONES = {
+    "edgecrafter/ecvits",
+    "edgecrafter/ecvitsplus",
+}
 
 
 class LTDETRInstanceSegmentationTrain(TrainModel):
@@ -219,6 +236,16 @@ class LTDETRInstanceSegmentationTrain(TrainModel):
     train_transform_cls = LTDETRInstanceSegmentationTrainTransform
     val_transform_cls = LTDETRInstanceSegmentationValTransform
     torch_compile_args_cls = TorchCompileArgs
+
+    @override
+    @classmethod
+    def get_train_model_args_cls(
+        cls, model_name: str
+    ) -> type[LTDETRInstanceSegmentationTrainArgs]:
+        config = LTDETR_SEG_MODEL_REGISTRY.get(alias=model_name)()
+        if config.backbone_name in _LARGE_ECSEG_BACKBONES:
+            return LTDETRInstanceSegmentationLargeTrainArgs
+        return LTDETRInstanceSegmentationTrainArgs
 
     def __init__(
         self,

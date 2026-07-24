@@ -49,6 +49,7 @@ def test_list_model_names__uses_registry() -> None:
     assert "dinov3/vits32-eomt" in names
     assert "dinov3/vitl16-eomt-panoptic-coco-1280" in names
     assert "dinov3/vitt16-eupe-eomt" in names
+    assert "dinov3/vits16-lingbot-eomt" in names
     assert "dinov3/convnext-tiny-eomt" not in names
 
 
@@ -60,6 +61,9 @@ def test_is_supported_model__uses_registry() -> None:
     assert DINOv3EoMTPanopticSegmentation.is_supported_model("dinov3/vits32-eomt")
     assert DINOv3EoMTPanopticSegmentation.is_supported_model(
         "dinov3/vitl16-eomt-panoptic-coco-1280"
+    )
+    assert DINOv3EoMTPanopticSegmentation.is_supported_model(
+        "dinov3/vits16-lingbot-eomt"
     )
     assert not DINOv3EoMTPanopticSegmentation.is_supported_model(
         "dinov3/convnext-tiny-eomt"

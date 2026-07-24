@@ -9,8 +9,56 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.4] - 2026-07-24
+
+### Added
+
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
+  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+- Add LTDETRv2 instance segmentation with `ltdetrv2-seg-s/m/l/x` models and
+  COCO-pretrained checkpoints for fine-tuning or out-of-the-box inference.
+- Add SAHI inference for LTDETRv2 instance segmentation through `model.predict_sahi()`.
+
+### Changed
+
+- Warn when a built-in distillation teacher is used with non-ImageNet input
+  normalization, which can produce invalid teacher features.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3.1 pretraining method.
+
+### Fixed
+
+- Preserve exponential-moving-average updates when resuming training, preventing a
+  spurious validation-metric drop after the first resumed update.
+- Skip degenerate predicted boxes during validation visualization and log a warning
+  instead of crashing.
+- Restore installation and package imports by using a released LightlySSL dependency.
+
+### Security
+
+## [0.16.3] - 2026-07-22
+
+### Added
+
 - Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
   `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
+- Add LingBot Vision backbones to the DINOv3 EoMT semantic, panoptic, and instance
+  segmentation tasks: `dinov3/vits16-lingbot-eomt`, `dinov3/vitb16-lingbot-eomt`, and
+  `dinov3/vitl16-lingbot-eomt`.
 - Add tiny, tiny-plus, and small Depth Anything V3 depth estimation models — the
   smallest and fastest so far, distilled from ViT-L: `dinov3/dav3-relative-tiny`,
   `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,

@@ -28,11 +28,12 @@ maxdepth: 1
 caption: Core Tasks
 ---
 object_detection
-image_classification
-depth_estimation
-eomt_semantic_segmentation
 eomt_instance_segmentation
+ltdetr_instance_segmentation
+eomt_semantic_segmentation
 eomt_panoptic_segmentation
+depth_estimation
+image_classification
 ```
 
 ```{toctree}
@@ -42,6 +43,7 @@ caption: ONNX & TENSORRT EXPORT TUTORIALS
 ---
 object_detection_export
 eomt_instance_segmentation_export
+ltdetr_instance_segmentation_export
 eomt_semantic_segmentation_export
 eomt_panoptic_segmentation_export
 depth_estimation_export

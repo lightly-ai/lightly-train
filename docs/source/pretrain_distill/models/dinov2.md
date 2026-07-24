@@ -82,3 +82,14 @@ starting from Meta's weights.
 - `dinov2/vitb14-notpretrained`
 - `dinov2/vitl14-notpretrained`
 - `dinov2/vitg14-notpretrained`
+
+### TIPSv2 Vision Backbones
+
+[TIPSv2](https://github.com/google-deepmind/tips) vision backbones are available for
+embedding, fine-tuning, and generic DINOv2 continuation. TIPSv2 text and zero-shot
+interfaces are not included.
+
+- `dinov2/vitb14-tipsv2`
+- `dinov2/vitl14-tipsv2`
+- `dinov2/vitso400m14-tipsv2`
+- `dinov2/vitg14-tipsv2`

@@ -16,6 +16,7 @@ import torch
 import torch.nn.functional as F
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torchvision.ops import masks_to_boxes
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self, override
 
@@ -43,6 +44,7 @@ from lightly_train._task_models.ltdetr_instance_segmentation.config import (
 from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
+from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     HybridEncoder,
 )
@@ -656,6 +658,12 @@ class LTDETRInstanceSegmentation(TaskModel):
         x = file_helpers.as_image_tensor(image).to(device)
         image_h, image_w = x.shape[-2:]
 
+        x = self._validate_channels(x)
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+        x = transforms_functional.resize(x, self.image_size)
+        return x, {"orig_h": image_h, "orig_w": image_w}
+
+    def _validate_channels(self, x: Tensor) -> Tensor:
         # Expand grayscale to the expected channel count so images can be stacked.
         # TODO(Nauryzbay, 05/26): Revisit grayscale handling — the implicit
         # 1-channel expansion is a convenience inherited from RGB-only models.
@@ -666,10 +674,7 @@ class LTDETRInstanceSegmentation(TaskModel):
             raise ValueError(
                 f"Image has {x.shape[-3]} channels but model expects {expected_c}."
             )
-
-        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        x = transforms_functional.resize(x, self.image_size)
-        return x, {"orig_h": image_h, "orig_w": image_w}
+        return x
 
     def preprocess_batch(self, batch: Tensor) -> Tensor:
         if self.image_normalize is not None:
@@ -736,3 +741,193 @@ class LTDETRInstanceSegmentation(TaskModel):
         batch = self.preprocess_batch(x.unsqueeze(0))
         raw = self.forward_backend(batch)
         return self.postprocess(raw, [metadata], threshold=threshold)[0]
+
+    @torch.no_grad()
+    def predict_sahi(
+        self,
+        image: PathLike | PILImage | Tensor,
+        threshold: float = 0.8,
+        overlap: float = 0.2,
+        nms_iou_threshold: float = 0.5,
+        global_local_iou_threshold: float = 0.5,
+        batch_size: int | None = None,
+    ) -> dict[str, Tensor]:
+        """Run Slicing Aided Hyper Inference (SAHI) for instance segmentation.
+
+        The image is converted to a tensor, then:
+
+        - A resized full-image "global" prediction is computed.
+        - The image is tiled into overlapping crops of size ``self.image_size``.
+        - Each tile is run through the model (in batches of ``batch_size``) and its
+          masks are stitched back into the original image coordinates.
+        - Global and tile predictions are merged using mask NMS and a global/local
+          consistency heuristic. NMS is only applied on tile predictions; the
+          heuristic discards tile predictions that heavily overlap global
+          predictions.
+
+        Args:
+            image:
+                Input image. Can be a path, a PIL image, or a tensor of shape
+                (C, H, W).
+            threshold:
+                Score threshold for filtering low-confidence predictions.
+            overlap:
+                Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
+            nms_iou_threshold:
+                Mask IoU threshold used for non-maximum suppression when merging
+                predictions from tiles. A lower value yields fewer predictions.
+            global_local_iou_threshold:
+                Mask IoU above which a tile prediction is discarded because it
+                matches a global prediction of the same class. A lower value yields
+                fewer predictions.
+            batch_size:
+                Number of tiles to run through the model at once. If None, all tiles
+                are processed in a single batch. Must be a positive integer.
+
+        Returns:
+            A dictionary with:
+                - "labels": Tensor of shape (N,) with predicted class indices.
+                - "bboxes": Tensor of shape (N, 4) with boxes in (x_min, y_min,
+                    x_max, y_max) at the original image resolution. Boxes are the
+                    tight bounding boxes of the merged masks.
+                - "masks": Tensor of shape (N, H, W) with binary masks at the
+                    original image resolution.
+                - "scores": Tensor of shape (N,) with confidence scores.
+        """
+        self._track_inference()
+        if self.training or not self.postprocessor.deploy_mode:
+            self.deploy()
+
+        first_param = next(self.parameters())
+        device, dtype = first_param.device, first_param.dtype
+
+        x = file_helpers.as_image_tensor(image).to(device)
+        orig_h, orig_w = x.shape[-2:]
+        tile_h, tile_w = self.image_size
+        x = self._validate_channels(x)
+
+        # Scale to float once up front. Normalization happens per batch in
+        # ``preprocess_batch`` (unlike the EoMT models, whose ``preprocess_batch``
+        # only pads), so we must not normalize here to avoid double-normalizing.
+        x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
+
+        # Global full-image prediction: plain resize to the model input size, then
+        # the regular predict pipeline. ``postprocess`` interpolates masks back to
+        # the original resolution and binarizes them.
+        x_global = transforms_functional.resize(x, self.image_size)
+        global_batch = self.preprocess_batch(x_global.unsqueeze(0))
+        global_raw = self.forward_backend(global_batch)
+        pred_global = self.postprocess(
+            global_raw,
+            [{"orig_h": orig_h, "orig_w": orig_w}],
+            threshold=threshold,
+        )[0]
+
+        tiles, coordinates = tiling_utils.tile_image(
+            image=x,
+            overlap=overlap,
+            tile_size=self.image_size,
+            padding_mode="pad",
+        )
+
+        if batch_size is None:
+            batch_size = len(tiles)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer or None.")
+
+        all_labels: list[Tensor] = []
+        all_masks: list[Tensor] = []
+        all_scores: list[Tensor] = []
+
+        for start in range(0, len(tiles), batch_size):
+            end = min(start + batch_size, len(tiles))
+            tile_batch = self.preprocess_batch(tiles[start:end])
+            coordinate_batch = coordinates[start:end]
+
+            raw = self.forward_backend(tile_batch)
+            metadata: list[dict[str, Any]] = []
+            valid_sizes: list[tuple[int, int]] = []
+            for coordinate in coordinate_batch:
+                x_start = int(coordinate[0].item())
+                y_start = int(coordinate[1].item())
+                valid_h = min(tile_h, orig_h - y_start)
+                valid_w = min(tile_w, orig_w - x_start)
+                valid_sizes.append((valid_h, valid_w))
+                metadata.append({"orig_h": tile_h, "orig_w": tile_w})
+
+            predictions = self.postprocess(raw, metadata, threshold=threshold)
+            for prediction, coordinate, valid_size in zip(
+                predictions, coordinate_batch, valid_sizes
+            ):
+                labels = prediction["labels"]
+                masks = prediction["masks"]
+                scores = prediction["scores"]
+                if labels.numel() == 0:
+                    continue
+
+                x_start = int(coordinate[0].item())
+                y_start = int(coordinate[1].item())
+                valid_h, valid_w = valid_size
+                masks = masks[:, :valid_h, :valid_w]
+                full_masks = masks.new_zeros(
+                    (masks.shape[0], orig_h, orig_w), dtype=torch.bool
+                )
+                full_masks[
+                    :, y_start : y_start + valid_h, x_start : x_start + valid_w
+                ] = masks
+
+                all_labels.append(labels)
+                all_masks.append(full_masks)
+                all_scores.append(scores)
+
+        if len(all_labels) > 0:
+            labels_tiles = torch.cat(all_labels, dim=0)
+            masks_tiles = torch.cat(all_masks, dim=0)
+            scores_tiles = torch.cat(all_scores, dim=0)
+        else:
+            labels_tiles = torch.empty(0, dtype=torch.long, device=device)
+            masks_tiles = torch.empty(
+                (0, orig_h, orig_w), dtype=torch.bool, device=device
+            )
+            scores_tiles = torch.empty(0, dtype=dtype, device=device)
+
+        labels, masks, scores = tiling_utils.combine_instance_segmentation_tiles(
+            pred_global={
+                "labels": pred_global["labels"],
+                "masks": pred_global["masks"],
+                "scores": pred_global["scores"],
+            },
+            pred_tiles={
+                "labels": labels_tiles,
+                "masks": masks_tiles,
+                "scores": scores_tiles,
+            },
+            nms_iou_threshold=nms_iou_threshold,
+            global_local_iou_threshold=global_local_iou_threshold,
+        )
+
+        # Drop instances whose binarized mask has no positive pixels. Such masks
+        # can survive the score threshold (the filter is on score, not mask
+        # occupancy) and would make ``masks_to_boxes`` raise on the empty
+        # reduction.
+        if masks.numel() > 0:
+            non_empty = masks.flatten(start_dim=1).any(dim=1)
+            labels = labels[non_empty]
+            masks = masks[non_empty]
+            scores = scores[non_empty]
+
+        # ``combine_instance_segmentation_tiles`` returns only labels/masks/scores.
+        # Derive tight bboxes from the merged masks so the output matches the
+        # ``predict`` contract and stays consistent with the post-NMS masks.
+        bboxes = (
+            masks_to_boxes(masks)
+            if masks.numel() > 0
+            else masks.new_zeros((0, 4), dtype=torch.float32)
+        )
+
+        return {
+            "labels": labels,
+            "bboxes": bboxes,
+            "masks": masks,
+            "scores": scores,
+        }

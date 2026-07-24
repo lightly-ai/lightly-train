@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Tuple, TypedDict
+from dataclasses import dataclass
+from typing import TypedDict
 
 import torch
 from PIL.Image import Image as PILImage
@@ -16,14 +17,20 @@ from torch import Tensor
 from torch.nn import Module
 from torchvision.ops import box_convert
 from torchvision.transforms.v2 import functional as transforms_functional
-from typing_extensions import NotRequired, TypeAlias
+from typing_extensions import NotRequired
 
 from lightly_train._data import file_helpers
 from lightly_train._task_models.object_detection_components import tiling_utils
+from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train.types import PathLike
 
-ObjectDetectionOutput: TypeAlias = Tuple[Tensor, Tensor]
-"""Raw object detection output: ``(logits, normalized cxcywh boxes)``."""
+
+@dataclass
+class ObjectDetectionOutput(BaseModelOutput):
+    """Raw object detection output: ``(logits, normalized cxcywh boxes)``."""
+
+    logits: Tensor
+    boxes: Tensor
 
 
 class ObjectDetectionMetadata(TypedDict):
@@ -128,13 +135,12 @@ class ObjectDetectionPostprocessor(Module):
     def decode(
         self, raw: ObjectDetectionOutput, orig_target_sizes: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
-        logits, raw_boxes = raw
-        scores = logits.sigmoid()
+        scores = raw.logits.sigmoid()
         num_classes = scores.shape[-1]
         scores, index = scores.flatten(1).topk(self.num_top_queries, dim=-1)
         labels = index % num_classes
         query_index = index // num_classes
-        boxes = box_convert(raw_boxes, in_fmt="cxcywh", out_fmt="xyxy")
+        boxes = box_convert(raw.boxes, in_fmt="cxcywh", out_fmt="xyxy")
         boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
         boxes = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
         return self.internal_class_to_class[labels], boxes, scores

@@ -12,7 +12,7 @@ import inspect
 import json
 import random
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, Sequence
 
@@ -59,6 +59,7 @@ from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import ScalingInfo
+from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
@@ -1080,7 +1081,7 @@ def dummy_dinov3_convnext_model(**kwargs: Any) -> DINOv3VConvNeXtModelWrapper:
 
 def assert_onnx_outputs_close(
     onnx_outputs: Sequence[np.ndarray],
-    torch_outputs: Sequence[Tensor],
+    torch_outputs: Sequence[Tensor] | BaseModelOutput,
     *,
     atol: float = 5e-3,
     rtol: float = 1e-1,
@@ -1108,6 +1109,10 @@ def assert_onnx_outputs_close(
         min_close_fraction:
             Minimum fraction of elements that must be close for float outputs.
     """
+    if isinstance(torch_outputs, BaseModelOutput):
+        torch_outputs = [
+            getattr(torch_outputs, field.name) for field in fields(torch_outputs)
+        ]
     assert len(onnx_outputs) == len(torch_outputs)
     for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
         onnx_tensor = torch.from_numpy(onnx_out)
