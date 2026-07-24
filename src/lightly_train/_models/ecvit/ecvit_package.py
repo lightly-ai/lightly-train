@@ -15,7 +15,6 @@ import torch
 
 from lightly_train._env import Env
 from lightly_train._models.ecvit.ecvit import (
-    ECVIT_PRESETS,
     ECVIT_PRETRAINED_URLS,
     ECViTModelWrapper,
 )
@@ -27,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class _ECViTModelInfo(TypedDict):
+    preset_name: str
     default_weights: str | None
     local_path: str | None
     list: bool
@@ -34,21 +34,31 @@ class _ECViTModelInfo(TypedDict):
 
 MODEL_NAME_TO_INFO: dict[str, _ECViTModelInfo] = {
     "ecvitt": _ECViTModelInfo(
+        preset_name="ecvitt",
         default_weights=ECVIT_PRETRAINED_URLS["ecvitt"],
         local_path="ecvitt.pth",
         list=True,
     ),
+    "_ecvitt-notpretrained": _ECViTModelInfo(
+        preset_name="ecvitt",
+        default_weights=None,
+        local_path=None,
+        list=False,
+    ),
     "ecvittplus": _ECViTModelInfo(
+        preset_name="ecvittplus",
         default_weights=ECVIT_PRETRAINED_URLS["ecvittplus"],
         local_path="ecvittplus.pth",
         list=True,
     ),
     "ecvits": _ECViTModelInfo(
+        preset_name="ecvits",
         default_weights=ECVIT_PRETRAINED_URLS["ecvits"],
         local_path="ecvits.pth",
         list=True,
     ),
     "ecvitsplus": _ECViTModelInfo(
+        preset_name="ecvitsplus",
         default_weights=ECVIT_PRETRAINED_URLS["ecvitsplus"],
         local_path="ecvitsplus.pth",
         list=True,
@@ -107,18 +117,14 @@ class EdgeCrafterPackage(Package):
                 f"num_input_channels={num_input_channels}."
             )
 
-        preset_name = cls.parse_model_name(model_name=model_name)
-        if preset_name not in ECVIT_PRESETS:
-            # Defensive: parse_model_name already enforces this.
-            raise ValueError(
-                f"Unknown ECViT preset: '{preset_name}'. Available presets: "
-                f"{list(ECVIT_PRESETS)}."
-            )
+        model_name = cls.parse_model_name(model_name=model_name)
+        model_info = MODEL_NAME_TO_INFO[model_name]
+        preset_name = model_info["preset_name"]
 
         weights_path: PathLike | None = None
-        if load_weights:
+        if load_weights and model_info["default_weights"] is not None:
             weights_path = _maybe_download_weights(
-                preset_name=preset_name, model_info=MODEL_NAME_TO_INFO[preset_name]
+                preset_name=preset_name, model_info=model_info
             )
 
         return ECViTModelWrapper(

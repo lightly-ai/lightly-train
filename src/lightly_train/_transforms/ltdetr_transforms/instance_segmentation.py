@@ -22,6 +22,7 @@ from lightly_train._transforms.ltdetr_transforms.components import (
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
     filter_degenerate_yolo_boxes,
+    filter_normalized_cxcywh_min_size,
 )
 from lightly_train._transforms.task_transform import (
     TaskCollateFunction,
@@ -93,6 +94,7 @@ class LTDETRInstanceSegmentationTransformArgs(TaskTransformArgs):
     resize: ResizeArgs | None
     bbox_params: BboxParams | None
     normalize: NormalizeArgs | Literal["auto"] | None
+    min_bbox_size_px: float = 0.0
 
     # Necessary for BboxParams, which are not serializable by pydantic.
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -320,6 +322,27 @@ class LTDETRInstanceSegmentationCollateFunction(TaskCollateFunction):
             image_batch: Tensor | list[Tensor] = image_batch_train
         else:
             image_batch = images
+
+        filtered_bboxes: list[Tensor] = []
+        filtered_classes: list[Tensor] = []
+        filtered_masks: list[Tensor] = []
+
+        for image, item_bboxes, item_classes, item_masks in zip(
+            images, bboxes, classes, masks
+        ):
+            height, width = image.shape[-2:]
+            keep = filter_normalized_cxcywh_min_size(
+                item_bboxes,
+                image_size=(height, width),
+                min_size_px=self.transform_args.min_bbox_size_px,
+            )
+            filtered_bboxes.append(item_bboxes[keep])
+            filtered_classes.append(item_classes[keep])
+            filtered_masks.append(item_masks[keep])
+
+        bboxes = filtered_bboxes
+        classes = filtered_classes
+        masks = filtered_masks
 
         return {
             "image_path": [item["image_path"] for item in batch],

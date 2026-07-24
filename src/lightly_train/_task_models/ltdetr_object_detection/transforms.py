@@ -247,6 +247,7 @@ class LTDETRObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArgs
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
+    min_bbox_size_px: float = 4.0
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)
@@ -614,6 +615,7 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
+    min_bbox_size_px: float = 4.0
 
     def resolve_auto(self, model_init_args: dict[str, Any]) -> None:
         super().resolve_auto(model_init_args=model_init_args)

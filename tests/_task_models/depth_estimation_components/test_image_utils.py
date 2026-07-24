@@ -20,13 +20,16 @@ class TestProcessImage:
         img = torch.randint(0, 256, (3, 64, 100), dtype=torch.uint8)
 
         out = image_utils.process_image(
-            img, process_res=42, process_res_method="upper_bound_resize"
+            img,
+            process_res=42,
+            patch_size=14,
+            process_res_method="upper_bound_resize",
         )
 
         assert out.dtype == torch.float32
         h, w = out.shape[-2:]
-        assert h % image_utils.PATCH_SIZE == 0
-        assert w % image_utils.PATCH_SIZE == 0
+        assert h % 14 == 0
+        assert w % 14 == 0
         # The longest side reaches the target multiple; height stays smaller.
         assert w == 42
         assert h < w
@@ -37,13 +40,16 @@ class TestProcessImage:
         img = torch.randint(0, 256, (3, 64, 100), dtype=torch.uint8)
 
         out = image_utils.process_image(
-            img, process_res=42, process_res_method="lower_bound_resize"
+            img,
+            process_res=42,
+            patch_size=14,
+            process_res_method="lower_bound_resize",
         )
 
         assert out.dtype == torch.float32
         h, w = out.shape[-2:]
-        assert h % image_utils.PATCH_SIZE == 0
-        assert w % image_utils.PATCH_SIZE == 0
+        assert h % 14 == 0
+        assert w % 14 == 0
         # The shortest side reaches the target multiple; width stays larger.
         assert h == 42
         assert w > h
@@ -53,7 +59,7 @@ class TestProcessImage:
         img = torch.randint(0, 256, (3, 64, 100), dtype=torch.uint8)
 
         out = image_utils.process_image(
-            img, process_res=56, process_res_method="square_resize"
+            img, process_res=56, patch_size=14, process_res_method="square_resize"
         )
 
         assert out.shape == (3, 56, 56)
@@ -66,6 +72,7 @@ class TestProcessImage:
             image_utils.process_image(
                 img,
                 process_res=28,
+                patch_size=14,
                 process_res_method="nope",  # type: ignore[arg-type]
             )
 
@@ -73,7 +80,7 @@ class TestProcessImage:
         img = torch.full((1, 28, 28), 128, dtype=torch.uint8)
 
         out = image_utils.process_image(
-            img, process_res=28, process_res_method="square_resize"
+            img, process_res=28, patch_size=14, process_res_method="square_resize"
         )
 
         assert out.shape == (3, 28, 28)
@@ -82,7 +89,7 @@ class TestProcessImage:
         img = torch.randint(0, 256, (4, 28, 28), dtype=torch.uint8)
 
         out = image_utils.process_image(
-            img, process_res=28, process_res_method="square_resize"
+            img, process_res=28, patch_size=14, process_res_method="square_resize"
         )
 
         assert out.shape == (3, 28, 28)
@@ -92,7 +99,7 @@ class TestProcessImage:
 
         with pytest.raises(ValueError, match="1, 3, or 4 channels"):
             image_utils.process_image(
-                img, process_res=28, process_res_method="square_resize"
+                img, process_res=28, patch_size=14, process_res_method="square_resize"
             )
 
 

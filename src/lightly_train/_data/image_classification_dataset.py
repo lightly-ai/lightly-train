@@ -13,10 +13,10 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 import torch
-from pydantic import Field
+from pydantic import AliasChoices, Field, model_validator
 from torch import Tensor
 
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.image_classification_transform import (
@@ -97,8 +97,14 @@ class ImageClassificationDataset(TaskDataset):
 
 
 class ImageClassificationDataArgs(TaskDataArgs):
-    train: PathLike
-    val: PathLike
+    """Data arguments for image classification datasets.
+
+    Training uses the ``train`` and ``val`` splits. The optional ``test`` split is
+    accepted for compatibility but is not consumed by task training.
+    """
+
+    train: PathLike = Field(validation_alias=AliasChoices("train", "train_csv"))
+    val: PathLike = Field(validation_alias=AliasChoices("val", "val_csv"))
     test: PathLike | None = None
     classes: dict[int, str]
     label_delimiter: str = ","
@@ -110,6 +116,29 @@ class ImageClassificationDataArgs(TaskDataArgs):
     csv_label_type: Literal["name", "id"] = "name"
 
     classification_task: Literal["multiclass", "multilabel"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_csv_aliases(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+
+        data = dict(data)
+        for alias, field_name in (("train_csv", "train"), ("val_csv", "val")):
+            if alias in data:
+                if field_name in data:
+                    raise ValueError(
+                        f"Cannot specify both '{field_name}' and '{alias}'. "
+                        f"Use '{field_name}' only."
+                    )
+                data[field_name] = data.pop(alias)
+        return data
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train = data_helpers.resolve_path(self.train, base_dir=base_dir)
+        self.val = data_helpers.resolve_path(self.val, base_dir=base_dir)
+        if self.test is not None:
+            self.test = data_helpers.resolve_path(self.test, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
         return str(

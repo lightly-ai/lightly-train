@@ -21,7 +21,7 @@ from torch import Tensor
 from typing_extensions import Literal
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers
+from lightly_train._data import data_helpers, file_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
@@ -320,6 +320,22 @@ class MaskPanopticSegmentationDataArgs(TaskDataArgs):
     train: SplitArgs
     val: SplitArgs
     ignore_classes: set[int] | None = Field(default=None, strict=False)
+
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.images = data_helpers.resolve_path(
+            self.train.images, base_dir=base_dir
+        )
+        self.train.masks = data_helpers.resolve_path(
+            self.train.masks, base_dir=base_dir
+        )
+        self.train.annotations = data_helpers.resolve_path(
+            self.train.annotations, base_dir=base_dir
+        )
+        self.val.images = data_helpers.resolve_path(self.val.images, base_dir=base_dir)
+        self.val.masks = data_helpers.resolve_path(self.val.masks, base_dir=base_dir)
+        self.val.annotations = data_helpers.resolve_path(
+            self.val.annotations, base_dir=base_dir
+        )
 
     def train_data_mmap_hash(self) -> str:
         annotations_path = Path(self.train.annotations).resolve()

@@ -16,6 +16,9 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 # Modifications Copyright 2026 Lightly AG:
 # - Added typed interfaces.
 # - Renamed the postprocessor to EdgeCrafterInstanceSegmentationPostProcessor.
+# - Added a deferred-einsum mask path that gathers the selected query features
+#   before the mask einsum, avoiding a GatherElements over the full-resolution
+#   mask tensor. The materialized-mask gather is kept as a fallback.
 
 from __future__ import annotations
 
@@ -57,6 +60,12 @@ class ECSegPostProcessor(RTDETRPostProcessor):
         logits = outputs["pred_logits"]
         boxes = outputs["pred_boxes"]
         mask_pred = outputs.get("pred_masks", None)
+        # Deferred-einsum operands (deploy/eval path): the mask head returns the
+        # projected spatial and query features instead of the full mask tensor so
+        # the query gather happens before the einsum (see forward_deploy).
+        mask_spatial = outputs.get("pred_mask_spatial", None)
+        mask_query = outputs.get("pred_mask_query", None)
+        mask_bias = outputs.get("pred_mask_bias", None)
 
         bbox_pred = torchvision.ops.box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
         bbox_pred *= orig_target_sizes.repeat(1, 2).unsqueeze(1)
@@ -71,7 +80,20 @@ class ECSegPostProcessor(RTDETRPostProcessor):
                 dim=1,
                 index=index.unsqueeze(-1).repeat(1, 1, bbox_pred.shape[-1]),
             )
-            if mask_pred is not None:
+            if mask_spatial is not None:
+                # Gather the selected query embeddings (small (B, Q, Ci) index),
+                # then run the einsum — instead of gathering the full-resolution
+                # mask tensor with a (B, Q, Hm, Wm) index. The deploy decoder
+                # always emits the spatial/query/bias operands together.
+                assert mask_query is not None
+                selected_query = mask_query.gather(
+                    dim=1,
+                    index=index.unsqueeze(-1).expand(-1, -1, mask_query.shape[-1]),
+                )
+                masks = torch.einsum("bchw,bqc->bqhw", mask_spatial, selected_query)
+                if mask_bias is not None:
+                    masks = masks + mask_bias
+            elif mask_pred is not None:
                 masks = mask_pred.gather(
                     dim=1,
                     index=index.unsqueeze(-1)
@@ -79,7 +101,7 @@ class ECSegPostProcessor(RTDETRPostProcessor):
                     .repeat(1, 1, mask_pred.shape[-2], mask_pred.shape[-1]),
                 )
         else:
-            if mask_pred is not None:
+            if mask_pred is not None or mask_spatial is not None:
                 # EdgeCrafter only gathers masks in the focal-loss branch; its
                 # softmax branch has no mask path. Fail loudly instead of
                 # silently dropping the predicted masks.

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-import re
 from typing import Any, ClassVar, Literal
 
 import torch
@@ -31,6 +30,9 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
     PanopticSegmentationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.config import (
+    DINOV2_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY,
+)
 from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.scheduler import (
     TwoStageWarmupPolySchedule,
 )
@@ -132,20 +134,17 @@ class DINOv2EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
                 assert isinstance(num_joint_blocks, int)  # for mypy
                 self.num_joint_blocks = num_joint_blocks
             else:
-                match = re.match(r"dinov2/(?P<model_size>vit(s|l|b|g)).*", model_name)
-                if match is None:
+                try:
+                    config = DINOV2_EOMT_PANOPTIC_SEGMENTATION_MODEL_REGISTRY.get(
+                        alias=model_name
+                    )()
+                except KeyError:
                     raise ValueError(
                         f"Unknown model name '{model_name}', "
                         "see https://docs.lightly.ai/train/stable/panoptic_segmentation.html#model "
                         "for all supported models."
-                    )
-                model_size = match.group("model_size")
-                self.num_joint_blocks = {
-                    "vits": 3,
-                    "vitb": 3,
-                    "vitl": 4,
-                    "vitg": 5,
-                }[model_size]
+                    ) from None
+                self.num_joint_blocks = config.num_joint_blocks
 
         if (
             self.attn_mask_annealing_steps_start == "auto"

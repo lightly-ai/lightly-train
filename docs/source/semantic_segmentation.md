@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation.ipynb)
 
 ```{note}
-🔥 **New**: LightlyTrain now supports training **[DINOv3](#-use-eomt-with-dinov3-)** and DINOv2 models for semantic segmentation with the `train_semantic_segmentation` function! The method is based on the
+LightlyTrain now supports training **[DINOv3](semantic-segmentation-eomt-dinov3)** and DINOv2 models for semantic segmentation with the {py:func}`train_semantic_segmentation <lightly_train.train_semantic_segmentation>` function! The method is based on the
 state-of-the-art segmentation model [EoMT](https://arxiv.org/abs/2503.19108) by
 Kerssies et al. and reaches 59.1% mIoU with DINOv3 weights and 58.4% mIoU with DINOv2 weights on the ADE20k dataset.
 ```
@@ -32,18 +32,28 @@ You can also explore inferencing with these model weights using our Colab notebo
 
 ### COCO-Stuff
 
+Patch size `16` models are more accurate but slower; patch size `32` models are faster
+but slightly less accurate. Pick the variant that fits your speed/accuracy trade-off.
+
+**Patch size 16** (higher accuracy, slower):
+
+| Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
+| -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
+| LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
+| LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |
+| LightlyTrain   | dinov3/vitb16-eomt-coco     | 50.1     | 23.1              | 85.7       | 512×512    |
+| LightlyTrain   | dinov3/vitl16-eomt-coco     | **52.5** | 49.0              | 303.2      | 512×512    |
+
+**Patch size 32** (faster, lower accuracy):
+
 | Implementation | Model                       | Val mIoU | Avg. Latency (ms) | Params (M) | Input Size |
 | -------------- | --------------------------- | -------- | ----------------- | ---------- | ---------- |
 | LightlyTrain   | dinov3/vitt32-eomt-coco     | 34.0     | 4.2               | 6.0        | 512×512    |
 | LightlyTrain   | dinov3/vitt32plus-eomt-coco | 36.0     | 4.4               | 7.7        | 512×512    |
 | LightlyTrain   | dinov3/vits32-eomt-coco     | 42.4     | 5.4               | 21.6       | 512×512    |
 | LightlyTrain   | dinov3/vitb32-eomt-coco     | 48.3     | 9.4               | 85.7       | 512×512    |
-| LightlyTrain   | dinov3/vitl32-eomt-coco     | 51.2     | 17.5              | 303.2      | 512×512    |
-| LightlyTrain   | dinov3/vitt16-eomt-coco     | 37.9     | 6.0               | 6.0        | 512×512    |
-| LightlyTrain   | dinov3/vitt16plus-eomt-coco | 39.5     | 6.4               | 7.7        | 512×512    |
-| LightlyTrain   | dinov3/vits16-eomt-coco     | 45.0     | 11.3              | 21.6       | 512×512    |
-| LightlyTrain   | dinov3/vitb16-eomt-coco     | 50.1     | 23.1              | 85.7       | 512×512    |
-| LightlyTrain   | dinov3/vitl16-eomt-coco     | **52.5** | 49.0              | 303.2      | 512×512    |
+| LightlyTrain   | dinov3/vitl32-eomt-coco     | **51.2** | 17.5              | 303.2      | 512×512    |
 
 We trained with 12 epochs (~88k steps) on the COCO-Stuff dataset with `num_queries=200`
 for EoMT.
@@ -110,8 +120,9 @@ During training, both the
   `save_checkpoint_args.save_every_num_steps`)
 
 model weights are exported to `out/my_experiment/exported_models/`, unless disabled in
-`save_checkpoint_args`. You can use these weights to continue fine-tuning on another
-task by loading the weights via the `checkpoint` parameter:
+[`save_checkpoint_args`](settings/train_settings.md#save_checkpoint_args). You can use
+these weights to continue fine-tuning on another task by loading the weights via the
+[`model`](settings/train_settings.md#model) argument:
 
 ```python
 import lightly_train
@@ -164,7 +175,7 @@ ID as defined in the `classes` dictionary in the dataset.
 
 (semantic-segmentation-eomt-dinov3)=
 
-## 🔥 Use EoMT with DINOv3 🔥
+## Use EoMT with DINOv3
 
 To fine-tune EoMT from DINOv3, you have to set `model` to one of the
 [DINOv3 models](#dinov3-models).
@@ -206,8 +217,10 @@ if __name__ == "__main__":
 
 ### Changing the Patch Size
 
-Increasing the patch size is an effective way to speed up inference and training. You
-can change the patch size via the `model_args` parameter:
+Increasing the patch size is an effective way to speed up inference and training. The
+patch size is encoded in the model name: for DINOv3 ViT models, `dinov3/vits16-eomt`
+uses a patch size of 16, while `dinov3/vits32-eomt` uses a patch size of 32. To train at
+a larger patch size, simply select a `vit*32` model:
 
 ```python
 import lightly_train
@@ -216,18 +229,16 @@ if __name__ == "__main__":
 
     lightly_train.train_semantic_segmentation(
         out="out/my_experiment",
-        model="dinov3/vits16-eomt-coco",
-        model_args={"patch_size": 32},
+        model="dinov3/vits32-eomt-coco",
         # ...,
     )
 ```
 
-As shown above, the patch size can be set to a value different from the one used in the
-pretrained model without harming compatibility of the pretrained weights. For DINOv3 ViT
-models, the patch size encoded in the model name is just the default;
-`model_args["patch_size"]` overrides it and LightlyTrain logs a warning if they differ.
-Internally, the patch embedding weights are automatically resized to the requested patch
-size using the method introduced in [FlexiViT](https://arxiv.org/pdf/2212.08013).
+The patch-32 checkpoints are derived from the corresponding patch-16 pretrained weights
+by resizing the patch embedding using the method introduced in
+[FlexiViT](https://arxiv.org/pdf/2212.08013), so the pretrained weights remain
+compatible. The available models are listed
+[here](#semantic-segmentation-benchmark-results) in the "Model" column of the tables.
 
 As illustrated in this {ref}`figure <fig-miou-latency>`, increasing the patch size leads
 to a significant speed-up with only a moderate impact on performance.
@@ -255,8 +266,9 @@ if __name__ == "__main__":
 
 ## Out
 
-The `out` argument specifies the output directory where all training logs, model
-exports, and checkpoints are saved. It looks like this after training:
+The [`out`](settings/train_settings.md#out) argument specifies the output directory
+where all training logs, model exports, and checkpoints are saved. It looks like this
+after training:
 
 ```text
 out/my_experiment
@@ -287,6 +299,11 @@ Every image must have a corresponding mask whose filename either matches that of
 image (under a different directory) or follows a specific template pattern. The masks
 must be PNG images in either grayscale integer format, where each pixel value
 corresponds to a class ID, or multi-channel (e.g., RGB) format.
+
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits.
 
 The following image formats are supported:
 
@@ -565,11 +582,35 @@ if __name__ == "__main__":
 
 ## Model
 
-The `model` argument defines the model used for semantic segmentation training. The
-following models are available:
+The [`model`](settings/train_settings.md#model) argument defines the model used for
+semantic segmentation training. The following models are available:
 
-### DINOv3 Models
+Unless noted otherwise, all `dinov2/`-prefixed and `dinov3/`-prefixed model backbones
+are initialized from weights pretrained by Meta through
+[DINOv2](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models)
+and
+[DINOv3](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models),
+respectively. Non-EUPE DINOv3 models with `vitt16` and `vitt16plus` backbones use
+Lightly-pretrained weights, while `eupe`-postfixed and `lingbot`-postfixed variants use
+[EUPE weights](https://github.com/facebookresearch/EUPE) and
+[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), respectively.
 
+DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+variants are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+LingBot Vision weights are released under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file);
+as they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models.
+
+(dinov3-models)=
+
+```{dropdown} DINOv3 ViT backbones
+---
+open:
+---
 - `dinov3/vitt32-eomt-coco` (fine-tuned on COCO-Stuff)
 - `dinov3/vitt32plus-eomt-coco` (fine-tuned on COCO-Stuff)
 - `dinov3/vits32-eomt-coco` (fine-tuned on COCO-Stuff)
@@ -584,36 +625,34 @@ following models are available:
 - `dinov3/vitb16-eomt-cityscapes` (fine-tuned on Cityscapes)
 - `dinov3/vitl16-eomt-cityscapes` (fine-tuned on Cityscapes)
 - `dinov3/vitt16-eomt`
-- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
-- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
-- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-eomt`
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
+```
 
-Unless noted otherwise, all DINOv3 backbones are initialized from weights
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
-DINOv3 backbone weights instead. Models marked as EUPE use
-[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
-models are under the
-[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+```{dropdown} DINOv3 ViT backbones with EUPE weights
+- `dinov3/vitt16-eupe-eomt`
+- `dinov3/vits16-eupe-eomt`
+- `dinov3/vitb16-eupe-eomt`
+```
 
-### DINOv2 Models
+```{dropdown} DINOv3 ViT backbones with LingBot Vision weights
+- `dinov3/vits16-lingbot-eomt`
+- `dinov3/vitb16-lingbot-eomt`
+- `dinov3/vitl16-lingbot-eomt`
+```
 
+```{dropdown} DINOv2 ViT backbones
 - `dinov2/vits14-eomt`
 - `dinov2/vitb14-eomt`
 - `dinov2/vitl14-eomt`
 - `dinov2/vitg14-eomt`
-
-All DINOv2 models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+```
 
 ## Training Settings
 
@@ -646,8 +685,12 @@ pretrain a DINOv2 model on unlabeled data using self-supervised learning and the
 fine-tune it on your segmentation dataset. This is especially useful if your dataset is
 only partially labeled or if you have access to a large amount of unlabeled data.
 
-The following example shows how to pretrain and fine-tune the model. Check out the page
-on [DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
+The following example shows how to pretrain and fine-tune the model: pretrain with
+{py:func}`pretrain <lightly_train.pretrain>`, then pass the pretrained weights to
+fine-tuning through the
+[`backbone_weights`](settings/train_settings.md#backbone_weights) key of
+[`model_args`](settings/train_settings.md#model_args). Check out the page on
+[DINOv2](#methods-dinov2) to learn more about pretraining DINOv2 models on unlabeled
 data.
 
 ```python
@@ -699,6 +742,7 @@ if __name__ == "__main__":
 ## Default Image Transform Arguments
 
 The following are the default image transform arguments. See
+[`transform_args`](settings/train_settings.md#transform_args) and
 [](train-settings-transforms) on how to customize transform settings.
 
 `````{dropdown} EoMT DINOv2 Default Transform Arguments
@@ -765,7 +809,7 @@ See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_onnx` for all available op
 when exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/semantic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation_export.ipynb)
 
 (semantic-segmentation-tensorrt)=
 
@@ -807,4 +851,4 @@ See {py:meth}`~.DINOv3EoMTSemanticSegmentation.export_tensorrt` for all availabl
 options when exporting to TensorRT.
 
 You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/semantic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_semantic_segmentation_export.ipynb)

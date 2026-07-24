@@ -6,8 +6,26 @@ Training instabilities — such as exploding or vanishing gradients, sudden loss
 or numerical collapse to `NaN`/`inf` — can derail a run silently or abruptly. This page
 collects the tools LightlyTrain provides to detect and diagnose these issues.
 
-:::\{note} This section is growing. More debugging tools will be documented here as they
-are added. The first available tool is gradient norm logging. :::
+:::\{note} This section covers the debugging tools LightlyTrain ships for fine-tuning:
+gradient norm logging (always on) and the on-demand `underflow_overflow` and
+`nancapture` monitors.
+
+:::
+
+## Which Tool When
+
+Start with the lightest signal and escalate as needed:
+
+- **Trend of gradient magnitudes (always on):** `gradient_norm` is logged every step.
+  See [Gradient Norm Logging](#gradient-norm-logging) below.
+- **`NaN`/`inf` without an obvious culprit; localize the failing module:** see
+  [Underflow/Overflow Detection](#underflow-overflow-detection).
+- **Reproduce a sporadic bad step outside the live loop:** see
+  [NaN/Inf Capture & Replay](#naninf-capture--replay).
+
+`gradient_norm` is logged automatically. Enable the other two on demand via the
+[`debug_args` setting](../settings/train_settings.md#debug). The full key lists and
+output paths live in the same section.
 
 ## What Instability Looks Like
 
@@ -76,7 +94,84 @@ persistent upward or downward drift is the signal to act on.
     distribution.
 - **NaN/inf collapse:** Re-run from the latest checkpoint. If it reproduces, switch to
   `precision="32-true"` to isolate whether the instability is caused by
-  reduced-precision arithmetic.
+  reduced-precision arithmetic. For sporadic failures, escalate to
+  [Underflow/Overflow Detection](#underflow-overflow-detection) to localize the failing
+  module, then [NaN/Inf Capture & Replay](#naninf-capture--replay) to reproduce the bad
+  step offline.
 
 See the FAQ entry on [improving model performance](../faq.md) for broader guidance on
 stable training.
+
+(underflow-overflow-detection)=
+
+## Underflow/Overflow Detection
+
+When the gradient norm chart looks fine but forward passes start producing `NaN`/`inf`,
+knowing *which module* first went bad shrinks the search dramatically. The
+`underflow_overflow` monitor attaches forward hooks to every model module and reports
+the absolute min/max of every weight, input, and output. Training aborts as soon as any
+non-finite value is detected, and the last several forward frames are written to the
+report so the failing module is straightforward to spot.
+
+Enable it on demand when you suspect reduced-precision arithmetic (a specific task or
+model occasionally collapses to `NaN`):
+
+```python
+debug_args={"underflow_overflow": {"enabled": True}}
+```
+
+The full key list (`max_frames_to_save`, `trace_batch_nums`, `abort_after_batch_num`) is
+in the [underflow/overflow reference](../settings/train_settings.md#underflow_overflow).
+Output is written per rank to `out/debug/underflow_overflow_rank{rank}.log` — the module
+with the first non-finite value is where to look.
+
+```{warning}
+This tool significantly slows training — measured at roughly **3×** slower on
+typical fine-tuning workloads (it runs an absolute `min`/`max` reduction on
+every weight, input and output on each forward). Disable it once you have a
+report. It also cannot be combined with `torch_compile_args={"disable": False}`;
+see [Compile settings](../settings/train_settings.md#compilation).
+```
+
+(naninf-capture--replay)=
+
+## NaN/Inf Capture & Replay
+
+`gradient_norm` shows the trend; `underflow_overflow` shows the failing module. When
+both still leave you unable to reproduce a sporadic `NaN`, `nancapture` snapshots the
+failing step so you can replay it offline.
+
+When enabled, the monitor scans parameter gradients for `NaN`/`Inf` after each
+gradient-accumulation step (before the optimizer step). On detection it writes a
+self-contained capture to `out/debug/nan_capture/rank{rank}/nan_capture.pt` holding the
+model state, the step's microbatches, RNG state, and metadata — then aborts training by
+raising `NaNDetectedError`.
+
+Reproduce the failure without re-running training:
+
+```python
+from lightly_train._debug.nan_capture import load_nan_capture
+
+cap = load_nan_capture("out/my_run/debug/nan_capture/rank0")
+result = cap.replay()
+print(result.reproduced, result.nan_param_names)
+```
+
+```{warning}
+`nancapture` adds non-trivial per-step overhead — every step clones each
+microbatch to CPU, snapshots the RNG, and scans parameter gradients for
+`NaN`/`Inf`, plus a `torch.save` to disk on detection. Expect training to be
+measurably slower (often **2–3×**) while the monitor is enabled. Disable it as
+soon as you have the capture you need.
+```
+
+The replay reconstructs the `TrainModel`, restores the saved microbatches and RNG state,
+and re-runs the triggering forward+backward pass; it stops before the optimizer step
+(the corruption path that the training loop never reached). For mixed-precision
+failures, pass a `Fabric` matching the captured run's precision: `cap.replay(fabric=f)`.
+
+After diagnosing and fixing the bug, restart with `resume_interrupted=True`: the on-disk
+`checkpoints/last.ckpt` is healthy because the capture raises before the optimizer step
+and the per-step checkpoint save, so neither the bad gradient nor any bad optimizer
+state is ever persisted. See the
+[nancapture reference](../settings/train_settings.md#nancapture).

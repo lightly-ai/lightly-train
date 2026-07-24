@@ -9,6 +9,92 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.16.4] - 2026-07-24
+
+### Added
+
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
+  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+- Add LTDETRv2 instance segmentation with `ltdetrv2-seg-s/m/l/x` models and
+  COCO-pretrained checkpoints for fine-tuning or out-of-the-box inference.
+- Add SAHI inference for LTDETRv2 instance segmentation through `model.predict_sahi()`.
+
+### Changed
+
+- Warn when a built-in distillation teacher is used with non-ImageNet input
+  normalization, which can produce invalid teacher features.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3.1 pretraining method.
+
+### Fixed
+
+- Preserve exponential-moving-average updates when resuming training, preventing a
+  spurious validation-metric drop after the first resumed update.
+- Skip degenerate predicted boxes during validation visualization and log a warning
+  instead of crashing.
+- Restore installation and package imports by using a released LightlySSL dependency.
+
+### Security
+
+## [0.16.3] - 2026-07-22
+
+### Added
+
+- Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
+  `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
+- Add LingBot Vision backbones to the DINOv3 EoMT semantic, panoptic, and instance
+  segmentation tasks: `dinov3/vits16-lingbot-eomt`, `dinov3/vitb16-lingbot-eomt`, and
+  `dinov3/vitl16-lingbot-eomt`.
+- Add tiny, tiny-plus, and small Depth Anything V3 depth estimation models — the
+  smallest and fastest so far, distilled from ViT-L: `dinov3/dav3-relative-tiny`,
+  `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,
+  `dinov3/dav3-metric-tiny`, `dinov3/dav3-metric-tiny-plus`, and
+  `dinov2/dav3-metric-small`.
+- Add COCO-pretrained checkpoints for the `ltdetrv2-m` (`edgecrafter/ecvittplus-ltdetr`)
+  and `ltdetrv2-l` (`edgecrafter/ecvits-ltdetr`) object detection models, available via
+  the `ltdetrv2-m-coco` and `ltdetrv2-l-coco` aliases.
+
+### Changed
+
+- ONNX export for LT-DETR object detection now returns raw logits and normalized
+  bounding boxes. Postprocessing is supposed to be applied outside the graph.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3 EoMT semantic segmentation training `model_args.patch_size` option.
+  The patch size is now determined by the selected model name; use a
+  `dinov3/vit*32-eomt` model, such as `dinov3/vits32-eomt-coco`, to train with patch
+  size 32.
+
+### Fixed
+
+- Fix ONNX export verification for task models: `Tensor.is_floating_point` was
+  referenced without calling it, so the always-truthy bound method forced integer
+  outputs (e.g. labels) through the float comparison path instead of the intended
+  exact-match check.
+
+### Security
+
+## [0.16.2] - 2026-07-10
+
+### Added
+
 - Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
   gradients during training, save a self-contained capture (model state dict +
   TrainModel class/init kwargs + the step's microbatches + RNG state) to
@@ -20,6 +106,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
 - Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
   `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
+- Add a debugging tools tutorial that walks through gradient overflow detection with
+  `underflow_overflow` and gradient norm logging, using the fine-tuning API and a
+  deterministic synthetic dataset.
 
 ### Changed
 
@@ -32,13 +121,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Deprecated
 
-- Removes the `DINOv3LTDETRObjectDetection` class in favor of the new
-  `LTDETRObjectDetection` class. For the user, this changes nothing, since they don't
-  use the class directly, but only its methods, which will remain available.
-
 ### Removed
 
+- Removes the `DINOv3LTDETRObjectDetection` and `DINOv2LTDETRObjectDetection` classes in
+  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing,
+  since they don't use the class directly, but only its methods, which will remain
+  available.
+
 ### Fixed
+
+- Fixed an issue with legacy LT-DETR checkpoints that used a [0,1] normalization instead
+  of the now-default ImageNet normalization.
 
 ### Security
 

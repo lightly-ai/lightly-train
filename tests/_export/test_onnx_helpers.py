@@ -15,6 +15,7 @@ from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
+    remove_duplicate_cast_nodes,
     remove_redundant_casts,
 )
 
@@ -289,6 +290,61 @@ def test_rewires_downstream_consumers(tmp_path: Path) -> None:
     assert relu_node.op_type == "Relu"
     # Relu should now consume "X" directly, not "X_back".
     assert relu_node.input[0] == "X"
+
+
+# --- remove_duplicate_cast_nodes tests ---
+
+
+def test_remove_duplicate_cast_nodes_drops_duplicates() -> None:
+    """Multiple Cast nodes sharing the same output name (as emitted by
+    convert_float_to_float16 when a tensor feeds several op_block_list
+    consumers) should be collapsed to a single node."""
+    import onnx
+
+    nodes = [
+        onnx.helper.make_node(
+            "Cast", ["X"], ["X_cast"], name=f"cast_{i}", to=onnx.TensorProto.FLOAT
+        )
+        for i in range(3)
+    ]
+    relu = onnx.helper.make_node("Relu", ["X_cast"], ["Y"], name="relu")
+    graph = onnx.helper.make_graph(
+        [*nodes, relu],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT16, [1, 3])],
+        [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1, 3])],
+    )
+    model = _make_model(graph)
+    remove_duplicate_cast_nodes(model)
+
+    op_types = [n.op_type for n in model.graph.node]
+    assert op_types == ["Cast", "Relu"]
+    assert model.graph.node[0].name == "cast_0"
+
+
+def test_remove_duplicate_cast_nodes_preserves_unique_casts() -> None:
+    """Cast nodes with distinct output names should all be preserved."""
+    import onnx
+
+    cast_a = onnx.helper.make_node(
+        "Cast", ["X"], ["A"], name="cast_a", to=onnx.TensorProto.FLOAT
+    )
+    cast_b = onnx.helper.make_node(
+        "Cast", ["X"], ["B"], name="cast_b", to=onnx.TensorProto.FLOAT
+    )
+    graph = onnx.helper.make_graph(
+        [cast_a, cast_b],
+        "test",
+        [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT16, [1, 3])],
+        [
+            onnx.helper.make_tensor_value_info("A", onnx.TensorProto.FLOAT, [1, 3]),
+            onnx.helper.make_tensor_value_info("B", onnx.TensorProto.FLOAT, [1, 3]),
+        ],
+    )
+    model = _make_model(graph)
+    remove_duplicate_cast_nodes(model)
+
+    assert len(model.graph.node) == 2
 
 
 # --- fix_topological_order tests ---

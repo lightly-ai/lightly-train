@@ -9,9 +9,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
+import torch
 
 from lightly_train._transforms.ltdetr_transforms.utils import (
     filter_degenerate_yolo_boxes,
+    filter_normalized_cxcywh_min_size,
     normalize_bboxes_and_labels,
 )
 
@@ -99,3 +102,71 @@ class TestNormalizeBboxesAndLabels:
 
         assert bboxes is bboxes_in
         assert class_labels is class_labels_in
+
+
+class TestFilterNormalizedCxcywhMinSize:
+    def test_drops_sub_minimum_width_or_height(self) -> None:
+        # Image size is 100x100, min 4 px -> normalized side of 0.04.
+        bboxes = torch.tensor(
+            [
+                [0.5, 0.5, 0.30, 0.30],  # 30x30 - kept
+                [0.5, 0.5, 0.01, 0.30],  # 1x30 - dropped (width too small)
+                [0.5, 0.5, 0.30, 0.02],  # 30x2 - dropped (height too small)
+                [0.5, 0.5, 0.04, 0.04],  # exactly at limit - kept
+            ]
+        )
+
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
+            image_size=(100, 100),
+            min_size_px=4.0,
+        )
+
+        torch.testing.assert_close(keep, torch.tensor([True, False, False, True]))
+
+    def test_zero_min_size_keeps_all(self) -> None:
+        bboxes = torch.tensor([[0.5, 0.5, 0.001, 0.001]])
+
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
+            image_size=(1000, 1000),
+            min_size_px=0.0,
+        )
+
+        torch.testing.assert_close(keep, torch.tensor([True]))
+
+    def test_empty_input(self) -> None:
+        bboxes = torch.zeros((0, 4))
+
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
+            image_size=(100, 100),
+            min_size_px=4.0,
+        )
+
+        assert keep.shape == (0,)
+        assert keep.dtype == torch.bool
+
+    def test_empty_input_with_non_cxcywh_shape(self) -> None:
+        # Some upstream dataset items represent "no boxes" as a 1-D empty
+        # tensor instead of shape (0, 4); this must not raise.
+        bboxes = torch.zeros((0,))
+
+        keep = filter_normalized_cxcywh_min_size(
+            bboxes,
+            image_size=(100, 100),
+            min_size_px=4.0,
+        )
+
+        assert keep.shape == (0,)
+        assert keep.dtype == torch.bool
+
+    def test_raises_on_wrong_shape(self) -> None:
+        bboxes = torch.zeros((2, 3))
+
+        with pytest.raises(ValueError):
+            filter_normalized_cxcywh_min_size(
+                bboxes,
+                image_size=(100, 100),
+                min_size_px=4.0,
+            )

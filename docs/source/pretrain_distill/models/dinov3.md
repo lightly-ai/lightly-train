@@ -82,36 +82,52 @@ and are under the
 EUPE models are pretrained by Meta using the
 [EUPE method](https://github.com/facebookresearch/EUPE) and are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
-The ViT-T/16 models, except the EUPE one, are trained by Lightly using knowledge
-distillation from DINOv3 ViT-L/16.
+The LingBot Vision models are pretrained by Robbyant using
+[masked boundary modeling](https://github.com/Robbyant/lingbot-vision) for dense spatial
+perception. They are released under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file).
+As they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models and weights. The ViT-T/16 models, except the EUPE one, are trained
+by Lightly using knowledge distillation from DINOv3 ViT-L/16.
 
-- ViT-T (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K)
-  - `dinov3/vitt16` — distillationv2 weights; recommended for dense tasks (object
-    detection, segmentation)
-  - `dinov3/vitt16plus` — distillationv2 weights; recommended for dense tasks
-  - `dinov3/vitt16-distillationv1` — distillationv1 weights; recommended for global
-    tasks (image classification)
-  - `dinov3/vitt16plus-distillationv1` — distillationv1 weights; recommended for global
-    tasks
+- ViT-T
+  - `dinov3/vitt16` (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K) —
+    distillationv2 weights; recommended for dense tasks (object detection, segmentation)
+  - `dinov3/vitt16plus` (Lightly, distilled from DINOv3 ViT-L/16 on ImageNet-1K) —
+    distillationv2 weights; recommended for dense tasks
+  - `dinov3/vitt16-distillationv1` (Lightly, distilled from DINOv3 ViT-L/16 on
+    ImageNet-1K) — distillationv1 weights; recommended for global tasks (image
+    classification)
+  - `dinov3/vitt16plus-distillationv1` (Lightly, distilled from DINOv3 ViT-L/16 on
+    ImageNet-1K) — distillationv1 weights; recommended for global tasks
   - `dinov3/vitt16-notpretrained` — random initialization; for training from scratch
   - `dinov3/vitt16plus-notpretrained` — random initialization; for training from scratch
-- ViT-T (Meta, LVD-1689M)
-  - `dinov3/vitt16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- ViT-S (Meta, LVD-1689M)
-  - `dinov3/vits16`
-  - `dinov3/vits16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-  - `dinov3/vits16plus`
-- ViT-B (Meta, LVD-1689M)
-  - `dinov3/vitb16`
-  - `dinov3/vitb16-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- ViT-L (Meta)
-  - `dinov3/vitl16` (LVD-1689M)
-  - `dinov3/vitl16-sat493m` (SAT-493M)
-- ViT-H (Meta, LVD-1689M)
-  - `dinov3/vith16plus`
-- ViT-7B (Meta)
-  - `dinov3/vit7b16` (LVD-1689M)
-  - `dinov3/vit7b16-sat493m` (SAT-493M)
+  - `dinov3/vitt16-eupe` (Meta,
+    [EUPE weights](https://github.com/facebookresearch/EUPE))
+- ViT-S
+  - `dinov3/vits16` (Meta, LVD-1689M)
+  - `dinov3/vits16-eupe` (Meta,
+    [EUPE weights](https://github.com/facebookresearch/EUPE))
+  - `dinov3/vits16-lingbot` (Robbyant,
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision))
+  - `dinov3/vits16plus` (Meta, LVD-1689M)
+- ViT-B
+  - `dinov3/vitb16` (Meta, LVD-1689M)
+  - `dinov3/vitb16-eupe` (Meta,
+    [EUPE weights](https://github.com/facebookresearch/EUPE))
+  - `dinov3/vitb16-lingbot` (Robbyant,
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision))
+- ViT-L
+  - `dinov3/vitl16` (Meta, LVD-1689M)
+  - `dinov3/vitl16-sat493m` (Meta, SAT-493M)
+  - `dinov3/vitl16-lingbot` (Robbyant,
+    [LingBot Vision weights](https://github.com/Robbyant/lingbot-vision))
+- ViT-H
+  - `dinov3/vith16plus` (Meta, LVD-1689M)
+- ViT-7B
+  - `dinov3/vit7b16` (Meta, LVD-1689M)
+  - `dinov3/vit7b16-sat493m` (Meta, SAT-493M)
 
 For ViT models, the patch size is encoded in the model name by default (for example,
 `vitt16` or `vits16`). You can still override it via `model_args["patch_size"]` when
@@ -122,18 +138,20 @@ already encodes a patch size, LightlyTrain will log a warning. See the
 ### ConvNeXt Models
 
 The following ConvNeXt models are supported. All are
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-on the LVD-1689M dataset. The DINOv3 models are under the
+[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
+The DINOv3 models are pretrained on the LVD-1689M dataset and are under the
 [DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). The
 EUPE models are pretrained by Meta using the
 [EUPE method](https://github.com/facebookresearch/EUPE) and are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
-- `dinov3/convnext-tiny`
-- `dinov3/convnext-tiny-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/convnext-small`
-- `dinov3/convnext-small-eupe` -
-  [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/convnext-base`
-- `dinov3/convnext-base-eupe` - [EUPE weights](https://github.com/facebookresearch/EUPE)
-- `dinov3/convnext-large`
+- `dinov3/convnext-tiny` (Meta, LVD-1689M)
+- `dinov3/convnext-tiny-eupe` (Meta,
+  [EUPE weights](https://github.com/facebookresearch/EUPE))
+- `dinov3/convnext-small` (Meta, LVD-1689M)
+- `dinov3/convnext-small-eupe` (Meta,
+  [EUPE weights](https://github.com/facebookresearch/EUPE))
+- `dinov3/convnext-base` (Meta, LVD-1689M)
+- `dinov3/convnext-base-eupe` (Meta,
+  [EUPE weights](https://github.com/facebookresearch/EUPE))
+- `dinov3/convnext-large` (Meta, LVD-1689M)

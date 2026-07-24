@@ -13,6 +13,9 @@ from albumentations import BboxParams
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
+from lightly_train._task_models.picodet_object_detection.config import (
+    PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
+)
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionTransform,
     LTDETRObjectDetectionTransformArgs,
@@ -31,6 +34,28 @@ from lightly_train._transforms.transform import (
 
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
+
+
+def _get_image_size(model_init_args: dict[str, Any]) -> tuple[int, int]:
+    image_size = model_init_args.get("image_size")
+    if image_size is not None:
+        return tuple(image_size)
+
+    model_name = model_init_args.get("model_name")
+    if model_name is None:
+        raise ValueError(
+            "PicoDet transform image_size='auto' requires 'model_name' in "
+            "model_init_args."
+        )
+    try:
+        return PICODET_OBJECT_DETECTION_MODEL_REGISTRY.get(
+            alias=model_name
+        )().image_size
+    except KeyError as error:
+        raise ValueError(
+            f"Unknown model name '{model_name}'. "
+            f"Available: {list(PICODET_OBJECT_DETECTION_MODEL_REGISTRY.list_aliases())}"
+        ) from error
 
 
 class PicoDetRandomPhotometricDistortArgs(RandomPhotometricDistortArgs):
@@ -121,13 +146,7 @@ class PicoDetObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArg
         super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
-            model_name = model_init_args.get("model_name")
-            default_image_size = (
-                (640, 640) if model_name == "picodet/l-640" else (416, 416)
-            )
-            self.image_size = tuple(
-                model_init_args.get("image_size", default_image_size)
-            )
+            self.image_size = _get_image_size(model_init_args=model_init_args)
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:
@@ -225,13 +244,7 @@ class PicoDetObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs)
         super().resolve_auto(model_init_args=model_init_args)
 
         if self.image_size == "auto":
-            model_name = model_init_args.get("model_name")
-            default_image_size = (
-                (640, 640) if model_name == "picodet/l-640" else (416, 416)
-            )
-            self.image_size = tuple(
-                model_init_args.get("image_size", default_image_size)
-            )
+            self.image_size = _get_image_size(model_init_args=model_init_args)
 
         height, width = self.image_size
         for field_name in self.__class__.model_fields:

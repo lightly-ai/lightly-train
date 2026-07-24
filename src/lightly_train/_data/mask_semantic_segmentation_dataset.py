@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Iterable, Union
+from typing import ClassVar, Dict, Iterable, Union
 
 import numpy as np
 import torch
@@ -18,7 +18,7 @@ from pydantic import AliasChoices, Field, TypeAdapter, field_validator
 from torch import Tensor
 
 from lightly_train._configs.config import PydanticConfig
-from lightly_train._data import file_helpers, label_helpers
+from lightly_train._data import data_helpers, file_helpers, label_helpers
 from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
@@ -56,6 +56,8 @@ class MultiChannelClassInfo(PydanticConfig):
 
 
 ClassInfo = Union[MultiChannelClassInfo, SingleChannelClassInfo]
+RawClassInfo = Union[ClassInfo, str, Dict[str, object]]
+RawClasses = Union[Dict[Union[int, str], RawClassInfo], PathLike]
 
 
 class MaskSemanticSegmentationDataset(TaskDataset):
@@ -319,6 +321,20 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
     classes: dict[int, ClassInfo] | PathLike
     ignore_classes: set[int] | None = Field(default=None, strict=False)
 
+    def resolve_data_paths(self, base_dir: Path) -> None:
+        self.train.images = data_helpers.resolve_path(
+            self.train.images, base_dir=base_dir
+        )
+        self.train.masks = data_helpers.resolve_path(
+            self.train.masks, base_dir=base_dir
+        )
+        self.val.images = data_helpers.resolve_path(self.val.images, base_dir=base_dir)
+        self.val.masks = data_helpers.resolve_path(self.val.masks, base_dir=base_dir)
+        if not isinstance(self.classes, dict):
+            self.classes = self.validate_classes(
+                data_helpers.resolve_path(self.classes, base_dir=base_dir)
+            )
+
     def _deterministic_classes_str(self) -> str:
         """Serialize classes deterministically for hashing.
 
@@ -360,11 +376,15 @@ class MaskSemanticSegmentationDataArgs(TaskDataArgs):
 
     @field_validator("classes", mode="before")
     @classmethod
-    def validate_classes(cls, classes: Any) -> dict[int, ClassInfo]:
+    def validate_classes(cls, classes: RawClasses) -> dict[int, ClassInfo] | Path:
+        # Relative JSON paths need the data config base_dir, which is only known
+        # later in resolve_data_paths. Keep those paths unresolved here.
         if isinstance(classes, (str, Path)):
             path = Path(classes)
             if path.suffix != ".json":
                 raise ValueError(f"'classes' path must be a .json file, got: '{path}'")
+            if not path.is_absolute():
+                return path
             try:
                 with path.open(encoding="utf-8") as f:
                     data = json.load(f)

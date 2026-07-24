@@ -67,3 +67,8 @@ def test_list_methods_public() -> None:
         "distillationv3",
         "simclr",
     ]
+
+
+def test_get_method_cls_dinov31_is_unavailable() -> None:
+    with pytest.raises(ValueError, match="Method 'dinov31' is unknown"):
+        method_helpers.get_method_cls(method="dinov31")
