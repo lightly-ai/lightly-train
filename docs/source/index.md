@@ -95,28 +95,28 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 Train EoMT segmentation models with DINOv3 backbones.<br>
 ```
 
-```{grid-item-card} Panoptic Segmentation
-:link: panoptic_segmentation.html
-<img src="_static/images/tasks/panoptic_segmentation.png" height="64"><br>
-Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
-```
-
 ```{grid-item-card} Semantic Segmentation
 :link: semantic_segmentation.html
 <img src="_static/images/tasks/semantic_segmentation.png" height="64"><br>
 Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
-```{grid-item-card} Image Classification
-:link: image_classification.html
-<img src="_static/images/tasks/image_classification.jpg" height="64"><br>
-Train image classification models with any backbone.<br>
+```{grid-item-card} Panoptic Segmentation
+:link: panoptic_segmentation.html
+<img src="_static/images/tasks/panoptic_segmentation.png" height="64"><br>
+Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Depth Estimation
 :link: depth_estimation.html
 <img src="_static/images/tasks/depth_estimation.png" height="64"><br>
 Run Depth Anything V2 and V3 monocular depth inference.<br>
+```
+
+```{grid-item-card} Image Classification
+:link: image_classification.html
+<img src="_static/images/tasks/image_classification.jpg" height="64"><br>
+Train image classification models with any backbone.<br>
 ```
 
 ```{grid-item-card} Distillation
