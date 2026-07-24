@@ -158,10 +158,9 @@ if __name__ == "__main__":
 <summary><strong>Instance Segmentation</strong></summary>
 
 Train state-of-the-art instance segmentation models with our new **LTDETRv2** family
-built on EdgeCrafter ECViT backbones, or with the **EoMT** method (CVPR 2025) and DINOv2
-or DINOv3 backbones.
+built on EdgeCrafter ECViT backbones.
 
-#### COCO Results (LTDETRv2)
+#### COCO Results
 
 | Implementation | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Input Size |
 | -------------- | ------------------- | :--------------------------: | :---------------: | :--------: |
@@ -176,25 +175,9 @@ Training follows the protocol in the original
 and are evaluated on the validation set. Average latency is measured using TensorRT
 version `10.13.3.9` and FP16 precision on a single NVIDIA T4 GPU with batch size 1.
 
-#### COCO Results (EoMT)
-
-| Implementation                       | Model                            | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
-| ------------------------------------ | -------------------------------- | ------------ | ----------------- | ---------- | ---------- |
-| LightlyTrain                         | dinov3/vitt16-eomt-inst-coco     | 25.4         | 12.7              | 6.0        | 640×640    |
-| LightlyTrain                         | dinov3/vitt16plus-eomt-inst-coco | 27.6         | 13.3              | 7.7        | 640×640    |
-| LightlyTrain                         | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
-| LightlyTrain                         | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
-
-Tiny models are trained for 48 epochs, while all other models are trained for 12 epochs
-on the COCO 2017 dataset and evaluated on the validation set with single-scale testing.
-Average latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
-optimized using `torch.compile`.
-
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation.ipynb)
 
 ```python
