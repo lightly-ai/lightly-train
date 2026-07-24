@@ -45,25 +45,24 @@ for the TensorRT recipe in particular.
   [ONNX Runtime releases page](https://github.com/microsoft/onnxruntime/releases)
   (e.g. `onnxruntime-linux-x64-gpu-<version>.tgz`) -- the pip `onnxruntime-gpu`
   wheel does not reliably ship the C++ headers/import library needed here.
-- For the TensorRT recipe: TensorRT matching the version pinned in the
-  notebook (`tensorrt-cu12==10.13.3.9`), either via the pip wheel's
-  `site-packages/tensorrt*` directories or a native TensorRT install.
+- For the TensorRT recipe: a native TensorRT install (e.g. `libnvinfer-dev`
+  and matching version pins via
+  [NVIDIA's CUDA apt repo](https://developer.nvidia.com/cuda-downloads), or an
+  extracted TensorRT tarball) matching the version pinned in the notebook
+  (`tensorrt-cu12==10.13.3.9`) -- the pip `tensorrt-cu12` wheel does **not**
+  ship the `NvInfer.h` C++ headers needed here, only Python bindings.
 
 ## 3. Build
 
 ```bash
 cmake -S examples/cpp -B examples/cpp/build \
   -DONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-gpu-<version> \
-  -DTensorRT_ROOT=/path/to/TensorRT-10.13.3.9  # or the pip tensorrt package's install dir
+  -DTensorRT_ROOT=/path/to/TensorRT-10.13.3.9
 cmake --build examples/cpp/build -j
 ```
 
-If TensorRT was installed via `pip install tensorrt-cu12`, point
-`-DTensorRT_ROOT` at its package directory, e.g.:
-
-```bash
--DTensorRT_ROOT=$(python -c "import tensorrt, os; print(os.path.dirname(tensorrt.__file__))")
-```
+`-DTensorRT_ROOT` is only needed for a tarball install; an apt install (e.g.
+`libnvinfer-dev`) already puts headers/libs on the default search path.
 
 ## 4. Run
 

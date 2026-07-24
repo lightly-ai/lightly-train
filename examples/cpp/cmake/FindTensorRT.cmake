@@ -1,13 +1,15 @@
 # Locates TensorRT for the `tensorrt` recipe below.
 #
-# Most TensorRT installs -- including the `tensorrt-cu12` pip wheel used by
-# examples/notebooks/object_detection_export.ipynb -- do not ship an official
-# TensorRTConfig.cmake, so this module finds the headers/libraries directly.
+# TensorRT installs do not ship an official TensorRTConfig.cmake, so this
+# module finds the headers/libraries directly. This requires a native
+# TensorRT install with C++ headers (e.g. `libnvinfer-dev` via apt, or an
+# extracted TensorRT tarball) -- the `tensorrt-cu12` pip wheel used by
+# examples/notebooks/object_detection_export.ipynb does not ship `NvInfer.h`
+# and cannot be used here.
 #
-# Set -DTensorRT_ROOT=<path> to point at a TensorRT install, e.g. the
-# site-packages directory of a pip-installed `tensorrt-cu12` package
-# (`python -c "import tensorrt, os; print(os.path.dirname(tensorrt.__file__))"`)
-# or an extracted TensorRT tarball/.deb install root.
+# Set -DTensorRT_ROOT=<path> to point at a TensorRT tarball install root. Not
+# needed for an apt install, since headers/libs are already on the default
+# search path.
 
 find_path(TensorRT_INCLUDE_DIR
   NAMES NvInfer.h
