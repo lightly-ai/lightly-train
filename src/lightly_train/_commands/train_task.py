@@ -1511,9 +1511,11 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
         )
         train_dataloader.collate_fn = train_collate_fn  # type: ignore[assignment]
         val_dataloader.collate_fn = val_collate_fn  # type: ignore[assignment]
-        helpers.disable_persistent_workers_for_step_aware_transforms(
-            train_dataloader, train_transform, train_collate_fn
-        )
+        # NOTE: persistent_workers is forced to False for both dataloaders at
+        # construction time (see helpers.get_train_dataloader / get_val_dataloader).
+        # Persistent workers are owned by the DataLoader and survive StopIteration, so
+        # they cannot be released between the training and validation phases, which
+        # would keep both worker pools alive at once.
         # Wrap dataloaders with fabric *after* installing the collate function.
         # fabric's _FabricDataLoader snapshots the underlying dataloader; assigning
         # collate_fn on the wrapper would not reach the iterator.
@@ -1867,6 +1869,17 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     )
 
                 if is_val_step or is_last_step:
+                    if config.num_workers > 0:
+                        # Release train DataLoader workers before validation starts so
+                        # the train and validation worker pools never coexist (which
+                        # would multiply the live worker processes per rank).
+                        #
+                        # Training is step-based rather than epoch-based, so resetting
+                        # mid-epoch is acceptable: it re-shuffles from the top and drops
+                        # the current epoch's remaining batches, but we make no
+                        # per-epoch coverage guarantees anyway. The next next() call
+                        # re-creates the iterator and respawns the workers.
+                        infinite_train_dataloader.reset()
                     fabric.barrier()
                     logger.info("Validating...")
                     train_model.eval()
@@ -1879,125 +1892,129 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
                     val_dataloader_iter = iter(val_dataloader)
                     # TODO (Lionel, 02/26): Average metrics during validation instead of
                     # only singular metrics at the end of the epoch.
-                    for val_step in range(len(val_dataloader)):
-                        is_last_val_step = val_step + 1 == len(val_dataloader)
-                        is_val_log_step = (
-                            val_step + 1 in val_log_steps
-                            or (val_step + 1) % val_log_every_num_steps == 0
-                        )
-
-                        timer.start_step("val_step")
-                        timer.start_step("val_dataload")
-                        val_batch = next(val_dataloader_iter)
-                        timer.end_step("val_dataload")
-
-                        # Validation forward pass.
-                        with torch.no_grad():
-                            val_result = train_model.validation_step(
-                                fabric=fabric,
-                                batch=val_batch,
-                                step=val_step,
+                    try:
+                        for val_step in range(len(val_dataloader)):
+                            is_last_val_step = val_step + 1 == len(val_dataloader)
+                            is_val_log_step = (
+                                val_step + 1 in val_log_steps
+                                or (val_step + 1) % val_log_every_num_steps == 0
                             )
 
-                        if val_step < 3 and fabric.global_rank == 0:
-                            helpers.save_val_step_visualizations(
-                                result=val_result,
-                                out_dir=out_dir,
-                                val_step=val_step,
-                                global_step=step,
-                                loggers=fabric.loggers,
-                            )
+                            timer.start_step("val_step")
+                            timer.start_step("val_dataload")
+                            val_batch = next(val_dataloader_iter)
+                            timer.end_step("val_dataload")
 
-                        timer.end_step("val_step")
-                        timer.record_gpu_stats("val")
-
-                        if is_last_val_step:
-                            val_agg_metric_values = (
-                                val_result.metrics.compute_aggregated_values()
-                            )
-                            val_result.metrics.reset()
-                            best_agg_metric_values = helpers.get_best_metrics(
-                                best_agg_metric_values=best_agg_metric_values,
-                                last_agg_metric_values=val_agg_metric_values,
-                                step=step,
-                                metric_args=config.metric_args,
-                            )
-
-                            timer_agg = timer.get_aggregated_metrics(fabric)
-
-                            helpers.log_step(
-                                split="val",
-                                step=val_step,
-                                max_steps=len(val_dataloader),
-                                epoch=current_epoch,
-                                agg_metric_values=val_agg_metric_values,
-                                task=config.task,
-                                timer_agg=timer_agg,
-                                global_batch_size=config.batch_size,
-                            )
-                            helpers.add_timer_logs(
-                                timer_agg=timer_agg,
-                                log_dict=val_result.log_dict,
-                                split="val",
-                                global_batch_size=config.batch_size,
-                                gradient_accumulation_steps=config.gradient_accumulation_steps,
-                            )
-                            helpers.log_fabric(
-                                fabric=fabric,
-                                log_dict=val_result.log_dict,
-                                agg_metric_values=val_agg_metric_values,
-                                step=step,
-                                epoch=current_epoch,
-                            )
-
-                            if (
-                                config.save_checkpoint_args.save_best
-                                and best_agg_metric_values.step == step
-                            ):
-                                helpers.save_checkpoint(
+                            # Validation forward pass.
+                            with torch.no_grad():
+                                val_result = train_model.validation_step(
                                     fabric=fabric,
-                                    out_dir=out_dir,
-                                    state=state,
-                                    best_or_last="best",
-                                )
-                                model_dict = {
-                                    "model_class_path": state["model_class_path"],
-                                    "model_init_args": state["model_init_args"],
-                                    "train_model": train_model.get_export_state_dict(),
-                                    "license_info": state.get("license_info", ""),
-                                }
-                                helpers.export_model(
-                                    out_dir=out_dir,
-                                    model_dict=model_dict,
-                                    best_or_last="best",
+                                    batch=val_batch,
+                                    step=val_step,
                                 )
 
-                            # Log training summary after validation.
-                            timer_agg = timer.get_aggregated_metrics(fabric)
-                            helpers.log_training_summary(
-                                timer_agg=timer_agg,
-                                fabric=fabric,
-                                last_val_agg_metric_values=val_agg_metric_values,
-                                best_val_agg_metric_values=best_agg_metric_values,
-                                step=step,
-                                global_batch_size=config.batch_size,
-                                gradient_accumulation_steps=config.gradient_accumulation_steps,
-                            )
+                            if val_step < 3 and fabric.global_rank == 0:
+                                helpers.save_val_step_visualizations(
+                                    result=val_result,
+                                    out_dir=out_dir,
+                                    val_step=val_step,
+                                    global_step=step,
+                                    loggers=fabric.loggers,
+                                )
 
-                        elif is_val_log_step:
-                            # Show that we are making progress. Metrics are only calculated
-                            # at the end of the validation loop.
-                            timer_agg = timer.get_aggregated_metrics(fabric)
-                            helpers.log_step(
-                                split="val",
-                                step=val_step,
-                                max_steps=len(val_dataloader),
-                                epoch=current_epoch,
-                                agg_metric_values=None,
-                                task=config.task,
-                                timer_agg=timer_agg,
-                                global_batch_size=config.batch_size,
-                            )
+                            timer.end_step("val_step")
+                            timer.record_gpu_stats("val")
+
+                            if is_last_val_step:
+                                val_agg_metric_values = (
+                                    val_result.metrics.compute_aggregated_values()
+                                )
+                                val_result.metrics.reset()
+                                best_agg_metric_values = helpers.get_best_metrics(
+                                    best_agg_metric_values=best_agg_metric_values,
+                                    last_agg_metric_values=val_agg_metric_values,
+                                    step=step,
+                                    metric_args=config.metric_args,
+                                )
+
+                                timer_agg = timer.get_aggregated_metrics(fabric)
+
+                                helpers.log_step(
+                                    split="val",
+                                    step=val_step,
+                                    max_steps=len(val_dataloader),
+                                    epoch=current_epoch,
+                                    agg_metric_values=val_agg_metric_values,
+                                    task=config.task,
+                                    timer_agg=timer_agg,
+                                    global_batch_size=config.batch_size,
+                                )
+                                helpers.add_timer_logs(
+                                    timer_agg=timer_agg,
+                                    log_dict=val_result.log_dict,
+                                    split="val",
+                                    global_batch_size=config.batch_size,
+                                    gradient_accumulation_steps=config.gradient_accumulation_steps,
+                                )
+                                helpers.log_fabric(
+                                    fabric=fabric,
+                                    log_dict=val_result.log_dict,
+                                    agg_metric_values=val_agg_metric_values,
+                                    step=step,
+                                    epoch=current_epoch,
+                                )
+
+                                if (
+                                    config.save_checkpoint_args.save_best
+                                    and best_agg_metric_values.step == step
+                                ):
+                                    helpers.save_checkpoint(
+                                        fabric=fabric,
+                                        out_dir=out_dir,
+                                        state=state,
+                                        best_or_last="best",
+                                    )
+                                    model_dict = {
+                                        "model_class_path": state["model_class_path"],
+                                        "model_init_args": state["model_init_args"],
+                                        "train_model": train_model.get_export_state_dict(),
+                                        "license_info": state.get("license_info", ""),
+                                    }
+                                    helpers.export_model(
+                                        out_dir=out_dir,
+                                        model_dict=model_dict,
+                                        best_or_last="best",
+                                    )
+
+                                # Log training summary after validation.
+                                timer_agg = timer.get_aggregated_metrics(fabric)
+                                helpers.log_training_summary(
+                                    timer_agg=timer_agg,
+                                    fabric=fabric,
+                                    last_val_agg_metric_values=val_agg_metric_values,
+                                    best_val_agg_metric_values=best_agg_metric_values,
+                                    step=step,
+                                    global_batch_size=config.batch_size,
+                                    gradient_accumulation_steps=config.gradient_accumulation_steps,
+                                )
+
+                            elif is_val_log_step:
+                                # Show that we are making progress. Metrics are only calculated
+                                # at the end of the validation loop.
+                                timer_agg = timer.get_aggregated_metrics(fabric)
+                                helpers.log_step(
+                                    split="val",
+                                    step=val_step,
+                                    max_steps=len(val_dataloader),
+                                    epoch=current_epoch,
+                                    agg_metric_values=None,
+                                    task=config.task,
+                                    timer_agg=timer_agg,
+                                    global_batch_size=config.batch_size,
+                                )
+                    finally:
+                        # Release validation DataLoader workers before training resumes.
+                        del val_dataloader_iter
                     train_model.set_train_mode()
                     fabric.barrier()
         timer.stop()

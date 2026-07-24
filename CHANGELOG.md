@@ -9,6 +9,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+- `persistent_workers` passed via `loader_args` is now ignored (forced to `False`) for
+  task training, so DataLoader workers can be released between the training and
+  validation phases.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Release training DataLoader workers before each validation run so the training and
+  validation worker pools no longer coexist, avoiding excess worker processes (and GPU
+  memory pressure) during validation.
+
+### Security
+
+## [0.16.3] - 2026-07-22
+
+### Added
+
 - Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
   `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
 - Add **LTDETRv2 instance segmentation**, extending the compact LTDETRv2 architecture to
