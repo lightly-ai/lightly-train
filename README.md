@@ -162,12 +162,12 @@ built on EdgeCrafter ECViT backbones.
 
 #### COCO Results
 
-| Implementation | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Input Size |
-| -------------- | ------------------- | :--------------------------: | :---------------: | :--------: |
-| LightlyTrain   | ltdetrv2-seg-s-coco |             42.7             |        7.8        |  640×640   |
-| LightlyTrain   | ltdetrv2-seg-m-coco |             45.8             |       11.2        |  640×640   |
-| LightlyTrain   | ltdetrv2-seg-l-coco |             47.5             |       14.0        |  640×640   |
-| LightlyTrain   | ltdetrv2-seg-x-coco |             47.9             |       15.0        |  640×640   |
+| Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------- | :--------------------------: | :---------------: | :--------: | :--------: |
+| ltdetrv2-seg-s-coco |            0.427             |       6.96        |   11.32    |  640×640   |
+| ltdetrv2-seg-m-coco |            0.458             |       9.82        |   22.31    |  640×640   |
+| ltdetrv2-seg-l-coco |            0.475             |       11.41       |   34.85    |  640×640   |
+| ltdetrv2-seg-x-coco |            0.479             |       12.06       |   41.93    |  640×640   |
 
 Training follows the protocol in the original
 [EdgeCrafter](https://arxiv.org/abs/2603.18739) paper. The `s` and `m` sizes train for
