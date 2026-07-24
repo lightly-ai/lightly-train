@@ -585,22 +585,21 @@ if __name__ == "__main__":
 The [`model`](settings/train_settings.md#model) argument defines the model used for
 semantic segmentation training. The following models are available:
 
-Unless noted otherwise, all
+Unless noted otherwise, all `dinov2/`-prefixed and `dinov3/`-prefixed model backbones
+are initialized from weights pretrained by Meta through
 [DINOv2](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models)
 and
-[DINOv3](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models)
-backbones are initialized from weights pretrained by Meta. The non-EUPE DINOv3 models
-with `vitt16` and `vitt16plus` backbones use Lightly-pretrained DINOv3 backbone weights
-instead.
+[DINOv3](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models),
+respectively. Non-EUPE DINOv3 models with `vitt16` and `vitt16plus` backbones use
+Lightly-pretrained weights, while `eupe`-postfixed and `lingbot`-postfixed variants use
+[EUPE weights](https://github.com/facebookresearch/EUPE) and
+[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), respectively.
 
 DINOv3 models are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file).
-Models marked as EUPE use [EUPE weights](https://github.com/facebookresearch/EUPE) and
-are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+variants are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
-Models marked as LingBot use
-[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), which are released
-under the
+LingBot Vision weights are released under the
 [Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file);
 as they are built on DINOv3, the terms of the
 [DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
@@ -609,6 +608,9 @@ apply to these models.
 (dinov3-models)=
 
 ```{dropdown} DINOv3 ViT backbones
+---
+open:
+---
 - `dinov3/vitt32-eomt-coco` (fine-tuned on COCO-Stuff)
 - `dinov3/vitt32plus-eomt-coco` (fine-tuned on COCO-Stuff)
 - `dinov3/vits32-eomt-coco` (fine-tuned on COCO-Stuff)
