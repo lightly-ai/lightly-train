@@ -20,9 +20,6 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 
 ### COCO
 
-<!-- TODO(gabriel): ltdetrv2-x is still training. Confirm final mAP and re-check
-     latency/params numbers from the Notion benchmark doc before merging this PR. -->
-
 |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
 |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
@@ -30,7 +27,6 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 |        **ltdetrv2-s-coco**        |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
 |        **ltdetrv2-m-coco**        |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
 |        **ltdetrv2-l-coco**        |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
-|        **ltdetrv2-x-coco**        |           TBD           |    12.14     |    40.7    | **640×640** |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
@@ -556,10 +552,6 @@ They currently support RGB images only.
 - `ltdetrv2-s-coco` (pretrained on COCO)
 - `ltdetrv2-m-coco` (pretrained on COCO)
 - `ltdetrv2-l-coco` (pretrained on COCO)
-
-<!-- TODO(gabriel): ltdetrv2-x is still training; add `ltdetrv2-x-coco` (pretrained
-     on COCO) here once the checkpoint alias lands in TRN-2323/#887. -->
-
 - `ltdetrv2-s`
 - `ltdetrv2-m`
 - `ltdetrv2-l`
