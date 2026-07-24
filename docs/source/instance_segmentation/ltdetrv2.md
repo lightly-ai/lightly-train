@@ -471,13 +471,15 @@ The following image formats are supported:
 The [`model`](../settings/train_settings.md#model) argument defines the model used for
 instance segmentation training. The following models are available:
 
-### LTDETRv2
-
 The LTDETRv2 ECViT backbones are initialized from
 [EdgeCrafter](https://arxiv.org/abs/2603.18739) weights and are under the
 [Apache 2.0 license](https://github.com/lightly-ai/lightly-train/blob/main/licences/EDGECRAFTER_LICENSE).
 They currently support RGB images only.
 
+```{dropdown} LTDETRv2 ECViT backbones
+---
+open:
+---
 - `ltdetrv2-seg-s-coco` (pretrained on COCO)
 - `ltdetrv2-seg-m-coco` (pretrained on COCO)
 - `ltdetrv2-seg-l-coco` (pretrained on COCO)
@@ -486,6 +488,7 @@ They currently support RGB images only.
 - `ltdetrv2-seg-m`
 - `ltdetrv2-seg-l`
 - `ltdetrv2-seg-x`
+```
 
 ## Training Settings
 
