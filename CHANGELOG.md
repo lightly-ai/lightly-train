@@ -31,6 +31,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix validation-step object detection visualization crashes caused by degenerate
   predicted boxes. Invalid boxes are skipped and a warning is logged instead of passing
   them to PIL drawing primitives.
+- LightlyTrain required an unreleased LightlySSL version, which caused the installation
+  to crash upon importing the `lightly_train` package.
 
 ### Security
 
