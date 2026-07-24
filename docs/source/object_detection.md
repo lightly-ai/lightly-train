@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! Among real-time detectors, we achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP<sub>50:95</sub> from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
+LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! It now ships in three COCO-pretrained sizes (`s`/`m`/`l`), with `ltdetrv2-l` reaching 56.0mAP<sub>50:95</sub> on COCO 2017 validation set among real-time detectors. Latency ranges from 5.4ms (`s`) to 10.78ms (`l`) on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
@@ -25,6 +25,8 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
 |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
 |        **ltdetrv2-s-coco**        |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
+|        **ltdetrv2-m-coco**        |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
+|        **ltdetrv2-l-coco**        |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
@@ -548,6 +550,8 @@ The LTDETRv2 ECViT backbones are initialized from
 They currently support RGB images only.
 
 - `ltdetrv2-s-coco` (pretrained on COCO)
+- `ltdetrv2-m-coco` (pretrained on COCO)
+- `ltdetrv2-l-coco` (pretrained on COCO)
 - `ltdetrv2-s`
 - `ltdetrv2-m`
 - `ltdetrv2-l`
