@@ -471,6 +471,22 @@ def _bboxes_from_masks(masks: Tensor) -> tuple[Tensor, Tensor]:
     return boxes[keep], keep
 
 
+def _valid_box_mask(boxes: Tensor) -> Tensor:
+    """Boolean mask of boxes with x1<=x2 and y1<=y2.
+
+    Model predictions are not guaranteed to come back with ordered corners
+    (e.g. from an undertrained decoder), and downstream drawing code assumes
+    valid xyxy boxes.
+
+    Args:
+        boxes: Tensor of shape (n_boxes, 4) in xyxy pixel coordinates.
+
+    Returns:
+        A boolean tensor of shape (n_boxes,).
+    """
+    return (boxes[:, 0] <= boxes[:, 2]) & (boxes[:, 1] <= boxes[:, 3])
+
+
 def _draw_labeled_boxes(
     image: PILImage,
     bboxes_xyxy: Tensor,
