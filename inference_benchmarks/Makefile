@@ -15,6 +15,10 @@ benchmark-tensorrt:
 benchmark-tensorrt-resolutions:
 	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_resolution_benchmark.py --coco-root $(COCO_ROOT)
 
+.PHONY: analyze-tensorrt-resolutions
+analyze-tensorrt-resolutions:
+	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt analyze_tensorrt_resolution_pareto.py
+
 .PHONY: format
 format:
 	$(MAKE) -C .. format
