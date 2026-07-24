@@ -60,6 +60,9 @@ from lightly_train._metrics.task_metric import (
 )
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models import task_model_helpers
+from lightly_train._task_models.depth_estimation.train_model import (
+    DepthEstimationTrain,
+)
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.train_model import (
     DINOv2EoMTInstanceSegmentationTrain,
 )
@@ -137,6 +140,7 @@ _CheckpointLoadResult: TypeAlias = Tuple[
 
 
 TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
+    DepthEstimationTrain,
     ImageClassificationTrain,
     ImageClassificationMultiheadTrain,
     DINOv2EoMTInstanceSegmentationTrain,
@@ -155,6 +159,11 @@ TASK_TRAIN_MODEL_CLASSES: list[type[TrainModel]] = [
 
 # TODO(Thomas, 10/25): Create a type for the metrics.
 TASK_TO_METRICS: dict[str, dict[str, str]] = {
+    "depth_estimation": {
+        "val_metric/rmse": "Val RMSE",
+        "val_metric/abs_rel": "Val AbsRel",
+        "val_metric/delta1": "Val delta<1.25",
+    },
     "instance_segmentation": {
         "val_metric/map": "Val mAP@0.5:0.95",
         "val_metric/map_50": "Val mAP@0.5",

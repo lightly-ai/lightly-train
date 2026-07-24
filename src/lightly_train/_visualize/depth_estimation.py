@@ -1,0 +1,209 @@
+#
+# Copyright (c) Lightly AG and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+#
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import matplotlib
+import torch
+from PIL import Image
+from PIL.Image import Image as PILImage
+from torch import Tensor
+from torchvision.transforms import functional as torchvision_functional
+
+from lightly_train._visualize import utils
+from lightly_train.types import DepthEstimationBatch
+
+# Colormap used to render depth maps during training. DAv3 predicts larger values for
+# farther pixels, so nearby pixels sit at the low end of ``magma`` and appear dark.
+_DEPTH_COLORMAP = "magma"
+
+# Apply a gamma curve after min-max normalization so low normalized values occupy more
+# of the visible range. This improves separation of close-range structure while keeping
+# the near-to-far ordering unchanged.
+_DEPTH_VISUALIZATION_GAMMA = 0.5
+
+
+@dataclass
+class DepthEstimationTaskStepVisualization:
+    batch: DepthEstimationBatch
+    image_normalize: dict[str, tuple[float, ...]] | None
+    max_images: int
+    pred_depth: Tensor | None = None
+
+    def create_label_image(self) -> PILImage | None:
+        return plot_depth_labels(
+            batch=self.batch,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+        )
+
+    def create_prediction_image(self) -> PILImage | None:
+        if self.pred_depth is None:
+            return None
+        return plot_depth_predictions(
+            batch=self.batch,
+            pred_depth=self.pred_depth,
+            image_normalize=self.image_normalize,
+            max_images=self.max_images,
+        )
+
+
+def plot_depth_labels(
+    batch: DepthEstimationBatch,
+    max_images: int,
+    image_normalize: dict[str, tuple[float, ...]] | None,
+) -> PILImage:
+    """Render a grid pairing each input image with depth and sky targets.
+
+    Args:
+        batch: Depth estimation batch with images and depth maps.
+        max_images: Maximum number of images to include in the grid.
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
+
+    Returns:
+        A single PIL image with up to max_images RGB/depth/sky triplets arranged in a
+        grid.
+    """
+    images = _as_tensor(batch["image"])
+    depth = _as_tensor(batch["depth"])
+    # The ground-truth depth in sky regions is garbage (the teacher has no valid depth
+    # there), so exclude sky pixels from the colorization and fill them as distant.
+    sky = _as_tensor(batch["sky"])
+    n = min(max_images, images.shape[0])
+
+    pil_images: list[PILImage] = []
+    for i in range(n):
+        rgb = _image_to_pil(image=images[i], image_normalize=image_normalize)
+        depth_img = _depth_to_pil(depth=depth[i], sky=sky[i] >= 0.5)
+        sky_img = _sky_to_pil(sky=sky[i])
+        pil_images.append(_concat_horizontal([rgb, depth_img, sky_img]))
+
+    return utils._render_grid(pil_images)
+
+
+def plot_depth_predictions(
+    batch: DepthEstimationBatch,
+    pred_depth: Tensor,
+    max_images: int,
+    image_normalize: dict[str, tuple[float, ...]] | None,
+) -> PILImage:
+    """Render a grid pairing each input image with predicted depth and sky target.
+
+    Args:
+        batch: Depth estimation batch with images.
+        pred_depth: Predicted depth of shape (batch_size, 1, H, W).
+        max_images: Maximum number of images to include in the grid.
+        image_normalize: Optional dict with "mean" and "std" tuples used to
+            denormalize images before rendering. If None, images pass through
+            unchanged.
+
+    Returns:
+        A single PIL image with up to max_images RGB/predicted-depth/sky triplets in a
+        grid.
+    """
+    images = _as_tensor(batch["image"])
+    pred = pred_depth.detach().to(device="cpu", dtype=torch.float32)
+    sky = _as_tensor(batch["sky"])
+    n = min(max_images, images.shape[0])
+
+    pil_images: list[PILImage] = []
+    for i in range(n):
+        rgb = _image_to_pil(image=images[i], image_normalize=image_normalize)
+        depth_img = _depth_to_pil(depth=pred[i])
+        sky_img = _sky_to_pil(sky=sky[i])
+        pil_images.append(_concat_horizontal([rgb, depth_img, sky_img]))
+
+    return utils._render_grid(pil_images)
+
+
+def _as_tensor(value: Tensor | list[Tensor]) -> Tensor:
+    """Returns a stacked, CPU float tensor for both batched and per-sample inputs."""
+    if isinstance(value, list):
+        value = torch.stack(value)
+    return value.detach().to(device="cpu", dtype=torch.float32)
+
+
+def _image_to_pil(
+    image: Tensor, image_normalize: dict[str, tuple[float, ...]] | None
+) -> PILImage:
+    image = image.clone().to(dtype=torch.float32)
+    if image_normalize is not None:
+        image = utils._denormalize_image(
+            image=image,
+            mean=image_normalize["mean"],
+            std=image_normalize["std"],
+        )
+    pil_image: PILImage = torchvision_functional.to_pil_image(image)
+    return pil_image
+
+
+def _depth_to_pil(depth: Tensor, sky: Tensor | None = None) -> PILImage:
+    """Colorizes a (1, H, W) depth map with a colormap, ignoring invalid pixels.
+
+    Depth is min-max normalized over the valid (positive) pixels of the sample so the
+    full colormap range is used regardless of the absolute depth scale.
+
+    Args:
+        depth: Depth map of shape ``(1, H, W)``.
+        sky: Optional boolean sky mask of shape ``(1, H, W)``. The ground-truth depth in
+            sky regions is garbage, so sky pixels are excluded from the normalization
+            and then filled with the 99th percentile of the non-sky depth, rendering
+            them as distant scenery (matching the ``predict`` postprocessing) instead of
+            as the colormap's far value.
+    """
+    depth = depth.squeeze(0)
+    valid = depth > 0
+    if sky is not None:
+        valid = valid & ~sky.squeeze(0).bool()
+    if bool(valid.any()):
+        finite = depth[valid]
+        d_min = finite.min()
+        d_max = finite.max()
+        depth = torch.where(valid, depth, torch.quantile(finite, 0.99))
+        normalized = (depth - d_min) / (d_max - d_min + 1e-6)
+    else:
+        normalized = torch.zeros_like(depth)
+    normalized = torch.clamp(normalized, 0.0, 1.0)
+    normalized = _apply_depth_visualization_curve(normalized)
+    # Non-positive (genuinely invalid) pixels are rendered as the colormap's far value.
+    normalized = torch.where(depth > 0, normalized, torch.zeros_like(normalized))
+
+    colormap = matplotlib.colormaps[_DEPTH_COLORMAP]
+    colored = colormap(normalized.numpy())[..., :3]  # Drop alpha, keep RGB.
+    colored_uint8 = (colored * 255).astype("uint8")
+    return Image.fromarray(colored_uint8)
+
+
+def _apply_depth_visualization_curve(normalized: Tensor) -> Tensor:
+    """Expands low normalized values so nearby structure gets more visual contrast."""
+    return torch.pow(normalized, _DEPTH_VISUALIZATION_GAMMA)
+
+
+def _sky_to_pil(sky: Tensor) -> PILImage:
+    """Renders a (1, H, W) sky mask as a simple RGB panel."""
+    sky_mask = sky.squeeze(0) >= 0.5
+    colored = torch.zeros((*sky_mask.shape, 3), dtype=torch.uint8)
+    colored[sky_mask] = torch.tensor((135, 206, 235), dtype=torch.uint8)
+    return Image.fromarray(colored.numpy())
+
+
+def _concat_horizontal(images: list[PILImage]) -> PILImage:
+    """Pastes equally sized images side by side into one."""
+    if not images:
+        raise ValueError("images must not be empty.")
+    height = max(image.size[1] for image in images)
+    width = sum(image.size[0] for image in images)
+    canvas = Image.new("RGB", (width, height))
+    x_offset = 0
+    for image in images:
+        canvas.paste(image, (x_offset, 0))
+        x_offset += image.size[0]
+    return canvas

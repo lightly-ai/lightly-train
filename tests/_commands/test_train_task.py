@@ -66,6 +66,9 @@ from lightly_train._commands.train_task import (
     SemanticSegmentationTrainTaskConfig,
 )
 from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train._task_models.depth_estimation.task_model import (
+    DepthAnythingDepthEstimation,
+)
 
 from .. import helpers
 
@@ -536,6 +539,101 @@ def test_train_semantic_segmentation(
     assert (image_examples_dir / "train_labels_0.jpg").exists()
     assert (image_examples_dir / "val_labels_0.jpg").exists()
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
+
+
+def test_train_depth_estimation(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    train_images = tmp_path / "train_images"
+    train_depth = tmp_path / "train_depth"
+    train_sky = tmp_path / "train_sky"
+    val_images = tmp_path / "val_images"
+    val_depth = tmp_path / "val_depth"
+    val_sky = tmp_path / "val_sky"
+    helpers.create_images(train_images, files=4, height=70, width=70)
+    helpers.create_depth_pseudo_labels(
+        train_depth, train_sky, files=4, height=70, width=70
+    )
+    helpers.create_images(val_images, files=4, height=70, width=70)
+    helpers.create_depth_pseudo_labels(val_depth, val_sky, files=4, height=70, width=70)
+
+    lightly_train.train_depth_estimation(
+        out=out,
+        data={
+            "train": {
+                "images": train_images,
+                "depth": train_depth,
+                "sky": train_sky,
+            },
+            "val": {
+                "images": val_images,
+                "depth": val_depth,
+                "sky": val_sky,
+            },
+        },
+        model="dinov2/_vittest14-dav3",
+        accelerator="cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=0,
+        steps=2,
+    )
+    assert out.exists()
+    assert out.is_dir()
+    assert (out / "train.log").exists()
+
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+    prediction = model.predict(torch.randn(3, 70, 70))
+    assert prediction.shape == (70, 70)
+    assert torch.isfinite(prediction).all()
+
+
+def test_train_depth_estimation__metric(tmp_path: Path) -> None:
+    # A metric-depth model (scale_mode="focal") trains through the same pipeline as the
+    # relative one; only the loss/metric branch differs. The trained model predicts
+    # metric depth from camera intrinsics.
+    out = tmp_path / "out"
+    train_images = tmp_path / "train_images"
+    train_depth = tmp_path / "train_depth"
+    train_sky = tmp_path / "train_sky"
+    val_images = tmp_path / "val_images"
+    val_depth = tmp_path / "val_depth"
+    val_sky = tmp_path / "val_sky"
+    helpers.create_images(train_images, files=4, height=70, width=70)
+    helpers.create_depth_pseudo_labels(
+        train_depth, train_sky, files=4, height=70, width=70
+    )
+    helpers.create_images(val_images, files=4, height=70, width=70)
+    helpers.create_depth_pseudo_labels(val_depth, val_sky, files=4, height=70, width=70)
+
+    lightly_train.train_depth_estimation(
+        out=out,
+        data={
+            "train": {
+                "images": train_images,
+                "depth": train_depth,
+                "sky": train_sky,
+            },
+            "val": {
+                "images": val_images,
+                "depth": val_depth,
+                "sky": val_sky,
+            },
+        },
+        model="dinov2/_vittest14-dav3-metric",
+        accelerator="cpu",
+        devices=1,
+        batch_size=2,
+        num_workers=0,
+        steps=2,
+    )
+    assert out.exists()
+
+    model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
+    assert isinstance(model, DepthAnythingDepthEstimation)
+    intrinsics = torch.tensor([[60.0, 0.0, 35.0], [0.0, 60.0, 35.0], [0.0, 0.0, 1.0]])
+    prediction = model.predict(torch.randn(3, 70, 70), intrinsics=intrinsics)
+    assert prediction.shape == (70, 70)
+    assert torch.isfinite(prediction).all()
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
