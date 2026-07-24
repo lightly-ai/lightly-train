@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
+  covering ONNX Runtime CUDA EP and TensorRT EP with zero-copy GPU input allocation.
 - Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
   `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
 - Add **LTDETRv2 instance segmentation**, extending the compact LTDETRv2 architecture to
