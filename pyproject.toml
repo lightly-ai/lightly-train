@@ -240,6 +240,9 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 # Ignore `E402` (import violations) in root `__init__.py`.
 "src/lightly_train/__init__.py" = ["E402"]
+# DINOv31 tests skip before imports until the required Lightly release is on PyPI.
+"tests/_methods/dinov31/test_constrained_crop.py" = ["E402"]
+"tests/_methods/dinov31/test_dinov31.py" = ["E402"]
 
 [tool.uv]
 override-dependencies = [
@@ -274,11 +277,6 @@ conflicts = [
 ]
 
 [tool.uv.sources]
-# LightlySSL from the PatchKernelAlignmentLoss merge commit
-# (https://github.com/lightly-ai/lightly/pull/1953). This source override is
-# used only for local development and tests while DINOv31 is unavailable in
-# the PyPI distribution of lightly.
-lightly = { git = "https://github.com/lightly-ai/lightly.git", rev = "f03d012df6486e885dac5d6c2e14780b6455d9cb" }
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [
