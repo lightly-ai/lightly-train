@@ -9,17 +9,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
-  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
-- Add **LTDETRv2 instance segmentation**, extending the compact LTDETRv2 architecture to
-  predict per-instance masks alongside boxes. Use the `ltdetrv2-seg-s/m/l/x` models,
-  which are built on [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECViT backbones and
-  share the efficiency profile of their object detection counterparts. COCO-pretrained
-  checkpoints are hosted for download as `ltdetrv2-seg-s-coco`, `ltdetrv2-seg-m-coco`,
-  `ltdetrv2-seg-l-coco`, and `ltdetrv2-seg-x-coco` (also available under the
-  `edgecrafter/…-ltdetr-seg-coco` names), so you can fine-tune from strong weights or
-  run inference out of the box.
-
 ### Changed
 
 ### Deprecated
@@ -28,11 +17,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Fix validation-step object detection visualization crashes caused by degenerate
-  predicted boxes. Invalid boxes are skipped and a warning is logged instead of passing
-  them to PIL drawing primitives.
-- LightlyTrain required an unreleased LightlySSL version, which caused the installation
-  to crash upon importing the `lightly_train` package.
+### Security
+
+## [0.16.4] - 2026-07-24
+
+### Added
+
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
+  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+- Add LTDETRv2 instance segmentation with `ltdetrv2-seg-s/m/l/x` models and
+  COCO-pretrained checkpoints for fine-tuning or out-of-the-box inference.
+- Add SAHI inference for LTDETRv2 instance segmentation through `model.predict_sahi()`.
+
+### Changed
+
+- Warn when a built-in distillation teacher is used with non-ImageNet input
+  normalization, which can produce invalid teacher features.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3.1 pretraining method.
+
+### Fixed
+
+- Preserve exponential-moving-average updates when resuming training, preventing a
+  spurious validation-metric drop after the first resumed update.
+- Skip degenerate predicted boxes during validation visualization and log a warning
+  instead of crashing.
+- Restore installation and package imports by using a released LightlySSL dependency.
 
 ### Security
 
