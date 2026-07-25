@@ -11,23 +11,24 @@ make install-dev
 
 #### Running MIGraphX Tests
 
-Exporting and testing models with [MIGraphX](https://github.com/ROCm/AMDMIGraphX) requires an
-AMD GPU with ROCm drivers, so this is not part of the regular development setup above. Instead,
-use the provided VS Code dev container. Regular development should not happen in this container —
-use `make install-dev` for that.
+Exporting and testing models with [MIGraphX](https://github.com/ROCm/AMDMIGraphX)
+requires an AMD GPU with ROCm drivers, so this is not part of the regular development
+setup above. Instead, use the provided VS Code dev container. Regular development should
+not happen in this container — use `make install-dev` for that.
 
 Prerequisites:
 
-- VS Code with the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- VS Code with the
+  [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
   extension
 - Docker
 - A host machine with an AMD GPU and ROCm-capable drivers
 
-Open the repository in VS Code and run "Dev Containers: Reopen in Container" from the command
-palette. This picks up `.devcontainer/migraphx/devcontainer.json`, which builds an image based on
-`rocm/dev-ubuntu-24.04`, installs the `migraphx` apt package, passes through the GPU devices, and
-runs `uv sync` with the `dev` and `pinned-rocm-torch` groups plus the `onnx`, `onnxruntime`, and
-`onnxslim` extras.
+Open the repository in VS Code and run "Dev Containers: Reopen in Container" from the
+command palette. This picks up `.devcontainer/migraphx/devcontainer.json`, which builds
+an image based on `rocm/dev-ubuntu-24.04`, installs the `migraphx` apt package, passes
+through the GPU devices, and runs `uv sync` with the `dev` and `pinned-rocm-torch`
+groups plus the `onnx`, `onnxruntime`, and `onnxslim` extras.
 
 Once inside the container, run the MIGraphX tests with:
 
@@ -36,8 +37,8 @@ uv run --frozen pytest tests/_export/test_export_migraphx.py tests/_task_models/
 ```
 
 `test_export_migraphx` in `test_task_model.py` is skipped unless `migraphx`, `onnx`, and
-`onnxruntime` are importable and `torch.cuda.is_available()` — i.e. it only actually runs inside
-this container. To run just that test:
+`onnxruntime` are importable and `torch.cuda.is_available()` — i.e. it only actually
+runs inside this container. To run just that test:
 
 ```
 uv run --frozen pytest "tests/_task_models/ltdetr_object_detection/test_task_model.py::test_export_migraphx" -v
