@@ -7,7 +7,6 @@
 	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/lightly-train,type=bind,consistency=cached",
 	"workspaceFolder": "/workspace/lightly-train",
 	"containerEnv": {
-		"PATH": "/opt/venv/bin:${containerEnv:PATH}",
 		"PYTHONPATH": "/opt/rocm/lib",
 		"UV_NO_SYNC": "1",
 		"UV_PROJECT_ENVIRONMENT": "/opt/venv"

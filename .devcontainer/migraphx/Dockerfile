@@ -8,3 +8,5 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m pip install --break-system-packages --no-cache-dir \
         "uv==0.11.32"
+
+ENV PATH=/opt/venv/bin:$PATH
