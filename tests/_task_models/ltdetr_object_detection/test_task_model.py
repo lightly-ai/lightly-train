@@ -879,7 +879,7 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
-    import migraphx
+    import migraphx  # type: ignore[import-not-found]
     import numpy as np
     import onnx
     import onnxruntime as ort

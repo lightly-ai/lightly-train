@@ -16,7 +16,7 @@ def compile_migraphx(
     *, onnx_path: Path, out: Path, precision: Literal["fp32", "fp16"]
 ) -> None:
     """Compile an ONNX model into a serialized MIGraphX GPU program."""
-    import migraphx  # type: ignore[import-untyped]
+    import migraphx  # type: ignore[import-not-found]
 
     program = migraphx.parse_onnx(str(onnx_path))
     if precision == "fp16":
