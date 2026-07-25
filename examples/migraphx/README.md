@@ -22,7 +22,9 @@ time; it does not download LightlyTrain from GitHub.
 
 ## Run
 
-Mount a directory for downloaded models and exported artifacts at `/workspace`:
+All commands below run from the repository root and mount it at `/workspace`, so the
+scripts in `examples/migraphx/` and any exported artifacts are shared between the host
+and the container:
 
 ```bash
 docker run --rm -it \
@@ -31,11 +33,13 @@ docker run --rm -it \
   --group-add video \
   --security-opt seccomp=unconfined \
   --volume "$PWD":/workspace \
-  lightly-train-migraphx
+  lightly-train-migraphx \
+  <command>
 ```
 
 `--security-opt seccomp=unconfined` is optional, but AMD recommends it for ROCm
-containers in HPC environments.
+containers in HPC environments. Omit `<command>` (and drop `-it` for `--rm -i`, or keep
+`-it`) to get an interactive shell instead.
 
 ## Verify the installation
 
@@ -52,32 +56,64 @@ its GPU compilation target:
 python -c "import migraphx; print(migraphx.get_target('gpu'))"
 ```
 
-## Export an LT-DETR model
+## Export an LT-DETR model to MIGraphX
 
-The following command downloads the 38.7 MB `dinov3/vitt16-ltdetr-coco` checkpoint,
-exports a fully static batch-size-1 ONNX model, and compiles it for the available AMD
-GPU:
+`export_model.py` downloads an LT-DETR checkpoint, exports a fully static
+batch-size-1 ONNX model, and compiles it for the available AMD GPU:
 
 ```bash
-python - <<'PY'
-import lightly_train
-
-model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco", device="cpu")
-model.export_migraphx(
-    "/workspace/dinov3-vitt16-ltdetr-coco.mxr",
-    batch_size=1,
-)
-PY
+docker run --rm -it \
+  --device /dev/kfd \
+  --device /dev/dri \
+  --group-add video \
+  --security-opt seccomp=unconfined \
+  --volume "$PWD":/workspace \
+  lightly-train-migraphx \
+  python /workspace/examples/migraphx/export_model.py \
+    --out /workspace/dinov3-vitt16-ltdetr-coco.mxr
 ```
 
-The export creates both `/workspace/dinov3-vitt16-ltdetr-coco.onnx` and
+This exports the 38.7 MB `dinov3/vitt16-ltdetr-coco` checkpoint by default (override
+with `--checkpoint`). It creates both `/workspace/dinov3-vitt16-ltdetr-coco.onnx` and
 `/workspace/dinov3-vitt16-ltdetr-coco.mxr`. Compilation is hardware-dependent and can
 take a minute or longer.
+
+## Download an example image
+
+```bash
+wget -O image.jpg http://images.cocodataset.org/val2017/000000577932.jpg
+```
+
+## Run inference and plot the detections
+
+`predict.py` loads the compiled engine, reads its expected input size directly from
+the engine, runs inference on an image (with hardcoded ImageNet normalization), and
+saves a plot of the predicted bounding boxes:
+
+```bash
+docker run --rm -it \
+  --device /dev/kfd \
+  --device /dev/dri \
+  --group-add video \
+  --security-opt seccomp=unconfined \
+  --volume "$PWD":/workspace \
+  lightly-train-migraphx \
+  python /workspace/examples/migraphx/predict.py \
+    --engine /workspace/dinov3-vitt16-ltdetr-coco.mxr \
+    --image /workspace/image.jpg \
+    --out /workspace/prediction.jpg
+```
+
+`prediction.jpg` is written to the mounted `$PWD` on the host. `predict.py` also loads
+`--checkpoint` (the same alias used for export, by default) on the CPU to look up class
+names for the predicted labels; the engine itself only returns raw class logits and
+normalized boxes.
 
 ## Scope
 
 This is intentionally a minimal export/inference environment. PyTorch is installed as a
-dependency of LightlyTrain and is not guaranteed to be a ROCm-enabled build. The example
-loads the PyTorch model on CPU and uses the GPU only for MIGraphX compilation and
-inference. Use an AMD `rocm/pytorch` base image instead if you need to train or run
-PyTorch workloads on the GPU.
+dependency of LightlyTrain and is not guaranteed to be a ROCm-enabled build. Both
+scripts load the PyTorch model on CPU (for export, and for label lookup during
+prediction) and use the GPU only for MIGraphX compilation and inference. Use an AMD
+`rocm/pytorch` base image instead if you need to train or run PyTorch workloads on the
+GPU.
