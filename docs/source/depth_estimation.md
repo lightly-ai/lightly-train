@@ -103,18 +103,17 @@ them from the official weights yourself, see
 
 Depth accuracy is evaluated zero-shot on the NYUv2 test split (654 images) with the
 eigen crop and a depth range of 0.1 m to 10 m. NYUv2 was not used during training.
-**Metric** models are scored directly against the ground-truth depth:
 
-| Model                          | Params (M) |  δ1   | AbsRel | RMSE  |
-| ------------------------------ | :--------: | :---: | :----: | :---: |
-| `dinov2/dav3-metric-large`     |   334.2M   | 0.950 | 0.078  | 0.339 |
-| `dinov2/dav3-metric-small`     |   24.7M    | 0.912 | 0.099  | 0.377 |
-| `dinov3/dav3-metric-tiny-plus` |    7.9M    | 0.846 | 0.123  | 0.457 |
-| `dinov3/dav3-metric-tiny`      |    6.2M    | 0.818 | 0.131  | 0.506 |
+The reported scores are:
+
+- **δ1**: fraction of pixels whose predicted depth is within 25% of the ground truth,
+  i.e. `max(pred/gt, gt/pred) < 1.25`. Higher is better.
+- **AbsRel**: mean absolute error relative to the ground-truth depth,
+  `mean(|pred - gt| / gt)`. Lower is better.
+- **RMSE**: root-mean-square error in meters. Lower is better.
 
 **Relative** models are scored after a per-image least-squares scale-and-shift alignment
-to the ground truth, so the numbers are affine-invariant and not directly comparable to
-the metric table:
+to the ground truth, so the numbers are affine-invariant:
 
 | Model                            | Params (M) |  δ1   | AbsRel |
 | -------------------------------- | :--------: | :---: | :----: |
@@ -122,6 +121,17 @@ the metric table:
 | `dinov2/dav3-relative-small`     |   24.7M    | 0.909 | 0.101  |
 | `dinov3/dav3-relative-tiny-plus` |    7.9M    | 0.874 | 0.120  |
 | `dinov3/dav3-relative-tiny`      |    6.2M    | 0.882 | 0.118  |
+
+**Metric** models are scored directly against the ground-truth depth, so their δ1 is not
+directly comparable to the relative table. `Aligned δ1` applies the same alignment as
+above and is comparable:
+
+| Model                          | Params (M) |  δ1   | Aligned δ1 | AbsRel | RMSE  |
+| ------------------------------ | :--------: | :---: | :--------: | :----: | :---: |
+| `dinov2/dav3-metric-large`     |   334.2M   | 0.950 |   0.948    | 0.078  | 0.339 |
+| `dinov2/dav3-metric-small`     |   24.7M    | 0.912 |   0.938    | 0.099  | 0.377 |
+| `dinov3/dav3-metric-tiny-plus` |    7.9M    | 0.846 |   0.923    | 0.123  | 0.457 |
+| `dinov3/dav3-metric-tiny`      |    6.2M    | 0.818 |   0.915    | 0.131  | 0.506 |
 
 All models are evaluated with the aspect-preserving `lower_bound_resize` method.
 
