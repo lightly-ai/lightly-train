@@ -316,6 +316,18 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
         return list(self.losses)
 
 
+class LTDETRObjectDetectionLargeTrainArgs(LTDETRObjectDetectionTrainArgs):
+    # ltdetrv2-l/x (EdgeCrafter Small/Small+ backbones) benchmark recipe uses a
+    # lower backbone LR factor than the s/m variants.
+    backbone_lr_factor: float = 0.01
+
+
+_LARGE_LTDETRV2_BACKBONES = {
+    "edgecrafter/ecvits",
+    "edgecrafter/ecvitsplus",
+}
+
+
 class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs):
     default_batch_size: ClassVar[int] = 16
     default_steps: ClassVar[int] = (
@@ -398,9 +410,16 @@ class LTDETRObjectDetectionTrain(TrainModel):
     @classmethod
     def get_train_model_args_cls(
         cls, model_name: str
-    ) -> type[LTDETRObjectDetectionTrainArgs | DINOv2LTDETRObjectDetectionTrainArgsV2]:
+    ) -> type[
+        LTDETRObjectDetectionTrainArgs
+        | LTDETRObjectDetectionLargeTrainArgs
+        | DINOv2LTDETRObjectDetectionTrainArgsV2
+    ]:
         if model_name.startswith(_DINOV2_PREFIX):
             return DINOv2LTDETRObjectDetectionTrainArgsV2
+        config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        if config.backbone_name in _LARGE_LTDETRV2_BACKBONES:
+            return LTDETRObjectDetectionLargeTrainArgs
         return LTDETRObjectDetectionTrainArgs
 
     @override

@@ -41,6 +41,7 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
 )
 from lightly_train._task_models.ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrainArgsV2,
+    LTDETRObjectDetectionLargeTrainArgs,
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
 )
@@ -1211,3 +1212,22 @@ def test_get_train_transform_cls__scopes_ltdetrv2_defaults(
         LTDETRObjectDetectionTrain.get_train_transform_cls(model_name)
         is expected_transform_cls
     )
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_args_cls, expected_backbone_lr_factor",
+    [
+        ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, 0.05),
+        ("ltdetrv2-m", LTDETRObjectDetectionTrainArgs, 0.05),
+        ("ltdetrv2-l", LTDETRObjectDetectionLargeTrainArgs, 0.01),
+        ("ltdetrv2-x", LTDETRObjectDetectionLargeTrainArgs, 0.01),
+        ("edgecrafter/ecvits-ltdetr", LTDETRObjectDetectionLargeTrainArgs, 0.01),
+        ("dinov3/vits16-ltdetr", LTDETRObjectDetectionTrainArgs, 0.05),
+    ],
+)
+def test_get_train_model_args_cls__scopes_ltdetrv2_large_backbone_lr_factor(
+    model_name: str, expected_args_cls: type, expected_backbone_lr_factor: float
+) -> None:
+    args_cls = LTDETRObjectDetectionTrain.get_train_model_args_cls(model_name)
+    assert args_cls is expected_args_cls
+    assert args_cls().backbone_lr_factor == expected_backbone_lr_factor
