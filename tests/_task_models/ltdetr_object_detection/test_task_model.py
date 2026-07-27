@@ -839,7 +839,9 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 )
 def test_export_onnx__checks(tmp_path: Path) -> None:
     # The graph must pass the full ONNX checker, which requires the dynamo
-    # shape-annotation repair.
+    # shape-annotation repair. It must also not contain a GridSample op: TensorRT
+    # converts it incorrectly for the deformable-attention sampling, so deployment
+    # swaps it for a gather-based bilinear equivalent.
     import onnx
 
     model = LTDETRObjectDetection(
@@ -854,6 +856,10 @@ def test_export_onnx__checks(tmp_path: Path) -> None:
     model.export_onnx(out=out, simplify=True, verify=True)
 
     onnx.checker.check_model(str(out), full_check=True)
+
+    onnx_model = onnx.load(out)
+    op_types = {node.op_type for node in onnx_model.graph.node}
+    assert "GridSample" not in op_types
 
 
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")

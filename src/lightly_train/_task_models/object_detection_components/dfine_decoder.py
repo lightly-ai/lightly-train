@@ -158,6 +158,18 @@ class MSDeformableAttention(nn.Module):
         init.constant_(self.attention_weights.weight, 0)
         init.constant_(self.attention_weights.bias, 0)
 
+    def convert_to_deploy(self):
+        # Switch the default (grid_sample) sampler to a gather-based bilinear
+        # equivalent that exports to a TensorRT-compatible graph. TensorRT
+        # converts ONNX GridSample incorrectly for this deformable attention, so
+        # the fused grid_sample is kept only for training. Discrete sampling is
+        # left unchanged.
+        if self.method == "default":
+            self.method = "bilinear_gather"
+            self.ms_deformable_attn_core = functools.partial(
+                deformable_attention_core_func_v2, method=self.method
+            )
+
     def forward(
         self,
         query,
