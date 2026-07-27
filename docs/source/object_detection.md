@@ -22,8 +22,6 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 
 |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
-|          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
-|          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
 |        **ltdetrv2-s-coco**        |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
 |        **ltdetrv2-m-coco**        |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
 |        **ltdetrv2-l-coco**        |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
@@ -35,7 +33,9 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
 | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
-\*Picodet models are in beta and we report preliminary results.
+(fig-map-vs-params)=
+
+![LTDETRv2 mAP vs. Params](_static/images/object_detection/map_vs_params.png)
 
 ## Object Detection with LTDETR
 
