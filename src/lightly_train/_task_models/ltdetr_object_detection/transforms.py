@@ -412,7 +412,9 @@ class LTDETRv2ObjectDetectionMosaicArgs(LTDETRObjectDetectionMosaicArgs):
     prob: float = 0.75
 
 
-class LTDETRv2ObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTrainTransformArgs):
+class LTDETRv2ObjectDetectionTrainTransformArgs(
+    LTDETRObjectDetectionTrainTransformArgs
+):
     mosaic: LTDETRv2ObjectDetectionMosaicArgs | None = Field(
         default_factory=LTDETRv2ObjectDetectionMosaicArgs
     )
