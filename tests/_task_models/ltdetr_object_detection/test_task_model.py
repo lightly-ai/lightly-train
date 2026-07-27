@@ -1218,10 +1218,10 @@ def test_get_train_transform_cls__scopes_ltdetrv2_defaults(
     "model_name, expected_args_cls, expected_backbone_lr_factor",
     [
         ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, 0.05),
-        ("ltdetrv2-m", LTDETRObjectDetectionTrainArgs, 0.05),
-        ("ltdetrv2-l", LTDETRObjectDetectionLargeTrainArgs, 0.01),
-        ("ltdetrv2-x", LTDETRObjectDetectionLargeTrainArgs, 0.01),
-        ("edgecrafter/ecvits-ltdetr", LTDETRObjectDetectionLargeTrainArgs, 0.01),
+        ("ltdetrv2-m", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-l", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-x", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
+        ("edgecrafter/ecvits-ltdetr", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
         ("dinov3/vits16-ltdetr", LTDETRObjectDetectionTrainArgs, 0.05),
     ],
 )

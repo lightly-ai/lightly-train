@@ -317,12 +317,13 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
 
 
 class LTDETRObjectDetectionLargeTrainArgs(LTDETRObjectDetectionTrainArgs):
-    # ltdetrv2-l/x (EdgeCrafter Small/Small+ backbones) benchmark recipe uses a
-    # lower backbone LR factor than the s/m variants.
-    backbone_lr_factor: float = 0.01
+    # ltdetrv2-m/l/x (EdgeCrafter Tiny+/Small/Small+ backbones) benchmark
+    # recipe uses a lower backbone LR factor than the s variant.
+    backbone_lr_factor: float = 0.0025
 
 
 _LARGE_LTDETRV2_BACKBONES = {
+    "edgecrafter/ecvittplus",
     "edgecrafter/ecvits",
     "edgecrafter/ecvitsplus",
 }
