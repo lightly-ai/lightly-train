@@ -41,11 +41,12 @@ visualize your annotations and predictions.
 ## News
 
 - \[[0.17.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-17-0)\] -
-  2026-07-27: **LTDETRv2 for instance segmentation:** Train state-of-the-art
+  2026-07-28: **LTDETRv2 for instance segmentation:** Train state-of-the-art
   [LTDETRv2 instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
-  models with ECViT backbones from [EdgeCrafter](https://arxiv.org/abs/2603.18739),
-  matching the accuracy of the original ECSeg implementation while being 10-20% faster!
-  ONNX and TensorRT export is also out-of-the-box!
+  models with ECViT backbones from [EdgeCrafter](https://arxiv.org/abs/2603.18739). It
+  significantly outperforms YOLO11 and achieves the best accuracy-vs-parameter-count
+  trade-off among current SOTA instance segmentation models! ONNX and TensorRT export is
+  also out-of-the-box!
 - \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
   2026-06-25: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
   LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural

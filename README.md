@@ -35,7 +35,7 @@ visualize your annotations and predictions.
 ## News
 
 - \[[0.17.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-17-0)\] -
-  2026-07-27: **LTDETRv2 for instance segmentation:** Train state-of-the-art
+  2026-07-28: **LTDETRv2 for instance segmentation:** Train state-of-the-art
   [LTDETRv2 instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
   models with ECViT backbones from [EdgeCrafter](https://arxiv.org/abs/2603.18739),
   matching the accuracy of the original ECSeg implementation while being 10-20% faster!
@@ -161,6 +161,8 @@ Train state-of-the-art instance segmentation models with our new **LTDETRv2** fa
 built on EdgeCrafter ECViT backbones.
 
 #### COCO Results
+
+![Instance segmentation accuracy vs. parameter count with TensorRT FP16](docs/source/_static/images/instance_segmentation/benchmark_params_map_fp16.png)
 
 | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Params (M) | Input Size |
 | ------------------- | :--------------------------: | :---------------: | :--------: | :--------: |

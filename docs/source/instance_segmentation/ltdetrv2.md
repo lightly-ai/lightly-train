@@ -5,9 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation.ipynb)
 
 ```{note}
-LightlyTrain's **LTDETRv2** now also supports instance segmentation! It matches the
-accuracy of the original [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECSeg
-implementation on COCO, while being 10-20% faster on GPU.
+LightlyTrain's **LTDETRv2** now also supports instance segmentation! It significantly outperforms YOLO11 and achieves the best accuracy-vs-parameter-count trade-off among current SOTA instance segmentation models!
 ```
 
 (instance-segmentation-ltdetrv2-benchmark-results)=
@@ -25,6 +23,8 @@ notebook:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation.ipynb)
 
 ### COCO
+
+![Instance segmentation accuracy vs. parameter count with TensorRT FP16](/_static/images/instance_segmentation/benchmark_params_map_fp16.png)
 
 | Implementation | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Input Size |
 | -------------- | ------------------- | :--------------------------: | :---------------: | :--------: |

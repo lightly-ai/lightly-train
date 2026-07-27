@@ -14,9 +14,10 @@ function. Two model families are currently supported:
 
 LightlyTrain's **LTDETRv2** is a DETR-based instance segmentation family built on ECViT
 backbones from the [EdgeCrafter](https://arxiv.org/abs/2603.18739) paper by Liu et al.
-It matches the accuracy of the original EdgeCrafter ECSeg implementation on COCO, while
-being 10-20% faster on GPU. See [LTDETRv2](ltdetrv2.md) for benchmark results, available
-models, and how to train, predict, and export a LTDETRv2 instance segmentation model.
+It significantly outperforms YOLO11 and achieves the best accuracy-vs-parameter-count
+trade-off among current SOTA instance segmentation models! See [LTDETRv2](ltdetrv2.md)
+for benchmark results, available models, and how to train, predict, and export a
+LTDETRv2 instance segmentation model.
 
 ## EoMT
 
