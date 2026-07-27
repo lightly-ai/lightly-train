@@ -39,6 +39,11 @@ for the TensorRT recipe in particular.
 
 ## 2. Prerequisites
 
+All of the below are already set up in [`.devcontainer/`](../../.devcontainer)
+(open the repo in it via "Dev Containers: Reopen in Container", with the
+NVIDIA Container Toolkit installed on the host) -- skip this section if you're
+using it.
+
 - CUDA toolkit (matching the driver on your machine).
 - OpenCV development package (e.g. `apt install libopencv-dev` on Ubuntu).
 - For the ONNX Runtime recipe: the **prebuilt GPU tarball** from the
