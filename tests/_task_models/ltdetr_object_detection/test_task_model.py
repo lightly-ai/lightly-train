@@ -837,6 +837,29 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+def test_export_onnx__checks(tmp_path: Path) -> None:
+    # The graph must pass the full ONNX checker, which requires the dynamo
+    # shape-annotation repair.
+    import onnx
+
+    model = LTDETRObjectDetection(
+        model_name="ltdetrv2-s",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    # verify=True runs onnx.checker(full_check=True) and a numerical ORT comparison.
+    model.export_onnx(out=out, simplify=True, verify=True)
+
+    onnx.checker.check_model(str(out), full_check=True)
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",

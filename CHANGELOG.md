@@ -17,6 +17,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix `export_onnx(verify=True)` crashing with an `onnx.checker` `ShapeInferenceError`
+  for LTDETR object detection by repairing stale intermediate shape annotations left by
+  the ONNX exporter.
+
 ### Security
 
 ## [0.16.4] - 2026-07-24

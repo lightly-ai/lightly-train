@@ -94,6 +94,25 @@ def write_onnx_metadata(out: str | Path, metadata: dict[str, str]) -> None:
     onnx.save(model, str(out))
 
 
+def repair_value_info(out: str | Path) -> None:
+    """Strip stale intermediate ``value_info`` and re-run shape inference in-place.
+
+    The dynamo ONNX exporter can leave incorrect intermediate shape annotations
+    on the graph (for LT-DETR, the deformable-attention weight ``MatMul`` outputs
+    are annotated rank-1 where the real tensor is rank-2). ONNX Runtime recomputes
+    shapes and is unaffected, but ``onnx.checker.check_model(full_check=True)`` (used
+    by ``verify=True``) raises a ``ShapeInferenceError`` on the inconsistency, and
+    some consumers trust the wrong annotation. Dropping the stale ``value_info`` and
+    re-inferring produces a consistent graph without changing any computation.
+    """
+    import onnx
+
+    model = onnx.load(str(out))
+    del model.graph.value_info[:]
+    model = onnx.shape_inference.infer_shapes(model, strict_mode=False, data_prop=True)
+    onnx.save(model, str(out))
+
+
 def remove_duplicate_cast_nodes(model: onnx.ModelProto) -> None:
     """Remove duplicate Cast nodes emitted by convert_float_to_float16 in-place.
 
