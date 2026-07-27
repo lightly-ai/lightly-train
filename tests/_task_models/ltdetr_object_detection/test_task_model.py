@@ -41,9 +41,9 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
 )
 from lightly_train._task_models.ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrainArgsV2,
-    LTDETRObjectDetectionLargeTrainArgs,
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
+    LTDETRv2ObjectDetectionLargeTrainArgs,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransform,
@@ -1218,10 +1218,10 @@ def test_get_train_transform_cls__scopes_ltdetrv2_defaults(
     "model_name, expected_args_cls, expected_backbone_lr_factor",
     [
         ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, 0.05),
-        ("ltdetrv2-m", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
-        ("ltdetrv2-l", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
-        ("ltdetrv2-x", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
-        ("edgecrafter/ecvits-ltdetr", LTDETRObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-m", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-l", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-x", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("edgecrafter/ecvits-ltdetr", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
         ("dinov3/vits16-ltdetr", LTDETRObjectDetectionTrainArgs, 0.05),
     ],
 )
