@@ -13,8 +13,9 @@
 		"gpu": "optional"
 	},
 	// Installs lightly-train (for exporting models) plus the pinned CUDA torch
-	// build, then configures+builds the examples/cpp recipes to verify the
-	// OpenCV/CUDA/ONNX Runtime/TensorRT toolchain resolves correctly.
+	// build, then verifies the Python packages required for exporting and C++
+	// inference tooling import correctly. Build the examples explicitly when
+	// needed, following examples/cpp/README.md.
 	//
 	// Dependencies come from requirements/requirements.txt (this directory),
 	// compiled with
@@ -31,5 +32,5 @@
 	// PyTorch's own index, which uv.lock/pyproject.toml know about via
 	// `[[tool.uv.index]]` but a plain compiled requirements.txt doesn't --
 	// hence the explicit --extra-index-url/--index-strategy below.
-	"postCreateCommand": "git config --global --add safe.directory /workspace/lightly-train && uv venv /opt/venv --python /usr/bin/python3 && uv pip sync --python /opt/venv/bin/python --extra-index-url https://download.pytorch.org/whl/cu118 --index-strategy unsafe-best-match .devcontainer/cpp-inference/requirements/requirements.txt && uv pip install --python /opt/venv/bin/python -e . --no-deps && /opt/venv/bin/python -c \"import lightly_train, onnx, onnxruntime, tensorrt\" && cmake -S examples/cpp -B examples/cpp/build && cmake --build examples/cpp/build -j"
+	"postCreateCommand": "git config --global --add safe.directory /workspace/lightly-train && uv venv /opt/venv --python /usr/bin/python3 && uv pip sync --python /opt/venv/bin/python --extra-index-url https://download.pytorch.org/whl/cu118 --index-strategy unsafe-best-match .devcontainer/cpp-inference/requirements/requirements.txt && uv pip install --python /opt/venv/bin/python -e . --no-deps && /opt/venv/bin/python -c \"import lightly_train, onnx, onnxruntime, tensorrt\""
 }
