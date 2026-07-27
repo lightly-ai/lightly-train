@@ -22,9 +22,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Raise the default mixup and mosaic probability from `0.5` to `0.75` for `ltdetrv2-s/m/l/x`
-  object detection models, matching the validated COCO benchmark recipe. Other LTDETR
-  models (`dinov3/*-ltdetr`, `dinov2/*-ltdetr`) are unaffected.
+- Raise the default mixup and mosaic probability from `0.5` to `0.75` for
+  `ltdetrv2-s/m/l/x` object detection models, matching the validated COCO benchmark
+  recipe. Other LTDETR models (`dinov3/*-ltdetr`, `dinov2/*-ltdetr`) are unaffected.
 
 ### Deprecated
 
