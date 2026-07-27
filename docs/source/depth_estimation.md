@@ -103,18 +103,17 @@ them from the official weights yourself, see
 
 Depth accuracy is evaluated zero-shot on the NYUv2 test split (654 images) with the
 eigen crop and a depth range of 0.1 m to 10 m. NYUv2 was not used during training.
-**Metric** models are scored directly against the ground-truth depth:
 
-| Model                          | Params (M) |  δ1   | AbsRel | RMSE  |
-| ------------------------------ | :--------: | :---: | :----: | :---: |
-| `dinov2/dav3-metric-large`     |   334.2M   | 0.950 | 0.078  | 0.339 |
-| `dinov2/dav3-metric-small`     |   24.7M    | 0.912 | 0.099  | 0.377 |
-| `dinov3/dav3-metric-tiny-plus` |    7.9M    | 0.846 | 0.123  | 0.457 |
-| `dinov3/dav3-metric-tiny`      |    6.2M    | 0.818 | 0.131  | 0.506 |
+The reported scores are:
+
+- **δ1**: fraction of pixels whose predicted depth is within 25% of the ground truth,
+  i.e. `max(pred/gt, gt/pred) < 1.25`. Higher is better.
+- **AbsRel**: mean absolute error relative to the ground-truth depth,
+  `mean(|pred - gt| / gt)`. Lower is better.
+- **RMSE**: root-mean-square error in meters. Lower is better.
 
 **Relative** models are scored after a per-image least-squares scale-and-shift alignment
-to the ground truth, so the numbers are affine-invariant and not directly comparable to
-the metric table:
+to the ground truth, so the numbers are affine-invariant:
 
 | Model                            | Params (M) |  δ1   | AbsRel |
 | -------------------------------- | :--------: | :---: | :----: |
@@ -122,6 +121,17 @@ the metric table:
 | `dinov2/dav3-relative-small`     |   24.7M    | 0.909 | 0.101  |
 | `dinov3/dav3-relative-tiny-plus` |    7.9M    | 0.874 | 0.120  |
 | `dinov3/dav3-relative-tiny`      |    6.2M    | 0.882 | 0.118  |
+
+**Metric** models are scored directly against the ground-truth depth, so their δ1 is not
+directly comparable to the relative table. `Aligned δ1` applies the same alignment as
+above and is comparable:
+
+| Model                          | Params (M) |  δ1   | Aligned δ1 | AbsRel | RMSE  |
+| ------------------------------ | :--------: | :---: | :--------: | :----: | :---: |
+| `dinov2/dav3-metric-large`     |   334.2M   | 0.950 |   0.948    | 0.078  | 0.339 |
+| `dinov2/dav3-metric-small`     |   24.7M    | 0.912 |   0.938    | 0.099  | 0.377 |
+| `dinov3/dav3-metric-tiny-plus` |    7.9M    | 0.846 |   0.923    | 0.123  | 0.457 |
+| `dinov3/dav3-metric-tiny`      |    6.2M    | 0.818 |   0.915    | 0.131  | 0.506 |
 
 All models are evaluated with the aspect-preserving `lower_bound_resize` method.
 
@@ -138,9 +148,10 @@ an NVIDIA T4 GPU:
 
 ## Quick Start
 
-Load a model and call `predict` on an image. The image can be a file path, a URL, a PIL
-image, or a `(C, H, W)` tensor. The result is a single `(H, W)` tensor with the same
-height and width as the input image.
+Load a model with {py:func}`load_model <lightly_train.load_model>` and call
+{py:meth}`~.DepthAnythingDepthEstimation.predict` on an image. The image can be a file
+path, a URL, a PIL image, or a `(C, H, W)` tensor. The result is a single `(H, W)`
+tensor with the same height and width as the input image.
 
 ```python
 import lightly_train
@@ -197,7 +208,8 @@ scene content.
 
 DAv3 metric models require the camera intrinsics of the input image, which set the
 absolute scale of the prediction. Pass a `(3, 3)` intrinsics matrix in the original
-image's pixel coordinates via the `intrinsics` argument:
+image's pixel coordinates via the `intrinsics` argument of
+{py:meth}`~.DepthAnythingDepthEstimation.predict`:
 
 ```python
 import math
@@ -247,8 +259,9 @@ depth_m = model.predict("image.jpg")  # Metric depth in meters.
 
 ## Batch Inference
 
-Use `predict_batch` to run inference on several images at once. It returns a list of
-`(H, W)` tensors, one per image, each resized back to its original resolution.
+Use {py:meth}`~.DepthAnythingDepthEstimation.predict_batch` to run inference on several
+images at once. It returns a list of `(H, W)` tensors, one per image, each resized back
+to its original resolution.
 
 ```python
 import lightly_train
@@ -274,8 +287,8 @@ any cropping. The aspect-preserving methods (`"upper_bound_resize"` and
 `"lower_bound_resize"`) can yield different processed sizes across a batch; those images
 are then center-cropped to the smallest processed size before inference, so their depth
 maps are slightly stretched when resized back to the original resolution. For
-pixel-perfect results with an aspect-preserving method, call `predict` on each image
-individually.
+pixel-perfect results with an aspect-preserving method, call
+{py:meth}`~.DepthAnythingDepthEstimation.predict` on each image individually.
 ```
 
 (depth-estimation-convert)=
@@ -409,8 +422,9 @@ when exporting to TensorRT.
 ### Combining Conversion and Export
 
 ONNX export and TensorRT engine building can be combined in a single call: building a
-TensorRT engine requires an ONNX model, and `export_tensorrt` exports it for you. You
-can fix the export resolution via `onnx_args` (`height` and `width`, both multiples of
+TensorRT engine requires an ONNX model, and
+{py:meth}`~.DepthAnythingDepthEstimation.export_tensorrt` exports it for you. You can
+fix the export resolution via its `onnx_args` (`height` and `width`, both multiples of
 the backbone patch size: 14 for `dinov2/` models, 16 for `dinov3/` models) and pick the
 precision at the same time:
 

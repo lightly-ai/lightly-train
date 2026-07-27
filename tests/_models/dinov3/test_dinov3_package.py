@@ -98,6 +98,15 @@ class TestDINOv3Package:
         model = DINOv3Package.get_model("_convnexttest")
         assert isinstance(model, ConvNeXt)
 
+    @pytest.mark.parametrize("model_name", ["_vittest16", "_convnexttest"])
+    def test_get_model__drop_path_rate_does_not_collide(self, model_name: str) -> None:
+        # Regression: DINOv3 builders hardcode drop_path_rate; passing it in model_args
+        # must not raise "got multiple values for keyword argument 'drop_path_rate'".
+        model = DINOv3Package.get_model(
+            model_name, model_args={"drop_path_rate": 0.0}, load_weights=False
+        )
+        assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
+
     def test_get_model_wrapper__vit(self) -> None:
         model = backbones._dinov3_vit_test()
         model_wrapper = DINOv3Package.get_model_wrapper(model=model)

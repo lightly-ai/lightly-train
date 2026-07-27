@@ -33,6 +33,7 @@ from lightly_train._configs import omegaconf_utils, validate
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
 from lightly_train._events import tracker
+from lightly_train._license import LICENSE_INFO
 from lightly_train._loggers import logger_helpers
 from lightly_train._loggers.logger_args import LoggerArgs
 from lightly_train._methods import method_helpers
@@ -390,16 +391,6 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             epochs=config.epochs,
         )
 
-        LICENSE_INFO = (
-            "LightlyTrain License Notice\n"
-            "\n"
-            "Model training and inference in commercial settings require a valid Commercial License.\n"
-            "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
-            "please ensure your usage complies with the respective terms.\n"
-            "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
-            "Contact us at https://www.lightly.ai/contact to discuss the best licensing option for your use case."
-        )
-
         callback_instances = callback_helpers.get_callbacks(
             callback_args=config.callbacks,
             out=out_dir,
@@ -469,6 +460,11 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             scaling_info=scaling_info,
             optimizer_args=config.optim_args,
             wrapped_model=wrapped_model,
+        )
+        train_helpers.warn_if_distillation_normalization_mismatch(
+            method=config.method,
+            method_args=config.method_args,
+            normalize_args=transform_instance.transform_args.normalize,
         )
         method_instance = train_helpers.get_method(
             method_cls=method_cls,

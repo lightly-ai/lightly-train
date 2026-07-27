@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import torch
 from pytest import LogCaptureFixture
+from pytest_mock import MockerFixture
 
 from lightly_train._commands.train_task_helpers import (
     BestAggregatedMetricValues,
@@ -19,6 +21,7 @@ from lightly_train._commands.train_task_helpers import (
     get_train_model_args,
     get_train_model_cls,
     get_transform_args,
+    load_checkpoint,
     log_step,
 )
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -39,6 +42,235 @@ from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionValTransform,
 )
 from lightly_train._training_step_timer import TimerAggregateMetrics
+
+
+@pytest.mark.parametrize(
+    ("model", "task", "checkpoint_model_name"),
+    [
+        (
+            "dinov2/vits14-noreg-ltdetr-coco",
+            "object_detection",
+            "dinov2/vits14-noreg-ltdetr",
+        ),
+        ("ltdetrv2-s-coco", "object_detection", "edgecrafter/ecvitt-ltdetr"),
+        (
+            "dinov3/vits16-eomt-coco",
+            "semantic_segmentation",
+            "dinov3/vits16-eomt",
+        ),
+    ],
+)
+def test_load_checkpoint__downloadable_supported_alias_loads_checkpoint(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    model: str,
+    task: str,
+    checkpoint_model_name: str,
+) -> None:
+    checkpoint_path = tmp_path / "model.pt"
+    checkpoint_path.touch()
+    train_model_state_dict = {"model.weight": "pretrained"}
+    checkpoint_dict = {
+        "train_model": train_model_state_dict,
+        "model_class_path": "package.TaskModel",
+        "model_init_args": {"model_name": checkpoint_model_name},
+    }
+    fabric = mocker.MagicMock()
+    fabric.load.return_value = checkpoint_dict
+    download_checkpoint = mocker.patch(
+        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint",
+        return_value=checkpoint_path,
+    )
+
+    checkpoint, resolved_path, resolved_model, model_init_args = load_checkpoint(
+        fabric=fabric,
+        out_dir=tmp_path / "out",
+        resume_interrupted=False,
+        model=model,
+        checkpoint=None,
+        task=task,
+    )
+
+    download_checkpoint.assert_called_once_with(checkpoint=model)
+    fabric.load.assert_called_once_with(path=checkpoint_path)
+    assert resolved_path == checkpoint_path
+    assert resolved_model == checkpoint_model_name
+    assert model_init_args == checkpoint_dict["model_init_args"]
+    assert checkpoint == {
+        "train_model_state_dict": train_model_state_dict,
+        "model_class_path": "package.TaskModel",
+        "model_init_args": checkpoint_dict["model_init_args"],
+    }
+
+
+def test_load_checkpoint__supported_architecture_does_not_load_checkpoint(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    fabric = mocker.MagicMock()
+    download_checkpoint = mocker.patch(
+        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint"
+    )
+
+    result = load_checkpoint(
+        fabric=fabric,
+        out_dir=tmp_path / "out",
+        resume_interrupted=False,
+        model="ltdetrv2-s",
+        checkpoint=None,
+        task="object_detection",
+    )
+
+    assert result == (None, None, "ltdetrv2-s", None)
+    download_checkpoint.assert_not_called()
+    fabric.load.assert_not_called()
+
+
+def test_load_checkpoint__local_model_path_loads_checkpoint(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    model_path = tmp_path / "model.pt"
+    model_path.touch()
+    checkpoint_dict = {
+        "train_model": {"model.weight": "pretrained"},
+        "model_class_path": "package.TaskModel",
+        "model_init_args": {"model_name": "ltdetrv2-s"},
+    }
+    fabric = mocker.MagicMock()
+    fabric.load.return_value = checkpoint_dict
+    download_checkpoint = mocker.patch(
+        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint",
+        return_value=model_path,
+    )
+
+    checkpoint, resolved_path, resolved_model, model_init_args = load_checkpoint(
+        fabric=fabric,
+        out_dir=tmp_path / "out",
+        resume_interrupted=False,
+        model=str(model_path),
+        checkpoint=None,
+        task="object_detection",
+    )
+
+    download_checkpoint.assert_called_once_with(checkpoint=str(model_path))
+    fabric.load.assert_called_once_with(path=model_path)
+    assert resolved_path == model_path
+    assert resolved_model == "ltdetrv2-s"
+    assert model_init_args == checkpoint_dict["model_init_args"]
+    assert checkpoint is not None
+    assert checkpoint["train_model_state_dict"] == checkpoint_dict["train_model"]
+
+
+def test_load_checkpoint__explicit_checkpoint_overrides_downloadable_model(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    checkpoint_path = tmp_path / "explicit.pt"
+    checkpoint_path.touch()
+    checkpoint_dict = {
+        "train_model": {"model.weight": "explicit"},
+        "model_class_path": "package.TaskModel",
+        "model_init_args": {"model_name": "edgecrafter/ecvitt-ltdetr"},
+    }
+    fabric = mocker.MagicMock()
+    fabric.load.return_value = checkpoint_dict
+    download_checkpoint = mocker.patch(
+        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint"
+    )
+
+    _, resolved_path, resolved_model, _ = load_checkpoint(
+        fabric=fabric,
+        out_dir=tmp_path / "out",
+        resume_interrupted=False,
+        model="ltdetrv2-s-coco",
+        checkpoint=checkpoint_path,
+        task="object_detection",
+    )
+
+    assert resolved_path == checkpoint_path.resolve()
+    assert resolved_model == "edgecrafter/ecvitt-ltdetr"
+    download_checkpoint.assert_not_called()
+
+
+def test_load_checkpoint__explicit_checkpoint_rejects_incompatible_model_family(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    checkpoint_path = tmp_path / "explicit.pt"
+    checkpoint_path.touch()
+    fabric = mocker.MagicMock()
+    fabric.load.return_value = {
+        "train_model": {"model.weight": "explicit"},
+        "model_class_path": "package.TaskModel",
+        "model_init_args": {"model_name": "edgecrafter/ecvitt-ltdetr"},
+    }
+
+    with pytest.raises(ValueError, match="incompatible task-model families"):
+        load_checkpoint(
+            fabric=fabric,
+            out_dir=tmp_path / "out",
+            resume_interrupted=False,
+            model="picodet/s-416",
+            checkpoint=checkpoint_path,
+            task="object_detection",
+        )
+
+
+def test_load_checkpoint__explicit_legacy_checkpoint_uses_model_fallback(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    checkpoint_path = tmp_path / "legacy.ckpt"
+    checkpoint_path.touch()
+    fabric = mocker.MagicMock()
+    fabric.load.return_value = {
+        "train_model": {"model.weight": "legacy"},
+        "model_class_path": "",
+    }
+
+    checkpoint, _, resolved_model, model_init_args = load_checkpoint(
+        fabric=fabric,
+        out_dir=tmp_path / "out",
+        resume_interrupted=False,
+        model="ltdetrv2-s",
+        checkpoint=checkpoint_path,
+        task="object_detection",
+    )
+
+    assert resolved_model == "ltdetrv2-s"
+    assert model_init_args == {}
+    assert checkpoint is not None
+    assert checkpoint["train_model_state_dict"] == {"model.weight": "legacy"}
+
+
+def test_load_checkpoint__resume_ignores_downloadable_model(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    out_dir = tmp_path / "out"
+    checkpoint_path = out_dir / "checkpoints" / "last.ckpt"
+    checkpoint_path.parent.mkdir(parents=True)
+    torch.save(
+        {"model_init_args": {"model_name": "edgecrafter/ecvitt-ltdetr"}},
+        checkpoint_path,
+    )
+    fabric = mocker.MagicMock()
+    download_checkpoint = mocker.patch(
+        "lightly_train._commands.train_task_helpers.task_model_helpers.download_checkpoint"
+    )
+
+    result = load_checkpoint(
+        fabric=fabric,
+        out_dir=out_dir,
+        resume_interrupted=True,
+        model="ltdetrv2-s-coco",
+        checkpoint=None,
+        task="object_detection",
+    )
+
+    assert result == (
+        None,
+        checkpoint_path,
+        "edgecrafter/ecvitt-ltdetr",
+        {"model_name": "edgecrafter/ecvitt-ltdetr"},
+    )
+    download_checkpoint.assert_not_called()
+    fabric.load.assert_not_called()
 
 
 def test_get_train_model_args_and_transform_args__propagate_patch_size_to_scale_jitter() -> (

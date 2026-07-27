@@ -180,3 +180,21 @@ class DINOv3EoMTInstanceSegmentationConfigRegistry(ConfigsNamespace):
     )
     class ViTBaseEUPE(EoMTInstanceSegmentationConfig):
         backbone_name: str = "dinov3/vitb16-eupe"
+
+    @DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vits16-lingbot-eomt"
+    )
+    class ViTSmallLingBot(EoMTInstanceSegmentationConfig):
+        backbone_name: str = "dinov3/vits16-lingbot"
+
+    @DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vitb16-lingbot-eomt"
+    )
+    class ViTBaseLingBot(EoMTInstanceSegmentationConfig):
+        backbone_name: str = "dinov3/vitb16-lingbot"
+
+    @DINOV3_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY.register(
+        "dinov3/vitl16-lingbot-eomt"
+    )
+    class ViTLargeLingBot(EoMTInstanceSegmentationConfig):
+        backbone_name: str = "dinov3/vitl16-lingbot"

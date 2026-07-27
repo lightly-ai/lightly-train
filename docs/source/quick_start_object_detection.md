@@ -1,6 +1,6 @@
 (quick-start-object-detection)=
 
-# Quick Start - Object Detection with LTDETRv2 (NEW)
+# Quick Start - Object Detection with LTDETRv2
 
 ```{image} https://colab.research.google.com/assets/colab-badge.svg
 ---
@@ -41,8 +41,8 @@ wget -O image.jpg http://images.cocodataset.org/val2017/000000577932.jpg
 
 ### Load the model weights
 
-Load the model with Lightly**Train**'s `load_model` function. This will automatically
-download the model weights and load the model:
+Load the model with Lightly**Train**'s {py:func}`load_model <lightly_train.load_model>`
+function. This will automatically download the model weights and load the model:
 
 ```python
 import lightly_train
@@ -52,8 +52,8 @@ model = lightly_train.load_model("ltdetrv2-s-coco")
 
 ### Predict the objects
 
-Run `model.predict` on the image. The method accepts file paths, URLs, PIL Images, or
-tensors as input:
+Run {py:meth}`~.LTDETRObjectDetection.predict` on the image. The method accepts file
+paths, URLs, PIL Images, or tensors as input:
 
 ```python skip_ruff
 results = model.predict("image.jpg")
@@ -130,10 +130,11 @@ coco128_yolo
 
 ### Start training
 
-Next, start the training with the `train_object_detection` function. You only have to
-specify the output directory, model, and input data. Lightly**Train** automatically sets
-the remaining training parameters and applies image augmentations. Of course you can
-always customize these settings if needed:
+Next, start the training with the
+{py:func}`train_object_detection <lightly_train.train_object_detection>` function. You
+only have to specify the output directory, model, and input data. Lightly**Train**
+automatically sets the remaining training parameters and applies image augmentations. Of
+course you can always [customize these settings](train-settings) if needed:
 
 ```python
 import lightly_train
@@ -287,8 +288,10 @@ plt.show()
 
 ## Benchmark your checkpoint
 
-You can use the `benchmark_object_detection` (in beta) command to measure the inference
-performance of an object detection model on a validation dataset.
+You can use the
+{py:func}`benchmark_object_detection <lightly_train.benchmark_object_detection>` (in
+beta) command to measure the inference performance of an object detection model on a
+validation dataset.
 
 ```python skip_ruff
 result = lightly_train.benchmark_object_detection(

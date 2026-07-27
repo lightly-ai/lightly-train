@@ -64,6 +64,14 @@ This project incorporates the following third-party components:
   - No source code is vendored. LightlyTrain redistributes the pretrained LingBot
     Vision backbone weights, loaded with the DINOv3 model implementation.
 
+**TIPSv2**
+- Source: https://github.com/google-deepmind/tips
+- License: Apache License 2.0
+- License file: licences/TIPSv2_LICENSE
+- Modifications:
+  - Added TIPSv2 vision-backbone architecture configuration and standard PyTorch
+    checkpoint loading. No TIPSv2 source code is vendored.
+
 **RT-DETR**
 - Source: https://github.com/lyuwenyu/RT-DETR
 - License: Apache License 2.0

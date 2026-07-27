@@ -42,6 +42,7 @@ def test_list_model_names__uses_registry() -> None:
     assert "dinov3/_vittest16-eomt" in names
     assert "dinov3/vits16-eomt" in names
     assert "dinov3/vits16-eomt-inst-coco" in names
+    assert "dinov3/vits16-lingbot-eomt" in names
     assert "dinov3/convnext-tiny-eomt" not in names
 
 
@@ -49,6 +50,9 @@ def test_is_supported_model__uses_registry() -> None:
     assert DINOv3EoMTInstanceSegmentation.is_supported_model("dinov3/vits16-eomt")
     assert DINOv3EoMTInstanceSegmentation.is_supported_model(
         "dinov3/vits16-eomt-inst-coco"
+    )
+    assert DINOv3EoMTInstanceSegmentation.is_supported_model(
+        "dinov3/vits16-lingbot-eomt"
     )
     assert not DINOv3EoMTInstanceSegmentation.is_supported_model(
         "dinov3/convnext-tiny-eomt"
