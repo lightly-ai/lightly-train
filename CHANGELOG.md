@@ -26,8 +26,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `ltdetrv2-s/m/l/x` object detection models, matching the validated COCO benchmark
   recipe. Other LTDETR models (`dinov3/*-ltdetr`, `dinov2/*-ltdetr`) are unaffected.
 - Lower the default `backbone_lr_factor` from `0.05` to `0.01` for `ltdetrv2-l/x` object
-  detection models, matching the validated COCO benchmark recipe. `ltdetrv2-s/m` and other
-  LTDETR models are unaffected.
+  detection models, matching the validated COCO benchmark recipe. `ltdetrv2-s/m` and
+  other LTDETR models are unaffected.
 
 ### Deprecated
 
