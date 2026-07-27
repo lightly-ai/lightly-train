@@ -1,6 +1,6 @@
 FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
-# Build tooling + OpenCV (examples/cpp/CMakeLists.txt requires both) + Python/uv.
+# Build tooling + OpenCV (examples/cpp/CMakeLists.txt requires both) + Python.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
         build-essential \
@@ -11,7 +11,6 @@ RUN apt-get update \
         libopencv-dev \
         python3 \
         python3-venv \
-        python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # TensorRT 10.13.3.9, pinned to match examples/cpp/README.md and the
@@ -39,6 +38,8 @@ RUN curl -fsSL -o /tmp/onnxruntime.tgz \
 
 ENV ONNXRUNTIME_ROOT=/opt/onnxruntime-linux-x64-gpu-1.20.1
 
-RUN python3 -m pip install --no-cache-dir "uv==0.11.32"
+# Install the pinned uv release with Astral's official installer.
+RUN curl -LsSf https://astral.sh/uv/0.11.32/install.sh \
+    | env UV_UNMANAGED_INSTALL=/usr/local/bin sh
 
 ENV PATH=/opt/venv/bin:$PATH
