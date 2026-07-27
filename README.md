@@ -90,8 +90,6 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 
 |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
-|          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
-|          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
 |     **ltdetrv2-s-coco (NEW)**     |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
 |     **ltdetrv2-m-coco (NEW)**     |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
 |     **ltdetrv2-l-coco (NEW)**     |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
@@ -103,11 +101,11 @@ Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbone
 | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
 | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
-\*Picodet models are in preview and we report preliminary results.
-
 Models are trained on the COCO 2017 dataset and evaluated on the validation set with
 single-scale testing. Latency is measured with TensorRT on a NVIDIA T4 GPU with batch
 size 1. All models are optimized using `tensorrt==10.13.3.9`.
+
+![LTDETRv2 mAP vs. Params](docs/source/_static/images/object_detection/map_vs_params.png)
 
 #### Usage
 
