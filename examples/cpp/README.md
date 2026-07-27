@@ -39,7 +39,8 @@ for the TensorRT recipe in particular.
 
 ## 2. Prerequisites
 
-All of the below are already set up in [`.devcontainer/`](../../.devcontainer)
+All of the below are already set up in
+[`.devcontainer/cpp-inference/`](../../.devcontainer/cpp-inference)
 (open the repo in it via "Dev Containers: Reopen in Container", with the
 NVIDIA Container Toolkit installed on the host) -- skip this section if you're
 using it.
