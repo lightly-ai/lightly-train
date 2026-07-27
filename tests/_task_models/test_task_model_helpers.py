@@ -26,6 +26,9 @@ from lightly_train._task_models.dinov3_eomt_semantic_segmentation.config import 
 from lightly_train._task_models.dinov3_eomt_semantic_segmentation.task_model import (
     DINOv3EoMTSemanticSegmentation,
 )
+from lightly_train._task_models.ltdetr_instance_segmentation.config import (
+    LTDETR_SEG_MODEL_REGISTRY,
+)
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
 )
@@ -123,6 +126,39 @@ def test_downloadable_model__dinov3_eomt_instance_aliases_from_registry() -> Non
             checkpoint.url,
             checkpoint.sha256,
         )
+
+
+def test_downloadable_model__ltdetr_seg_aliases_from_registry() -> None:
+    aliases = [
+        "ltdetrv2-seg-s-coco",
+        "ltdetrv2-seg-m-coco",
+        "ltdetrv2-seg-l-coco",
+        "ltdetrv2-seg-x-coco",
+        "edgecrafter/ecvitt-ltdetr-seg-coco",
+        "edgecrafter/ecvittplus-ltdetr-seg-coco",
+        "edgecrafter/ecvits-ltdetr-seg-coco",
+        "edgecrafter/ecvitsplus-ltdetr-seg-coco",
+    ]
+
+    for alias in aliases:
+        checkpoint = LTDETR_SEG_MODEL_REGISTRY.get_alias_metadata(
+            alias
+        ).downloadable_checkpoint
+        assert task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH[alias] == (
+            checkpoint.url,
+            checkpoint.sha256,
+        )
+
+
+def test_downloadable_model__ltdetr_seg_coco_short_and_full_aliases_match() -> None:
+    # The ``ltdetrv2-seg-<size>-coco`` short names and the ``edgecrafter/...-seg-coco``
+    # full names must resolve to the same hosted (file, hash) so downloads are
+    # identical regardless of which name the user passes.
+    d = task_model_helpers.DOWNLOADABLE_MODEL_URL_AND_HASH
+    assert d["ltdetrv2-seg-s-coco"] == d["edgecrafter/ecvitt-ltdetr-seg-coco"]
+    assert d["ltdetrv2-seg-m-coco"] == d["edgecrafter/ecvittplus-ltdetr-seg-coco"]
+    assert d["ltdetrv2-seg-l-coco"] == d["edgecrafter/ecvits-ltdetr-seg-coco"]
+    assert d["ltdetrv2-seg-x-coco"] == d["edgecrafter/ecvitsplus-ltdetr-seg-coco"]
 
 
 def test_downloadable_model__picodet_aliases_from_registry() -> None:

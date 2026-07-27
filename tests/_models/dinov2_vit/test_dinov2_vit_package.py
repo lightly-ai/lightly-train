@@ -10,12 +10,19 @@ from pathlib import Path
 
 import pytest
 import torch
+from pytest_mock import MockerFixture
 
 from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOv2ViTPackage
+from lightly_train._models.dinov2_vit.dinov2_vit_src import dinov2_helper
+from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
+    MODELS,
+    load_and_merge_config,
+)
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
     _vit_test,
+    vit_so400m,
 )
 
 from ...helpers import DummyCustomModel
@@ -29,6 +36,10 @@ class TestDINOv2ViTPackage:
             ("dinov2/vitb14", True),
             ("dinov2/vitl14", True),
             ("dinov2/vitg14", True),
+            ("dinov2/vitb14-tipsv2", True),
+            ("dinov2/vitl14-tipsv2", True),
+            ("dinov2/vitso400m14-tipsv2", True),
+            ("dinov2/vitg14-tipsv2", True),
             ("dinov2/vits14-notpretrained", True),
             ("dinov2/vitb14-notpretrained", True),
             ("dinov2/vitl14-notpretrained", True),
@@ -55,6 +66,7 @@ class TestDINOv2ViTPackage:
             ("dinov2_vit/vitl14", False),
             ("dinov2_vit/vitg14", False),
             ("dinov2/_vittest14", False),
+            ("dinov2/vitso14-tipsv2", False),
         ],
     )
     def test_list_model_names(self, model_name: str, listed: bool) -> None:
@@ -90,6 +102,63 @@ class TestDINOv2ViTPackage:
     def test_get_model(self, model_name: str) -> None:
         model = DINOv2ViTPackage.get_model(model_name=model_name)
         assert isinstance(model, DinoVisionTransformer)
+
+    def test_tipsv2_model_names(self) -> None:
+        assert DINOv2ViTPackage.parse_model_name("vitso400m14-tipsv2") == (
+            "vitso400m14-tipsv2"
+        )
+        assert "vitso14-tipsv2" not in MODELS
+        with pytest.raises(ValueError, match="Unknown model"):
+            DINOv2ViTPackage.parse_model_name("vitso14-tipsv2")
+
+    @pytest.mark.parametrize(
+        ("model_name", "arch"),
+        [
+            ("vitb14-tipsv2", "vit_base"),
+            ("vitl14-tipsv2", "vit_large"),
+            ("vitso400m14-tipsv2", "vit_so400m"),
+            ("vitg14-tipsv2", "vit_giant2"),
+        ],
+    )
+    def test_tipsv2_model_configs(
+        self,
+        model_name: str,
+        arch: str,
+    ) -> None:
+        config = load_and_merge_config(MODELS[model_name]["config"])
+        assert config.student.arch == arch
+        assert config.student.patch_size == 14
+        assert config.student.num_register_tokens == 1
+        assert config.student.layerscale == 1.0
+        assert config.crops.global_crops_size == 448
+
+    def test_vit_so400m_architecture(self, mocker: MockerFixture) -> None:
+        constructor = mocker.patch(
+            "lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer.DinoVisionTransformer"
+        )
+
+        vit_so400m()
+
+        assert constructor.call_args.kwargs["embed_dim"] == 1152
+        assert constructor.call_args.kwargs["depth"] == 27
+        assert constructor.call_args.kwargs["num_heads"] == 16
+        assert constructor.call_args.kwargs["mlp_ratio"] == 4304 / 1152
+
+    def test_load_weights__pytorch_checkpoint(self, tmp_path: Path) -> None:
+        expected = _vit_test()
+        torch.save(expected.state_dict(), tmp_path / "tipsv2.pt")
+        actual = _vit_test()
+
+        dinov2_helper.load_weights(
+            model=actual,
+            checkpoint_dir=tmp_path,
+            url="https://example.com/tipsv2.pt",
+        )
+
+        for expected_param, actual_param in zip(
+            expected.parameters(), actual.parameters()
+        ):
+            assert torch.equal(expected_param, actual_param)
 
     def test_get_model_wrapper(self) -> None:
         model = _vit_test()

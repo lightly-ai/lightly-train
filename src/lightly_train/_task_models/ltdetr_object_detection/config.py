@@ -31,8 +31,16 @@ LTDETR_MODEL_REGISTRY: ModelRegistry[DetectorConfig] = ModelRegistry()
 
 # COCO-pretrained weights shared by the ltdetrv2-s-coco /
 # edgecrafter-ecvitt-ltdetr-coco aliases.
+# NOTE: These checkpoints are NOT the lightning ckpt, but rather .pt in exported_model
 _ECVITT_COCO_URL = "edgecrafter_ecvitt_ltdetr_coco_260624_f8aefe49.pt"
 _ECVITT_COCO_SHA256 = "f8aefe499be1579c55bfcb288f623399ea5f4efef0c5a5f00960663efeda4f49"
+
+_ECVITTPLUS_COCO_URL = "edgecrafter_ecvittplus_ltdetr_coco_260720_723357e9.pt"
+_ECVITTPLUS_COCO_SHA256 = (
+    "723357e921c77f8041f44875f5edce8645412ccc5d13fb7dca93271d525c1641"
+)
+_ECVITS_COCO_URL = "edgecrafter_ecvits_ltdetr_coco_260720_62ff87cd.pt"
+_ECVITS_COCO_SHA256 = "62ff87cd792c87e00f53da0c62ae91a63927e0ce2088c5cf018edffa513ccb6c"
 
 _DINOV3_VITT16_COCO_URL = "dinov3_vitt16_ltdetr_coco_251218_dfd34210.pt"
 _DINOV3_VITT16_COCO_SHA256 = (
@@ -1130,7 +1138,21 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvittplus-ltdetr",
+        ModelAlias(
+            name="edgecrafter/ecvittplus-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_ECVITTPLUS_COCO_URL,
+                sha256=_ECVITTPLUS_COCO_SHA256,
+            ),
+        ),
         "ltdetrv2-m",
+        ModelAlias(
+            name="ltdetrv2-m-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_ECVITTPLUS_COCO_URL,
+                sha256=_ECVITTPLUS_COCO_SHA256,
+            ),
+        ),
     )
     class EdgeCrafterECViTTinyPlus(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"
@@ -1147,7 +1169,21 @@ class LTDETRv2ConfigRegistry(ConfigsNamespace):
 
     @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvits-ltdetr",
+        ModelAlias(
+            name="edgecrafter/ecvits-ltdetr-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_ECVITS_COCO_URL,
+                sha256=_ECVITS_COCO_SHA256,
+            ),
+        ),
         "ltdetrv2-l",
+        ModelAlias(
+            name="ltdetrv2-l-coco",
+            downloadable_checkpoint=DownloadableCheckpoint(
+                url=_ECVITS_COCO_URL,
+                sha256=_ECVITS_COCO_SHA256,
+            ),
+        ),
     )
     class EdgeCrafterECViTSmall(LTDETRBaseConfig.ViTTinyPlus):
         version: Literal["v2"] = "v2"

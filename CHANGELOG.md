@@ -19,6 +19,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+## [0.16.4] - 2026-07-24
+
+### Added
+
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
+  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+- Add LTDETRv2 instance segmentation with `ltdetrv2-seg-s/m/l/x` models and
+  COCO-pretrained checkpoints for fine-tuning or out-of-the-box inference.
+- Add SAHI inference for LTDETRv2 instance segmentation through `model.predict_sahi()`.
+
+### Changed
+
+- Warn when a built-in distillation teacher is used with non-ImageNet input
+  normalization, which can produce invalid teacher features.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3.1 pretraining method.
+
+### Fixed
+
+- Preserve exponential-moving-average updates when resuming training, preventing a
+  spurious validation-metric drop after the first resumed update.
+- Skip degenerate predicted boxes during validation visualization and log a warning
+  instead of crashing.
+- Restore installation and package imports by using a released LightlySSL dependency.
+
+### Security
+
 ## [0.16.3] - 2026-07-22
 
 ### Added
@@ -33,6 +64,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,
   `dinov3/dav3-metric-tiny`, `dinov3/dav3-metric-tiny-plus`, and
   `dinov2/dav3-metric-small`.
+- Add COCO-pretrained checkpoints for the `ltdetrv2-m` (`edgecrafter/ecvittplus-ltdetr`)
+  and `ltdetrv2-l` (`edgecrafter/ecvits-ltdetr`) object detection models, available via
+  the `ltdetrv2-m-coco` and `ltdetrv2-l-coco` aliases.
 
 ### Changed
 

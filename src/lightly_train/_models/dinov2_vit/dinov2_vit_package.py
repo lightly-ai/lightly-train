@@ -98,6 +98,7 @@ class DINOv2ViTPackage(MultiScaleFeaturePackage):
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
             "vit_large": vits.vit_large,
+            "vit_so400m": vits.vit_so400m,
             "vit_giant2": vits.vit_giant2,
         }
         model_builder = model_builders.get(cfg.student.arch, None)
@@ -118,6 +119,9 @@ class DINOv2ViTPackage(MultiScaleFeaturePackage):
             drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
             in_chans=num_input_channels,
+            input_normalization=(
+                "none" if model_name.endswith("-tipsv2") else "imagenet"
+            ),
         )
         kwargs.update(model_args or {})
 
