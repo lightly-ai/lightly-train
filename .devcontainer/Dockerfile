@@ -39,6 +39,6 @@ RUN curl -fsSL -o /tmp/onnxruntime.tgz \
 
 ENV ONNXRUNTIME_ROOT=/opt/onnxruntime-linux-x64-gpu-1.20.1
 
-RUN python3 -m pip install --break-system-packages --no-cache-dir "uv==0.11.32"
+RUN python3 -m pip install --no-cache-dir "uv==0.11.32"
 
 ENV PATH=/opt/venv/bin:$PATH
