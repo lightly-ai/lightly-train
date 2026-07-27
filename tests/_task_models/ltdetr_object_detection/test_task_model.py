@@ -45,8 +45,10 @@ from lightly_train._task_models.ltdetr_object_detection.train_model import (
     LTDETRObjectDetectionTrainArgs,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
+    LTDETRObjectDetectionTrainTransform,
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransformArgs,
+    LTDETRv2ObjectDetectionTrainTransform,
 )
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -1191,4 +1193,21 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     )
     assert projector_param_ids.isdisjoint(backbone_union_ids), (
         "projector params must not be in the backbone groups"
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_transform_cls",
+    [
+        ("ltdetrv2-m", LTDETRv2ObjectDetectionTrainTransform),
+        ("edgecrafter/ecvits-ltdetr", LTDETRv2ObjectDetectionTrainTransform),
+        ("dinov3/vits16-ltdetr", LTDETRObjectDetectionTrainTransform),
+    ],
+)
+def test_get_train_transform_cls__scopes_ltdetrv2_defaults(
+    model_name: str, expected_transform_cls: type
+) -> None:
+    assert (
+        LTDETRObjectDetectionTrain.get_train_transform_cls(model_name)
+        is expected_transform_cls
     )

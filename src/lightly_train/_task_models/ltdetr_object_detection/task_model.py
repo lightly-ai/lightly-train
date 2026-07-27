@@ -795,3 +795,12 @@ class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
             strongly_typed=strongly_typed,
             verbose=verbose,
         )
+
+
+def is_edgecrafter_model(model_name: str) -> bool:
+    """Whether ``model_name`` resolves to an EdgeCrafter (ltdetrv2-*) model."""
+    try:
+        package_name = LTDETRObjectDetection.parse_model_name(model_name)["package_name"]
+    except ValueError:
+        return False
+    return package_name == "edgecrafter"

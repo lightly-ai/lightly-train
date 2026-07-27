@@ -48,6 +48,7 @@ from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import
 )
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
+    is_edgecrafter_model,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
     DINOv2LTDETRObjectDetectionTrainTransformV2,
@@ -56,6 +57,7 @@ from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransform,
     LTDETRObjectDetectionValTransformArgs,
+    LTDETRv2ObjectDetectionTrainTransform,
 )
 from lightly_train._task_models.object_detection_components.dfine_criterion import (
     DFINECriterion,
@@ -256,13 +258,7 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
                 # runs before the task-model constructor, so without it the
                 # aliases would raise
                 # ``Unable to resolve patch_size='auto'`` here.
-                try:
-                    package_name = LTDETRObjectDetection.parse_model_name(
-                        model_name=model_name
-                    )["package_name"]
-                except ValueError:
-                    package_name = ""
-                if package_name == "edgecrafter":
+                if is_edgecrafter_model(model_name):
                     self.patch_size = 16
                 else:
                     match = re.match(
@@ -413,10 +409,13 @@ class LTDETRObjectDetectionTrain(TrainModel):
         cls, model_name: str
     ) -> type[
         LTDETRObjectDetectionTrainTransform
+        | LTDETRv2ObjectDetectionTrainTransform
         | DINOv2LTDETRObjectDetectionTrainTransformV2
     ]:
         if model_name.startswith(_DINOV2_PREFIX):
             return DINOv2LTDETRObjectDetectionTrainTransformV2
+        if is_edgecrafter_model(model_name):
+            return LTDETRv2ObjectDetectionTrainTransform
         return LTDETRObjectDetectionTrainTransform
 
     @override
