@@ -6,8 +6,9 @@
 // LICENSE file in the root directory of this source tree.
 //
 // Recipe: run LT-DETR object detection inference with ONNX Runtime's CUDA
-// execution provider, allocating the model input directly on the GPU
-// (zero-copy) via Ort::IoBinding.
+// execution provider, allocating the model input and outputs directly on
+// the GPU (zero-copy) via Ort::IoBinding, without relying on ONNX Runtime's
+// own CUDA allocator.
 //
 // This is a single-purpose example, not a general-purpose CLI tool: edit the
 // constants below to point at your own exported model/image, then rebuild.
@@ -47,6 +48,13 @@ constexpr int kModelWidth = 640;   // must match model.image_size[1] at export t
 // Must match the exported model's postprocessor config (LT-DETR "Generic"
 // default is 300, see src/lightly_train/_task_models/ltdetr_object_detection/config.py).
 constexpr int kNumTopQueries = 300;
+// Must match the exported model's raw decoder query count (RTDETRv2/D-FINE
+// transformer "num_queries" config, default 300, same config.py as above).
+// This is the model's fixed "logits"/"boxes" output size, not to be confused
+// with kNumTopQueries above (the postprocessor's independent top-K selection
+// count) -- they share the same default but can differ. If unsure, inspect
+// the exported ONNX graph's output shapes (e.g. with Netron).
+constexpr int kNumQueries = 300;
 
 // Must match model.image_normalize for the exported checkpoint. "ltdetrv2-s-coco"
 // uses ImageNet statistics; other checkpoints may use LT-DETR's generic
@@ -103,13 +111,18 @@ int main() {
   const auto pre = od_common::preprocess_image(kImagePath, kModelWidth, kModelHeight,
                                                 kNormalize);
 
-  Ort::MemoryInfo cuda_memory_info("Cuda", OrtArenaAllocator, kDeviceId,
+  // OrtDeviceAllocator (not OrtArenaAllocator): this MemoryInfo only
+  // describes where our own cudaMalloc'd pointers live, ONNX Runtime never
+  // allocates through it.
+  Ort::MemoryInfo cuda_memory_info("Cuda", OrtDeviceAllocator, kDeviceId,
                                     OrtMemTypeDefault);
 
-  // Allocate the input directly on the GPU and copy the preprocessed image
-  // there -- this, together with binding the outputs to CUDA memory below,
-  // is what makes this a zero-copy pipeline instead of relying on ONNX
-  // Runtime's implicit host<->device copies inside session.Run().
+  const int num_classes = static_cast<int>(kClassNames.size());
+
+  // Allocate the input and both outputs directly on the GPU -- this is what
+  // makes this a zero-copy pipeline instead of relying on ONNX Runtime's
+  // implicit host<->device copies, or its own allocator, inside
+  // session.Run().
   float* d_input = nullptr;
   const size_t input_count = pre.data.size();
   check_cuda(cudaMalloc(reinterpret_cast<void**>(&d_input), input_count * sizeof(float)),
@@ -118,52 +131,47 @@ int main() {
                          cudaMemcpyHostToDevice),
              "cudaMemcpy(d_input)");
 
+  float* d_logits = nullptr;
+  const size_t logits_count = static_cast<size_t>(kNumQueries) * num_classes;
+  check_cuda(cudaMalloc(reinterpret_cast<void**>(&d_logits), logits_count * sizeof(float)),
+             "cudaMalloc(d_logits)");
+
+  float* d_boxes = nullptr;
+  const size_t boxes_count = static_cast<size_t>(kNumQueries) * 4;
+  check_cuda(cudaMalloc(reinterpret_cast<void**>(&d_boxes), boxes_count * sizeof(float)),
+             "cudaMalloc(d_boxes)");
+
   const std::array<int64_t, 4> input_shape = {1, 3, kModelHeight, kModelWidth};
   Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
       cuda_memory_info, d_input, input_count, input_shape.data(), input_shape.size());
 
+  const std::array<int64_t, 3> logits_shape = {1, kNumQueries, num_classes};
+  Ort::Value logits_tensor = Ort::Value::CreateTensor<float>(
+      cuda_memory_info, d_logits, logits_count, logits_shape.data(), logits_shape.size());
+
+  const std::array<int64_t, 3> boxes_shape = {1, kNumQueries, 4};
+  Ort::Value boxes_tensor = Ort::Value::CreateTensor<float>(
+      cuda_memory_info, d_boxes, boxes_count, boxes_shape.data(), boxes_shape.size());
+
   Ort::IoBinding io_binding(session);
   io_binding.BindInput("images", input_tensor);
-  // The memory-info overload of BindOutput tells ONNX Runtime to allocate
-  // the outputs on the GPU itself, rather than always materializing them on
-  // host as a plain session.Run() call would.
-  io_binding.BindOutput("logits", cuda_memory_info);
-  io_binding.BindOutput("boxes", cuda_memory_info);
+  io_binding.BindOutput("logits", logits_tensor);
+  io_binding.BindOutput("boxes", boxes_tensor);
 
   session.Run(Ort::RunOptions{nullptr}, io_binding);
   io_binding.SynchronizeOutputs();
 
-  const std::vector<std::string> output_names = io_binding.GetOutputNames();
-  std::vector<Ort::Value> outputs = io_binding.GetOutputValues();
-
-  const Ort::Value* logits_value = nullptr;
-  const Ort::Value* boxes_value = nullptr;
-  for (size_t i = 0; i < output_names.size(); ++i) {
-    if (output_names[i] == "logits") {
-      logits_value = &outputs[i];
-    } else if (output_names[i] == "boxes") {
-      boxes_value = &outputs[i];
-    }
-  }
-  if (logits_value == nullptr || boxes_value == nullptr) {
-    throw std::runtime_error("Model did not produce the expected 'logits'/'boxes' outputs.");
-  }
-
-  const auto logits_shape = logits_value->GetTensorTypeAndShapeInfo().GetShape();
-  const int num_queries = static_cast<int>(logits_shape[1]);
-  const int num_classes = static_cast<int>(logits_shape[2]);
-
-  std::vector<float> logits_host(static_cast<size_t>(num_queries) * num_classes);
-  std::vector<float> boxes_host(static_cast<size_t>(num_queries) * 4);
-  check_cuda(cudaMemcpy(logits_host.data(), logits_value->GetTensorData<float>(),
-                         logits_host.size() * sizeof(float), cudaMemcpyDeviceToHost),
+  std::vector<float> logits_host(logits_count);
+  std::vector<float> boxes_host(boxes_count);
+  check_cuda(cudaMemcpy(logits_host.data(), d_logits, logits_count * sizeof(float),
+                         cudaMemcpyDeviceToHost),
              "cudaMemcpy(logits_host)");
-  check_cuda(cudaMemcpy(boxes_host.data(), boxes_value->GetTensorData<float>(),
-                         boxes_host.size() * sizeof(float), cudaMemcpyDeviceToHost),
+  check_cuda(cudaMemcpy(boxes_host.data(), d_boxes, boxes_count * sizeof(float),
+                         cudaMemcpyDeviceToHost),
              "cudaMemcpy(boxes_host)");
 
   const auto detections =
-      od_common::postprocess(logits_host.data(), boxes_host.data(), num_queries,
+      od_common::postprocess(logits_host.data(), boxes_host.data(), kNumQueries,
                               num_classes, kNumTopQueries, pre.orig_w, pre.orig_h,
                               kThreshold);
 
@@ -182,5 +190,7 @@ int main() {
   std::cout << "Wrote " << kOutputPath << std::endl;
 
   cudaFree(d_input);
+  cudaFree(d_logits);
+  cudaFree(d_boxes);
   return 0;
 }
