@@ -11,6 +11,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.17.0] - 2026-07-28
+
+### Added
+
+### Changed
+
 - Raise the default mixup and mosaic probability from `0.5` to `0.75` for
   `ltdetrv2-s/m/l/x` object detection models. Other LTDETR models are unaffected.
 - Lower the default `backbone_lr_factor` from `0.05` to `0.0025` for `ltdetrv2-m/l/x`
@@ -29,9 +43,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `grid_sample` with a gather-based bilinear equivalent that contains no `GridSample`
   op, so neither the parser mode-name issue nor the optimizer bug can apply; training
   keeps the faster fused `grid_sample`.
-- Fix `export_onnx(verify=True)` crashing with an `onnx.checker` `ShapeInferenceError`
-  for LTDETR object detection by repairing stale intermediate shape annotations left by
-  the ONNX exporter.
 
 ### Security
 
