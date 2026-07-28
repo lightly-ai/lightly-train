@@ -22,6 +22,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix incorrect TensorRT inference for LT-DETR object detection and instance
+  segmentation. TensorRT's optimizer/fusion pass around the `GridSample` ops used by
+  deformable attention silently produced wrong activations, corrupting detections and
+  masks, even with parser-compatible mode names. Deployment/export now replaces
+  `grid_sample` with a gather-based bilinear equivalent that contains no `GridSample`
+  op, so neither the parser mode-name issue nor the optimizer bug can apply; training
+  keeps the faster fused `grid_sample`.
 - Fix `export_onnx(verify=True)` crashing with an `onnx.checker` `ShapeInferenceError`
   for LTDETR object detection by repairing stale intermediate shape annotations left by
   the ONNX exporter.

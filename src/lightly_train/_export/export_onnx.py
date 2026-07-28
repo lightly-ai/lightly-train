@@ -24,6 +24,7 @@ from lightly_train._commands import _warnings
 from lightly_train._export.export import ExportMixin
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
+    prepare_for_onnx_export,
     remove_duplicate_cast_nodes,
     remove_redundant_casts,
     repair_value_info,
@@ -111,6 +112,7 @@ class ONNXExportMixin(ExportMixin):
         # safely after export. The shared pipeline deliberately preserves that behavior.
         module.to(torch.float32)
         module.deploy()
+        prepare_for_onnx_export(module)
 
         program = self.export(
             batch_size=batch_size,
