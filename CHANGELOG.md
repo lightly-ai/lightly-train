@@ -22,6 +22,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix incorrect TensorRT inference for LTDETR object detection. The exported ONNX
+  opset 20+ `GridSample` mode was interpreted as nearest-neighbor by TensorRT instead
+  of bilinear, producing wrong detections; TensorRT export now passes parser-compatible
+  mode names for opset 20+.
 - Fix `export_onnx(verify=True)` crashing with an `onnx.checker` `ShapeInferenceError`
   for LTDETR object detection by repairing stale intermediate shape annotations left by
   the ONNX exporter.
