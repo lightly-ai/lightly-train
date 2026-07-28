@@ -28,10 +28,10 @@ notebook:
 
 | Implementation | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Input Size |
 | -------------- | ------------------- | :--------------------------: | :---------------: | :--------: |
-| LightlyTrain   | ltdetrv2-seg-s-coco |             42.7             |        7.8        |  640×640   |
-| LightlyTrain   | ltdetrv2-seg-m-coco |             45.8             |       11.2        |  640×640   |
-| LightlyTrain   | ltdetrv2-seg-l-coco |             47.5             |       14.0        |  640×640   |
-| LightlyTrain   | ltdetrv2-seg-x-coco |             47.9             |       15.0        |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-s-coco |             42.7             |        6.96       |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-m-coco |             45.8             |       9.82        |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-l-coco |             47.5             |       11.41       |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-x-coco |             47.9             |       12.06       |  640×640   |
 
 Training follows the protocol in the original
 [EdgeCrafter](https://arxiv.org/abs/2603.18739) paper. All models use the default
