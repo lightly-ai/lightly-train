@@ -1,6 +1,6 @@
 # LightlyTrain with MIGraphX
 
-This example provides a container with AMD ROCm, MIGraphX, and the ONNX export
+This recipe provides a container with AMD ROCm, MIGraphX, and the ONNX export
 dependencies of LightlyTrain. It avoids installing ROCm or MIGraphX in the host
 userspace, and installs LightlyTrain from the local repository source used as the Docker
 build context.
@@ -8,13 +8,20 @@ build context.
 The host still needs a supported AMD GPU driver and access to `/dev/kfd` and `/dev/dri`.
 MIGraphX is installed from AMD's ROCm apt repository because it is not available as a
 standalone PyPI package.
+## Environment
+
+Use the [MIGraphX dev container](../../../../../.devcontainer/migraphx/) for
+development, or build the Docker image defined by this recipe as described
+below. Both provide the ROCm and MIGraphX toolchain required by this recipe.
+
+
 
 ## Build
 
 From the repository root:
 
 ```bash
-docker build --tag lightly-train-migraphx -f examples/migraphx/Dockerfile .
+docker build --tag lightly-train-migraphx -f examples/deployment/python/rocm/migraphx/Dockerfile .
 ```
 
 The image contains the exact LightlyTrain source state in the local checkout at build
@@ -23,7 +30,7 @@ time; it does not download LightlyTrain from GitHub.
 ## Run
 
 All commands below run from the repository root and mount it at `/workspace`, so the
-scripts in `examples/migraphx/` and any exported artifacts are shared between the host
+scripts in `examples/deployment/python/rocm/migraphx/` and any exported artifacts are shared between the host
 and the container:
 
 ```bash
@@ -69,7 +76,7 @@ docker run --rm -it \
   --security-opt seccomp=unconfined \
   --volume "$PWD":/workspace \
   lightly-train-migraphx \
-  python /workspace/examples/migraphx/export_model.py \
+  python /workspace/examples/deployment/python/rocm/migraphx/export_model.py \
     --out /workspace/dinov3-vitt16-ltdetr-coco.mxr
 ```
 
@@ -98,7 +105,7 @@ docker run --rm -it \
   --security-opt seccomp=unconfined \
   --volume "$PWD":/workspace \
   lightly-train-migraphx \
-  python /workspace/examples/migraphx/predict.py \
+  python /workspace/examples/deployment/python/rocm/migraphx/predict.py \
     --engine /workspace/dinov3-vitt16-ltdetr-coco.mxr \
     --image /workspace/image.jpg \
     --out /workspace/prediction.jpg

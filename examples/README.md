@@ -16,7 +16,7 @@ by how they are intended to be used:
 | Recipe | Purpose | Environment |
 | --- | --- | --- |
 | [`cpp/`](cpp/) | C++ LT-DETR inference with ONNX Runtime's CUDA execution provider or TensorRT | [C++ inference dev container](../.devcontainer/cpp-inference/) |
-| [`migraphx/`](migraphx/) | Python export and inference with AMD MIGraphX | [MIGraphX dev container](../.devcontainer/migraphx/) or its Docker image |
+| [`deployment/python/rocm/migraphx/`](deployment/python/rocm/migraphx/) | Python export and inference with AMD MIGraphX | [MIGraphX dev container](../.devcontainer/migraphx/) or its Docker image |
 
 ## Future deployment layout
 
