@@ -13,12 +13,20 @@ Two recipes are provided:
   execution provider.
 - `tensorrt/` -- runs a serialized TensorRT engine.
 
-Both allocate their model input directly on the GPU (zero-copy) instead of
-relying on the runtime's implicit host↔device copies.
+Both allocate their model input and outputs directly on the GPU (zero-copy)
+instead of relying on the runtime's implicit host↔device copies.
 
 ## 1. Export a model
 
-On a machine with `lightly-train` installed:
+This step uses a separate, Python-only environment from the one used to
+build/run the C++ recipes in steps 2-4 below. Install LightlyTrain with
+TensorRT support (tested with TensorRT 10.x):
+
+```bash
+pip install lightly-train tensorrt-cu12  # or tensorrt-cu13
+```
+
+Then, on that same machine:
 
 ```python
 import lightly_train
@@ -27,7 +35,7 @@ model = lightly_train.load_model("ltdetrv2-s-coco")
 print(model.image_size, model.image_normalize, model.classes)
 
 model.export_onnx("model.onnx")
-model.export_tensorrt("model.trt")  # requires the `tensorrt` package, see below
+model.export_tensorrt("model.trt")
 ```
 
 The printed `image_size` / `image_normalize` / `classes` must match the
@@ -38,6 +46,9 @@ ONNX's embedded `image_normalize`/`classes`), so this hardcoding is required
 for the TensorRT recipe in particular.
 
 ## 2. Prerequisites
+
+This is the native build/inference environment for steps 3-4, separate from
+the Python export environment in step 1 above.
 
 All of the below are already set up in
 [`.devcontainer/cpp-inference/`](../../.devcontainer/cpp-inference)
@@ -71,6 +82,14 @@ cmake --build examples/cpp/build -j
 `libnvinfer-dev`) already puts headers/libs on the default search path.
 
 ## 4. Run
+
+Grab an example image (the same one used in the
+[object detection quickstart](../../docs/source/quick_start_object_detection.md)),
+or use your own:
+
+```bash
+wget -O image.jpg http://images.cocodataset.org/val2017/000000577932.jpg
+```
 
 ```bash
 ./examples/cpp/build/onnxruntime/od_infer_onnxruntime

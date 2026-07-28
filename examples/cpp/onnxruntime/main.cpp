@@ -108,8 +108,8 @@ int main() {
 
   Ort::Session session(env, kModelPath, session_options);
 
-  const auto pre = od_common::preprocess_image(kImagePath, kModelWidth, kModelHeight,
-                                                kNormalize);
+  const auto preprocessed = od_common::preprocess_image(
+      kImagePath, kModelWidth, kModelHeight, kNormalize);
 
   // OrtDeviceAllocator (not OrtArenaAllocator): this MemoryInfo only
   // describes where our own cudaMalloc'd pointers live, ONNX Runtime never
@@ -124,10 +124,10 @@ int main() {
   // implicit host<->device copies, or its own allocator, inside
   // session.Run().
   float* d_input = nullptr;
-  const size_t input_count = pre.data.size();
+  const size_t input_count = preprocessed.data.size();
   check_cuda(cudaMalloc(reinterpret_cast<void**>(&d_input), input_count * sizeof(float)),
              "cudaMalloc(d_input)");
-  check_cuda(cudaMemcpy(d_input, pre.data.data(), input_count * sizeof(float),
+  check_cuda(cudaMemcpy(d_input, preprocessed.data.data(), input_count * sizeof(float),
                          cudaMemcpyHostToDevice),
              "cudaMemcpy(d_input)");
 
@@ -172,7 +172,8 @@ int main() {
 
   const auto detections =
       od_common::postprocess(logits_host.data(), boxes_host.data(), kNumQueries,
-                              num_classes, kNumTopQueries, pre.orig_w, pre.orig_h,
+                              num_classes, kNumTopQueries, preprocessed.orig_w,
+                              preprocessed.orig_h,
                               kThreshold);
 
   std::cout << "Found " << detections.size() << " detection(s):\n";
