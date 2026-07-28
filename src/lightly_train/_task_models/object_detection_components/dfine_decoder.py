@@ -158,7 +158,7 @@ class MSDeformableAttention(nn.Module):
         init.constant_(self.attention_weights.weight, 0)
         init.constant_(self.attention_weights.bias, 0)
 
-    def convert_to_deploy(self):
+    def convert_to_onnx_export(self) -> None:
         # Switch the default (grid_sample) sampler to a gather-based bilinear
         # equivalent that exports to a TensorRT-compatible graph. TensorRT
         # converts ONNX GridSample incorrectly for this deformable attention, so
