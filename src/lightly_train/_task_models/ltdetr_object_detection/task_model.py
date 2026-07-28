@@ -29,6 +29,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer as DINOv2VisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
+from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
     DinoVisionTransformer as DINOv3VisionTransformer,
@@ -765,10 +766,21 @@ class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
         onnx_args = dict(onnx_args) if onnx_args is not None else {}
         onnx_args.setdefault("precision", precision)
 
-        logger.info(
-            "Using a weakly-typed TensorRT network so TensorRT can optimize "
-            "layer precision."
+        strongly_typed = (
+            precision == "fp16"
+            and self._backbone_package_name == DINOV3_PACKAGE.name
+            and self._backbone_name == "vits16"
         )
+        if strongly_typed:
+            logger.info(
+                "Using a strongly-typed TensorRT network for DINOv3 ViT-S to "
+                "preserve FP32 attention scores and prevent FP16 overflow."
+            )
+        else:
+            logger.info(
+                "Using a weakly-typed TensorRT network so TensorRT can optimize "
+                "layer precision."
+            )
 
         tensorrt_helpers.export_tensorrt(
             export_onnx_fn=self.export_onnx,
@@ -780,7 +792,7 @@ class LTDETRObjectDetection(TaskModel, ONNXExportMixin):
             opt_batchsize=opt_batchsize,
             min_batchsize=min_batchsize,
             fp32_attention_scores=False,
-            strongly_typed=False,
+            strongly_typed=strongly_typed,
             verbose=verbose,
         )
 

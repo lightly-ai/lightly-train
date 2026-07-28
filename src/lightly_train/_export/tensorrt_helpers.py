@@ -154,7 +154,8 @@ def export_tensorrt(
         _debug_mark_all_layers_as_outputs(onnx_out)
 
     logger.info(f"Loading ONNX file from {onnx_out}")
-    onnx_bytes = _fix_grid_sample_modes_for_tensorrt(onnx_out=onnx_out)
+    with open(onnx_out, "rb") as f:
+        onnx_bytes = f.read()
     if not parser.parse(onnx_bytes):
         for error in range(parser.num_errors):
             logger.error(parser.get_error(error))
@@ -261,37 +262,6 @@ def export_tensorrt(
     with open(out, "wb") as f:
         f.write(engine)
     logger.info("Engine export complete.")
-
-
-def _fix_grid_sample_modes_for_tensorrt(*, onnx_out: PathLike) -> bytes:
-    """Use the legacy GridSample mode names expected by TensorRT's ONNX parser."""
-    import onnx
-
-    onnx_bytes = Path(onnx_out).read_bytes()
-    model = onnx.load_from_string(onnx_bytes)
-    opset_version = next(
-        (
-            opset.version
-            for opset in model.opset_import
-            if opset.domain in ("", "ai.onnx")
-        ),
-        0,
-    )
-    if opset_version < 20:
-        return onnx_bytes
-
-    # NOTE: This works around a known onnx-tensorrt issue where the opset 20+
-    # "linear"/"cubic" names silently fall back to nearest:
-    # https://github.com/onnx/onnx-tensorrt/pull/1060
-    mode_names = {b"linear": b"bilinear", b"cubic": b"bicubic"}
-    for node in model.graph.node:
-        if node.domain in ("", "ai.onnx") and node.op_type == "GridSample":
-            for attr in node.attribute:
-                if attr.name == "mode" and attr.s in mode_names:
-                    attr.s = mode_names[attr.s]
-
-    serialized: bytes = model.SerializeToString()
-    return serialized
 
 
 def _force_fp32_for_attention_scores(net: trt.INetworkDefinition) -> None:

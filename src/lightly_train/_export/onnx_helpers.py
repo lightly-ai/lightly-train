@@ -13,7 +13,7 @@ import logging
 from collections.abc import Iterator
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import torch
 from lightning_utilities.core.imports import RequirementCache
@@ -29,6 +29,11 @@ _TORCH_DYNAMO_AVAILABLE = RequirementCache(f"torch>={_TORCH_DYNAMO_MIN_VERSION}"
 
 _TORCH_DIM_HINTS_MIN_VERSION = "2.6.0"
 _TORCH_DIM_HINTS_AVAILABLE = RequirementCache(f"torch>={_TORCH_DIM_HINTS_MIN_VERSION}")
+
+
+@runtime_checkable
+class ONNXExportConvertible(Protocol):
+    def convert_to_onnx_export(self) -> None: ...
 
 
 def check_onnx_dynamo_requirements() -> None:
@@ -117,8 +122,8 @@ def repair_value_info(out: str | Path) -> None:
 def prepare_for_onnx_export(module: Module) -> None:
     """Apply module-specific graph conversions required for ONNX export."""
     for child in module.modules():
-        if hasattr(child, "convert_to_onnx_export"):
-            child.convert_to_onnx_export()  # type: ignore[operator]
+        if isinstance(child, ONNXExportConvertible):
+            child.convert_to_onnx_export()
 
 
 def remove_duplicate_cast_nodes(model: onnx.ModelProto) -> None:
