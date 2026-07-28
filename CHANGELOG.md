@@ -330,7 +330,7 @@ for more information.
   are not yet available for these models.
 - Add support for fine-tuning DINOv2 models for instance segmentation with the
   `train_instance_segmentation` command. See the
-  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-model)
   for more information.
 
 ### Fixed
@@ -370,7 +370,7 @@ for more information.
 [low-power embedded devices](https://docs.lightly.ai/train/stable/object_detection.html#benchmark-results)!
 
 **New Tiny Models:** We release tiny DINOv3 based models for
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#benchmark-results),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-benchmark-results),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#benchmark-results),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#benchmark-results)!
@@ -378,7 +378,7 @@ and
 **New ONNX and TensorRT FP16 Export:** You can now export all supported models to ONNX
 and TensorRT in FP16 precision for faster inference!
 [Object detection](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx),
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#exporting-a-checkpoint-to-onnx),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-onnx),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#exporting-a-checkpoint-to-onnx),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#exporting-a-checkpoint-to-onnx)
@@ -520,7 +520,7 @@ models for
 ### Added
 
 - Add support for DINOv3
-  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/index.html)
   inference and fine-tuning.
 - Add support for loading
   [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html) as input data for
