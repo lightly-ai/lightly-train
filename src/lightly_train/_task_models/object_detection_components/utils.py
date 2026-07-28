@@ -37,6 +37,80 @@ def bias_init_with_prob(prior_prob=0.01):
     return bias_init
 
 
+def bilinear_grid_sample(
+    im: Tensor, grid: Tensor, align_corners: bool = False
+) -> Tensor:
+    """Pure gather-based equivalent of ``F.grid_sample`` (bilinear, zero padding).
+
+    ``torch.nn.functional.grid_sample`` exports to an ONNX ``GridSample`` op that
+    TensorRT converts incorrectly for the deformable-attention sampling used by
+    LT-DETR (the engine produces wrong outputs even though the inputs are exact).
+    This decomposition into ``Pad`` + ``Gather`` + arithmetic matches
+    ``F.grid_sample(mode="bilinear", padding_mode="zeros", align_corners=...)`` to
+    within floating-point tolerance and builds a correct TensorRT engine.
+
+    Args:
+        im:
+            Input feature map of shape ``(N, C, H, W)``.
+        grid:
+            Sampling grid of shape ``(N, H_out, W_out, 2)`` with coordinates
+            normalized to ``[-1, 1]``.
+        align_corners:
+            Matches the ``align_corners`` argument of ``F.grid_sample``.
+
+    Returns:
+        Sampled tensor of shape ``(N, C, H_out, W_out)``.
+    """
+    n, c, h, w = im.shape
+    _, gh, gw, _ = grid.shape
+
+    x = grid[..., 0]
+    y = grid[..., 1]
+    if align_corners:
+        x = ((x + 1) / 2) * (w - 1)
+        y = ((y + 1) / 2) * (h - 1)
+    else:
+        x = ((x + 1) * w - 1) / 2
+        y = ((y + 1) * h - 1) / 2
+
+    x = x.reshape(n, -1)
+    y = y.reshape(n, -1)
+    x0 = torch.floor(x)
+    y0 = torch.floor(y)
+    x1 = x0 + 1
+    y1 = y0 + 1
+
+    # Bilinear interpolation weights (computed before clamping so out-of-bounds
+    # samples keep their correct weights and only fetch zeros).
+    wa = ((x1 - x) * (y1 - y)).unsqueeze(1)
+    wb = ((x1 - x) * (y - y0)).unsqueeze(1)
+    wc = ((x - x0) * (y1 - y)).unsqueeze(1)
+    wd = ((x - x0) * (y - y0)).unsqueeze(1)
+
+    # Zero-pad by one pixel on each side so that out-of-bounds coordinates land on
+    # the zero border, reproducing ``padding_mode="zeros"``.
+    im = F.pad(im, [1, 1, 1, 1])
+    padded_h = h + 2
+    padded_w = w + 2
+    x0 = (x0 + 1).long().clamp(0, padded_w - 1)
+    x1 = (x1 + 1).long().clamp(0, padded_w - 1)
+    y0 = (y0 + 1).long().clamp(0, padded_h - 1)
+    y1 = (y1 + 1).long().clamp(0, padded_h - 1)
+
+    im = im.reshape(n, c, padded_h * padded_w)
+
+    def _gather(xx: Tensor, yy: Tensor) -> Tensor:
+        idx = (xx + yy * padded_w).unsqueeze(1).expand(-1, c, -1)
+        return torch.gather(im, 2, idx)
+
+    ia = _gather(x0, y0)
+    ib = _gather(x0, y1)
+    ic = _gather(x1, y0)
+    id_ = _gather(x1, y1)
+
+    return (ia * wa + ib * wb + ic * wc + id_ * wd).reshape(n, c, gh, gw)
+
+
 def deformable_attention_core_func(
     value, value_spatial_shapes, sampling_locations, attention_weights
 ):
@@ -115,7 +189,7 @@ def deformable_attention_core_func_v2(
     value_list = value.permute(0, 2, 3, 1).flatten(0, 1).split(split_shape, dim=-1)
 
     # sampling_offsets [8, 480, 8, 12, 2]
-    if method == "default":
+    if method in ("default", "bilinear_gather"):
         sampling_grids = 2 * sampling_locations - 1
 
     elif method == "discrete":
@@ -136,6 +210,14 @@ def deformable_attention_core_func_v2(
                 mode="bilinear",
                 padding_mode="zeros",
                 align_corners=False,
+            )
+
+        elif method == "bilinear_gather":
+            # Gather-based equivalent of the "default" grid_sample that exports to
+            # a TensorRT-compatible graph (see ``bilinear_grid_sample``). Used for
+            # deployment/export; training keeps the faster fused grid_sample.
+            sampling_value_l = bilinear_grid_sample(
+                value_l, sampling_grid_l, align_corners=False
             )
 
         elif method == "discrete":

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 from lightning_utilities.core.imports import RequirementCache
+from torch.nn import Module
 
 if TYPE_CHECKING:
     import onnx
@@ -111,6 +112,13 @@ def repair_value_info(out: str | Path) -> None:
     del model.graph.value_info[:]
     model = onnx.shape_inference.infer_shapes(model, strict_mode=False, data_prop=True)
     onnx.save(model, str(out))
+
+
+def prepare_for_onnx_export(module: Module) -> None:
+    """Apply module-specific graph conversions required for ONNX export."""
+    for child in module.modules():
+        if hasattr(child, "convert_to_onnx_export"):
+            child.convert_to_onnx_export()  # type: ignore[operator]
 
 
 def remove_duplicate_cast_nodes(model: onnx.ModelProto) -> None:

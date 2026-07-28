@@ -26,6 +26,7 @@ from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
+    prepare_for_onnx_export,
     remove_redundant_casts,
 )
 from lightly_train._models import package_helpers
@@ -374,6 +375,7 @@ class LTDETRInstanceSegmentation(TaskModel):
         # post-export via onnxruntime.transformers.
         self.to(torch.float32)
         self.deploy()
+        prepare_for_onnx_export(self)
         model_device = next(self.parameters()).device
 
         # Infer num_channels if not provided. The model always consumes
