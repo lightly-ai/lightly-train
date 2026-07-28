@@ -26,6 +26,7 @@ from lightly_train._export.onnx_helpers import (
     fix_topological_order,
     remove_duplicate_cast_nodes,
     remove_redundant_casts,
+    repair_value_info,
     write_onnx_metadata,
 )
 from lightly_train._license import LICENSE_INFO
@@ -156,6 +157,10 @@ class ONNXExportMixin(ExportMixin):
             onnxslim.slim(
                 str(out), output_model=out, skip_optimizations=["constant_folding"]
             )
+        # Repair stale/incorrect intermediate shape annotations left by the dynamo
+        # exporter so that verify (onnx.checker full_check) and downstream consumers
+        # such as TensorRT get a consistent graph.
+        repair_value_info(out=out)
         write_onnx_metadata(out=out, metadata=self.onnx_export_metadata())
 
         if verify:
