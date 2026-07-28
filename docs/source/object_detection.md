@@ -725,6 +725,13 @@ model.export_onnx(
 See {py:meth}`~.LTDETRObjectDetection.export_onnx` for all available options when
 exporting to ONNX.
 
+The preprocessing parameters are baked into the exported file: the expected image size
+is the static height and width of the `images` input, and the normalization statistics
+and class names are stored as ONNX metadata. You can therefore read everything needed to
+preprocess an image and interpret the outputs straight from the file with `onnx` or
+`onnxruntime`, and run inference without installing LightlyTrain. The Colab notebook
+below demonstrates this.
+
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
 
