@@ -400,6 +400,33 @@ class LTDETRObjectDetectionValTransform(LTDETRObjectDetectionTransform):
     transform_args_cls = LTDETRObjectDetectionValTransformArgs
 
 
+class LTDETRv2ObjectDetectionMixUpArgs(LTDETRObjectDetectionMixUpArgs):
+    # ltdetrv2 (EdgeCrafter) benchmark recipe uses a higher mixup prob than the
+    # shared LTDETR default.
+    prob: float = 0.75
+
+
+class LTDETRv2ObjectDetectionMosaicArgs(LTDETRObjectDetectionMosaicArgs):
+    # ltdetrv2 (EdgeCrafter) benchmark recipe uses a higher mosaic prob than the
+    # shared LTDETR default.
+    prob: float = 0.75
+
+
+class LTDETRv2ObjectDetectionTrainTransformArgs(
+    LTDETRObjectDetectionTrainTransformArgs
+):
+    mosaic: LTDETRv2ObjectDetectionMosaicArgs | None = Field(
+        default_factory=LTDETRv2ObjectDetectionMosaicArgs
+    )
+    mixup: LTDETRv2ObjectDetectionMixUpArgs | None = Field(
+        default_factory=LTDETRv2ObjectDetectionMixUpArgs
+    )
+
+
+class LTDETRv2ObjectDetectionTrainTransform(LTDETRObjectDetectionTransform):
+    transform_args_cls = LTDETRv2ObjectDetectionTrainTransformArgs
+
+
 # TODO (Lionel, 06/26): Remove all the `v2` naming once the DINOv2 LT-DETR models are
 # completely migrated to the generic LTDETR pipeline.
 class DINOv2LTDETRObjectDetectionRandomPhotometricDistortArgsV2(
