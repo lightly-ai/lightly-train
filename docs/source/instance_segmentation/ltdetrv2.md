@@ -28,7 +28,7 @@ notebook:
 
 | Implementation | Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Input Size |
 | -------------- | ------------------- | :--------------------------: | :---------------: | :--------: |
-| LightlyTrain   | ltdetrv2-seg-s-coco |             42.7             |        6.96       |  640×640   |
+| LightlyTrain   | ltdetrv2-seg-s-coco |             42.7             |       6.96        |  640×640   |
 | LightlyTrain   | ltdetrv2-seg-m-coco |             45.8             |       9.82        |  640×640   |
 | LightlyTrain   | ltdetrv2-seg-l-coco |             47.5             |       11.41       |  640×640   |
 | LightlyTrain   | ltdetrv2-seg-x-coco |             47.9             |       12.06       |  640×640   |
