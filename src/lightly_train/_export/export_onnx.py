@@ -71,7 +71,8 @@ class ONNXExportMixin(ExportMixin):
             metadata["image_normalize"] = json.dumps(image_normalize, sort_keys=True)
         classes = getattr(self, "classes", None)
         if classes is not None:
-            metadata["classes"] = json.dumps(classes, sort_keys=True)
+            # Task models use insertion order to assign internal class indices.
+            metadata["classes"] = json.dumps(classes)
         model_name = getattr(self, "init_args", {}).get("model_name")
         if model_name is not None:
             metadata["model_name"] = str(model_name)

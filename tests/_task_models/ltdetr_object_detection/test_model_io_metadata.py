@@ -24,7 +24,7 @@ from lightly_train._task_models.ltdetr_object_detection.task_model import (
 def _model() -> LTDETRObjectDetection:
     return LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
-        classes={0: "car", 1: "person"},
+        classes={1: "person", 0: "car"},
         image_size=(256, 320),
         image_normalize={"mean": (0.0,), "std": (1.0,)},
         backbone_args={"in_chans": 1},
@@ -52,6 +52,9 @@ def test_onnx_export_metadata() -> None:
         "mean": [0.0],
         "std": [1.0],
     }
-    assert json.loads(metadata["classes"]) == {"0": "car", "1": "person"}
+    assert list(json.loads(metadata["classes"]).items()) == [
+        ("1", "person"),
+        ("0", "car"),
+    ]
     assert metadata["model_name"] == "dinov3/vitt16-notpretrained-ltdetr"
     assert "image_size" not in metadata
