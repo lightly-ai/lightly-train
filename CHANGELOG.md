@@ -43,9 +43,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `grid_sample` with a gather-based bilinear equivalent that contains no `GridSample`
   op, so neither the parser mode-name issue nor the optimizer bug can apply; training
   keeps the faster fused `grid_sample`.
-- Fix `export_onnx(verify=True)` crashing with an `onnx.checker` `ShapeInferenceError`
-  for LTDETR object detection by repairing stale intermediate shape annotations left by
-  the ONNX exporter.
 
 ### Security
 
