@@ -12,16 +12,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
   covering ONNX Runtime's CUDA execution provider and TensorRT directly, both
   with zero-copy GPU input/output allocation.
-- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
-  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
-- Add **LTDETRv2 instance segmentation**, extending the compact LTDETRv2 architecture to
-  predict per-instance masks alongside boxes. Use the `ltdetrv2-seg-s/m/l/x` models,
-  which are built on [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECViT backbones and
-  share the efficiency profile of their object detection counterparts. COCO-pretrained
-  checkpoints are hosted for download as `ltdetrv2-seg-s-coco`, `ltdetrv2-seg-m-coco`,
-  `ltdetrv2-seg-l-coco`, and `ltdetrv2-seg-x-coco` (also available under the
-  `edgecrafter/…-ltdetr-seg-coco` names), so you can fine-tune from strong weights or
-  run inference out of the box.
 
 ### Changed
 
@@ -30,6 +20,64 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.17.0] - 2026-07-28
+
+### Added
+
+### Changed
+
+- Raise the default mixup and mosaic probability from `0.5` to `0.75` for
+  `ltdetrv2-s/m/l/x` object detection models. Other LTDETR models are unaffected.
+- Lower the default `backbone_lr_factor` from `0.05` to `0.0025` for `ltdetrv2-m/l/x`
+  object detection models. `ltdetrv2-s` and other LTDETR models are unaffected.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix incorrect TensorRT inference for LT-DETR object detection and instance
+  segmentation. TensorRT's optimizer/fusion pass around the `GridSample` ops used by
+  deformable attention silently produced wrong activations, corrupting detections and
+  masks, even with parser-compatible mode names. Deployment/export now replaces
+  `grid_sample` with a gather-based bilinear equivalent that contains no `GridSample`
+  op, so neither the parser mode-name issue nor the optimizer bug can apply; training
+  keeps the faster fused `grid_sample`.
+
+### Security
+
+## [0.16.4] - 2026-07-24
+
+### Added
+
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
+  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+- Add LTDETRv2 instance segmentation with `ltdetrv2-seg-s/m/l/x` models and
+  COCO-pretrained checkpoints for fine-tuning or out-of-the-box inference.
+- Add SAHI inference for LTDETRv2 instance segmentation through `model.predict_sahi()`.
+
+### Changed
+
+- Warn when a built-in distillation teacher is used with non-ImageNet input
+  normalization, which can produce invalid teacher features.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3.1 pretraining method.
+
+### Fixed
+
+- Preserve exponential-moving-average updates when resuming training, preventing a
+  spurious validation-metric drop after the first resumed update.
+- Skip degenerate predicted boxes during validation visualization and log a warning
+  instead of crashing.
+- Restore installation and package imports by using a released LightlySSL dependency.
 
 ### Security
 
@@ -47,6 +95,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,
   `dinov3/dav3-metric-tiny`, `dinov3/dav3-metric-tiny-plus`, and
   `dinov2/dav3-metric-small`.
+- Add COCO-pretrained checkpoints for the `ltdetrv2-m` (`edgecrafter/ecvittplus-ltdetr`)
+  and `ltdetrv2-l` (`edgecrafter/ecvits-ltdetr`) object detection models, available via
+  the `ltdetrv2-m-coco` and `ltdetrv2-l-coco` aliases.
 
 ### Changed
 
@@ -305,7 +356,7 @@ for more information.
   are not yet available for these models.
 - Add support for fine-tuning DINOv2 models for instance segmentation with the
   `train_instance_segmentation` command. See the
-  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-model)
   for more information.
 
 ### Fixed
@@ -345,7 +396,7 @@ for more information.
 [low-power embedded devices](https://docs.lightly.ai/train/stable/object_detection.html#benchmark-results)!
 
 **New Tiny Models:** We release tiny DINOv3 based models for
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#benchmark-results),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-benchmark-results),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#benchmark-results),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#benchmark-results)!
@@ -353,7 +404,7 @@ and
 **New ONNX and TensorRT FP16 Export:** You can now export all supported models to ONNX
 and TensorRT in FP16 precision for faster inference!
 [Object detection](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx),
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#exporting-a-checkpoint-to-onnx),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-onnx),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#exporting-a-checkpoint-to-onnx),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#exporting-a-checkpoint-to-onnx)
@@ -495,7 +546,7 @@ models for
 ### Added
 
 - Add support for DINOv3
-  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/index.html)
   inference and fine-tuning.
 - Add support for loading
   [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html) as input data for

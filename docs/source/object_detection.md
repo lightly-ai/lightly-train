@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection.ipynb)
 
 ```{note}
-LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! Among real-time detectors, we achieved 50.7mAP<sub>50:95</sub> on COCO 2017 validation set (+1 mAP<sub>50:95</sub> from the previous LTDETR with 55% shorter training schedule). We also achieved 5.4ms latency on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
+LightlyTrain's **LTDETRv2** is out with great improvements built on SOTA research! It now ships in three COCO-pretrained sizes (`s`/`m`/`l`), with `ltdetrv2-l` reaching 56.0mAP<sub>50:95</sub> on COCO 2017 validation set among real-time detectors. Latency ranges from 5.4ms (`s`) to 10.78ms (`l`) on an NVIDIA T4 using TensorRT, FP16, batch size 1, and input resolution 640x640!
 ```
 
 (object-detection-benchmark-results)=
@@ -22,9 +22,9 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 
 |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
 | :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
-|          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |   416×416   |
-|          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |   416×416   |
 |        **ltdetrv2-s-coco**        |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
+|        **ltdetrv2-m-coco**        |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
+|        **ltdetrv2-l-coco**        |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
 |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
 |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
 |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
@@ -33,7 +33,9 @@ further fine-tuning. The average latency values were measured using TensorRT ver
 | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
 | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
-\*Picodet models are in beta and we report preliminary results.
+(fig-map-vs-params)=
+
+![LTDETRv2 mAP vs. Params](_static/images/object_detection/map_vs_params.png)
 
 ## Object Detection with LTDETR
 
@@ -548,6 +550,8 @@ The LTDETRv2 ECViT backbones are initialized from
 They currently support RGB images only.
 
 - `ltdetrv2-s-coco` (pretrained on COCO)
+- `ltdetrv2-m-coco` (pretrained on COCO)
+- `ltdetrv2-l-coco` (pretrained on COCO)
 - `ltdetrv2-s`
 - `ltdetrv2-m`
 - `ltdetrv2-l`
@@ -720,6 +724,13 @@ model.export_onnx(
 
 See {py:meth}`~.LTDETRObjectDetection.export_onnx` for all available options when
 exporting to ONNX.
+
+The preprocessing parameters are baked into the exported file: the expected image size
+is the static height and width of the `images` input, and the normalization statistics
+and class names are stored as ONNX metadata. You can therefore read everything needed to
+preprocess an image and interpret the outputs straight from the file with `onnx` or
+`onnxruntime`, and run inference without installing LightlyTrain. The Colab notebook
+below demonstrates this.
 
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)

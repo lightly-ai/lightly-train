@@ -24,8 +24,10 @@ from lightly_train._commands import _warnings
 from lightly_train._export.export import ExportMixin
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
+    prepare_for_onnx_export,
     remove_duplicate_cast_nodes,
     remove_redundant_casts,
+    repair_value_info,
     write_onnx_metadata,
 )
 from lightly_train._license import LICENSE_INFO
@@ -70,7 +72,8 @@ class ONNXExportMixin(ExportMixin):
             metadata["image_normalize"] = json.dumps(image_normalize, sort_keys=True)
         classes = getattr(self, "classes", None)
         if classes is not None:
-            metadata["classes"] = json.dumps(classes, sort_keys=True)
+            # Task models use insertion order to assign internal class indices.
+            metadata["classes"] = json.dumps(classes)
         model_name = getattr(self, "init_args", {}).get("model_name")
         if model_name is not None:
             metadata["model_name"] = str(model_name)
@@ -109,6 +112,7 @@ class ONNXExportMixin(ExportMixin):
         # safely after export. The shared pipeline deliberately preserves that behavior.
         module.to(torch.float32)
         module.deploy()
+        prepare_for_onnx_export(module)
 
         program = self.export(
             batch_size=batch_size,
@@ -156,6 +160,10 @@ class ONNXExportMixin(ExportMixin):
             onnxslim.slim(
                 str(out), output_model=out, skip_optimizations=["constant_folding"]
             )
+        # Repair stale/incorrect intermediate shape annotations left by the dynamo
+        # exporter so that verify (onnx.checker full_check) and downstream consumers
+        # such as TensorRT get a consistent graph.
+        repair_value_info(out=out)
         write_onnx_metadata(out=out, metadata=self.onnx_export_metadata())
 
         if verify:
