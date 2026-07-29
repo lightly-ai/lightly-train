@@ -8,15 +8,7 @@ by how they are intended to be used:
   are integrated into the documentation site.
 - [`deployment/`](#future-deployment-layout) is the home for new non-notebook
   export, inference, and serving recipes. It is described below and will be
-  adopted incrementally; existing recipes are not moved merely to follow the
-  convention.
-
-## Current recipes
-
-| Recipe | Purpose | Environment |
-| --- | --- | --- |
-| [`cpp/`](cpp/) | C++ LT-DETR inference with ONNX Runtime's CUDA execution provider or TensorRT | [C++ inference dev container](../.devcontainer/cpp-inference/) |
-| [`deployment/python/rocm/migraphx/`](deployment/python/rocm/migraphx/) | Python export and inference with AMD MIGraphX | [MIGraphX dev container](../.devcontainer/migraphx/) or its Docker image |
+  adopted incrementally to later match the layout given further down.
 
 ## Future deployment layout
 
@@ -28,22 +20,14 @@ platform and runtime explicit:
 deployment/
   cpp/
     common/
-    cuda/
-      onnxruntime/
-      tensorrt/
-    rocm/
-      migraphx/
-    android/
-      litert/
+    cuda-onnxruntime/
+    cuda-tensorrt/
+    rocm-migraphx/
   python/
-    rocm/
-      migraphx/
-    host/
-      litert/
-  c/
-    embedded/
-      litert/
-    openvino/
+    common/
+    cuda-onnxruntime/
+    cuda-tensorrt/
+    rocm-migraphx/
   javascript/
     openvino/
   swift/
