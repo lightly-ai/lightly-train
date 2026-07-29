@@ -10,7 +10,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
-  covering ONNX Runtime CUDA EP and TensorRT EP with zero-copy GPU input allocation.
+  covering ONNX Runtime's CUDA execution provider and TensorRT directly, both with
+  zero-copy GPU input/output allocation.
+- Add export and inference examples covering LT-DETR object detection for MIGraphX on 
+  AMD GPUs.
 
 ### Changed
 
@@ -19,6 +22,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.17.0] - 2026-07-28
+
+### Added
+
+### Changed
+
+- Raise the default mixup and mosaic probability from `0.5` to `0.75` for
+  `ltdetrv2-s/m/l/x` object detection models. Other LTDETR models are unaffected.
+- Lower the default `backbone_lr_factor` from `0.05` to `0.0025` for `ltdetrv2-m/l/x`
+  object detection models. `ltdetrv2-s` and other LTDETR models are unaffected.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix incorrect TensorRT inference for LT-DETR object detection and instance
+  segmentation. TensorRT's optimizer/fusion pass around the `GridSample` ops used by
+  deformable attention silently produced wrong activations, corrupting detections and
+  masks, even with parser-compatible mode names. Deployment/export now replaces
+  `grid_sample` with a gather-based bilinear equivalent that contains no `GridSample`
+  op, so neither the parser mode-name issue nor the optimizer bug can apply; training
+  keeps the faster fused `grid_sample`.
 
 ### Security
 
@@ -328,7 +358,7 @@ for more information.
   are not yet available for these models.
 - Add support for fine-tuning DINOv2 models for instance segmentation with the
   `train_instance_segmentation` command. See the
-  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-model)
   for more information.
 
 ### Fixed
@@ -368,7 +398,7 @@ for more information.
 [low-power embedded devices](https://docs.lightly.ai/train/stable/object_detection.html#benchmark-results)!
 
 **New Tiny Models:** We release tiny DINOv3 based models for
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#benchmark-results),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-benchmark-results),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#benchmark-results),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#benchmark-results)!
@@ -376,7 +406,7 @@ and
 **New ONNX and TensorRT FP16 Export:** You can now export all supported models to ONNX
 and TensorRT in FP16 precision for faster inference!
 [Object detection](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx),
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#exporting-a-checkpoint-to-onnx),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-onnx),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#exporting-a-checkpoint-to-onnx),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#exporting-a-checkpoint-to-onnx)
@@ -518,7 +548,7 @@ models for
 ### Added
 
 - Add support for DINOv3
-  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/index.html)
   inference and fine-tuning.
 - Add support for loading
   [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html) as input data for

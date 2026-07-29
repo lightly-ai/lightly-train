@@ -22,6 +22,7 @@ from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionScaleJitterArgs,
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransformArgs,
+    LTDETRv2ObjectDetectionTrainTransformArgs,
 )
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionCollateFunction,
@@ -519,3 +520,27 @@ class TestMinBboxSizePxDefaults:
             bbox_params=_get_bbox_params(),
         )
         assert transform_args.min_bbox_size_px == 0.0
+
+
+class TestMixupMosaicProbDefaults:
+    """ltdetrv2 (EdgeCrafter) uses a higher mixup/mosaic prob than other LTDETR models."""
+
+    def test_base_train_args_default_to_shared_prob(self) -> None:
+        transform_args = LTDETRObjectDetectionTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+        )
+        assert transform_args.mixup is not None
+        assert transform_args.mosaic is not None
+        assert transform_args.mixup.prob == 0.5
+        assert transform_args.mosaic.prob == 0.5
+
+    def test_ltdetrv2_train_args_default_to_higher_prob(self) -> None:
+        transform_args = LTDETRv2ObjectDetectionTrainTransformArgs(
+            image_size=_get_image_size(),
+            bbox_params=_get_bbox_params(),
+        )
+        assert transform_args.mixup is not None
+        assert transform_args.mosaic is not None
+        assert transform_args.mixup.prob == 0.75
+        assert transform_args.mosaic.prob == 0.75

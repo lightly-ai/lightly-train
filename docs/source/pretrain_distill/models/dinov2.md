@@ -54,7 +54,8 @@ instructions and example code:
   supports loading custom pretrained backbone weights via `backbone_weights`.
 - [Semantic Segmentation](#semantic-segmentation) — fine-tune a DINOv2-based EoMT model;
   supports loading custom pretrained backbone weights via `backbone_weights`.
-- [Instance Segmentation](#instance-segmentation) — fine-tune a DINOv2-based EoMT model.
+- [Instance Segmentation](#instance-segmentation-eomt) — fine-tune a DINOv2-based EoMT
+  model.
 - [Panoptic Segmentation](#panoptic-segmentation) — fine-tune a DINOv2-based EoMT model.
 - [Image Classification](#image-classification) — fine-tune a DINOv2 backbone for
   classification.

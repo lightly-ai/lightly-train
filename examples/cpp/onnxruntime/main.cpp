@@ -16,7 +16,7 @@
 // Export the model first, on a machine with lightly-train installed:
 //
 //   import lightly_train
-//   model = lightly_train.load_model("ltdetrv2-s-coco")
+//   model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 //   print(model.image_size, model.image_normalize, model.classes)
 //   model.export_onnx("model.onnx")
 //
@@ -56,17 +56,17 @@ constexpr int kNumTopQueries = 300;
 // the exported ONNX graph's output shapes (e.g. with Netron).
 constexpr int kNumQueries = 300;
 
-// Must match model.image_normalize for the exported checkpoint. "ltdetrv2-s-coco"
-// uses ImageNet statistics; other checkpoints may use LT-DETR's generic
-// default of mean=(0,0,0), std=(1,1,1) (i.e. only the /255 scaling applies) --
-// always cross-check against the printed value from your own export.
-const od_common::ImageNormalize kNormalize = {{0.485f, 0.456f, 0.406f},
-                                               {0.229f, 0.224f, 0.225f}};
+// Must match model.image_normalize for the exported checkpoint.
+// "dinov3/vitt16-ltdetr-coco" uses LT-DETR's default mean=(0,0,0),
+// std=(1,1,1), so only /255 scaling applies. Always cross-check against the
+// printed value from your own export.
+const od_common::ImageNormalize kNormalize = {{0.0f, 0.0f, 0.0f},
+                                               {1.0f, 1.0f, 1.0f}};
 
 // Must match model.classes (in internal-index order) for the exported
 // checkpoint -- print(model.classes) in Python and paste its values here in
 // order. The list below is the standard 80-class COCO ordering used by
-// "ltdetrv2-s-coco".
+// "dinov3/vitt16-ltdetr-coco".
 const std::vector<std::string> kClassNames = {
     "person",        "bicycle",      "car",           "motorcycle",
     "airplane",      "bus",          "train",         "truck",
@@ -108,8 +108,8 @@ int main() {
 
   Ort::Session session(env, kModelPath, session_options);
 
-  const auto pre = od_common::preprocess_image(kImagePath, kModelWidth, kModelHeight,
-                                                kNormalize);
+  const auto preprocessed = od_common::preprocess_image(
+      kImagePath, kModelWidth, kModelHeight, kNormalize);
 
   // OrtDeviceAllocator (not OrtArenaAllocator): this MemoryInfo only
   // describes where our own cudaMalloc'd pointers live, ONNX Runtime never
@@ -124,10 +124,10 @@ int main() {
   // implicit host<->device copies, or its own allocator, inside
   // session.Run().
   float* d_input = nullptr;
-  const size_t input_count = pre.data.size();
+  const size_t input_count = preprocessed.data.size();
   check_cuda(cudaMalloc(reinterpret_cast<void**>(&d_input), input_count * sizeof(float)),
              "cudaMalloc(d_input)");
-  check_cuda(cudaMemcpy(d_input, pre.data.data(), input_count * sizeof(float),
+  check_cuda(cudaMemcpy(d_input, preprocessed.data.data(), input_count * sizeof(float),
                          cudaMemcpyHostToDevice),
              "cudaMemcpy(d_input)");
 
@@ -172,7 +172,8 @@ int main() {
 
   const auto detections =
       od_common::postprocess(logits_host.data(), boxes_host.data(), kNumQueries,
-                              num_classes, kNumTopQueries, pre.orig_w, pre.orig_h,
+                              num_classes, kNumTopQueries, preprocessed.orig_w,
+                              preprocessed.orig_h,
                               kThreshold);
 
   std::cout << "Found " << detections.size() << " detection(s):\n";

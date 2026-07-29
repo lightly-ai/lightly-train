@@ -1,4 +1,1 @@
-# tensorrt-cu12 isn't a lightly-train dependency (see examples/cpp/README.md), so it's
-# pinned here rather than in pyproject.toml. `make lock` compiles this together with
-# pyproject.toml's onnx/onnxruntime/onnxslim extras into requirements.txt.
 tensorrt-cu12==10.13.3.9

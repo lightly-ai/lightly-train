@@ -155,10 +155,11 @@ def export_tensorrt(
 
     logger.info(f"Loading ONNX file from {onnx_out}")
     with open(onnx_out, "rb") as f:
-        if not parser.parse(f.read()):
-            for error in range(parser.num_errors):
-                logger.error(parser.get_error(error))
-            raise RuntimeError("Failed to parse ONNX file")
+        onnx_bytes = f.read()
+    if not parser.parse(onnx_bytes):
+        for error in range(parser.num_errors):
+            logger.error(parser.get_error(error))
+        raise RuntimeError("Failed to parse ONNX file")
 
     if fp32_attention_scores:
         _force_fp32_for_attention_scores(network)
