@@ -31,7 +31,7 @@ Then, on that same machine:
 ```python
 import lightly_train
 
-model = lightly_train.load_model("ltdetrv2-s-coco")
+model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
 print(model.image_size, model.image_normalize, model.classes)
 
 model.export_onnx("model.onnx")
