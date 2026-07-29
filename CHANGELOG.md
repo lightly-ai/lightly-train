@@ -10,8 +10,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
-  covering ONNX Runtime's CUDA execution provider and TensorRT directly, both
-  with zero-copy GPU input/output allocation.
+  covering ONNX Runtime's CUDA execution provider and TensorRT directly, both with
+  zero-copy GPU input/output allocation.
 
 ### Changed
 
