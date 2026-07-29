@@ -48,6 +48,7 @@ from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import
 )
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
+    is_edgecrafter_model,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
     DINOv2LTDETRObjectDetectionTrainTransformV2,
@@ -56,6 +57,7 @@ from lightly_train._task_models.ltdetr_object_detection.transforms import (
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransform,
     LTDETRObjectDetectionValTransformArgs,
+    LTDETRv2ObjectDetectionTrainTransform,
 )
 from lightly_train._task_models.object_detection_components.dfine_criterion import (
     DFINECriterion,
@@ -258,13 +260,7 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
                 # runs before the task-model constructor, so without it the
                 # aliases would raise
                 # ``Unable to resolve patch_size='auto'`` here.
-                try:
-                    package_name = LTDETRObjectDetection.parse_model_name(
-                        model_name=model_name
-                    )["package_name"]
-                except ValueError:
-                    package_name = ""
-                if package_name == "edgecrafter":
+                if is_edgecrafter_model(model_name):
                     self.patch_size = 16
                 else:
                     match = re.match(
@@ -320,6 +316,19 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
                 *(name for name in _DFINE_EXTRA_LOSSES if name not in self.losses),
             ]
         return list(self.losses)
+
+
+class LTDETRv2ObjectDetectionLargeTrainArgs(LTDETRObjectDetectionTrainArgs):
+    # ltdetrv2-m/l/x (EdgeCrafter Tiny+/Small/Small+ backbones) benchmark
+    # recipe uses a lower backbone LR factor than the s variant.
+    backbone_lr_factor: float = 0.0025
+
+
+_LARGE_LTDETRV2_BACKBONES = {
+    "edgecrafter/ecvittplus",
+    "edgecrafter/ecvits",
+    "edgecrafter/ecvitsplus",
+}
 
 
 class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs):
@@ -404,9 +413,16 @@ class LTDETRObjectDetectionTrain(TrainModel):
     @classmethod
     def get_train_model_args_cls(
         cls, model_name: str
-    ) -> type[LTDETRObjectDetectionTrainArgs | DINOv2LTDETRObjectDetectionTrainArgsV2]:
+    ) -> type[
+        LTDETRObjectDetectionTrainArgs
+        | LTDETRv2ObjectDetectionLargeTrainArgs
+        | DINOv2LTDETRObjectDetectionTrainArgsV2
+    ]:
         if model_name.startswith(_DINOV2_PREFIX):
             return DINOv2LTDETRObjectDetectionTrainArgsV2
+        config = LTDETR_MODEL_REGISTRY.get(alias=model_name)()
+        if config.backbone_name in _LARGE_LTDETRV2_BACKBONES:
+            return LTDETRv2ObjectDetectionLargeTrainArgs
         return LTDETRObjectDetectionTrainArgs
 
     @override
@@ -415,10 +431,13 @@ class LTDETRObjectDetectionTrain(TrainModel):
         cls, model_name: str
     ) -> type[
         LTDETRObjectDetectionTrainTransform
+        | LTDETRv2ObjectDetectionTrainTransform
         | DINOv2LTDETRObjectDetectionTrainTransformV2
     ]:
         if model_name.startswith(_DINOV2_PREFIX):
             return DINOv2LTDETRObjectDetectionTrainTransformV2
+        if is_edgecrafter_model(model_name):
+            return LTDETRv2ObjectDetectionTrainTransform
         return LTDETRObjectDetectionTrainTransform
 
     @override

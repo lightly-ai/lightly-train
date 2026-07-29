@@ -47,10 +47,13 @@ from lightly_train._task_models.ltdetr_object_detection.train_model import (
     DINOv2LTDETRObjectDetectionTrainArgsV2,
     LTDETRObjectDetectionTrain,
     LTDETRObjectDetectionTrainArgs,
+    LTDETRv2ObjectDetectionLargeTrainArgs,
 )
 from lightly_train._task_models.ltdetr_object_detection.transforms import (
+    LTDETRObjectDetectionTrainTransform,
     LTDETRObjectDetectionTrainTransformArgs,
     LTDETRObjectDetectionValTransformArgs,
+    LTDETRv2ObjectDetectionTrainTransform,
 )
 from lightly_train._task_models.object_detection_components.flat_cosine import (
     FlatCosineLRScheduler,
@@ -824,6 +827,35 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
 )
+def test_export_onnx__checks(tmp_path: Path) -> None:
+    # The graph must pass the full ONNX checker, which requires the dynamo
+    # shape-annotation repair. It must also not contain a GridSample op: TensorRT
+    # converts it incorrectly for the deformable-attention sampling, so deployment
+    # swaps it for a gather-based bilinear equivalent.
+    import onnx
+
+    model = LTDETRObjectDetection(
+        model_name="ltdetrv2-s",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.onnx"
+    # verify=True runs onnx.checker(full_check=True) and a numerical ORT comparison.
+    model.export_onnx(out=out, simplify=True, verify=True)
+
+    onnx.checker.check_model(str(out), full_check=True)
+
+    onnx_model = onnx.load(out)
+    op_types = {node.op_type for node in onnx_model.graph.node}
+    assert "GridSample" not in op_types
+
+
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
@@ -1179,3 +1211,39 @@ def test_get_optimizer__ecvit_splits_pretrained_backbone_from_projector(
     assert projector_param_ids.isdisjoint(backbone_union_ids), (
         "projector params must not be in the backbone groups"
     )
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_transform_cls",
+    [
+        ("ltdetrv2-m", LTDETRv2ObjectDetectionTrainTransform),
+        ("edgecrafter/ecvits-ltdetr", LTDETRv2ObjectDetectionTrainTransform),
+        ("dinov3/vits16-ltdetr", LTDETRObjectDetectionTrainTransform),
+    ],
+)
+def test_get_train_transform_cls__scopes_ltdetrv2_defaults(
+    model_name: str, expected_transform_cls: type
+) -> None:
+    assert (
+        LTDETRObjectDetectionTrain.get_train_transform_cls(model_name)
+        is expected_transform_cls
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_args_cls, expected_backbone_lr_factor",
+    [
+        ("ltdetrv2-s", LTDETRObjectDetectionTrainArgs, 0.05),
+        ("ltdetrv2-m", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-l", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("ltdetrv2-x", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("edgecrafter/ecvits-ltdetr", LTDETRv2ObjectDetectionLargeTrainArgs, 0.0025),
+        ("dinov3/vits16-ltdetr", LTDETRObjectDetectionTrainArgs, 0.05),
+    ],
+)
+def test_get_train_model_args_cls__scopes_ltdetrv2_large_backbone_lr_factor(
+    model_name: str, expected_args_cls: type, expected_backbone_lr_factor: float
+) -> None:
+    args_cls = LTDETRObjectDetectionTrain.get_train_model_args_cls(model_name)
+    assert args_cls is expected_args_cls
+    assert args_cls().backbone_lr_factor == expected_backbone_lr_factor

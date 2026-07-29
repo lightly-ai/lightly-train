@@ -461,6 +461,11 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             optimizer_args=config.optim_args,
             wrapped_model=wrapped_model,
         )
+        train_helpers.warn_if_distillation_normalization_mismatch(
+            method=config.method,
+            method_args=config.method_args,
+            normalize_args=transform_instance.transform_args.normalize,
+        )
         method_instance = train_helpers.get_method(
             method_cls=method_cls,
             method_args=config.method_args,
