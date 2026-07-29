@@ -8,13 +8,12 @@ build context.
 The host still needs a supported AMD GPU driver and access to `/dev/kfd` and `/dev/dri`.
 MIGraphX is installed from AMD's ROCm apt repository because it is not available as a
 standalone PyPI package.
+
 ## Environment
 
 Use the [MIGraphX dev container](../../../../../.devcontainer/migraphx/) for
 development, or build the Docker image defined by this recipe as described
 below. Both provide the ROCm and MIGraphX toolchain required by this recipe.
-
-
 
 ## Build
 
