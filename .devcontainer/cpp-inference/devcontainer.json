@@ -1,6 +1,6 @@
 // For format details, see https://aka.ms/devcontainer.json.
 {
-	"name": "C++ ONNXRuntime and TensorRT Dev Container",
+	"name": "LightlyTrain C++ ONNXRuntime and TensorRT Dev Container",
 	"build": {
 		"dockerfile": "Dockerfile",
 		"context": "."
@@ -12,25 +12,15 @@
 	"hostRequirements": {
 		"gpu": "optional"
 	},
-	// Installs lightly-train (for exporting models) plus the pinned CUDA torch
-	// build, then verifies the Python packages required for exporting and C++
-	// inference tooling import correctly. Build the examples explicitly when
-	// needed, following examples/cpp/README.md.
+	// Installs lightly-train from the mounted checkout plus its locked C++ inference
+	// dependencies. The Makefile is the single source of truth for this setup.
 	//
 	// Dependencies come from requirements/requirements.txt (this directory),
-	// compiled with
-	// `make lock` (see the Makefile in this directory), NOT from the project's own
-	// uv.lock via `uv sync`. uv.lock is resolved as a universal, cross-platform
-	// lock and trusts each package's declared `requires-python` metadata rather
-	// than checking that a wheel actually exists for cp310 -- which breaks here
-	// because onnxruntime>=1.24 claims `requires-python>=3.10` but only ships
-	// cp311+ wheels. `uv pip compile` resolves against this one concrete
-	// interpreter instead, so it correctly picks onnxruntime==1.23.2 (the last
-	// version with a cp310 wheel) rather than the broken 1.24.x.
+	// compiled with `make -C .devcontainer/cpp-inference lock`.
 	//
 	// The pinned-torch-maximal torch/torchvision builds (+cu118) only exist on
 	// PyTorch's own index, which uv.lock/pyproject.toml know about via
 	// `[[tool.uv.index]]` but a plain compiled requirements.txt doesn't --
-	// hence the explicit --extra-index-url/--index-strategy below.
-	"postCreateCommand": "git config --global --add safe.directory /workspace/lightly-train && uv venv /opt/venv --python /usr/bin/python3 && uv pip sync --python /opt/venv/bin/python --extra-index-url https://download.pytorch.org/whl/cu118 --index-strategy unsafe-best-match .devcontainer/cpp-inference/requirements/requirements.txt && uv pip install --python /opt/venv/bin/python -e . --no-deps && /opt/venv/bin/python -c \"import lightly_train, onnx, onnxruntime, tensorrt\""
+	// hence the matching installation arguments in the Makefile.
+	"postCreateCommand": "git config --global --add safe.directory /workspace/lightly-train && make -C .devcontainer/cpp-inference install"
 }
