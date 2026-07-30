@@ -14,6 +14,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   zero-copy GPU input/output allocation.
 - Add export and inference examples covering LT-DETR object detection for MIGraphX on
   AMD GPUs.
+- Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
+  available from PyPI.
 
 ### Changed
 

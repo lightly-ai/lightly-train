@@ -13,11 +13,6 @@ import numpy as np
 import pytest
 import torch
 
-pytest.skip(
-    "DINOv31 is disabled until its Lightly dependency is available on PyPI.",
-    allow_module_level=True,
-)
-
 from lightly_train._methods.dinov31.constrained_crop import (
     render_clean_global,
     sample_high_overlap_box,
