@@ -16,11 +16,6 @@ from pytest_mock import MockerFixture
 from torch import Size, Tensor
 from torch.nn import Module
 
-pytest.skip(
-    "DINOv31 is disabled until its Lightly dependency is available on PyPI.",
-    allow_module_level=True,
-)
-
 from lightly_train._methods.dinov2.dinov2 import DINOv2, DINOv2AdamWViTArgs, DINOv2Args
 from lightly_train._methods.dinov31.dinov31 import (
     DINOv31,
