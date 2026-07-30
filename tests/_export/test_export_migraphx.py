@@ -105,7 +105,7 @@ def test_prepare_onnx_for_migraphx__moves_resize_before_transpose(
 def test_prepare_onnx_for_migraphx__leaves_shared_transpose_in_place(
     tmp_path: Path,
 ) -> None:
-    import onnx
+    onnx = pytest.importorskip("onnx")
 
     path = tmp_path / "model.onnx"
     _write_transpose_resize_model(path, shared_transpose=True)
