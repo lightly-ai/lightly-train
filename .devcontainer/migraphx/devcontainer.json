@@ -1,0 +1,22 @@
+{
+	"name": "LightlyTrain MIGraphX",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": "."
+	},
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/lightly-train,type=bind,consistency=cached",
+	"workspaceFolder": "/workspace/lightly-train",
+	"containerEnv": {
+		"PYTHONPATH": "/opt/rocm/lib",
+		"UV_NO_SYNC": "1",
+		"UV_PROJECT_ENVIRONMENT": "/opt/venv"
+	},
+	"runArgs": [
+		"--device=/dev/kfd",
+		"--device=/dev/dri",
+		"--group-add=video",
+		"--security-opt=seccomp=unconfined"
+	],
+	"postCreateCommand": "git config --global --add safe.directory /workspace/lightly-train && uv sync --python /usr/bin/python3 --frozen --group dev --group pinned-rocm-torch --extra onnx --extra onnxruntime --extra onnxslim && uv pip install --python /opt/venv/bin/python 'setuptools<81' && /opt/venv/bin/python -c \"import lightly_train, migraphx, onnx, onnxruntime\""
+}
+
