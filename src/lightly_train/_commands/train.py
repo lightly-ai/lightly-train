@@ -15,7 +15,7 @@ from typing import Any, Literal, Sequence
 
 import pytorch_lightning
 from omegaconf import DictConfig
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.loggers import Logger
 from pytorch_lightning.strategies.strategy import Strategy
@@ -120,7 +120,6 @@ def pretrain(
         gradient_accumulation_steps:
             Number of gradient accumulation steps. Set to 1 to disable gradient accumulation.
             The effective global batch size is batch_size * gradient_accumulation_steps.
-            This is equivalent to passing trainer_args={"accumulate_grad_batches": N}.
         num_workers:
             Number of workers for the dataloader per device/GPU. 'auto' automatically
             sets the number of workers based on the available CPU cores.
@@ -544,7 +543,7 @@ class TrainConfig(PydanticConfig):
     embed_dim: int | None = None
     epochs: int | Literal["auto"] = "auto"
     batch_size: int = 128
-    gradient_accumulation_steps: int = 1
+    gradient_accumulation_steps: int = Field(default=1, ge=1)
     num_workers: int | Literal["auto"] = "auto"
     devices: int | str | list[int] = "auto"
     num_nodes: int = 1

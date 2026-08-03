@@ -218,14 +218,21 @@ def test_get_trainer_gradient_accumulation(tmp_path: Path) -> None:
     assert trainer.accumulate_grad_batches == 4
 
 
-def test_get_trainer_gradient_accumulation_conflict(
-    tmp_path: Path,
+@pytest.mark.parametrize("gradient_accumulation_steps", [1, 4])
+def test_get_trainer_rejects_accumulate_grad_batches_in_trainer_args(
+    tmp_path: Path, gradient_accumulation_steps: int
 ) -> None:
-    with pytest.raises(ValueError, match="Specify only one"):
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"`trainer_args\['accumulate_grad_batches'\]` is not supported\. "
+            r"Use `gradient_accumulation_steps` instead\."
+        ),
+    ):
         train_helpers.get_trainer(
             out=tmp_path,
             epochs=1,
-            gradient_accumulation_steps=4,
+            gradient_accumulation_steps=gradient_accumulation_steps,
             accelerator="cpu",
             strategy="auto",
             devices="auto",

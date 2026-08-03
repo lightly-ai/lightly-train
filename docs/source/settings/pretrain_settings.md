@@ -516,6 +516,8 @@ lightly_train.pretrain(
 Advanced keyword arguments passed directly to
 [`lightning.pytorch.Trainer`](https://lightning.ai/docs/pytorch/stable/common/trainer.html).
 Use this for features not exposed through dedicated LightlyTrain settings.
+`accumulate_grad_batches` is not supported here; use
+[`gradient_accumulation_steps`](#gradient_accumulation_steps) instead.
 
 (pretrain-settings-transforms)=
 

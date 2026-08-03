@@ -235,14 +235,10 @@ def get_trainer(
     if trainer_args is not None:
         logger.debug(f"Using additional trainer arguments {trainer_args}.")
 
-        if (
-            "accumulate_grad_batches" in trainer_args
-            and gradient_accumulation_steps != 1
-        ):
+        if "accumulate_grad_batches" in trainer_args:
             raise ValueError(
-                "Specify only one of "
-                "`gradient_accumulation_steps` or "
-                "`trainer_args['accumulate_grad_batches']`."
+                "`trainer_args['accumulate_grad_batches']` is not supported. "
+                "Use `gradient_accumulation_steps` instead."
             )
         trainer_kwargs.update(trainer_args)
 
