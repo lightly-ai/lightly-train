@@ -57,10 +57,10 @@ paths, URLs, PIL Images, or tensors as input:
 
 ```python skip_ruff
 results = model.predict("image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
                     # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 ### Visualize the results
@@ -75,8 +75,8 @@ from torchvision.utils import draw_bounding_boxes
 image = read_image("image.jpg")
 image_with_boxes = draw_bounding_boxes(
     image,
-    boxes=results["bboxes"],
-    labels=[model.classes[label.item()] for label in results["labels"]],
+    boxes=results.bboxes,
+    labels=[model.classes[label.item()] for label in results.labels],
 )
 plt.imshow(image_with_boxes.permute(1, 2, 0))
 plt.show()
@@ -264,10 +264,10 @@ model = lightly_train.load_model("out/my_experiment/exported_models/exported_bes
 ```python skip_ruff
 results = model.predict("image.jpg")
 
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
                     # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 ### Visualize the results
@@ -276,8 +276,8 @@ results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
 image = read_image("image.jpg")
 image_with_boxes = draw_bounding_boxes(
     image,
-    boxes=results["bboxes"],
-    labels=[model.classes[label.item()] for label in results["labels"]],
+    boxes=results.bboxes,
+    labels=[model.classes[label.item()] for label in results.labels],
 )
 plt.imshow(image_with_boxes.permute(1, 2, 0))
 plt.show()

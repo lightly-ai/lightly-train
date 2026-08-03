@@ -22,7 +22,10 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
+    ObjectDetectionOutput,
+)
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
 )
@@ -700,7 +703,6 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
 
-    # Each input image goes through preprocess_image once.
     assert preprocess_image_spy.call_count == 2
 
     # The stacked batch is preprocessed in a single call with shape (B, C, H, W).
@@ -708,17 +710,20 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    # forward_backend receives the output of preprocess_batch.
+    # forward_backend receives the dense preprocessed batch.
     assert forward_backend_spy.call_count == 1
     (forward_in,) = forward_backend_spy.call_args.args
-    assert forward_in is preprocess_batch_spy.spy_return
+    assert forward_in.shape == (2, 3, 256, 256)
 
-    # postprocess receives forward_backend's output and per-image metadata.
+    # postprocess receives forward_backend's output and tensor target sizes.
     assert postprocess_spy.call_count == 1
     raw_in, metadata, _ = postprocess_spy.call_args.args
     assert raw_in.logits is forward_backend_spy.spy_return["pred_logits"]
     assert raw_in.boxes is forward_backend_spy.spy_return["pred_boxes"]
-    assert len(metadata) == 2
+    assert metadata == [
+        ObjectDetectionMetadata(orig_h=480, orig_w=640),
+        ObjectDetectionMetadata(orig_h=720, orig_w=1280),
+    ]
 
     # predict_batch returns whatever the standalone postprocessor produced.
     assert result is postprocess_spy.spy_return
@@ -734,58 +739,20 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
         load_weights=False,
     )
     model._deployed = True
-    metadata = [
-        {
-            "orig_h": 20,
-            "orig_w": 20,
-            "tiles_coordinates": torch.zeros(1, 2, dtype=torch.int64),
-        },
-        {
-            "orig_h": 40,
-            "orig_w": 40,
-            "tiles_coordinates": torch.zeros(2, 2, dtype=torch.int64),
-        },
-    ]
-    mocker.patch.object(
-        model.preprocessor,
-        "preprocess_sahi_image",
-        side_effect=[
-            (torch.zeros(2, 3, 16, 16), metadata[0]),
-            (torch.zeros(3, 3, 16, 16), metadata[1]),
-        ],
-    )
-    mocker.patch.object(
-        model.preprocessor, "preprocess_sahi_batch", side_effect=lambda batch: batch
-    )
-    mocker.patch.object(
+    forward = mocker.patch.object(
         model,
         "forward",
         return_value=ObjectDetectionOutput(
-            logits=torch.zeros(5, 4, 2), boxes=torch.zeros(5, 4, 4)
+            logits=torch.full((4, model.num_top_queries, 2), -10.0),
+            boxes=torch.zeros(4, model.num_top_queries, 4),
         ),
-    )
-    postprocess_sahi = mocker.patch.object(
-        model.postprocessor,
-        "postprocess_sahi",
-        side_effect=[
-            {
-                "labels": torch.tensor([1]),
-                "bboxes": torch.zeros(1, 4),
-                "scores": torch.ones(1),
-            },
-            {
-                "labels": torch.tensor([2]),
-                "bboxes": torch.zeros(1, 4),
-                "scores": torch.ones(1),
-            },
-        ],
     )
 
     output = model.predict_sahi_batch([torch.zeros(3, 20, 20), torch.zeros(3, 40, 40)])
 
-    assert [int(item["labels"].item()) for item in output] == [1, 2]
-    assert postprocess_sahi.call_args_list[0].args[0].logits.shape[0] == 2
-    assert postprocess_sahi.call_args_list[1].args[0].logits.shape[0] == 3
+    assert len(output) == 2
+    assert all(item.labels.numel() == 0 for item in output)
+    assert forward.call_args.args[0].shape[0] == 4
 
 
 def test_predict_sahi_batch__rejects_empty_input() -> None:

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,6 @@ from lightly_train._commands.benchmark_task import (
 from lightly_train._commands.benchmark_types import (
     BenchmarkObjectDetectionConfig,
     BenchmarkResult,
-    ObjectDetectionPrediction,
     TorchBackendArgs,
 )
 from lightly_train._data.coco_object_detection_dataset import (
@@ -190,7 +189,7 @@ class TestValDataloader:
 
 class TestToCpu:
     def test_moves_to_cpu(self) -> None:
-        preds: list[ObjectDetectionPrediction] = [
+        preds: list[Mapping[str, Tensor]] = [
             {
                 "bboxes": torch.tensor([[1, 2, 3, 4]]),
                 "scores": torch.tensor([0.9]),

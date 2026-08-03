@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import functools
 from abc import ABC
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, fields
-from typing import Any
+from typing import Any, cast
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -183,8 +184,28 @@ class ModelInputSpec(BaseModel):
 
 
 @dataclass
-class BaseModelOutput(ABC):
-    """Base for named model outputs that can cross torch export boundaries."""
+class BaseModelOutput(Mapping[str, Tensor], ABC):
+    """Base for named model outputs that can cross torch export boundaries.
+
+    Behaves like a read-only ``Mapping[str, Tensor]`` (supports ``[]``, ``in``,
+    ``.keys()``/``.items()``/``.values()``/``.get()``, ``dict(x)``, and ``**x``
+    unpacking) in addition to attribute access, for backward compatibility with
+    code written against dict-based prediction outputs. Note that
+    ``isinstance(x, dict)`` is NOT true for these objects — check
+    ``isinstance(x, collections.abc.Mapping)`` instead.
+    """
+
+    def __getitem__(self, key: str) -> Tensor:
+        """Return a declared output field by name."""
+        if key not in {field.name for field in fields(self)}:
+            raise KeyError(key)
+        return cast(Tensor, getattr(self, key))
+
+    def __iter__(self) -> Iterator[str]:
+        return (field.name for field in fields(self))
+
+    def __len__(self) -> int:
+        return len(fields(self))
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)

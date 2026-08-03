@@ -270,10 +270,10 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     # Check forward pass
     dummy_input = torch.randn(3, 100, 200)
     results = model.predict(dummy_input)
-    assert results["bboxes"].ndim == 2
-    assert results["bboxes"].shape[1] == 4
-    assert results["scores"].ndim == 1
-    assert results["labels"].ndim == 1
+    assert results.bboxes.ndim == 2
+    assert results.bboxes.shape[1] == 4
+    assert results.scores.ndim == 1
+    assert results.labels.ndim == 1
 
     # Check that example images were logged for training and validation.
     image_examples_dir = out / "image_examples"

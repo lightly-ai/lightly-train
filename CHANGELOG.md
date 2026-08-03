@@ -19,6 +19,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- `LTDETRObjectDetection.predict()`, `predict_batch()`, `predict_sahi()`, and
+  `predict_sahi_batch()` now return an `ObjectDetectionPrediction` object (access via
+  `results.bboxes`, `results.labels`, `results.scores`) instead of a plain `dict`.
+  Dict-style usage keeps working (`results["bboxes"]`, `"bboxes" in results`,
+  `results.keys()`/`.items()`/`.values()`/`.get(...)`, `dict(results)`, `**results`),
+  but `isinstance(results, dict)` no longer holds — use
+  `isinstance(results, collections.abc.Mapping)` if a type check is needed.
+
 ### Deprecated
 
 ### Removed

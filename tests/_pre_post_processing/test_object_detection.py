@@ -11,9 +11,11 @@ import pytest
 import torch
 
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
     ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPreprocessor,
+    ObjectDetectionSahiConfig,
 )
 
 
@@ -31,7 +33,7 @@ class TestObjectDetectionPreprocessor:
         assert output.shape == (3, 32, 48)
         assert output.dtype == torch.float32
         assert output.min() >= 0 and output.max() <= 1
-        assert metadata == {"orig_h": 60, "orig_w": 80}
+        assert metadata == ObjectDetectionMetadata(orig_h=60, orig_w=80)
 
     def test_preprocess_image__validates_channels(self) -> None:
         preprocessor = ObjectDetectionPreprocessor(
@@ -61,18 +63,21 @@ class TestObjectDetectionPreprocessor:
 
     def test_preprocess_sahi_image__returns_global_and_tiles(self) -> None:
         preprocessor = ObjectDetectionPreprocessor(
-            image_size=(4, 6), image_normalize=None, expected_input_channels=3
+            image_size=(4, 6),
+            image_normalize=None,
+            expected_input_channels=3,
+            sahi_config=ObjectDetectionSahiConfig(0.5, 0.3, 0.1),
         )
-        batch, metadata = preprocessor.preprocess_sahi_image(
+        batch, metadata = preprocessor.preprocess_image(
             torch.zeros(3, 8, 10, dtype=torch.uint8),
             device=torch.device("cpu"),
             dtype=torch.float32,
-            overlap=0.5,
         )
         assert batch.shape == (10, 3, 4, 6)
-        assert metadata["orig_h"] == 8
-        assert metadata["orig_w"] == 10
-        assert metadata["tiles_coordinates"].shape == (9, 2)
+        assert metadata.orig_h == 8
+        assert metadata.orig_w == 10
+        assert metadata.tile_coordinates is not None
+        assert metadata.tile_coordinates.shape == (9, 2)
 
 
 def _postprocessor() -> ObjectDetectionPostprocessor:
@@ -80,43 +85,47 @@ def _postprocessor() -> ObjectDetectionPostprocessor:
         num_classes=2,
         num_top_queries=3,
         internal_class_to_class=torch.tensor([10, 20]),
+        image_size=(20, 30),
     )
 
 
 class TestObjectDetectionPostprocessor:
-    def test_decode__selects_rescales_and_remaps(self) -> None:
+    def test_postprocess__selects_rescales_and_remaps(self) -> None:
         logits = torch.tensor([[[8.0, -8.0], [1.0, 7.0], [6.0, 0.0]]])
         boxes = torch.tensor(
             [[[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.2, 0.2], [0.8, 0.5, 0.1, 0.2]]]
         )
-        labels, decoded_boxes, scores = _postprocessor().decode(
+        output = _postprocessor().postprocess(
             ObjectDetectionOutput(logits=logits, boxes=boxes),
-            torch.tensor([[100, 200]]),
-        )
-        torch.testing.assert_close(labels, torch.tensor([[10, 20, 10]]))
+            [ObjectDetectionMetadata(orig_w=100, orig_h=200)],
+            threshold=0.0,
+        )[0]
+        torch.testing.assert_close(output.labels, torch.tensor([10, 20, 10]))
         torch.testing.assert_close(
-            decoded_boxes[0, 0], torch.tensor([40.0, 60.0, 60.0, 140.0])
+            output.bboxes[0], torch.tensor([40.0, 60.0, 60.0, 140.0])
         )
-        assert scores.shape == (1, 3)
+        assert output.scores.shape == (3,)
 
     def test_postprocess__filters_by_threshold(self) -> None:
         logits = torch.full((1, 3, 2), -10.0)
         boxes = torch.rand(1, 3, 4)
         output = _postprocessor().postprocess(
             ObjectDetectionOutput(logits=logits, boxes=boxes),
-            [{"orig_h": 20, "orig_w": 30}],
+            [ObjectDetectionMetadata(orig_w=30, orig_h=20)],
             threshold=0.5,
         )
-        assert output[0]["labels"].shape == (0,)
-        assert output[0]["bboxes"].shape == (0, 4)
+        assert output[0].labels.shape == (0,)
+        assert output[0].bboxes.shape == (0, 4)
 
     def test_postprocess_sahi__offsets_tiles(self) -> None:
         postprocessor = ObjectDetectionPostprocessor(
             num_classes=1,
             num_top_queries=1,
             internal_class_to_class=torch.tensor([7]),
+            image_size=(10, 20),
+            sahi_config=ObjectDetectionSahiConfig(0.2, 0.3, 0.1),
         )
-        output = postprocessor.postprocess_sahi(
+        output = postprocessor.postprocess(
             ObjectDetectionOutput(
                 logits=torch.tensor([[[10.0]], [[9.0]], [[-10.0]]]),
                 boxes=torch.tensor(
@@ -127,18 +136,39 @@ class TestObjectDetectionPostprocessor:
                     ]
                 ),
             ),
-            {
-                "orig_h": 50,
-                "orig_w": 100,
-                "tiles_coordinates": torch.tensor([[5, 7], [30, 20]]),
-            },
+            [
+                ObjectDetectionMetadata(
+                    orig_w=100,
+                    orig_h=50,
+                    tile_coordinates=torch.tensor([[5, 7], [30, 20]]),
+                )
+            ],
             threshold=0.5,
-            nms_iou_threshold=0.3,
-            global_local_iou_threshold=0.1,
-            tile_size=(10, 20),
-        )
-        torch.testing.assert_close(output["labels"], torch.tensor([7, 7]))
+        )[0]
+        torch.testing.assert_close(output.labels, torch.tensor([7, 7]))
         torch.testing.assert_close(
-            output["bboxes"],
+            output.bboxes,
             torch.tensor([[40.0, 20.0, 60.0, 30.0], [13.0, 11.0, 17.0, 13.0]]),
         )
+
+    def test_postprocess__prediction_supports_mapping_protocol(self) -> None:
+        postprocessor = ObjectDetectionPostprocessor(
+            num_classes=2,
+            num_top_queries=1,
+            internal_class_to_class=torch.tensor([10, 20]),
+            image_size=(20, 30),
+        )
+        logits = torch.tensor([[[8.0, -8.0]]])
+        boxes = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
+        prediction = postprocessor.postprocess(
+            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            [ObjectDetectionMetadata(orig_w=100, orig_h=200)],
+            threshold=0.5,
+        )[0]
+
+        assert set(prediction.keys()) == {"labels", "bboxes", "scores"}
+        assert "bboxes" in prediction
+        assert prediction["bboxes"] is prediction.bboxes
+        as_dict = dict(prediction)
+        assert as_dict["labels"] is prediction.labels
+        assert as_dict["scores"] is prediction.scores

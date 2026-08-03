@@ -23,6 +23,7 @@ from torch.optim.lr_scheduler import (  # type: ignore[attr-defined]
     LinearLR,
     LRScheduler,
 )
+from torchvision.ops import box_convert
 from typing_extensions import override
 
 from lightly_train._configs.validate import no_auto
@@ -36,7 +37,6 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
 )
@@ -114,12 +114,14 @@ def _decode_predictions_for_metrics(
     outputs: dict[str, Tensor],
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
-    labels, boxes, scores = model.postprocessor.decode(
-        ObjectDetectionOutput(
-            logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
-        ),
-        orig_target_sizes,
-    )
+    scores = outputs["pred_logits"].sigmoid()
+    num_classes = scores.shape[-1]
+    scores, index = scores.flatten(1).topk(model.num_top_queries, dim=-1)
+    labels = model.internal_class_to_class[index % num_classes]
+    query_index = index // num_classes
+    boxes = box_convert(outputs["pred_boxes"], in_fmt="cxcywh", out_fmt="xyxy")
+    boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
+    boxes = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
     return [
         {"labels": labels_i, "boxes": boxes_i, "scores": scores_i}
         for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)

@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import pytest
@@ -99,3 +100,38 @@ def test_base_model_output__is_registered_pytree() -> None:
     assert isinstance(restored, _Output)
     torch.testing.assert_close(restored.scores, output.scores)
     torch.testing.assert_close(restored.boxes, output.boxes)
+
+
+def test_base_model_output__supports_keyed_access() -> None:
+    output = _Output(scores=torch.ones(2), boxes=torch.zeros(2, 4))
+
+    assert output["scores"] is output.scores
+    assert output["boxes"] is output.boxes
+    with pytest.raises(KeyError, match="unknown"):
+        output["unknown"]
+
+
+def test_base_model_output__supports_mapping_protocol() -> None:
+    output = _Output(scores=torch.ones(2), boxes=torch.zeros(2, 4))
+
+    assert isinstance(output, Mapping)
+    assert not isinstance(output, dict)
+
+    assert set(output.keys()) == {"scores", "boxes"}
+    assert len(output) == 2
+    assert "scores" in output
+    assert "unknown" not in output
+    assert output.get("scores") is output.scores
+    assert output.get("unknown", "default") == "default"
+
+    items = dict(output.items())
+    assert items["scores"] is output.scores
+    assert items["boxes"] is output.boxes
+
+    as_dict = dict(output)
+    assert as_dict["scores"] is output.scores
+    assert as_dict["boxes"] is output.boxes
+
+    unpacked = {**output}
+    assert unpacked["scores"] is output.scores
+    assert unpacked["boxes"] is output.boxes

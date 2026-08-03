@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import gc
 import statistics
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -37,7 +37,6 @@ from lightly_train._commands.benchmark_types import (
     CudaDeviceInfo,
     DescriptiveStatistics,
     DeviceInfo,
-    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
@@ -445,9 +444,12 @@ def _create_val_dataloader(
 
 
 def _to_cpu(
-    predictions: list[ObjectDetectionPrediction],
-) -> list[ObjectDetectionPrediction]:
-    return [{k: v.detach().cpu() for k, v in p.items()} for p in predictions]  # type: ignore[attr-defined,misc]
+    predictions: Sequence[Mapping[str, Tensor]],
+) -> list[dict[str, Tensor]]:
+    return [
+        {key: value.detach().cpu() for key, value in prediction.items()}
+        for prediction in predictions
+    ]
 
 
 def _create_metric(

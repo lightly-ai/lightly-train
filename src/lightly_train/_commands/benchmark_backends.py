@@ -9,18 +9,22 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
 from typing_extensions import override
 
 from lightly_train._commands.benchmark_types import (
-    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
+)
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPrediction,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import ObjectDetectionBatch
@@ -49,11 +53,7 @@ def _rescale_and_filter_predictions(
 
         keep = scores[i] > threshold
         results.append(
-            {
-                "bboxes": img_boxes[keep],
-                "scores": scores[i][keep],
-                "labels": labels[i][keep],
-            }
+            ObjectDetectionPrediction(labels[i][keep], img_boxes[keep], scores[i][keep])
         )
     return results
 
@@ -64,7 +64,7 @@ class ObjectDetectionBackend(ABC):
     @abstractmethod
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         pass
 
 
@@ -92,7 +92,7 @@ class TorchBackend(ObjectDetectionBackend):
     @override
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         # preprocess
         images = batch["image"].to(self.device)
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
@@ -213,7 +213,7 @@ class ONNXBackend(ObjectDetectionBackend):
     @override
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
 
         # preprocess
         # ONNX Runtime session.run() takes numpy arrays. The provider
@@ -335,9 +335,7 @@ class TensorRTBackend(ObjectDetectionBackend):
     @override
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[list[ObjectDetectionPrediction], float]:
-        import numpy as np
-
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         # Preprocess.
         images = batch["image"]
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
