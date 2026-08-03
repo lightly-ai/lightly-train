@@ -446,7 +446,7 @@ def _create_val_dataloader(
     )
 
 
-def _to_cpu(predictions: list[Any]) -> list[Any]:
+def _to_cpu(predictions: Sequence[Any]) -> list[Any]:
     result: list[Any] = []
     for prediction in predictions:
         if isinstance(prediction, ObjectDetectionPrediction):
@@ -465,8 +465,6 @@ def _to_cpu(predictions: list[Any]) -> list[Any]:
 
 
 def _prediction_value(prediction: Any, name: str) -> Tensor:
-    if isinstance(prediction, ObjectDetectionPrediction):
-        return cast(Tensor, getattr(prediction, name))
     return cast(Tensor, prediction[name])
 
 

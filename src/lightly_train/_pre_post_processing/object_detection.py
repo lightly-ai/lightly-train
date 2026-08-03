@@ -30,7 +30,14 @@ from lightly_train.types import PathLike
 
 @dataclass
 class ObjectDetectionOutput(BaseModelOutput):
-    """Raw object detection output: logits and normalized ``cxcywh`` boxes."""
+    """Raw object detection output: logits and normalized ``cxcywh`` boxes.
+
+    Attributes:
+        logits: Shape ``(B, num_queries, num_classes)``. Raw (pre-sigmoid) per-query
+            class logits.
+        boxes: Shape ``(B, num_queries, 4)``. Normalized ``cxcywh`` boxes (values in
+            ``[0, 1]``) relative to the model input size.
+    """
 
     logits: Tensor
     boxes: Tensor
@@ -38,7 +45,15 @@ class ObjectDetectionOutput(BaseModelOutput):
 
 @dataclass
 class ObjectDetectionPreprocessedBatch(BaseModelOutput):
-    """A dense model-input batch and its ``(width, height)`` target sizes."""
+    """A dense model-input batch and its ``(width, height)`` target sizes.
+
+    Attributes:
+        images: Shape ``(B, C, H, W)``. Resized, normalized model-input batch, ready
+            to pass to the model's forward pass.
+        target_sizes: Shape ``(B, 2)``, ``int64``. Original ``(width, height)`` of
+            each image in pixels, used to rescale decoded boxes back to
+            original-image coordinates.
+    """
 
     images: Tensor
     target_sizes: Tensor
@@ -46,7 +61,25 @@ class ObjectDetectionPreprocessedBatch(BaseModelOutput):
 
 @dataclass
 class ObjectDetectionSahiPreprocessedBatch(BaseModelOutput):
-    """Flattened global/tile inputs and tensor-only SAHI reconstruction data."""
+    """Flattened global/tile inputs and tensor-only SAHI reconstruction data.
+
+    For each input image this holds one "global" (resized full image) entry followed
+    by one entry per tile, all flattened into a single leading dimension ``N`` (the
+    total number of global + tile entries across every image in the batch).
+
+    Attributes:
+        images: Shape ``(N, C, tile_h, tile_w)``. Resized, normalized model input for
+            every global view and tile, flattened across all images.
+        target_sizes: Shape ``(N, 2)``, ``int64``. Per-entry ``(width, height)``
+            rescale target: the original image size for the global entry, and the
+            tile size ``(tile_w, tile_h)`` for tile entries.
+        tile_offsets: Shape ``(num_images + 1,)``, ``int64``. CSR-style row pointers
+            into the ``N`` dimension: entries ``tile_offsets[i]:tile_offsets[i + 1]``
+            belong to image ``i`` (its global view first, followed by its tiles).
+        tile_coordinates: Shape ``(N, 2)``, ``int64``. Per-entry ``(x, y)`` pixel
+            offset of the tile's top-left corner within the (possibly upscaled)
+            original image; ``(0, 0)`` for each image's global entry.
+    """
 
     images: Tensor
     target_sizes: Tensor
@@ -56,7 +89,24 @@ class ObjectDetectionSahiPreprocessedBatch(BaseModelOutput):
 
 @dataclass
 class ObjectDetectionDecodedBatch(BaseModelOutput):
-    """Dense top-k detections before score filtering or SAHI merging."""
+    """Dense top-k detections before score filtering or SAHI merging.
+
+    Unlike :class:`ObjectDetectionPrediction`, this is a fixed-size, unfiltered dense
+    batch: every entry has exactly ``num_top_queries`` detections, including
+    low-confidence ones. ``B`` is whatever leading batch dimension the raw model
+    output had when passed to :meth:`ObjectDetectionPostprocessor.decode` — this is
+    the number of images for a plain batch, or the number of flattened global+tile
+    entries for a SAHI batch.
+
+    Attributes:
+        labels: Shape ``(B, num_top_queries)``, ``int64``. Predicted class indices
+            (already mapped through ``internal_class_to_class``) for the top-k
+            queries of each batch entry.
+        bboxes: Shape ``(B, num_top_queries, 4)``. ``xyxy`` boxes rescaled into the
+            coordinate space given by the ``target_sizes`` passed to ``decode``.
+        scores: Shape ``(B, num_top_queries)``. Confidence score (post-sigmoid) for
+            each of the top-k queries.
+    """
 
     labels: Tensor
     bboxes: Tensor
@@ -65,7 +115,19 @@ class ObjectDetectionDecodedBatch(BaseModelOutput):
 
 @dataclass
 class ObjectDetectionPrediction(BaseModelOutput):
-    """Predictions for one image in original-image ``xyxy`` coordinates."""
+    """Predictions for one image in original-image ``xyxy`` coordinates.
+
+    Unlike :class:`ObjectDetectionDecodedBatch`, this is per-image and already
+    filtered by score threshold (and, for SAHI, NMS-merged across global/tile
+    detections), so ``N`` varies per image and can be smaller than
+    ``num_top_queries``.
+
+    Attributes:
+        labels: Shape ``(N,)``, ``int64``. Predicted class index for each of the
+            ``N`` kept detections.
+        bboxes: Shape ``(N, 4)``. ``xyxy`` boxes in original-image pixel coordinates.
+        scores: Shape ``(N,)``. Confidence score in ``[0, 1]`` for each detection.
+    """
 
     labels: Tensor
     bboxes: Tensor

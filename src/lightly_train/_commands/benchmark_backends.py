@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
 from typing_extensions import override
@@ -60,7 +62,9 @@ class ObjectDetectionBackend(ABC):
     """Object detection backend."""
 
     @abstractmethod
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         pass
 
 
@@ -86,7 +90,9 @@ class TorchBackend(ObjectDetectionBackend):
             self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
 
     @override
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         # preprocess
         images = batch["image"].to(self.device)
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
@@ -205,7 +211,9 @@ class ONNXBackend(ObjectDetectionBackend):
         self.output_names = [o.name for o in self.session.get_outputs()]
 
     @override
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
 
         # preprocess
         # ONNX Runtime session.run() takes numpy arrays. The provider
@@ -325,9 +333,9 @@ class TensorRTBackend(ObjectDetectionBackend):
         self.trt = trt
 
     @override
-    def run_batch(self, batch: ObjectDetectionBatch) -> tuple[list[Any], float]:
-        import numpy as np
-
+    def run_batch(
+        self, batch: ObjectDetectionBatch
+    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         # Preprocess.
         images = batch["image"]
         metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]

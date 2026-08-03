@@ -16,13 +16,15 @@ import numpy as np
 from lightning_fabric import Fabric
 from lightning_fabric import utilities as fabric_utilities
 from PIL import Image
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionPrediction
 from torch.utils.data import DataLoader
 
 from lightly_train._configs.validate import pydantic_model_validate
 from lightly_train._data import file_helpers
 from lightly_train._data.image_dataset import ImageDataset
 from lightly_train._env import Env
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPrediction,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.predict_semantic_segmentation_transform import (
     PredictSemanticSegmentationTransform,

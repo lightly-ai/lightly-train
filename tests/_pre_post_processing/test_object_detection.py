@@ -144,3 +144,24 @@ class TestObjectDetectionPostprocessor:
             output.bboxes,
             torch.tensor([[40.0, 20.0, 60.0, 30.0], [13.0, 11.0, 17.0, 13.0]]),
         )
+
+    def test_postprocess__prediction_supports_mapping_protocol(self) -> None:
+        postprocessor = ObjectDetectionPostprocessor(
+            num_classes=2,
+            num_top_queries=1,
+            internal_class_to_class=torch.tensor([10, 20]),
+        )
+        logits = torch.tensor([[[8.0, -8.0]]])
+        boxes = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
+        prediction = postprocessor.postprocess(
+            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            torch.tensor([[100, 200]]),
+            threshold=0.5,
+        )[0]
+
+        assert set(prediction.keys()) == {"labels", "bboxes", "scores"}
+        assert "bboxes" in prediction
+        assert prediction["bboxes"] is prediction.bboxes
+        as_dict = dict(prediction)
+        assert as_dict["labels"] is prediction.labels
+        assert as_dict["scores"] is prediction.scores
