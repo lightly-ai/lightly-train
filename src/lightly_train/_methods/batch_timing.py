@@ -13,12 +13,12 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal, Protocol, Tuple
 
 from torch.cuda import Event
 
 TimingMetricName = Literal["batch_time", "data_time"]
-TimingMetric = tuple[TimingMetricName, float]
+TimingMetric = Tuple[TimingMetricName, float]
 
 
 class BatchTimingTracker(Protocol):
