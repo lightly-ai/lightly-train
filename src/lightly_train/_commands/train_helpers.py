@@ -203,6 +203,7 @@ def get_embedding_model(
 def get_trainer(
     out: Path,
     epochs: int,
+    gradient_accumulation_steps: int,
     accelerator: str | Accelerator,
     strategy: str | Strategy,
     devices: list[int] | str | int,
@@ -220,6 +221,7 @@ def get_trainer(
     trainer_kwargs: dict[str, Any] = dict(
         default_root_dir=out,
         max_epochs=epochs,
+        accumulate_grad_batches=gradient_accumulation_steps,
         accelerator=accelerator,
         strategy=strategy,
         devices=devices,
@@ -232,6 +234,12 @@ def get_trainer(
     )
     if trainer_args is not None:
         logger.debug(f"Using additional trainer arguments {trainer_args}.")
+
+        if "accumulate_grad_batches" in trainer_args:
+            raise ValueError(
+                "`trainer_args['accumulate_grad_batches']` is not supported. "
+                "Use `gradient_accumulation_steps` instead."
+            )
         trainer_kwargs.update(trainer_args)
 
     return Trainer(**trainer_kwargs)
