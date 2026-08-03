@@ -59,6 +59,33 @@ class TrainModel(Module):
     val_transform_cls: ClassVar[type[TaskTransform]]
     torch_compile_args_cls: ClassVar[type[TorchCompileArgs]]
 
+    @classmethod
+    def get_train_model_args_cls(cls, model_name: str) -> type[TrainModelArgs]:
+        """Return the TrainModelArgs class for the given model name.
+
+        Subclasses may override this to return different args classes
+        depending on the model.
+        """
+        return cls.train_model_args_cls
+
+    @classmethod
+    def get_train_transform_cls(cls, model_name: str) -> type[TaskTransform]:
+        """Return the train TaskTransform class for the given model name.
+
+        Subclasses may override this to return different transform classes
+        depending on the model.
+        """
+        return cls.train_transform_cls
+
+    @classmethod
+    def get_val_transform_cls(cls, model_name: str) -> type[TaskTransform]:
+        """Return the val TaskTransform class for the given model name.
+
+        Subclasses may override this to return different transform classes
+        depending on the model.
+        """
+        return cls.val_transform_cls
+
     # NOTE(Guarin, 07/25): We use the same method names as for LightningModule as
     # those methods are automatically handled by Fabric. Methods with different
     # names that are called within a Fabric context will raise an error if they have
@@ -114,8 +141,11 @@ class TrainModel(Module):
         """Returns the state dict for exporting."""
         return self.state_dict()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        pass
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        # Clip the gradients. Returns the total gradient norm before clipping if
+        # the norm-based clipping algorithm is used, otherwise None. Returning None
+        # here means that the gradient norm is not logged for this model.
+        return None
 
     def on_train_batch_end(self) -> None:
         pass

@@ -12,17 +12,17 @@ from typing import Sequence
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import AdaptiveAvgPool2d, Module
+from torch.nn import AdaptiveAvgPool2d, Conv2d, Module
 
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    MultiScaleFeatureModelWrapper,
+    MultiScaleFeatureCNN,
 )
 
 
-class DINOv3VConvNeXtModelWrapper(Module, MultiScaleFeatureModelWrapper):
+class DINOv3VConvNeXtModelWrapper(Module, MultiScaleFeatureCNN):
     def __init__(self, model: ConvNeXt) -> None:
         super().__init__()
         self._model = model
@@ -82,6 +82,16 @@ class DINOv3VConvNeXtModelWrapper(Module, MultiScaleFeatureModelWrapper):
 
     def make_teacher(self) -> None:
         pass
+
+    def multiscale_feature_strides(self) -> list[int]:
+        strides = []
+        cumulative = 1
+        for stage in self._model.downsample_layers:
+            for mod in stage:
+                if isinstance(mod, Conv2d):
+                    cumulative *= mod.stride[0]
+            strides.append(cumulative)
+        return strides
 
     def multiscale_feature_dims(self) -> list[int]:
         return list(self._model.embed_dims)

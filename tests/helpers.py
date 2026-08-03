@@ -12,9 +12,9 @@ import inspect
 import json
 import random
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, Callable, Iterable, Literal
+from typing import Any, Callable, Iterable, Literal, Sequence
 
 import numpy as np
 import torch
@@ -59,6 +59,7 @@ from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.trainable_modules import TrainableModules
 from lightly_train._scaling import ScalingInfo
+from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train._transforms.transform import MethodTransform, NormalizeArgs
 from lightly_train.types import TransformInput, TransformOutput
 
@@ -1076,3 +1077,52 @@ def dummy_dinov3_vit_model(patch_size: int = 2, **kwargs: Any) -> DINOv3ViTModel
 
 def dummy_dinov3_convnext_model(**kwargs: Any) -> DINOv3VConvNeXtModelWrapper:
     return DINOv3VConvNeXtModelWrapper(model=_dinov3_convnext_test(**kwargs))
+
+
+def assert_onnx_outputs_close(
+    onnx_outputs: Sequence[np.ndarray],
+    torch_outputs: Sequence[Tensor] | BaseModelOutput,
+    *,
+    atol: float = 5e-3,
+    rtol: float = 1e-1,
+    min_close_fraction: float = 0.95,
+) -> None:
+    """Assert ONNX Runtime outputs match a PyTorch reference for LT-DETR exports.
+
+    The LT-DETR postprocessors apply a top-k over queries, so the per-query order
+    is not stable across backends when scores are near-tied. Float outputs are
+    therefore compared after summing over the query dim (dim=1), which makes the
+    comparison order-invariant, and integer ``labels`` are compared as sorted
+    multisets. This mirrors the summing done by the model's own
+    ``export_onnx(verify=True)`` check.
+
+    Args:
+        onnx_outputs:
+            Outputs from ``onnxruntime.InferenceSession.run``, in the model's
+            ``get_export_output_names`` order.
+        torch_outputs:
+            Reference outputs from the eager model's ``forward``, same order.
+        atol:
+            Absolute tolerance for the float comparison.
+        rtol:
+            Relative tolerance for the float comparison.
+        min_close_fraction:
+            Minimum fraction of elements that must be close for float outputs.
+    """
+    if isinstance(torch_outputs, BaseModelOutput):
+        torch_outputs = [
+            getattr(torch_outputs, field.name) for field in fields(torch_outputs)
+        ]
+    assert len(onnx_outputs) == len(torch_outputs)
+    for onnx_out, torch_out in zip(onnx_outputs, torch_outputs):
+        onnx_tensor = torch.from_numpy(onnx_out)
+        assert onnx_tensor.shape == torch_out.shape
+        if torch_out.is_floating_point():
+            onnx_summed = onnx_tensor.float().sum(dim=1)
+            torch_summed = torch_out.float().sum(dim=1)
+            close = torch.isclose(onnx_summed, torch_summed, atol=atol, rtol=rtol)
+            assert close.float().mean() > min_close_fraction
+        else:
+            assert np.array_equal(
+                np.sort(onnx_out.ravel()), np.sort(torch_out.numpy().ravel())
+            )

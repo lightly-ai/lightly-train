@@ -102,8 +102,8 @@ if __name__ == "__main__":
         model="dinov3/vitt16",
         classification_task="multilabel",
         data={
-            "train_csv": "my_data_dir/train.csv",
-            "val_csv": "my_data_dir/val.csv",
+            "train": "my_data_dir/train.csv",
+            "val": "my_data_dir/val.csv",
             "classes": {
                 0: "cat",
                 1: "car",
@@ -161,6 +161,12 @@ and checkpoints organized.
 LightlyTrain supports training image classification models using either a
 directory-based dataset structure or CSV annotation files. Both single-label and
 multi-label classification are supported.
+
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits; optional `test` entries
+are accepted by the data config for compatibility but are not used during training.
 
 ### Image Formats
 
@@ -311,8 +317,8 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vitt16",
         data={
-            "train_csv": "my_data_dir/train.csv",
-            "val_csv": "my_data_dir/val.csv",
+            "train": "my_data_dir/train.csv",
+            "val": "my_data_dir/val.csv",
             "classes": {
                 0: "cat",
                 1: "car",
@@ -330,6 +336,8 @@ Notes:
 
 - Image paths must either be absolute or relative to the directory containing the CSV
   file.
+- For compatibility, `train_csv` and `val_csv` are also accepted as aliases for `train`
+  and `val`.
 - Multiple labels are separated by a delimiter (default: `","`).
 - When using commas as label delimiters, the label field must be quoted.
 - Labels can be specified either as class IDs or class names.
@@ -346,8 +354,8 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vitt16",
         data={
-            "train_csv": "my_data_dir/train.csv",
-            "val_csv": "my_data_dir/val.csv",
+            "train": "my_data_dir/train.csv",
+            "val": "my_data_dir/val.csv",
             "classes": {
                 0: "cat",
                 1: "car",

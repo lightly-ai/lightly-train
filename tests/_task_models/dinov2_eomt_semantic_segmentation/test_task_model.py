@@ -33,6 +33,30 @@ def model() -> DINOv2EoMTSemanticSegmentation:
     )
 
 
+def test_list_model_names__uses_registry() -> None:
+    names = DINOv2EoMTSemanticSegmentation.list_model_names()
+
+    assert "dinov2/_vittest14-eomt" in names
+    assert "dinov2/vits14-eomt" in names
+    assert "dinov2/vits14-notpretrained-eomt" in names
+
+
+def test_is_supported_model__uses_registry() -> None:
+    assert DINOv2EoMTSemanticSegmentation.is_supported_model("dinov2/vits14-eomt")
+    assert DINOv2EoMTSemanticSegmentation.is_supported_model(
+        "dinov2/vits14-notpretrained-eomt"
+    )
+    assert not DINOv2EoMTSemanticSegmentation.is_supported_model(
+        "dinov2/vits14_pretrain-eomt"
+    )
+
+    parsed = DINOv2EoMTSemanticSegmentation._resolve_model_name("dinov2/vits14-eomt")
+    assert parsed == {
+        "model_name": "dinov2/vits14-eomt",
+        "backbone_name": "vits14",
+    }
+
+
 def test_predict_batch__composes_stages_in_order(
     model: DINOv2EoMTSemanticSegmentation, mocker: MockerFixture
 ) -> None:

@@ -9,8 +9,219 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
+  covering ONNX Runtime's CUDA execution provider and TensorRT directly, both with
+  zero-copy GPU input/output allocation.
+- Add export and inference examples covering LT-DETR object detection for MIGraphX on
+  AMD GPUs.
+- Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
+  available from PyPI.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.17.0] - 2026-07-28
+
+### Added
+
+### Changed
+
+- Raise the default mixup and mosaic probability from `0.5` to `0.75` for
+  `ltdetrv2-s/m/l/x` object detection models. Other LTDETR models are unaffected.
+- Lower the default `backbone_lr_factor` from `0.05` to `0.0025` for `ltdetrv2-m/l/x`
+  object detection models. `ltdetrv2-s` and other LTDETR models are unaffected.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix incorrect TensorRT inference for LT-DETR object detection and instance
+  segmentation. TensorRT's optimizer/fusion pass around the `GridSample` ops used by
+  deformable attention silently produced wrong activations, corrupting detections and
+  masks, even with parser-compatible mode names. Deployment/export now replaces
+  `grid_sample` with a gather-based bilinear equivalent that contains no `GridSample`
+  op, so neither the parser mode-name issue nor the optimizer bug can apply; training
+  keeps the faster fused `grid_sample`.
+
+### Security
+
+## [0.16.4] - 2026-07-24
+
+### Added
+
+- Add TIPSv2 vision backbones: `dinov2/vitb14-tipsv2`, `dinov2/vitl14-tipsv2`,
+  `dinov2/vitso400m14-tipsv2`, and `dinov2/vitg14-tipsv2`.
+- Add LTDETRv2 instance segmentation with `ltdetrv2-seg-s/m/l/x` models and
+  COCO-pretrained checkpoints for fine-tuning or out-of-the-box inference.
+- Add SAHI inference for LTDETRv2 instance segmentation through `model.predict_sahi()`.
+
+### Changed
+
+- Warn when a built-in distillation teacher is used with non-ImageNet input
+  normalization, which can produce invalid teacher features.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3.1 pretraining method.
+
+### Fixed
+
+- Preserve exponential-moving-average updates when resuming training, preventing a
+  spurious validation-metric drop after the first resumed update.
+- Skip degenerate predicted boxes during validation visualization and log a warning
+  instead of crashing.
+- Restore installation and package imports by using a released LightlySSL dependency.
+
+### Security
+
+## [0.16.3] - 2026-07-22
+
+### Added
+
+- Add support for [LingBot Vision](https://github.com/Robbyant/lingbot-vision) backbones
+  `dinov3/vits16-lingbot`, `dinov3/vitb16-lingbot`, and `dinov3/vitl16-lingbot`.
+- Add LingBot Vision backbones to the DINOv3 EoMT semantic, panoptic, and instance
+  segmentation tasks: `dinov3/vits16-lingbot-eomt`, `dinov3/vitb16-lingbot-eomt`, and
+  `dinov3/vitl16-lingbot-eomt`.
+- Add tiny, tiny-plus, and small Depth Anything V3 depth estimation models — the
+  smallest and fastest so far, distilled from ViT-L: `dinov3/dav3-relative-tiny`,
+  `dinov3/dav3-relative-tiny-plus`, `dinov2/dav3-relative-small`,
+  `dinov3/dav3-metric-tiny`, `dinov3/dav3-metric-tiny-plus`, and
+  `dinov2/dav3-metric-small`.
+- Add COCO-pretrained checkpoints for the `ltdetrv2-m` (`edgecrafter/ecvittplus-ltdetr`)
+  and `ltdetrv2-l` (`edgecrafter/ecvits-ltdetr`) object detection models, available via
+  the `ltdetrv2-m-coco` and `ltdetrv2-l-coco` aliases.
+
+### Changed
+
+- ONNX export for LT-DETR object detection now returns raw logits and normalized
+  bounding boxes. Postprocessing is supposed to be applied outside the graph.
+
+### Deprecated
+
+### Removed
+
+- Remove the DINOv3 EoMT semantic segmentation training `model_args.patch_size` option.
+  The patch size is now determined by the selected model name; use a
+  `dinov3/vit*32-eomt` model, such as `dinov3/vits32-eomt-coco`, to train with patch
+  size 32.
+
+### Fixed
+
+- Fix ONNX export verification for task models: `Tensor.is_floating_point` was
+  referenced without calling it, so the always-truthy bound method forced integer
+  outputs (e.g. labels) through the float comparison path instead of the intended
+  exact-match check.
+
+### Security
+
+## [0.16.2] - 2026-07-10
+
+### Added
+
+- Add `NaNCapture` for fine-tuning debugging: when a NaN/Inf is detected in parameter
+  gradients during training, save a self-contained capture (model state dict +
+  TrainModel class/init kwargs + the step's microbatches + RNG state) to
+  `out_dir/debug/nan_capture/rank{R}/nan_capture.pt` and halt training. Replay via
+  `lightly_train._debug.nan_capture.load_nan_capture(dir).replay()` to deterministically
+  reproduce the failure in a notebook/REPL. Enable with
+  `debug_args.nancapture.enabled=True`.
+- Add ONNX and TensorRT export for depth estimation models via the `export_onnx` and
+  `export_tensorrt` methods of `DepthAnythingDepthEstimation`.
+- Add a `process_res_method` argument to depth estimation `predict`/`predict_batch`:
+  `"square_resize"` (default), `"upper_bound_resize"`, or `"lower_bound_resize"`.
+- Add a debugging tools tutorial that walks through gradient overflow detection with
+  `underflow_overflow` and gradient norm logging, using the fine-tuning API and a
+  deterministic synthetic dataset.
+
+### Changed
+
+- Consolidate the separate Depth Anything V2/V3 depth estimation task models into a
+  single config-driven `DepthAnythingDepthEstimation` model.
+- Depth estimation `predict`/`predict_batch` now default to `square_resize` (previously
+  aspect-preserving upper/lower-bound per model), changing default depth outputs. Pass
+  `process_res_method="upper_bound_resize"`/`"lower_bound_resize"` to restore the
+  previous geometry.
+
+### Deprecated
+
+### Removed
+
+- Removes the `DINOv3LTDETRObjectDetection` and `DINOv2LTDETRObjectDetection` classes in
+  favor of the new `LTDETRObjectDetection` class. For the user, this changes nothing,
+  since they don't use the class directly, but only its methods, which will remain
+  available.
+
+### Fixed
+
+- Fixed an issue with legacy LT-DETR checkpoints that used a [0,1] normalization instead
+  of the now-default ImageNet normalization.
+
+### Security
+
+## [0.16.1] - 2026-06-26
+
+### Added
+
+- Log the total gradient norm (`gradient_norm`) during finetuning. It is shown in the
+  console as `grad_norm` and written to all configured loggers (JSONL, TensorBoard,
+  Weights & Biases, MLflow). It is the pre-clipping norm when gradient clipping is
+  enabled and the total gradient norm computed without clipping otherwise.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Fix checkpoint loading with `load_model` for legacy checkpoints of LT-DETR.
+
+### Security
+
+## [0.16.0] - 2026-06-25
+
+### Added
+
+- Add **LTDETRv2**, an improved object detection model that reaches 50.7
+  mAP<sub>50:95</sub> on the COCO 2017 validation set (+1 mAP<sub>50:95</sub> over the
+  previous LTDETR with a 55% shorter training schedule) and 5.4ms latency on an NVIDIA
+  T4 (TensorRT, FP16, batch size 1, 640x640). Use the compact `ltdetrv2-s/m/l/x` models,
+  which are built on [EdgeCrafter](https://arxiv.org/abs/2603.18739) ECViT backbones.
+- Add depth estimation inference with Depth Anything V2 and V3 models, covering both
+  relative and metric depth (`dinov2/dav2-relative-*`, `dinov2/dav2-metric-*`,
+  `dinov2/dav3-relative-large`, `dinov2/dav3-metric-large`). Checkpoints are converted
+  to the LightlyTrain format; the Apache-2.0 models are hosted for download, while the
+  CC-BY-NC-4.0 Depth Anything V2 variants must be converted locally with
+  `convert_checkpoint_dav2`.
+- Add the `benchmark_object_detection` command (**beta**) to measure inference
+  performance of an object detection model on a validation dataset. It reports detection
+  accuracy (mAP/mAR, including per-class mAP) and timing statistics (latency and
+  throughput), and writes a JSON result and a human-readable Markdown report. This is
+  useful to compare inference backends and precisions before deployment. See the
+  [benchmarking documentation](https://docs.lightly.ai/train/stable/object_detection.html#benchmarking)
+  for details.
 - Add Slicing Aided Hyper Inference (SAHI) for EoMT instance segmentation to improve
-  small instance recall at inference via `predict_sahi`.
+  small instance recall at inference via `model.predict_sahi()` method.
+
+### Changed
+
+- Update LTDETRv2 training defaults: the default `batch_size` is now `32` (was `16`),
+  the default training schedule is `266_112` steps (6x ECDet-S, ~72 epochs at batch size
+  32), `backbone_lr_factor` is now `0.05` (was `1e-2`), and `lr_warmup_steps` defaults
+  to `"auto"` so short runs no longer warm up for longer than they train.
 
 ## [0.15.1] - 2026-05-28
 
@@ -42,6 +253,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix PicoDet fine-tuning with mismatched `num_classes`.
 - Fix DINOv3 LT-DETR patch size precedence so `model_args.patch_size` overrides the
   backbone default.
+- Fix TensorRT export with LT-DETR ViT-S, which caused overflows due to non-enforcement
+  of "strongly-typed" option in the TensorRT exporter.
 
 ### Security
 
@@ -149,7 +362,7 @@ for more information.
   are not yet available for these models.
 - Add support for fine-tuning DINOv2 models for instance segmentation with the
   `train_instance_segmentation` command. See the
-  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#model)
+  [instance segmentation documentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-model)
   for more information.
 
 ### Fixed
@@ -189,7 +402,7 @@ for more information.
 [low-power embedded devices](https://docs.lightly.ai/train/stable/object_detection.html#benchmark-results)!
 
 **New Tiny Models:** We release tiny DINOv3 based models for
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#benchmark-results),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-benchmark-results),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#benchmark-results),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#benchmark-results)!
@@ -197,7 +410,7 @@ and
 **New ONNX and TensorRT FP16 Export:** You can now export all supported models to ONNX
 and TensorRT in FP16 precision for faster inference!
 [Object detection](https://docs.lightly.ai/train/stable/object_detection.html#exporting-a-checkpoint-to-onnx),
-[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html#exporting-a-checkpoint-to-onnx),
+[instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-onnx),
 [panoptic segmentation](https://docs.lightly.ai/train/stable/panoptic_segmentation.html#exporting-a-checkpoint-to-onnx),
 and
 [semantic segmentation](https://docs.lightly.ai/train/stable/semantic_segmentation.html#exporting-a-checkpoint-to-onnx)
@@ -339,7 +552,7 @@ models for
 ### Added
 
 - Add support for DINOv3
-  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation.html)
+  [instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/index.html)
   inference and fine-tuning.
 - Add support for loading
   [DICOM images](https://docs.lightly.ai/train/stable/data/dicom.html) as input data for

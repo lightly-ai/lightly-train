@@ -143,6 +143,18 @@ class MSDeformableAttention(nn.Module):
         init.xavier_uniform_(self.output_proj.weight)
         init.constant_(self.output_proj.bias, 0)
 
+    def convert_to_onnx_export(self) -> None:
+        # Switch the default (grid_sample) sampler to a gather-based bilinear
+        # equivalent that exports to a TensorRT-compatible graph. TensorRT
+        # converts ONNX GridSample incorrectly for this deformable attention, so
+        # the fused grid_sample is kept only for training. Discrete sampling is
+        # left unchanged.
+        if self.method == "default":
+            self.method = "bilinear_gather"
+            self.ms_deformable_attn_core = functools.partial(
+                deformable_attention_core_func_v2, method=self.method
+            )
+
     def forward(
         self,
         query: torch.Tensor,

@@ -43,6 +43,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+from typing_extensions import Self
 
 from lightly_train._models.dinov3.dinov3_src.layers.ffn_layers import Mlp
 from lightly_train._models.dinov3.dinov3_src.layers.rope_position_encoding import (
@@ -578,7 +579,7 @@ class ECViTModelWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
     def feature_dim(self) -> int:
         return self.proj_dim[-1]
 
-    def get_model(self) -> "ECViTModelWrapper":
+    def get_model(self) -> Self:
         return self
 
     def architecture_info(self) -> ArchitectureInfo:

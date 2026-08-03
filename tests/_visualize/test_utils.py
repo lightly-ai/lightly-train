@@ -259,6 +259,21 @@ def test__draw_labeled_boxes__draws_outline_and_label_in_class_color() -> None:
     assert image.getpixel((34, 30)) == _CLASS_1_COLOR
 
 
+def test__valid_box_mask__flags_inverted_x_or_y() -> None:
+    # A degenerate prediction from an undertrained decoder can come back with
+    # x1>x2 and/or y1>y2. Only the fully-ordered box should be marked valid.
+    boxes = torch.tensor(
+        [
+            [32.0, 32.0, 96.0, 96.0],  # valid
+            [96.0, 32.0, 32.0, 96.0],  # x1>x2
+            [32.0, 96.0, 96.0, 32.0],  # y1>y2
+            [32.0, 32.0, 32.0, 32.0],  # degenerate but not inverted (x1==x2, y1==y2)
+        ]
+    )
+    result = utils._valid_box_mask(boxes)
+    assert result.tolist() == [True, False, False, True]
+
+
 def test__draw_mask_contours__paints_boundary_keeps_interior() -> None:
     # Two stacked regions split between rows 3 and 4. Boundary pixels on both
     # sides of the split should be black; interior pixels of each region are

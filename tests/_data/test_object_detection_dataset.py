@@ -18,9 +18,9 @@ from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDatasetArgs,
 )
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -39,7 +39,7 @@ from lightly_train.types import ImageSizeTuple
 from ..helpers import create_images
 
 
-class DummyTransformArgs(ObjectDetectionTransformArgs):
+class DummyTransformArgs(LTDETRObjectDetectionTransformArgs):
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = 3
     photometric_distort: RandomPhotometricDistortArgs | None = None
@@ -91,7 +91,7 @@ def test_object_detection_dataset(tmp_path: Path) -> None:
 
     dataset = ObjectDetectionDataset(
         dataset_args=dummy_dataset_args,
-        transform=ObjectDetectionTransform(DummyTransformArgs()),
+        transform=LTDETRObjectDetectionTransform(DummyTransformArgs()),
         image_info=image_info,
     )
 

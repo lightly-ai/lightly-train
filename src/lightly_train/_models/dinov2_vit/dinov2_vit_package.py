@@ -31,12 +31,12 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer i
     DinoVisionTransformer,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 
 logger = logging.getLogger(__name__)
 
 
-class DINOv2ViTPackage(Package):
+class DINOv2ViTPackage(MultiScaleFeaturePackage):
     name = "dinov2"
 
     @classmethod
@@ -98,6 +98,7 @@ class DINOv2ViTPackage(Package):
             "vit_small": vits.vit_small,
             "vit_base": vits.vit_base,
             "vit_large": vits.vit_large,
+            "vit_so400m": vits.vit_so400m,
             "vit_giant2": vits.vit_giant2,
         }
         model_builder = model_builders.get(cfg.student.arch, None)
@@ -118,6 +119,9 @@ class DINOv2ViTPackage(Package):
             drop_path_rate=cfg.student.drop_path_rate,
             drop_path_uniform=cfg.student.drop_path_uniform,
             in_chans=num_input_channels,
+            input_normalization=(
+                "none" if model_name.endswith("-tipsv2") else "imagenet"
+            ),
         )
         kwargs.update(model_args or {})
 
