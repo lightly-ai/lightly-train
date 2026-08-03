@@ -29,7 +29,7 @@ dependencies = [
     "eval-type-backport>=0.2",  # Required for Pydantic. Allows 3.10 types in old Python versions.
     "filelock>=3.0.0",     # Cross-platform file locking
     "fsspec>=2023.1.0",
-    "lightly>=1.5.20",
+    "lightly>=1.5.26",
     "matplotlib>=3.5",
     "omegaconf>=2.3",
     "psutil>=5.0",
@@ -240,9 +240,6 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 # Ignore `E402` (import violations) in root `__init__.py`.
 "src/lightly_train/__init__.py" = ["E402"]
-# DINOv31 tests skip before imports until the required Lightly release is on PyPI.
-"tests/_methods/dinov31/test_constrained_crop.py" = ["E402"]
-"tests/_methods/dinov31/test_dinov31.py" = ["E402"]
 
 [tool.uv]
 override-dependencies = [

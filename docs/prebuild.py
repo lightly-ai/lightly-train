@@ -31,6 +31,13 @@ TUTORIALS_DIR = DOCS_DIR / "tutorials"
 NOTEBOOKS_DIR = PROJECT_ROOT / "examples" / "notebooks"
 
 
+def remove_generated_arg_files(dest_dir: Path) -> None:
+    """Remove generated argument files left over from previous builds."""
+    for pattern in ("*_method_args.md", "*_transform_args.md"):
+        for path in dest_dir.glob(pattern):
+            path.unlink()
+
+
 # inspired by https://github.com/pydantic/pydantic/blob/6f31f8f68ef011f84357330186f603ff295312fd/docs/plugins/main.py#L102-L103
 def build_changelog_html(source_dir: Path) -> None:
     """Creates the changelog.html file from the repos main CHANGELOG.md file"""
@@ -198,6 +205,7 @@ def main(source_dir: Path) -> None:
     build_changelog_html(source_dir=source_dir)
     create_notebook_symlinks()
     # Methods
+    remove_generated_arg_files(dest_dir=METHODS_AUTO_ARGS_DIR)
     dump_transform_args_for_methods(dest_dir=METHODS_AUTO_ARGS_DIR)
     dump_method_args(dest_dir=METHODS_AUTO_ARGS_DIR)
     # Tasks

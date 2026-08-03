@@ -124,7 +124,7 @@ class DINOv3EoMTInstanceSegmentationTrainArgs(TrainModelArgs):
                 if match is None:
                     raise ValueError(
                         f"Unknown model name '{model_name}', "
-                        "see https://docs.lightly.ai/train/stable/instance_segmentation.html#model "
+                        "see https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html#instance-segmentation-eomt-model "
                         "for all supported models."
                     )
                 model_size = match.group("model_size")

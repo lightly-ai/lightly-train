@@ -300,6 +300,12 @@ def test_export_onnx__dynamic_batch_size(
     input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
     assert input_batch_dim.dim_param == "N"
 
+    # The graph must not contain a GridSample op: TensorRT converts it incorrectly
+    # for the deformable-attention sampling shared with object detection, so
+    # deployment swaps it for a gather-based bilinear equivalent.
+    op_types = {node.op_type for node in onnx_model.graph.node}
+    assert "GridSample" not in op_types
+
     # Use a batch size (3) different from the one used during tracing (2).
     inputs = np.random.randn(3, 3, 256, 256).astype(np.float32)
     orig_target_size = np.array([[256, 256]] * 3, dtype=np.int64)
