@@ -22,12 +22,33 @@ Three distillation versions are available. Choose based on your downstream task:
     `distillationv3` for DINOv3 teachers instead).
 ```
 
+(methods-distillation-default-teacher)=
+
+## Default Teacher by Version
+
+Each distillation version ships with a default teacher so you can start training without
+specifying `method_args={"teacher": ...}`. Override the default via {ref}`method-args`
+if you want a different teacher.
+
+| Method                            | Default teacher       | License    | Notes                                          |
+| --------------------------------- | --------------------- | ---------- | ---------------------------------------------- |
+| `distillation` / `distillationv3` | `dinov3/vitb16`       | DINOv3     | Recommended default since LightlyTrain 0.15.0. |
+| `distillationv1`                  | `dinov2/vitb14-noreg` | Apache 2.0 | Global tasks (e.g. classification).            |
+| `distillationv2`                  | `dinov2/vitb14-noreg` | Apache 2.0 | Dense tasks; DINOv2 teacher only.              |
+
+```{tip}
+If you need a permissive Apache 2.0 license, switch the teacher to a DINOv2 model
+(e.g. `method_args={"teacher": "dinov2/vitl14"}`) or use `distillationv1` /
+`distillationv2`. See {ref}`methods-distillation-supported-models` for the full
+list of supported teachers.
+```
+
 ## Use Distillation in LightlyTrain
 
 [![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/distillation.ipynb)
 
-Follow the code below to distill the knowledge of the default DINOv3 ViT-B/16 teacher
-model into your model architecture. The example uses a `torchvision/resnet18` model as
+The example below uses LightlyTrain's default teacher (`dinov3/vitb16`, DINOv3 ViT-B/16
+— see {ref}`methods-distillation-default-teacher`) and a `torchvision/resnet18` model as
 the student:
 
 ```{note}
@@ -54,6 +75,22 @@ if __name__ == "__main__":
 lightly-train pretrain out=out/my_experiment data=my_data_dir model="torchvision/resnet18" method="distillation"
 ```
 ````
+
+(methods-distillation-input-normalization)=
+
+### Input Normalization
+
+Distillation passes the same transformed image to the student and teacher. LightlyTrain
+uses ImageNet normalization by default, with mean `(0.485, 0.456, 0.406)` and standard
+deviation `(0.229, 0.224, 0.225)`. Keep this default when using LightlyTrain's
+`dinov2/*`, `dinov3/*`, or `radio/*` models as the teacher, or else the features might
+degrade. This also applies to TIPSv2, EUPE, and LingBot variants in those packages.
+
+Custom teachers can have a different input contract. In that case, set
+`transform_args.normalize` to the statistics expected by the custom teacher. If your
+downstream student requires a different normalization from the teacher, you can either
+denormalize in the student's forward pass or just adjust the normalization during the
+downstream fine-tuning stage – the normalization will adapt very quickly!
 
 (methods-distillation-dinov3)=
 
@@ -182,7 +219,9 @@ For distillation v1/v2, the following models for `teacher` are supported:
   - `dinov2/vitg14`
 
 For distillationv3, any model supported by LightlyTrain can be used (including custom
-models). You can find the full list of supported models on the [Models](#models) page.
+models). The **default** is `dinov3/vitb16` (DINOv3 ViT-B/16) — see
+{ref}`methods-distillation-default-teacher` for the full per-version default table. You
+can find the full list of supported models on the [Models](#models) page.
 
 ## What's under the Hood
 

@@ -11,6 +11,8 @@ from typing import Any
 
 import numpy as np
 
+from lightly_train.types import NDArrayBinaryMasksInt
+
 
 class MixUp:
     def __init__(
@@ -30,18 +32,30 @@ class MixUp:
 
         mixed_images = beta * images + one_minus_beta * np.roll(images, shift=1, axis=0)
 
+        # When the batch carries per-instance binary masks (instance
+        # segmentation) we union the two instance sets just like bboxes/labels.
+        # Masks are never blended; only the image is. Absent masks leave the
+        # output identical to the object-detection path.
+        with_masks = "masks" in batch[0]
+
         shifted_batch = list(batch[-1:]) + list(batch[:-1])
         mixed_batch: list[dict[str, Any]] = []
         for mixed_image, item, shifted_item in zip(mixed_images, batch, shifted_batch):
-            mixed_batch.append(
-                {
-                    "image": mixed_image,
-                    "bboxes": np.concatenate(
-                        (item["bboxes"], shifted_item["bboxes"]), axis=0
-                    ),
-                    "class_labels": np.concatenate(
-                        (item["class_labels"], shifted_item["class_labels"]), axis=0
-                    ),
-                }
-            )
+            mixed_item: dict[str, Any] = {
+                "image": mixed_image,
+                "bboxes": np.concatenate(
+                    (item["bboxes"], shifted_item["bboxes"]), axis=0
+                ),
+                "class_labels": np.concatenate(
+                    (item["class_labels"], shifted_item["class_labels"]), axis=0
+                ),
+            }
+            if with_masks:
+                # Concatenate own masks first, then the shifted neighbor's, so
+                # masks stay index-aligned with the concatenated bboxes/labels.
+                masks: NDArrayBinaryMasksInt = np.concatenate(
+                    (item["masks"], shifted_item["masks"]), axis=0
+                )
+                mixed_item["masks"] = masks
+            mixed_batch.append(mixed_item)
         return mixed_batch

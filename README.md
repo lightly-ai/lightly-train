@@ -1,16 +1,29 @@
-# LightlyTrain - SOTA Pretraining, Fine-tuning and Distillation
+<div align="center">
+  <a href="https://www.lightly.ai/lightly-train">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lightly-ai/lightly-train/main/docs/source/_static/lightly_train_dark.svg">
+      <img src="https://raw.githubusercontent.com/lightly-ai/lightly-train/main/docs/source/_static/lightly_train_light.svg" alt="LightlyTrain" width="400" style="max-width: 100%; height: auto;">
+    </picture>
+  </a>
+
+<h1>SOTA Pretraining, Fine-tuning and Distillation</h1>
+
+<p><em>Train Better Models, Faster</em></p>
 
 [![Python](https://img.shields.io/badge/Python-3.8%7C3.9%7C3.10%7C3.11%7C3.12%7C3.13-blue.svg)](https://docs.lightly.ai/train/stable/installation.html)
 [![Docker](https://img.shields.io/badge/Docker-blue?logo=docker&logoColor=fff)](https://docs.lightly.ai/train/stable/docker.html#)
 [![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/)
 [![Discord](https://img.shields.io/discord/752876370337726585?logo=discord&logoColor=white&label=discord&color=7289da)](https://discord.gg/xvNJW94)
 
-*Train Better Models, Faster*
+</div>
 
 LightlyTrain is the leading framework for transforming your data into state-of-the-art
 computer vision models. It covers the entire model development lifecycle from
 pretraining DINOv2/v3 vision foundation models on your unlabeled data to fine-tuning
 transformer and YOLO models on detection and segmentation tasks for edge deployment.
+
+Struggling to get good results with pre-training? Talk to one of our experts
+[Contact us](https://www.lightly.ai/contact)
 
 Using LightlyTrain at work, in production, on the edge, or to build proprietary models?
 You likely need a Commercial License. [Contact us](https://www.lightly.ai/contact) to
@@ -21,6 +34,18 @@ visualize your annotations and predictions.
 
 ## News
 
+- \[[0.17.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-17-0)\] -
+  2026-07-28: **LTDETRv2 for instance segmentation:** Train state-of-the-art
+  [LTDETRv2 instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
+  models with ECViT backbones from [EdgeCrafter](https://arxiv.org/abs/2603.18739),
+  matching the accuracy of the original ECSeg implementation while being 10-20% faster!
+  ONNX and TensorRT export is also out-of-the-box!
+- \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
+  2026-06-25: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
+  LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural
+  and performance improvements! It supports using ECViT backbones from
+  [EdgeCrafter](https://arxiv.org/abs/2603.18739) and ONNX/TensorRT export for faster
+  inference!
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
   2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
@@ -67,27 +92,28 @@ pip install lightly-train
 <details open>
 <summary><strong>Object Detection</strong></summary>
 
-Train LTDETR detection models with DINOv2 or DINOv3 backbones.
+Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbones.
 
 #### COCO Results
 
-| Implementation |               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size |
-| :------------: | :-------------------------------: | :---------------------: | :----------: | :--------: | :--------: |
-|  LightlyTrain  |          picodet-s-coco           |         26.7\*          |    2.2\*     |    1.17    |  416×416   |
-|  LightlyTrain  |          picodet-l-coco           |         32.0\*          |    2.4\*     |    3.75    |  416×416   |
-|  LightlyTrain  |     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |  640×640   |
-|  LightlyTrain  |   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |  640×640   |
-|  LightlyTrain  |     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |  640×640   |
-|  LightlyTrain  | dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |  640×640   |
-
-\*Picodet models are in preview and we report preliminary results.
+|               Model               | Val mAP<sub>50:95</sub> | Latency (ms) | Params (M) | Input Size  |
+| :-------------------------------: | :---------------------: | :----------: | :--------: | :---------: |
+|     **ltdetrv2-s-coco (NEW)**     |        **50.7**         |   **5.4**    |  **9.9**   | **640×640** |
+|     **ltdetrv2-m-coco (NEW)**     |        **53.1**         |   **7.95**   |  **21.1**  | **640×640** |
+|     **ltdetrv2-l-coco (NEW)**     |        **56.0**         |  **10.78**   |  **33.6**  | **640×640** |
+|     dinov3/vitt16-ltdetr-coco     |          49.8           |     5.4      |    10.1    |   640×640   |
+|   dinov3/vitt16plus-ltdetr-coco   |          52.5           |     7.0      |    18.1    |   640×640   |
+|     dinov3/vits16-ltdetr-coco     |          55.4           |     10.5     |    36.4    |   640×640   |
+| dinov3/convnext-tiny-ltdetr-coco  |          54.4           |     13.3     |    61.1    |   640×640   |
+| dinov3/convnext-small-ltdetr-coco |          56.9           |     17.7     |    82.7    |   640×640   |
+| dinov3/convnext-base-ltdetr-coco  |          58.6           |     24.7     |   121.0    |   640×640   |
+| dinov3/convnext-large-ltdetr-coco |          60.0           |     42.3     |   230.0    |   640×640   |
 
 Models are trained on the COCO 2017 dataset and evaluated on the validation set with
 single-scale testing. Latency is measured with TensorRT on a NVIDIA T4 GPU with batch
 size 1. All models are optimized using `tensorrt==10.13.3.9`.
+
+![LTDETRv2 mAP vs. Params](docs/source/_static/images/object_detection/map_vs_params.png)
 
 #### Usage
 
@@ -98,10 +124,10 @@ size 1. All models are optimized using `tensorrt==10.13.3.9`.
 import lightly_train
 
 if __name__ == "__main__":
-    # Train an object detection model with a DINOv3 backbone
+    # Train with our most recent LT-DETRv2 detector based on DINOv3 and EdgeCrafter.
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/vitt16-ltdetr-coco",
+        model="ltdetrv2-s-coco",
         data={
             "path": "my_data_dir",
             "train": "images/train",
@@ -118,7 +144,7 @@ if __name__ == "__main__":
     # Load model and run inference
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
     # Or use one of the models provided by LightlyTrain
-    # model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
+    # model = lightly_train.load_model("ltdetrv2-s-coco")
     results = model.predict("image.jpg")
     results["labels"]   # Class labels, tensor of shape (num_boxes,)
     results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
@@ -129,102 +155,43 @@ if __name__ == "__main__":
 </details>
 
 <details>
-<summary><strong>Panoptic Segmentation</strong></summary>
-
-Train state-of-the-art panoptic segmentation models with DINOv3 backbones using the EoMT
-method from CVPR 2025.
-
-#### COCO Results
-
-| Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
-| ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
-| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
-| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
-| LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
-| LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1             | 315.1      | 1280×1280  |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
-
-Tiny models are trained for 48 epochs, small and base models for 24 epochs and large
-models for 12 epochs on the COCO 2017 dataset and evaluated on the validation set with
-single-scale testing. Avg. Latency is measured on a single NVIDIA T4 GPU with batch size
-1\. All models are optimized using `torch.compile`.
-
-#### Usage
-
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
-
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    # Train an panoptic segmentation model with a DINOv3 backbone
-    lightly_train.train_panoptic_segmentation(
-        out="out/my_experiment",
-        model="dinov3/vitb16-eomt-panoptic-coco",
-        data={
-            "train": {
-                "images": "images/train",
-                "masks": "annotations/train",
-                "annotations": "annotations/train.json",
-            },
-            "val": {
-                "images": "images/val",
-                "masks": "annotations/val",
-                "annotations": "annotations/val.json",
-            },
-        },
-    )
-
-    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
-    results = model.predict("image.jpg")
-    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of
-                        # shape (height, width, 2). Height and width correspond to the
-                        # original image size.
-    results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
-    results["scores"]   # Confidence scores, tensor of shape (num_segments,)
-```
-
-</details>
-
-<details>
 <summary><strong>Instance Segmentation</strong></summary>
 
-Train state-of-the-art instance segmentation models with DINOv3 backbones using the EoMT
-method from CVPR 2025.
+Train state-of-the-art instance segmentation models with our new **LTDETRv2** family
+built on EdgeCrafter ECViT backbones.
 
 #### COCO Results
 
-| Implementation                       | Model                            | Val mAP mask | Avg. Latency (ms) | Params (M) | Input Size |
-| ------------------------------------ | -------------------------------- | ------------ | ----------------- | ---------- | ---------- |
-| LightlyTrain                         | dinov3/vitt16-eomt-inst-coco     | 25.4         | 12.7              | 6.0        | 640×640    |
-| LightlyTrain                         | dinov3/vitt16plus-eomt-inst-coco | 27.6         | 13.3              | 7.7        | 640×640    |
-| LightlyTrain                         | dinov3/vits16-eomt-inst-coco     | 32.6         | 19.4              | 21.6       | 640×640    |
-| LightlyTrain                         | dinov3/vitb16-eomt-inst-coco     | 40.3         | 39.7              | 85.7       | 640×640    |
-| LightlyTrain                         | dinov3/vitl16-eomt-inst-coco     | **46.2**     | 80.0              | 303.2      | 640×640    |
-| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-inst-coco     | 45.9         | -                 | 303.2      | 640×640    |
+![Instance segmentation accuracy vs. parameter count with TensorRT FP16](docs/source/_static/images/instance_segmentation/benchmark_params_map_fp16.png)
 
-Tiny models are trained for 48 epochs, while all other models are trained for 12 epochs
-on the COCO 2017 dataset and evaluated on the validation set with single-scale testing.
-Average latency is measured on a single NVIDIA T4 GPU with batch size 1. All models are
-optimized using `torch.compile`.
+| Model               | Val mAP<sub>50:95</sub> mask | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------- | :--------------------------: | :---------------: | :--------: | :--------: |
+| ltdetrv2-seg-s-coco |            0.427             |       6.96        |   11.32    |  640×640   |
+| ltdetrv2-seg-m-coco |            0.458             |       9.82        |   22.31    |  640×640   |
+| ltdetrv2-seg-l-coco |            0.475             |       11.41       |   34.85    |  640×640   |
+| ltdetrv2-seg-x-coco |            0.479             |       12.06       |   41.93    |  640×640   |
+
+Training follows the protocol in the original
+[EdgeCrafter](https://arxiv.org/abs/2603.18739) paper. The `s` and `m` sizes train for
+~74 epochs, while the `l` and `x` sizes train for ~50 epochs on the COCO 2017 dataset
+and are evaluated on the validation set. Average latency is measured using TensorRT
+version `10.13.3.9` and FP16 precision on a single NVIDIA T4 GPU with batch size 1.
 
 #### Usage
 
-[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation.html)
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_instance_segmentation.ipynb)
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/ltdetr_instance_segmentation.ipynb)
 
 ```python
 import lightly_train
 
 if __name__ == "__main__":
-    # Train an instance segmentation model with a DINOv3 backbone
+    # Train an instance segmentation model with our new LTDETRv2 family
     lightly_train.train_instance_segmentation(
         out="out/my_experiment",
-        model="dinov3/vitb16-eomt-inst-coco",
+        model="ltdetrv2-seg-s-coco",
         data={
+            "format": "yolo",           # either "yolo" or "coco"
             "path": "my_data_dir",
             "train": "images/train",
             "val": "images/val",
@@ -238,8 +205,12 @@ if __name__ == "__main__":
     )
 
     model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    # Or use one of the models provided by LightlyTrain
+    # model = lightly_train.load_model("ltdetrv2-seg-s-coco")
     results = model.predict("image.jpg")
     results["labels"]   # Class labels, tensor of shape (num_instances,)
+    results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                        # coordinates of the original image. Tensor of shape (num_instances, 4).
     results["masks"]    # Binary masks, tensor of shape (num_instances, height, width).
                         # Height and width correspond to the original image size.
     results["scores"]   # Confidence scores, tensor of shape (num_instances,)
@@ -323,6 +294,130 @@ if __name__ == "__main__":
     # Masks is a tensor of shape (height, width) with class labels as values.
     # It has the same height and width as the input image.
 ```
+
+</details>
+
+<details>
+<summary><strong>Panoptic Segmentation</strong></summary>
+
+Train state-of-the-art panoptic segmentation models with DINOv3 backbones using the EoMT
+method from CVPR 2025.
+
+#### COCO Results
+
+| Implementation                       | Model                                 | Val PQ   | Avg. Latency (ms) | Params (M) | Input Size |
+| ------------------------------------ | ------------------------------------- | -------- | ----------------- | ---------- | ---------- |
+| LightlyTrain                         | dinov3/vitt16-eomt-panoptic-coco      | 38.0     | 13.5              | 6.0        | 640×640    |
+| LightlyTrain                         | dinov3/vittplus16-eomt-panoptic-coco  | 41.4     | 14.1              | 7.7        | 640×640    |
+| LightlyTrain                         | dinov3/vits16-eomt-panoptic-coco      | 46.8     | 21.2              | 23.4       | 640×640    |
+| LightlyTrain                         | dinov3/vitb16-eomt-panoptic-coco      | 53.2     | 39.4              | 92.5       | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco      | 57.0     | 80.1              | 315.1      | 640×640    |
+| LightlyTrain                         | dinov3/vitl16-eomt-panoptic-coco-1280 | **59.0** | 500.1             | 315.1      | 1280×1280  |
+| EoMT (CVPR 2025 paper, current SOTA) | dinov3/vitl16-eomt-panoptic-coco-1280 | 58.9     | -                 | 315.1      | 1280×1280  |
+
+Tiny models are trained for 48 epochs, small and base models for 24 epochs and large
+models for 12 epochs on the COCO 2017 dataset and evaluated on the validation set with
+single-scale testing. Avg. Latency is measured on a single NVIDIA T4 GPU with batch size
+1\. All models are optimized using `torch.compile`.
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/panoptic_segmentation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    # Train an panoptic segmentation model with a DINOv3 backbone
+    lightly_train.train_panoptic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitb16-eomt-panoptic-coco",
+        data={
+            "train": {
+                "images": "images/train",
+                "masks": "annotations/train",
+                "annotations": "annotations/train.json",
+            },
+            "val": {
+                "images": "images/val",
+                "masks": "annotations/val",
+                "annotations": "annotations/val.json",
+            },
+        },
+    )
+
+    model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
+    results = model.predict("image.jpg")
+    results["masks"]    # Masks with (class_label, segment_id) for each pixel, tensor of
+                        # shape (height, width, 2). Height and width correspond to the
+                        # original image size.
+    results["segment_ids"]    # Segment ids, tensor of shape (num_segments,).
+    results["scores"]   # Confidence scores, tensor of shape (num_segments,)
+```
+
+</details>
+
+<details>
+<summary><strong>Depth Estimation</strong></summary>
+
+Run monocular depth inference with Depth Anything V2 and V3 models.
+
+The ViT-S, ViT-TinyPlus, and ViT-Tiny models were distilled from the ViT-L model by the
+LightlyTrain team.
+
+#### Metric Depth Results
+
+Depth accuracy is evaluated zero-shot on the NYUv2 test split (654 images) with the
+eigen crop and a depth range of 0.1 m to 10 m. NYUv2 was not used during training.
+**Metric** models are scored directly against the ground-truth depth:
+
+| Model                                                   | Params (M) |  δ1   | Aligned δ1 | AbsRel | RMSE  |
+| ------------------------------------------------------- | :--------: | :---: | :--------: | :----: | :---: |
+| `dinov3/dav3-metric-tiny` (LightlyTrain-distilled)      |    6.2M    | 0.818 |   0.915    | 0.131  | 0.506 |
+| `dinov3/dav3-metric-tiny-plus` (LightlyTrain-distilled) |    7.9M    | 0.846 |   0.923    | 0.123  | 0.457 |
+| `dinov2/dav3-metric-small` (LightlyTrain-distilled)     |   24.7M    | 0.912 |   0.938    | 0.099  | 0.377 |
+| `dinov2/dav3-metric-large`                              |   334.2M   | 0.950 |   0.948    | 0.078  | 0.339 |
+
+The reported scores are:
+
+- **δ1**: fraction of pixels whose predicted depth is within 25% of the ground truth,
+  i.e. `max(pred/gt, gt/pred) < 1.25`. Higher is better.
+- **Aligned δ1**: same as δ1, but after a per-image least-squares scale-and-shift
+  alignment to the ground truth, the same alignment used for the relative models.
+- **AbsRel**: mean absolute error relative to the ground-truth depth,
+  `mean(|pred - gt| / gt)`. Lower is better.
+- **RMSE**: root-mean-square error in meters. Lower is better.
+
+#### Inference Speed
+
+Inference time of the distilled relative models, measured with FP16 TensorRT engines on
+an NVIDIA T4 GPU:
+
+| Model                            | Input Size | Params (M) | Avg inference time |
+| -------------------------------- | :--------: | :--------: | :----------------: |
+| `dinov3/dav3-relative-tiny`      |  576×576   |    6.2M    |      5.27 ms       |
+| `dinov3/dav3-relative-tiny-plus` |  576×576   |    7.9M    |      5.49 ms       |
+| `dinov2/dav3-relative-small`     |  504×504   |   24.7M    |      9.17 ms       |
+
+#### Usage
+
+[![Documentation](https://img.shields.io/badge/Documentation-blue)](https://docs.lightly.ai/train/stable/depth_estimation.html)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/depth_estimation.ipynb)
+
+```python
+import lightly_train
+
+# Load a depth model provided by LightlyTrain
+model = lightly_train.load_model("dinov2/dav3-relative-large")
+
+# Predict a relative-depth map
+depth = model.predict("image.jpg")
+# depth is a tensor of shape (height, width) matching the input image.
+```
+
+Metric depth (in meters) and the full list of available models are covered in the
+[documentation](https://docs.lightly.ai/train/stable/depth_estimation.html).
 
 </details>
 
@@ -505,11 +600,12 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
-| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| Any    |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Model       |                         Object<br>Detection                         |                             Instance<br>Segmentation                              |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ----------- | :-----------------------------------------------------------------: | :-------------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |   ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)   | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |   ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)   | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| EdgeCrafter | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html) |                                                                          |                                                                                               |                                                                         |
+| Any         |                                                                     |                                                                                   |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -557,9 +653,20 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
   stages, or anyone exploring or experimenting with LightlyTrain. Empower the next
   generation of innovators with full access to the world of pretraining.
 
-We're committed to supporting both open-source and commercial users.
-[Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
-your project!
+### Commercial Pricing
+
+| Plan           | Price           | Eligibility                            |
+| -------------- | --------------- | -------------------------------------- |
+| **Startup**    | \$5,000 / year  | < \$1M revenue **or** < 10 employees   |
+| **Growth**     | \$10,000 / year | < \$10M revenue **or** < 100 employees |
+| **Enterprise** | Custom          | > \$10M revenue **or** > 100 employees |
+
+All commercial plans include a license for model training, edge deployment, and
+inference. Enterprise plans include priority support, a joint Slack channel,
+co-development engineering, and influence on the product roadmap.
+
+[Contact us](https://www.lightly.ai/contact) to get started — we'll find the right
+option for your project!
 
 ## Contact
 

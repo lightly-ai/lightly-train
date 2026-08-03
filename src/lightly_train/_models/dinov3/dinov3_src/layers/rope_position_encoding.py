@@ -110,7 +110,7 @@ class RopePositionEmbedding(nn.Module):
             2 * math.pi * coords[:, :, None] / self.periods[None, None, :]
         )  # [HW, 2, D//4]
         angles = angles.flatten(1, 2)  # [HW, D//2]
-        angles = angles.tile(2)  # [HW, D]
+        angles = torch.cat((angles, angles), dim=-1)  # [HW, D]
         cos = torch.cos(angles)  # [HW, D]
         sin = torch.sin(angles)  # [HW, D]
 

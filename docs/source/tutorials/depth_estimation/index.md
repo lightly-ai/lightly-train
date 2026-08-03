@@ -1,4 +1,4 @@
-(depth-estimation)=
+(tutorials-depth-estimation)=
 
 # Monocular Depth Estimation with fastai U-Net (Advanced)
 

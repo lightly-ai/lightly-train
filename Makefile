@@ -40,7 +40,7 @@ static-checks: format-check type-check
 # Files to format with mdformat.
 # This is needed to avoid formatting files in .venv. The mdformat command has an
 # --exclude option but only on Python 3.13+.
-MDFORMAT_FILES := .github docker docs src tests *.md
+MDFORMAT_FILES := .github docker docs src tests inference_benchmarks *.md
 
 # run formatter
 .PHONY: format
@@ -73,7 +73,7 @@ format-check:
 # run type check
 .PHONY: type-check
 type-check:
-	uv run --frozen mypy src tests docs/format_code.py
+	uv run --frozen mypy src tests docs/format_code.py inference_benchmarks
 
 # adding the license header to all files
 .PHONY: add-header
@@ -101,13 +101,18 @@ add-header:
 		-x src/lightly_train/_task_models/dinov3_eomt_semantic_segmentation/scheduler.py \
 		-x src/lightly_train/_models/dinov3/dinov3_src \
 		-x src/lightly_train/_models/ecvit/ecvit.py \
+		-x src/lightly_train/_debug/huggingface_debug_utils.py \
 		-x src/lightly_train/_task_models/object_detection_components \
 		-x src/lightly_train/_task_models/picodet_object_detection/csp_pan.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/esnet.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/losses.py \
 		-x src/lightly_train/_task_models/picodet_object_detection/pico_head.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/dpt.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
+		-x src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d tests
+	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d inference_benchmarks -E py
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files
 	uv run --frozen licenseheaders -t dev_tools/dinov2_licenseheader.tmpl \
@@ -159,14 +164,18 @@ add-header:
 
 	# Apply the Apache 2.0 license header to DEIMv2 derived files
 	uv run --frozen licenseheaders -t dev_tools/deimv2_licenseheader.tmpl \
-		-f src/lightly_train/_task_models/dinov2_ltdetr_object_detection/dinov2_vit_wrapper.py \
-		src/lightly_train/_task_models/dinov3_ltdetr_object_detection/dinov3_vit_wrapper.py \
+		-f src/lightly_train/_task_models/ltdetr_object_detection/dino_vit_wrapper.py \
 		src/lightly_train/_task_models/object_detection_components/flat_cosine.py \
 		-E py
 
 	# Apply the Apache 2.0 license header to EdgeCrafter derived files
 	uv run --frozen licenseheaders -t dev_tools/edgecrafter_licenseheader.tmpl \
 		-f src/lightly_train/_models/ecvit/ecvit.py \
+		-E py
+
+	# Apply the Apache 2.0 license header to HuggingFace Transformers derived files
+	uv run --frozen licenseheaders -t dev_tools/huggingface_licenseheader.tmpl \
+		-f src/lightly_train/_debug/huggingface_debug_utils.py \
 		-E py
 
 	# Apply the MIT license header to the EoMT derived files
@@ -194,6 +203,13 @@ add-header:
 	# Apply the DINOv3 license header to the DINOv3 derived files
 	uv run --frozen licenseheaders -t dev_tools/dinov3_licenseheader.tmpl \
 		-d src/lightly_train/_models/dinov3/dinov3_src \
+		-E py
+
+	# Apply the Apache 2.0 license header to Depth Anything V3 derived files
+	uv run --frozen licenseheaders -t dev_tools/depth_anything_3_licenseheader.tmpl \
+		-f src/lightly_train/_task_models/depth_estimation_components/dpt.py \
+		src/lightly_train/_task_models/depth_estimation_components/head_utils.py \
+		src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 
 
@@ -267,10 +283,14 @@ MAXIMAL_PYTHON_VERSION := 3.13
 EXTRAS_PY38 := [dicom,mlflow,onnx,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
-EXTRAS_PY313 := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+# bitsandbytes is added so CI exercises the optional 8-bit AdamW optimizer
+# (optim_type="adamw8bit"); it has no Python 3.8 wheel, so it is deliberately
+# absent from EXTRAS_PY38 above.
+EXTRAS_PY313 := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
-EXTRAS_DEV := [dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+# bitsandbytes: see EXTRAS_PY313 above (exercised in dev/CI; no Python 3.8 wheel).
+EXTRAS_DEV := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.
@@ -278,7 +298,7 @@ DOCKER_EXTRAS := [mlflow,tensorboard,timm,wandb,rfdetr]
 
 # Date until which dependencies installed with --exclude-newer must have been released.
 # Dependencies released after this date are ignored.
-EXCLUDE_NEWER_DATE := "2026-05-18"
+EXCLUDE_NEWER_DATE := "2026-07-30"
 
 export LIGHTLY_TRAIN_EVENTS_DISABLED := "1"
 export LIGHTLY_TRAIN_POSTHOG_KEY := ""
@@ -296,6 +316,14 @@ lock:
 .PHONY: install-dev
 install-dev:
 	uv sync --frozen ${NO_EDITABLE} --group dev $(call to_uv_extras,$(EXTRAS_DEV))
+	uv run --frozen pre-commit install
+
+# Install package for local development with ROCm-enabled PyTorch. Don't resolve, use
+# lock file.
+.PHONY: install-dev-rocm
+install-dev-rocm:
+	uv sync --frozen ${NO_EDITABLE} --group dev --group pinned-rocm-torch \
+		$(call to_uv_extras,$(EXTRAS_DEV))
 	uv run --frozen pre-commit install
 
 # Install package with minimal dependencies and latest development dependencies.

@@ -170,6 +170,29 @@ MODELS: dict[str, _Model] = {
         list=False,
         alias_for="vitg14-noreg",
     ),
+    # TIPSv2 vision backbones. IMPORTANT: upstream TIPSv2 inference uses 448x448
+    # images in [0, 1] without ImageNet normalization. The DINOv2 wrapper reverses
+    # LightlyTrain's default ImageNet normalization before forwarding to TiPSv2.
+    "vitb14-tipsv2": _Model(
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitb14_tipsv2.pt",
+        config="eval/vitb14_tipsv2_pretrain",
+        list=True,
+    ),
+    "vitl14-tipsv2": _Model(
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitl14_tipsv2.pt",
+        config="eval/vitl14_tipsv2_pretrain",
+        list=True,
+    ),
+    "vitso400m14-tipsv2": _Model(
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitso400m14_tipsv2.pt",
+        config="eval/vitso400m14_tipsv2_pretrain",
+        list=True,
+    ),
+    "vitg14-tipsv2": _Model(
+        url="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov2/dinov2_vitg14_tipsv2.pt",
+        config="eval/vitg14_tipsv2_pretrain",
+        list=True,
+    ),
 }
 
 

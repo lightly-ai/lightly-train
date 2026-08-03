@@ -1,10 +1,10 @@
 # <span style="display:none;">LightlyTrain Documentation</span>
 
 <div style="text-align: center; margin-bottom: 2rem;">
-  <a href="https://www.lightly.ai/lightly-train" target="_blank" class="mobile-only">
+  <a href="https://www.lightly.ai/demo" target="_blank" class="mobile-only">
     <img src="_static/lightlyBannerMobile.svg" alt="LightlyTrain Banner" style="max-width: 100%; height: auto;" />
   </a>
-  <a href="https://www.lightly.ai/lightly-train" target="_blank" class="desktop-only">
+  <a href="https://www.lightly.ai/demo" target="_blank" class="desktop-only">
     <img src="_static/lightlyBanner.svg" alt="LightlyTrain Banner" style="max-width: 100%; height: auto;" />
   </a>
 </div>
@@ -40,6 +40,19 @@ visualize your annotations and predictions.
 
 ## News
 
+- \[[0.17.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-17-0)\] -
+  2026-07-28: **LTDETRv2 for instance segmentation:** Train state-of-the-art
+  [LTDETRv2 instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)
+  models with ECViT backbones from [EdgeCrafter](https://arxiv.org/abs/2603.18739). It
+  significantly outperforms YOLO11 and achieves the best accuracy-vs-parameter-count
+  trade-off among current SOTA instance segmentation models! ONNX and TensorRT export is
+  also out-of-the-box!
+- \[[0.16.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-16-0)\] -
+  2026-06-25: ⚡ **Upgraded LTDETRv2 for object detection:** Following the success of
+  LTDETR, LightlyTrain's DETR model, we release LTDETRv2 with significant architectural
+  and performance improvements! It supports using ECViT backbones from
+  [EdgeCrafter](https://arxiv.org/abs/2603.18739) and ONNX/TensorRT export for faster
+  inference!
 - \[[0.15.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-15-0)\] -
   2026-04-14: 🔎 **Distillationv3:** Better generalizing distillation method that
   performs equally well across dense and global tasks and across all models, from ViTs
@@ -80,13 +93,19 @@ visualize your annotations and predictions.
 ```{grid-item-card} Object Detection
 :link: object_detection.html
 <img src="_static/images/tasks/object_detection.png" height="64"><br>
-Train LTDETR detection models with DINOv2 or DINOv3 backbones.<br>
+Train LTDETR detection models with DINOv2, DINOv3, or EdgeCrafter ECViT backbones.<br>
 ```
 
 ```{grid-item-card} Instance Segmentation
-:link: instance_segmentation.html
+:link: instance_segmentation/index.html
 <img src="_static/images/tasks/instance_segmentation.png" height="64"><br>
-Train EoMT segmentation models with DINOv3 backbones.<br>
+Train LTDETRv2 or EoMT segmentation models with EdgeCrafter, DINOv2, or DINOv3 backbones.<br>
+```
+
+```{grid-item-card} Semantic Segmentation
+:link: semantic_segmentation.html
+<img src="_static/images/tasks/semantic_segmentation.png" height="64"><br>
+Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
 ```{grid-item-card} Panoptic Segmentation
@@ -95,10 +114,10 @@ Train EoMT segmentation models with DINOv3 backbones.<br>
 Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
 ```
 
-```{grid-item-card} Semantic Segmentation
-:link: semantic_segmentation.html
-<img src="_static/images/tasks/semantic_segmentation.png" height="64"><br>
-Train EoMT segmentation models with DINOv2 or DINOv3 backbones.<br>
+```{grid-item-card} Depth Estimation
+:link: depth_estimation.html
+<img src="_static/images/tasks/depth_estimation.png" height="64"><br>
+Run Depth Anything V2 and V3 monocular depth inference.<br>
 ```
 
 ```{grid-item-card} Image Classification
@@ -142,7 +161,7 @@ import lightly_train
 if __name__ == "__main__":
     lightly_train.train_object_detection(
         out="out/my_experiment",
-        model="dinov3/vitt16-ltdetr-coco",
+        model="ltdetrv2-s-coco",
         data={
             # ... Data configuration
         }
@@ -157,7 +176,7 @@ import lightly_train
 # Load the model from the best checkpoint
 model = lightly_train.load_model("out/my_experiment/exported_models/exported_best.pt")
 # Or load one of the models hosted by LightlyTrain
-model = lightly_train.load_model("dinov3/vitt16-ltdetr-coco")
+model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict("image.jpg")
 ```
 
@@ -184,11 +203,12 @@ LightlyTrain supports the following model and workflow combinations.
 
 ### Fine-tuning
 
-| Model  |                         Object<br>Detection                         |                         Instance<br>Segmentation                         |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
-| ------ | :-----------------------------------------------------------------: | :----------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
-| DINOv3 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| DINOv2 | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
-| Any    |                                                                     |                                                                          |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| Model       |                         Object<br>Detection                         |                             Instance<br>Segmentation                              |                         Panoptic<br>Segmentation                         |                                   Semantic<br>Segmentation                                    |                         Image<br>Classification                         |
+| ----------- | :-----------------------------------------------------------------: | :-------------------------------------------------------------------------------: | :----------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------: |
+| DINOv3      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |   ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)   | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html#use-eomt-with-dinov3) | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| DINOv2      | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) |   ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/eomt.html)   | ✅ [🔗](https://docs.lightly.ai/train/stable/panoptic_segmentation.html) |           ✅ [🔗](https://docs.lightly.ai/train/stable/semantic_segmentation.html)            | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
+| EdgeCrafter | ✅ [🔗](https://docs.lightly.ai/train/stable/object_detection.html) | ✅ [🔗](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html) |                                                                          |                                                                                               |                                                                         |
+| Any         |                                                                     |                                                                                   |                                                                          |                                                                                               | ✅ [🔗](https://docs.lightly.ai/train/stable/image_classification.html) |
 
 ### Distillation & Pretraining
 
@@ -203,6 +223,14 @@ LightlyTrain supports the following model and workflow combinations.
 | RF-DETR                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)               |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/rfdetr.html)     |
 | YOLOv12                                    |              ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)              |    ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/yolov12.html)    |
 | Custom PyTorch Model                       |           ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html)           | ✅ [🔗](https://docs.lightly.ai/train/stable/pretrain_distill/models/custom_models.html) |
+
+```{note}
+For DINOv2/DINOv3, the model is paired with the matching training method or serves as
+distillation teacher (e.g. the DINOv2 model with `method="dinov2"` for pretraining, or
+as teacher for the `distillation` method). For all other models, the listed model is the
+student: "Pretraining" trains that model directly, and "Distillation" distills a default
+teacher's knowledge into it.
+```
 
 [Contact us](https://www.lightly.ai/contact) if you need support for additional models.
 
@@ -229,9 +257,19 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
   stages, or anyone exploring or experimenting with LightlyTrain. Empower the next
   generation of innovators with full access to the world of pretraining.
 
-We're committed to supporting both open-source and commercial users.
-[Contact us](https://www.lightly.ai/contact) to discuss the best licensing option for
-your project!
+### Commercial Pricing
+
+| Plan           | Price           | Eligibility                            |
+| -------------- | --------------- | -------------------------------------- |
+| **Startup**    | \$5,000 / year  | < \$1M revenue **or** < 10 employees   |
+| **Growth**     | \$10,000 / year | < \$10M revenue **or** < 100 employees |
+| **Enterprise** | Custom          | > \$10M revenue **or** > 100 employees |
+
+All commercial plans include a license for model training, edge deployment, and
+inference. See the full [Licensing](licensing.md) page for plan details and inclusions.
+
+[Contact us](https://www.lightly.ai/contact) to get started — we'll find the right
+option for your project!
 
 ## Contact
 
@@ -254,19 +292,22 @@ quick_start_object_detection
 quick_start_distillation
 installation
 object_detection
-instance_segmentation
+instance_segmentation/index
 panoptic_segmentation
 semantic_segmentation
 image_classification
+depth_estimation
 pretrain_distill/index
 predict_autolabel
 embed
 Settings <settings/train_settings>
 data/index
 performance/index
+Debugging <debugging/model_instability>
 docker
 tutorials/index
 python_api/index
 faq
+licensing
 changelog
 ```

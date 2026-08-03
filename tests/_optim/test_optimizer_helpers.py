@@ -12,6 +12,7 @@ from torch.nn import Linear
 
 from lightly_train._models import package_helpers
 from lightly_train._optim import optimizer_helpers
+from lightly_train._optim.adamw8bit_args import AdamW8bitArgs
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -24,6 +25,8 @@ from lightly_train._optim.trainable_modules import TrainableModules
     [
         ("adamw", OptimizerType.ADAMW),
         (OptimizerType.ADAMW, OptimizerType.ADAMW),
+        ("adamw8bit", OptimizerType.ADAMW8BIT),
+        (OptimizerType.ADAMW8BIT, OptimizerType.ADAMW8BIT),
         ("sgd", OptimizerType.SGD),
     ],
 )
@@ -45,6 +48,7 @@ def test_get_optimizer_type__invalid() -> None:
     "optim_type, expected",
     [
         (OptimizerType.ADAMW, AdamWArgs),
+        (OptimizerType.ADAMW8BIT, AdamW8bitArgs),
         (OptimizerType.SGD, SGDArgs),
     ],
 )
@@ -78,6 +82,49 @@ def test_get_optimizer() -> None:
     assert pg1["params"] == [linear1.bias, linear2.weight, linear2.bias]
     assert pg1["weight_decay"] == 0.0
     assert pg1["lr"] == optim_args.lr * 2
+
+
+def test_get_optimizer__adamw8bit() -> None:
+    # Constructs the bitsandbytes 8-bit AdamW when bitsandbytes is importable;
+    # skipped otherwise (the dependency is optional).
+    pytest.importorskip("bitsandbytes")
+    from bitsandbytes.optim import AdamW8bit  # type: ignore[attr-defined]
+
+    linear1 = Linear(in_features=1, out_features=1)
+    linear2 = Linear(in_features=1, out_features=2)
+    optim_args = AdamW8bitArgs()
+    optim = optimizer_helpers.get_optimizer(
+        optim_args=optim_args,
+        trainable_modules=TrainableModules(
+            modules=[linear1],
+            modules_no_weight_decay=[linear2],
+        ),
+        lr_scale=2.0,
+    )
+    assert isinstance(optim, AdamW8bit)
+    # Per-group layout is the same as fp32 AdamW (name + lr scaling preserved).
+    pg0 = optim.param_groups[0]
+    assert pg0["name"] == "params"
+    assert pg0["params"] == [linear1.weight]
+    assert pg0["lr"] == optim_args.lr * 2
+    pg1 = optim.param_groups[1]
+    assert pg1["name"] == "params_no_weight_decay"
+    assert pg1["weight_decay"] == 0.0
+
+
+def test_adamw8bit_get_optimizer__missing_bitsandbytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # When bitsandbytes is not importable, get_optimizer raises a clear error
+    # pointing at the optional dependency.
+    import sys
+
+    # Hide both bitsandbytes and its cached submodule so the lazy import fails.
+    monkeypatch.setitem(sys.modules, "bitsandbytes", None)
+    monkeypatch.setitem(sys.modules, "bitsandbytes.optim", None)
+    optim_args = AdamW8bitArgs()
+    with pytest.raises(ImportError, match="bitsandbytes"):
+        optim_args.get_optimizer(params=[Linear(1, 1).weight], lr_scale=1.0)
 
 
 def test_get_weight_decay_parameters() -> None:

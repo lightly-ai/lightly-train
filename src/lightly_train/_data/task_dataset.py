@@ -51,6 +51,9 @@ class TaskDataset(Dataset[TaskDatasetItem]):
     def set_transform(self, transform: TaskTransform) -> None:
         self._transform = transform
 
+    def get_batch_collate_fn_cls(self) -> type[TaskCollateFunction]:
+        return self.batch_collate_fn_cls
+
     def __len__(self) -> int:
         return len(self.image_info)
 
