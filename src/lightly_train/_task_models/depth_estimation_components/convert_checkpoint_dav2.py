@@ -23,11 +23,8 @@ import torch
 from torch import Tensor
 
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model import (
-    DepthAnythingV2MetricDepthEstimation,
-)
-from lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model import (
-    DepthAnythingV2RelativeDepthEstimation,
+from lightly_train._task_models.depth_estimation.task_model import (
+    DepthAnythingDepthEstimation,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,23 +69,7 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
     },
 }
 
-# Task model class per (parsed) model name. The relative and metric models share the
-# official checkpoint layout and DPT shapes, so the same key remapping works for both.
-_MODEL_CLASSES: dict[
-    str,
-    type[DepthAnythingV2RelativeDepthEstimation]
-    | type[DepthAnythingV2MetricDepthEstimation],
-] = {
-    "dinov2/dav2-relative-small": DepthAnythingV2RelativeDepthEstimation,
-    "dinov2/dav2-relative-base": DepthAnythingV2RelativeDepthEstimation,
-    "dinov2/dav2-relative-large": DepthAnythingV2RelativeDepthEstimation,
-    "dinov2/dav2-metric-small-hypersim": DepthAnythingV2MetricDepthEstimation,
-    "dinov2/dav2-metric-base-hypersim": DepthAnythingV2MetricDepthEstimation,
-    "dinov2/dav2-metric-large-hypersim": DepthAnythingV2MetricDepthEstimation,
-    "dinov2/dav2-metric-small-vkitti": DepthAnythingV2MetricDepthEstimation,
-    "dinov2/dav2-metric-base-vkitti": DepthAnythingV2MetricDepthEstimation,
-    "dinov2/dav2-metric-large-vkitti": DepthAnythingV2MetricDepthEstimation,
-}
+_SUPPORTED_MODELS: frozenset[str] = frozenset(_HF_WEIGHTS)
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is never
 # read during depth inference. The official checkpoint stores it with shape (1, 1, C)
@@ -141,8 +122,7 @@ def convert_checkpoint(
             "complying with its license terms."
         )
 
-    model_cls = _MODEL_CLASSES[parsed_name]
-    model = model_cls(
+    model = DepthAnythingDepthEstimation(
         model_name=parsed_name,
         load_weights=False,
     )
@@ -223,11 +203,11 @@ def main() -> None:
 
 def _parse_model_name(model_name: str) -> str:
     key = model_name.lower()
-    if key in _MODEL_CLASSES:
+    if key in _SUPPORTED_MODELS:
         return key
     raise ValueError(
         f"Model name '{model_name}' is not supported. Available models are: "
-        f"{sorted(_MODEL_CLASSES)}."
+        f"{sorted(_SUPPORTED_MODELS)}."
     )
 
 
@@ -244,8 +224,7 @@ def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
 
 
 def _load_official_weights(
-    model: DepthAnythingV2RelativeDepthEstimation
-    | DepthAnythingV2MetricDepthEstimation,
+    model: DepthAnythingDepthEstimation,
     path: Path,
 ) -> None:
     state_dict = _load_state_dict_file(path)

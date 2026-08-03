@@ -11,15 +11,15 @@ data**. LightlyTrain offers three main functionalities for this:
 
    Pretraining lets you train a model on unlabeled data with self-supervised learning
    (SSL) methods. This is ideal if you want to train your own vision foundation models
-   like DINOv2.
+   using a method like [DINOv2](#methods-dinov2).
 
 1. **[Distillation](#methods-distillation)**
 
    Distillation is a special form of pretraining where a large, pretrained teacher
-   model, like DINOv2 or DINOv3, is used to guide the training of a smaller student
-   model. This is the ideal starting point if you want to improve performance of any
-   model that is not already a large vision foundation model, like YOLO, ConvNet, or
-   special transformer architectures.
+   model, like [DINOv2](#models-dinov2) or [DINOv3](#models-dinov3), is used to guide
+   the training of a smaller student model. This is the ideal starting point if you want
+   to improve performance of any model that is not already a large vision foundation
+   model, like YOLO, ConvNet, or special transformer architectures.
 
 1. **[Autolabeling](#predict-autolabel)**
 
@@ -54,7 +54,9 @@ if __name__ == "__main__":
     lightly_train.pretrain(
         out="out/my_experiment",
         data="my_data_dir",
+        # Examples: "edgecrafter/ecvitt", "timm/vits14", CustomModel(), ...
         model="torchvision/resnet50",
+        # Examples: "dinov2", "simclr", "dino", ...
         method="distillation",
         epochs=100,
         batch_size=128,
@@ -67,19 +69,23 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 ````
 
 ```{important}
-The default pretraining method `distillation` is recommended, as it consistently
-outperforms others in extensive experiments. Batch sizes between `128` and `1536` strike
+The default pretraining method [distillation](#methods-distillation) is
+recommended, as it consistently outperforms others in extensive experiments. Batch
+sizes between `128` and `1536` strike
 a good balance between speed and performance. Moreover, long training runs, such as
 2,000 epochs on COCO, significantly improve results. Check the [Methods](#methods-comparison)
-page for more details why `distillation` is the best choice.
+page for more details why [distillation](#methods-distillation) is the best
+choice.
 ```
 
-This will pretrain a ResNet-50 model from TorchVision using images from `my_data_dir`
-and the DINOv2 distillation pretraining method. All training logs, model exports, and
+This will distill a TorchVision ResNet-50 student model using images from `my_data_dir`
+and the default [distillation](#methods-distillation) setup, which uses a
+[DINOv3](#models-dinov3) teacher by default. All training logs, model exports, and
 checkpoints are saved to the output directory at `out/my_experiment`.
 
 ```{tip}
-See {meth}`lightly_train.train` for a complete list of available arguments.
+See {meth}`lightly_train.pretrain` for the complete Python API and run
+`lightly-train pretrain --help` for all command line arguments.
 ```
 
 (train-output)=
@@ -195,17 +201,28 @@ lightly-train pretrain out="out/my_experiment" data='["image2.jpg", "image3.jpg"
 
 See [supported libraries](#models-supported-libraries) in the Models page for a detailed
 list of all supported libraries and their respective docs pages for all supported
-models.
+models. You can also pass a pre-instantiated wrapper for a
+[custom model](#custom-models) when using Python.
 
 ## Method
 
-See [](#methods) for a list of all supported methods.
+The `method` argument selects the self-supervised learning recipe, not the model
+library. For example, `method="dinov2"` trains supported [DINOv2](#methods-dinov2) ViTs
+with the DINOv2 recipe, while `method="distillation"` trains a student model from a
+teacher and is the recommended default. [DINOv3](#models-dinov3) models are currently
+used through [distillation](#methods-distillation) or as fine-tuning backbones, not
+through a standalone `method="dinov3"` recipe. See [Methods](#methods) for a list of all
+supported methods.
 
 (logging)=
 
 ## Loggers
 
-Logging is configured with the `loggers` argument. The following loggers are supported:
+Logging is configured with the `loggers` argument passed to `lightly_train.pretrain()`
+or the `lightly-train pretrain` command. In Python, pass a nested dictionary such as
+`loggers={"jsonl": {"flush_logs_every_n_steps": 10}}`. On the command line, use dot
+notation such as `loggers.jsonl.flush_logs_every_n_steps=10`. The following loggers are
+supported:
 
 - [`jsonl`](#jsonl): Logs training metrics to a .jsonl file (enabled by default)
 - [`mlflow`](#mlflow): Logs training metrics to MLflow (disabled by default, requires
@@ -220,18 +237,39 @@ Logging is configured with the `loggers` argument. The following loggers are sup
 ### JSONL
 
 The JSONL logger is enabled by default and logs training metrics to a .jsonl file at
-`out/my_experiment/metrics.jsonl`.
-
-Disable the JSONL logger with:
+`out/my_experiment/metrics.jsonl`. Configure its arguments under the `jsonl` logger key:
 
 ````{tab} Python
 ```python
-loggers={"jsonl": None}
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.pretrain(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="torchvision/resnet50",
+        loggers={"jsonl": {"flush_logs_every_n_steps": 10}},
+    )
 ````
 
 ````{tab} Command Line
 ```bash
-loggers.jsonl=null
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.jsonl.flush_logs_every_n_steps=10
+````
+
+Disable the JSONL logger with:
+
+````{tab} Python
+```python skip_ruff
+lightly_train.pretrain(
+    ...,
+    loggers={"jsonl": None},
+)
+````
+
+````{tab} Command Line
+```bash
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.jsonl=null
 ````
 
 (mlflow)=
@@ -242,7 +280,7 @@ loggers.jsonl=null
 MLflow must be installed with `pip install "lightly-train[mlflow]"`.
 ```
 
-The mlflow logger can be configured with the following arguments:
+Configure MLflow under the `mlflow` logger key:
 
 ````{tab} Python
 ```python
@@ -274,8 +312,28 @@ lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvi
 
 ### TensorBoard
 
-TensorBoard logs are automatically saved to the output directory. Run TensorBoard in a
-new terminal to visualize the training progress:
+TensorBoard is enabled by default and its logs are automatically saved to the output
+directory. Configure TensorBoard under the `tensorboard` logger key:
+
+````{tab} Python
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.pretrain(
+        out="out/my_experiment",
+        data="my_data_dir",
+        model="torchvision/resnet50",
+        loggers={"tensorboard": {"name": "my_experiment"}},
+    )
+````
+
+````{tab} Command Line
+```bash
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.tensorboard.name="my_experiment"
+````
+
+Run TensorBoard in a new terminal to visualize the training progress:
 
 ```bash
 tensorboard --logdir out/my_experiment
@@ -284,13 +342,16 @@ tensorboard --logdir out/my_experiment
 Disable the TensorBoard logger with:
 
 ````{tab} Python
-```python
-loggers={"tensorboard": None}
+```python skip_ruff
+lightly_train.pretrain(
+    ...,
+    loggers={"tensorboard": None},
+)
 ````
 
 ````{tab} Command Line
 ```bash
-loggers.tensorboard=null
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.tensorboard=null
 ````
 
 (wandb)=
@@ -301,7 +362,7 @@ loggers.tensorboard=null
 Weights & Biases must be installed with `pip install "lightly-train[wandb]"`.
 ```
 
-The Weights & Biases logger can be configured with the following arguments:
+Configure Weights & Biases under the `wandb` logger key:
 
 ````{tab} Python
 ```python
@@ -335,13 +396,16 @@ for more information.
 Disable the Weights & Biases logger with:
 
 ````{tab} Python
-```python
-loggers={"wandb": None}
+```python skip_ruff
+lightly_train.pretrain(
+    ...,
+    loggers={"wandb": None},
+)
 ````
 
 ````{tab} Command Line
 ```bash
-loggers.wandb=null
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet50" loggers.wandb=null
 ````
 
 ## Resume Training
@@ -435,8 +499,8 @@ if __name__ == "__main__":
         data="my_data_dir",                 # Directory with images
         model="torchvision/resnet18",       # Model to train
         method="distillation",              # Pretraining method
-        method_args={                       # Override the default teacher model
-            "teacher": "dinov2/vitl14",
+        method_args={                       # Override the default teacher model (default: dinov3/vitb16)
+            "teacher": "dinov3/vitl16",
         },
     )
 ```
@@ -444,9 +508,16 @@ if __name__ == "__main__":
 
 ````{tab} Command Line
 ```bash
-lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov2/vitl14"
+lightly-train pretrain out="out/my_experiment" data="my_data_dir" model="torchvision/resnet18" method="distillation" method_args.teacher="dinov3/vitl16"
 ```
 ````
+
+```{tip}
+The default teacher for `distillation` / `distillationv3` is `dinov3/vitb16`. See
+{ref}`methods-distillation-default-teacher` for the per-version default table
+and the full list of supported teachers. Use a [DINOv2](#models-dinov2) teacher
+(e.g. `dinov2/vitl14`) for a permissive Apache 2.0 license.
+```
 
 Each pretraining method has its own set of arguments that can be configured.
 LightlyTrain provides sensible defaults that are adjusted depending on the dataset and
@@ -464,8 +535,6 @@ hidden:
 maxdepth: 1
 ---
 Overview <self>
-Distillation <methods/distillation>
-Pretrain DINOv2 <methods/dinov2>
 All Methods <methods/index>
 models/index
 export

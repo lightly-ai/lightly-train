@@ -29,12 +29,12 @@ Documentation of the public API of the `lightly_train` package.
     :members: export_onnx, export_tensorrt, predict, predict_sahi
     :exclude-members: __init__, __new__
 
-.. autoclass:: lightly_train._task_models.dinov2_ltdetr_object_detection.task_model.DINOv2LTDETRObjectDetection
-    :members: predict, predict_sahi
+.. autoclass:: lightly_train._task_models.ltdetr_instance_segmentation.task_model.LTDETRInstanceSegmentation
+    :members: export_onnx, export_tensorrt, predict, predict_batch, predict_sahi
     :exclude-members: __init__, __new__
 
-.. autoclass:: lightly_train._task_models.dinov3_ltdetr_object_detection.task_model.DINOv3LTDETRObjectDetection
-    :members: export_onnx, export_tensorrt, predict, predict_sahi
+.. autoclass:: lightly_train._task_models.ltdetr_object_detection.task_model.LTDETRObjectDetection
+    :members: export_onnx, export_migraphx, export_tensorrt, predict, predict_batch, predict_sahi, predict_sahi_batch
     :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.picodet_object_detection.task_model.PicoDetObjectDetection
@@ -57,20 +57,8 @@ Documentation of the public API of the `lightly_train` package.
     :members: export_onnx, export_tensorrt, predict
     :exclude-members: __init__, __new__
 
-.. autoclass:: lightly_train._task_models.dinov2_dav2_relative_depth_estimation.task_model.DepthAnythingV2RelativeDepthEstimation
-    :members: predict, predict_batch
-    :exclude-members: __init__, __new__
-
-.. autoclass:: lightly_train._task_models.dinov2_dav2_metric_depth_estimation.task_model.DepthAnythingV2MetricDepthEstimation
-    :members: predict, predict_batch
-    :exclude-members: __init__, __new__
-
-.. autoclass:: lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model.DepthAnythingV3RelativeDepthEstimation
-    :members: predict, predict_batch
-    :exclude-members: __init__, __new__
-
-.. autoclass:: lightly_train._task_models.dinov2_dav3_metric_depth_estimation.task_model.DepthAnythingV3MetricDepthEstimation
-    :members: predict, predict_batch
+.. autoclass:: lightly_train._task_models.depth_estimation.task_model.DepthAnythingDepthEstimation
+    :members: predict, predict_batch, export_onnx, export_tensorrt
     :exclude-members: __init__, __new__
 
 ```

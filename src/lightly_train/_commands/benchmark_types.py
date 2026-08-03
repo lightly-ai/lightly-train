@@ -292,7 +292,7 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
         # format to "yolo" if none is specified. This mirrors the behavior of
         # train_object_detection so that the data config is consistent across both.
         v = data_helpers.load_data_yaml_if_path(v, cls.model_fields["data"].annotation)
-        v = data_helpers.set_default_data_format(v)
+        v = data_helpers.set_default_data_format(v, default="yolo")
         return v
 
 

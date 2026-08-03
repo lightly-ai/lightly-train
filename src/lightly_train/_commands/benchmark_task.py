@@ -43,6 +43,7 @@ from lightly_train._commands.benchmark_types import (
     TorchBackendArgs,
 )
 from lightly_train._configs import validate
+from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -59,10 +60,10 @@ from lightly_train._task_models.object_detection_components.utils import (
     _yolo_to_xyxy,
 )
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train._transforms.object_detection_transform import (
-    ObjectDetectionCollateFunction,
-    ObjectDetectionTransform,
-    ObjectDetectionTransformArgs,
+from lightly_train._transforms.ltdetr_transforms.object_detection import (
+    LTDETRObjectDetectionCollateFunction,
+    LTDETRObjectDetectionTransform,
+    LTDETRObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
 from lightly_train.types import (
@@ -78,7 +79,7 @@ def benchmark_object_detection(
     *,
     out: PathLike,
     dataset_name: str,
-    data: dict[str, Any] | str,
+    data: dict[str, Any] | PathLike,
     model: TaskModel | PathLike,
     batch_size: int = 1,
     threshold: float = 0.0,
@@ -160,6 +161,7 @@ def _benchmark_object_detection_from_config(
     transform_args = _build_val_transform_args(model=model)
 
     # Set up validation data.
+    data_arg_helpers.resolve_data_paths(config.data)
     data_args = config.data
     num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers, num_devices_per_node=1
@@ -341,7 +343,7 @@ def _make_val_bbox_params() -> BboxParams:
     )
 
 
-class _BenchmarkValTransformArgs(ObjectDetectionTransformArgs):
+class _BenchmarkValTransformArgs(LTDETRObjectDetectionTransformArgs):
     """Val transform args that mirror the training validation pipeline.
 
     All augmentations are disabled. Only resize and normalize (plus bbox params)
@@ -419,7 +421,7 @@ def _create_val_dataloader(
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
     image_info = list(val_dataset_args.list_image_info())
-    transform = ObjectDetectionTransform(transform_args=transform_args)
+    transform = LTDETRObjectDetectionTransform(transform_args=transform_args)
     dataset = dataset_cls(
         dataset_args=val_dataset_args,
         image_info=image_info,
@@ -435,7 +437,7 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=ObjectDetectionCollateFunction(
+        collate_fn=LTDETRObjectDetectionCollateFunction(
             split="val",
             transform_args=transform_args,
         ),

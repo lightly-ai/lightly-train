@@ -54,6 +54,9 @@ class TransformInput(TypedDict):
 class TransformOutputSingleView(TypedDict):
     image: Tensor
     mask: NotRequired[Tensor]  # | None
+    # Crop/flip geometry of the view, shape (8,):
+    # (crop_x0, crop_y0, crop_x1, crop_y1, image_w, image_h, hflip, vflip).
+    geometry: NotRequired[Tensor]
     # TODO: bbox: Tensor | None
 
 
@@ -70,6 +73,7 @@ class DatasetItem(TypedDict):
     filename: ImageFilename
     views: list[Tensor]  # One tensor per view, of shape (3, H, W) each.
     masks: NotRequired[list[Tensor]]  # One tensor per view, of shape (H, W) each
+    geometries: NotRequired[list[Tensor]]  # One tensor per view, of shape (8,) each.
 
 
 # The type and variable names of the Batch is fully determined by the type and
@@ -80,6 +84,9 @@ class Batch(TypedDict):
     masks: NotRequired[
         list[Tensor]
     ]  # One tensor per view, of shape (batch_size, H, W) each.
+    geometries: NotRequired[
+        list[Tensor]
+    ]  # One tensor per view, of shape (batch_size, 8) each.
 
 
 class TaskDatasetItem(TypedDict):

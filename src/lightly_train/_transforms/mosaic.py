@@ -19,7 +19,12 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import TypeAlias
 
-from lightly_train.types import NDArrayBBoxes, NDArrayClasses, NDArrayImage
+from lightly_train.types import (
+    NDArrayBBoxes,
+    NDArrayBinaryMasksInt,
+    NDArrayClasses,
+    NDArrayImage,
+)
 
 NDArrayXYXYBBoxes: TypeAlias = NDArray[np.float64]
 
@@ -28,6 +33,7 @@ class _MosaicCacheItem(TypedDict):
     img: NDArrayImage
     boxes: NDArrayXYXYBBoxes
     labels: NDArrayClasses
+    masks: NDArrayBinaryMasksInt
 
 
 class MosaicTransform:
@@ -70,7 +76,15 @@ class MosaicTransform:
         image: NDArrayImage,
         bboxes: NDArrayBBoxes,
         class_labels: NDArrayClasses,
-    ) -> tuple[NDArrayImage, NDArrayBBoxes, NDArrayClasses]:
+        binary_masks: NDArrayBinaryMasksInt | None = None,
+    ) -> tuple[
+        NDArrayImage, NDArrayBBoxes, NDArrayClasses, NDArrayBinaryMasksInt | None
+    ]:
+        # When no masks are supplied (e.g. object detection) the mask steps are
+        # skipped entirely and the returned masks are None, preserving the
+        # original image/bbox/label behavior.
+        with_masks = binary_masks is not None
+
         h, w = image.shape[:2]
 
         # Convert YOLO normalized (cx, cy, bw, bh) -> xyxy absolute.
@@ -82,6 +96,14 @@ class MosaicTransform:
             max_size=self.max_size,
         )
         resized_labels = class_labels.copy()
+        # Resize masks to the exact resized-image dimensions so they stay
+        # pixel-aligned with the image and boxes.
+        new_height, new_width = resized_img.shape[:2]
+        resized_masks = (
+            _resize_masks(binary_masks, new_height, new_width)
+            if binary_masks is not None
+            else _empty_masks(new_height, new_width)
+        )
 
         # Cache management (matching LT-DETR load_samples_from_cache).
         self._mosaic_cache.append(
@@ -89,6 +111,7 @@ class MosaicTransform:
                 "img": resized_img,
                 "boxes": resized_boxes,
                 "labels": resized_labels,
+                "masks": resized_masks,
             }
         )
         if len(self._mosaic_cache) > self.max_cached_images:
@@ -105,7 +128,12 @@ class MosaicTransform:
         # Sample 3 from cache (may include duplicates).
         sampled_indices = random.choices(range(len(self._mosaic_cache)), k=3)
         samples: list[_MosaicCacheItem] = [
-            {"img": resized_img, "boxes": resized_boxes, "labels": resized_labels}
+            {
+                "img": resized_img,
+                "boxes": resized_boxes,
+                "labels": resized_labels,
+                "masks": resized_masks,
+            }
         ]
         for idx in sampled_indices:
             samples.append(self._mosaic_cache[idx])
@@ -126,6 +154,13 @@ class MosaicTransform:
         total_boxes = sum(sample["boxes"].shape[0] for sample in samples)
         mosaic_boxes = np.empty((total_boxes, 4), dtype=np.float64)
         mosaic_labels = np.empty((total_boxes,), dtype=resized_labels.dtype)
+        # Masks are assembled into a single canvas-sized array kept index-aligned
+        # with mosaic_boxes / mosaic_labels via the same box_start:box_end slices.
+        mosaic_masks = (
+            np.zeros((total_boxes, 2 * max_h, 2 * max_w), dtype=np.uint8)
+            if with_masks
+            else None
+        )
         box_start = 0
 
         for sample, (dx, dy) in zip(samples, offsets):
@@ -141,6 +176,10 @@ class MosaicTransform:
             mosaic_boxes[box_start:box_end, [0, 2]] += dx
             mosaic_boxes[box_start:box_end, [1, 3]] += dy
             mosaic_labels[box_start:box_end] = sample["labels"]
+            if mosaic_masks is not None:
+                mosaic_masks[
+                    box_start:box_end, dy : dy + sample_h, dx : dx + sample_w
+                ] = sample["masks"]
             box_start = box_end
 
         angle, translate, scale = _sample_affine_params(
@@ -170,7 +209,16 @@ class MosaicTransform:
         out_bboxes = _xyxy_to_yolo(out_boxes_xyxy, out_w, out_h)
         out_labels = mosaic_labels
 
-        return out_img_np, out_bboxes, out_labels
+        out_masks: NDArrayBinaryMasksInt | None = None
+        if mosaic_masks is not None:
+            out_masks = _apply_affine_to_masks(
+                masks=mosaic_masks,
+                angle=angle,
+                translate=translate,
+                scale=scale,
+            )
+
+        return out_img_np, out_bboxes, out_labels, out_masks
 
 
 def _sample_affine_params(
@@ -187,6 +235,18 @@ def _sample_affine_params(
     ty = int(round(torch.empty(1).uniform_(-max_dy, max_dy).item()))
     scale = torch.empty(1).uniform_(scaling_range[0], scaling_range[1]).item()
     return angle, (tx, ty), scale
+
+
+def _ensure_supported_image_dtype(image: Any) -> NDArrayImage:
+    if not isinstance(image, np.ndarray):
+        raise ValueError(f"Expected numpy.ndarray, got {type(image)}.")
+    if image.dtype == np.uint8:
+        return image.astype(np.uint8, copy=False)
+    if image.dtype == np.float32:
+        return image.astype(np.float32, copy=False)
+    raise ValueError(
+        f"Unsupported image dtype {image.dtype}. Only uint8 and float32 are supported."
+    )
 
 
 def _resize_image_and_boxes(
@@ -249,6 +309,38 @@ def _resize_image_with_torchvision(
     )
 
 
+def _empty_masks(height: int, width: int) -> NDArrayBinaryMasksInt:
+    """Return an empty (0, height, width) binary mask array."""
+    empty: NDArrayBinaryMasksInt = np.zeros((0, height, width), dtype=np.uint8)
+    return empty
+
+
+def _resize_masks(
+    masks: NDArrayBinaryMasksInt,
+    new_height: int,
+    new_width: int,
+) -> NDArrayBinaryMasksInt:
+    """Resize per-instance binary masks (N, H, W) to (N, new_height, new_width).
+
+    Uses nearest-neighbor interpolation to keep masks binary. The target size is
+    the exact resized-image size so masks stay pixel-aligned with the image.
+    """
+    if masks.shape[0] == 0:
+        return _empty_masks(new_height, new_width)
+
+    masks_tensor = torch.from_numpy(np.ascontiguousarray(masks))
+    resized_masks_tensor = transforms_functional.resize(
+        masks_tensor,
+        size=[new_height, new_width],
+        interpolation=InterpolationMode.NEAREST,
+        antialias=False,
+    )
+    resized_masks: NDArrayBinaryMasksInt = (
+        resized_masks_tensor.cpu().numpy().astype(np.uint8, copy=False)
+    )
+    return resized_masks
+
+
 def _apply_affine_to_image(
     image: NDArrayImage,
     angle: float,
@@ -283,18 +375,6 @@ def _apply_affine_to_image(
         return _ensure_supported_image_dtype(
             transformed_image_tensor.permute(1, 2, 0).cpu().numpy()
         )
-    raise ValueError(
-        f"Unsupported image dtype {image.dtype}. Only uint8 and float32 are supported."
-    )
-
-
-def _ensure_supported_image_dtype(image: Any) -> NDArrayImage:
-    if not isinstance(image, np.ndarray):
-        raise ValueError(f"Expected numpy.ndarray, got {type(image)}.")
-    if image.dtype == np.uint8:
-        return image.astype(np.uint8, copy=False)
-    if image.dtype == np.float32:
-        return image.astype(np.float32, copy=False)
     raise ValueError(
         f"Unsupported image dtype {image.dtype}. Only uint8 and float32 are supported."
     )
@@ -346,6 +426,38 @@ def _apply_affine_to_boxes(
         np.float64, copy=False
     )
     return transformed_boxes_float64
+
+
+def _apply_affine_to_masks(
+    masks: NDArrayBinaryMasksInt,
+    angle: float,
+    translate: tuple[int, int],
+    scale: float,
+) -> NDArrayBinaryMasksInt:
+    """Apply the post-mosaic affine transform to per-instance binary masks.
+
+    Mirrors _apply_affine_to_image but uses nearest-neighbor interpolation and a
+    zero fill to keep masks binary. Out-of-canvas regions become 0; no clipping
+    is needed.
+    """
+    if masks.shape[0] == 0:
+        return masks.astype(np.uint8, copy=True)
+
+    masks_tensor = torch.from_numpy(np.ascontiguousarray(masks))
+    transformed_masks_tensor = transforms_functional.affine(
+        masks_tensor,
+        angle=angle,
+        translate=list(translate),
+        scale=scale,
+        shear=[0.0, 0.0],
+        interpolation=InterpolationMode.NEAREST,
+        fill=0,
+        center=None,
+    )
+    transformed_masks: NDArrayBinaryMasksInt = (
+        transformed_masks_tensor.cpu().numpy().astype(np.uint8, copy=False)
+    )
+    return transformed_masks
 
 
 def _get_affine_matrix(

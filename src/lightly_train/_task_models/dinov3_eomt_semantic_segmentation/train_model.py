@@ -53,6 +53,7 @@ from lightly_train._task_models.train_model import (
     TrainModelArgs,
 )
 from lightly_train._torch_compile import TorchCompileArgs
+from lightly_train._torch_helpers import total_gradient_norm
 from lightly_train._visualize import semantic_segmentation
 from lightly_train.types import MaskSemanticSegmentationBatch, PathLike
 
@@ -74,8 +75,6 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
     # Corresponds to L_2 in the paper and network.num_blocks in the EoMT code.
     # Defaults in paper: base=3, large=4, giant=5.
     num_joint_blocks: int | Literal["auto"] = "auto"
-    # Backbone args, e.g., patch size.
-    patch_size: int | Literal["auto"] = "auto"
     fix_num_upscale_blocks: bool = True
 
     # Loss terms
@@ -114,24 +113,6 @@ class DINOv3EoMTSemanticSegmentationTrainArgs(TrainModelArgs):
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
     ) -> None:
-        # Set the patch size.
-        if self.patch_size == "auto":
-            patch_size = model_init_args.get("patch_size", None)
-            if patch_size is not None:
-                self.patch_size = patch_size
-            else:
-                match = re.match(
-                    r"dinov3/(?P<model_size>vit(t|s|l|b|g|h|7b))(?P<patch_size>\d+).*",
-                    model_name,
-                )
-                if match is None:
-                    raise ValueError(
-                        f"Unknown model name '{model_name}', "
-                        "see https://docs.lightly.ai/train/stable/semantic_segmentation.html#model "
-                        "for all supported models."
-                    )
-                self.patch_size = int(match.group("patch_size"))
-
         if self.num_queries == "auto":
             num_queries = model_init_args.get("num_queries", 100)
             assert isinstance(num_queries, int)  # for mypy
@@ -223,9 +204,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
 
         normalize = no_auto(val_transform_args.normalize)
 
-        # Prepare backbone args.
-        backbone_args = {"patch_size": model_args.patch_size}
-
         self.model = DINOv3EoMTSemanticSegmentation(
             model_name=model_name,
             classes=data_args.included_classes,
@@ -239,8 +217,6 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
             backbone_freeze=self.model_args.backbone_freeze,
             backbone_weights=model_args.backbone_weights,
             backbone_url=model_args.backbone_url,
-            backbone_args=backbone_args,
-            # TODO (Lionel, 10/25): Pass backbone args.
             load_weights=load_weights,
             fix_num_upscale_blocks=model_args.fix_num_upscale_blocks,
         )
@@ -595,14 +571,17 @@ class DINOv3EoMTSemanticSegmentationTrain(TrainModel):
         if self.model_args.backbone_freeze:
             self.model.freeze_backbone()
 
-    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> None:
-        if self.model_args.gradient_clip_val > 0:
-            fabric.clip_gradients(
+    def clip_gradients(self, fabric: Fabric, optimizer: Optimizer) -> Tensor | None:
+        gradient_clip_val = self.model_args.gradient_clip_val
+        if gradient_clip_val > 0:
+            return fabric.clip_gradients(
                 module=self,
                 optimizer=optimizer,
-                max_norm=self.model_args.gradient_clip_val,
+                max_norm=gradient_clip_val,
                 error_if_nonfinite=False,
             )
+        # Clipping disabled: return the total norm for logging without mutating grads.
+        return total_gradient_norm(self.parameters())
 
     def load_train_state_dict(
         self, state_dict: dict[str, Any], strict: bool = True, assign: bool = False

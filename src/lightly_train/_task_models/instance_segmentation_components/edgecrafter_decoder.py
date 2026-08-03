@@ -20,6 +20,10 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 # - Added EdgeCrafter instance segmentation mask output support.
 # - Kept encoder auxiliary outputs box/class-only (matching EdgeCrafter, whose
 #   ``enc_aux_outputs`` carry no masks).
+# - Added a deploy-only deferred mask path (``convert_to_deploy`` sets
+#   ``_deploy_masks``) that emits the mask-head operands instead of the full
+#   mask tensor; training and validation keep the materialized-mask path so the
+#   mask-aware matcher and mask losses still receive per-query masks.
 from __future__ import annotations
 
 from typing import Any
@@ -37,10 +41,10 @@ from lightly_train._task_models.object_detection_components.dfine_decoder import
     DFINETransformer,
 )
 
-__all__ = ["EdgeCrafterInstanceSegmentationTransformer"]
+__all__ = ["ECSegTransformer"]
 
 
-class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
+class ECSegTransformer(DFINETransformer):
     """D-FINE transformer that adds per-query instance mask logits."""
 
     def __init__(
@@ -48,13 +52,19 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
         *args: Any,
         mask_bottleneck_ratio: int | None = 1,
         mask_downsample_ratio: int = 4,
-        mask_spatial_level: int = 0,
         mask_layer_scale_init_value: float = 0.0,
         eval_spatial_size: tuple[int, int],
         **kwargs: Any,
     ) -> None:
         kwargs["eval_spatial_size"] = eval_spatial_size
         super().__init__(*args, **kwargs)  # type: ignore[no-untyped-call]
+
+        # The deferred-einsum mask path is deploy-only. Training and validation
+        # both run ``_forward_train`` (validation in eval mode) and need
+        # materialized ``pred_masks`` for the mask-aware matcher and the mask
+        # losses; gating on ``self.training`` would wrongly drop masks during
+        # validation. ``TaskModel.deploy()`` flips this via ``convert_to_deploy``.
+        self._deploy_masks = False
 
         # The mask head consumes one decoder query state per block. The decoder
         # can only emit ``hidden_dim``-width query states; wider post-``eval_idx``
@@ -72,7 +82,6 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
                 "eval_idx < num_layers - 1)."
             )
 
-        self.mask_spatial_level = mask_spatial_level
         self.mask_head = EdgeCrafterInstanceSegmentationHead(
             in_dim=self.hidden_dim,
             # One block per decoder layer. With the unsupported wide-layer config
@@ -86,6 +95,13 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
             layer_scale_init_value=mask_layer_scale_init_value,
         )
 
+    def convert_to_deploy(self) -> None:
+        # Invoked by ``TaskModel.deploy()`` (ONNX/TensorRT export and inference).
+        # Enables the deferred-einsum mask path; training/validation keep the
+        # materialized-mask path.
+        super().convert_to_deploy()  # type: ignore[no-untyped-call]
+        self._deploy_masks = True
+
     def forward(
         self,
         feats: list[Tensor],
@@ -94,7 +110,7 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
     ) -> dict[str, Any]:
         proj_feats = self._get_projected_feats(feats)  # type: ignore[no-untyped-call]
         if spatial_feat is None:
-            spatial_feat = proj_feats[self.mask_spatial_level]
+            spatial_feat = proj_feats[0]
 
         memory, spatial_shapes = self._get_encoder_input_from_projected_feats(
             proj_feats
@@ -156,6 +172,25 @@ class EdgeCrafterInstanceSegmentationTransformer(DFINETransformer):
             dn_meta=dn_meta,
             return_query_states=True,
         )
+
+        if self._deploy_masks:
+            # Deploy only: defer the mask einsum to the postprocessor so it can
+            # gather the selected queries (a small (B, Q, C) gather) instead of
+            # gathering the full (B, Q, Hm, Wm) mask tensor. Produces identical
+            # masks because the per-query einsum commutes with the query gather.
+            # Training and validation keep the materialized-mask path below so
+            # the matcher and criterion still see ``pred_masks``.
+            final_query = query_states.unbind(0)[-1]
+            mask_spatial, mask_query = self.mask_head.forward_deploy(
+                spatial_feat, final_query
+            )
+            return {
+                "pred_logits": out_logits[-1],
+                "pred_boxes": out_bboxes[-1],
+                "pred_mask_spatial": mask_spatial,
+                "pred_mask_query": mask_query,
+                "pred_mask_bias": self.mask_head.bias,
+            }
 
         mask_logits = torch.stack(
             self.mask_head(

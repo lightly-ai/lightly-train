@@ -1,0 +1,26 @@
+// For format details, see https://aka.ms/devcontainer.json.
+{
+	"name": "LightlyTrain C++ ONNXRuntime and TensorRT Dev Container",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": "."
+	},
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/lightly-train,type=bind,consistency=cached",
+	"workspaceFolder": "/workspace/lightly-train",
+	// Requires the NVIDIA Container Toolkit on the host.
+	"runArgs": ["--gpus=all"],
+	"hostRequirements": {
+		"gpu": "optional"
+	},
+	// Installs lightly-train from the mounted checkout plus its locked C++ inference
+	// dependencies. The Makefile is the single source of truth for this setup.
+	//
+	// Dependencies come from requirements/requirements.txt (this directory),
+	// compiled with `make -C .devcontainer/cpp-inference lock`.
+	//
+	// The pinned-torch-maximal torch/torchvision builds (+cu118) only exist on
+	// PyTorch's own index, which uv.lock/pyproject.toml know about via
+	// `[[tool.uv.index]]` but a plain compiled requirements.txt doesn't --
+	// hence the matching installation arguments in the Makefile.
+	"postCreateCommand": "git config --global --add safe.directory /workspace/lightly-train && make -C .devcontainer/cpp-inference install"
+}

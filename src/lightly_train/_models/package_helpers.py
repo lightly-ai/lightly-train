@@ -28,6 +28,8 @@ from lightly_train._models.torchvision.torchvision_package import TORCHVISION_PA
 from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PACKAGE
 from lightly_train.errors import UnknownModelError
 
+IMAGENET_NORMALIZED_PACKAGE_NAMES = {"dinov2", "dinov3", "radio"}
+
 
 def list_base_packages() -> list[BasePackage]:
     """Lists all supported packages."""

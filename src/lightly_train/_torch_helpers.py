@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+from collections.abc import Iterable
 from typing import Any, Callable, Generator
 
 import torch
@@ -93,3 +94,23 @@ def update_momentum(model: Module, model_ema: Module, m: float) -> None:
         tensors_ema=list(model_ema.parameters()),
         m=m,
     )
+
+
+@torch.no_grad()
+def total_gradient_norm(parameters: Iterable[Tensor]) -> Tensor:
+    """Total L2 gradient norm across all parameters that currently have a gradient.
+
+    Computed without clipping or otherwise mutating the gradients. The accumulator
+    is initialized lazily from the first parameter with a grad, so it lives on the
+    same device as the gradients (works on CPU, CUDA, MPS, meta).
+
+    Returns a zero scalar (on CPU) when no parameter has a gradient.
+    """
+    total_sq: Tensor | None = None
+    for p in parameters:
+        if p.grad is not None:
+            sq = p.grad.detach().pow(2).sum()
+            total_sq = sq if total_sq is None else total_sq + sq
+    if total_sq is None:
+        return torch.tensor(0.0)
+    return total_sq.sqrt()

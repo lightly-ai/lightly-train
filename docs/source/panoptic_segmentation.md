@@ -5,7 +5,7 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation.ipynb)
 
 ```{note}
-🔥 LightlyTrain now supports training **DINOv2** and **DINOv3**-based panoptic
+LightlyTrain now supports training **DINOv2** and **DINOv3**-based panoptic
 segmentation models with the [EoMT architecture](https://arxiv.org/abs/2503.19108) by
 Kerssies et al.!
 ```
@@ -48,8 +48,10 @@ single NVIDIA T4 GPU with FP16 precision.
 ## Train a Panoptic Segmentation Model
 
 Training a panoptic segmentation model with LightlyTrain is straightforward and only
-requires a few lines of code. See [data](#panoptic-segmentation-data) for more details
-on how to prepare your dataset.
+requires a few lines of code using the
+{py:func}`train_panoptic_segmentation <lightly_train.train_panoptic_segmentation>`
+function. See [data](#panoptic-segmentation-data) for more details on how to prepare
+your dataset.
 
 ```python
 import lightly_train
@@ -74,13 +76,15 @@ if __name__ == "__main__":
 ```
 
 During training, the best and last model weights are exported to
-`out/my_experiment/exported_models/`, unless disabled in `save_checkpoint_args`:
+`out/my_experiment/exported_models/`, unless disabled in
+[`save_checkpoint_args`](settings/train_settings.md#save_checkpoint_args):
 
 - best (highest validation PQ): `exported_best.pt`
 - last: `exported_last.pt`
 
 You can use these weights to continue fine-tuning on another dataset by loading the
-weights with `model="<checkpoint path>"`:
+weights via the [`model`](settings/train_settings.md#model) argument
+(`model="<checkpoint path>"`):
 
 ```python
 import lightly_train
@@ -127,6 +131,7 @@ You can visualize the predicted masks like this:
 
 ```python skip_ruff
 import matplotlib.pyplot as plt
+import torch
 from torchvision.io import read_image
 from torchvision.utils import draw_segmentation_masks
 
@@ -183,6 +188,11 @@ define the thing and stuff classes and list the individual segments for each ima
 the [COCO Panoptic Segmentation format](https://cocodataset.org/#format-data) for more
 details.
 
+The `data` argument accepts either a dictionary or a path to a YAML file containing the
+same configuration. When loading from YAML, relative paths are resolved relative to the
+YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
+a validation error. Training uses the `train` and `val` splits.
+
 The following image formats are supported:
 
 - jpg
@@ -232,11 +242,33 @@ for an example dataset and how to set up the data for training.
 
 ## Model
 
-The `model` argument defines the model used for panoptic segmentation training. The
-following models are available:
+The [`model`](settings/train_settings.md#model) argument defines the model used for
+panoptic segmentation training. The following models are available:
 
-### DINOv3 Models
+Unless noted otherwise, all `dinov2/`-prefixed and `dinov3/`-prefixed model backbones
+are initialized from weights pretrained by Meta through
+[DINOv2](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models)
+and
+[DINOv3](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models),
+respectively. Non-EUPE DINOv3 models with `vitt16` and `vitt16plus` backbones use
+Lightly-pretrained weights, while `eupe`-postfixed and `lingbot`-postfixed variants use
+[EUPE weights](https://github.com/facebookresearch/EUPE) and
+[LingBot Vision weights](https://github.com/Robbyant/lingbot-vision), respectively.
 
+DINOv3 models are under the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
+variants are under the
+[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+LingBot Vision weights are released under the
+[Apache 2.0 license](https://github.com/Robbyant/lingbot-vision?tab=Apache-2.0-1-ov-file);
+as they are built on DINOv3, the terms of the
+[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file) also
+apply to these models.
+
+```{dropdown} DINOv3 ViT backbones
+---
+open:
+---
 - `dinov3/vitt16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitt16plus-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vits16-eomt-panoptic-coco` (fine-tuned on COCO)
@@ -244,36 +276,34 @@ following models are available:
 - `dinov3/vitl16-eomt-panoptic-coco` (fine-tuned on COCO)
 - `dinov3/vitl16-eomt-panoptic-coco-1280` (fine-tuned on COCO with 1280x1280 input size)
 - `dinov3/vitt16-eomt`
-- `dinov3/vitt16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitt16plus-eomt`
 - `dinov3/vits16-eomt`
-- `dinov3/vits16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vits16plus-eomt`
 - `dinov3/vitb16-eomt`
-- `dinov3/vitb16-eupe-eomt` - [EUPE weights](https://github.com/facebookresearch/EUPE)
 - `dinov3/vitl16-eomt`
 - `dinov3/vitl16plus-eomt`
 - `dinov3/vith16plus-eomt`
 - `dinov3/vit7b16-eomt`
+```
 
-Unless noted otherwise, all DINOv3 backbones are initialized from weights
-[pretrained by Meta](https://github.com/facebookresearch/dinov3/tree/main?tab=readme-ov-file#pretrained-models).
-The non-EUPE models with `vitt16` and `vitt16plus` backbones use Lightly-pretrained
-DINOv3 backbone weights instead. Models marked as EUPE use
-[EUPE weights](https://github.com/facebookresearch/EUPE). DINOv3 models are under the
-[DINOv3 license](https://github.com/facebookresearch/dinov3?tab=License-1-ov-file). EUPE
-models are under the
-[FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
+```{dropdown} DINOv3 ViT backbones with EUPE weights
+- `dinov3/vitt16-eupe-eomt`
+- `dinov3/vits16-eupe-eomt`
+- `dinov3/vitb16-eupe-eomt`
+```
 
-### DINOv2 Models
+```{dropdown} DINOv3 ViT backbones with LingBot Vision weights
+- `dinov3/vits16-lingbot-eomt`
+- `dinov3/vitb16-lingbot-eomt`
+- `dinov3/vitl16-lingbot-eomt`
+```
 
+```{dropdown} DINOv2 ViT backbones
 - `dinov2/vits14-eomt`
 - `dinov2/vitb14-eomt`
 - `dinov2/vitl14-eomt`
 - `dinov2/vitg14-eomt`
-
-All DINOv2 models are
-[pretrained by Meta](https://github.com/facebookresearch/dinov2?tab=readme-ov-file#pretrained-models).
+```
 
 ## Training Settings
 
@@ -302,6 +332,7 @@ See [](train-settings-resume-training) on how to resume training.
 ## Default Image Transform Arguments
 
 The following are the default image transform arguments. See
+[`transform_args`](settings/train_settings.md#transform_args) and
 [](train-settings-transforms) on how to customize transform settings.
 
 `````{dropdown} EoMT Panoptic Segmentation DINOv3 Default Transform Arguments
@@ -368,7 +399,7 @@ See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_onnx` for all available op
 when exporting to ONNX.
 
 The following notebook shows how to export a model to ONNX in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/panoptic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation_export.ipynb)
 
 (panoptic-segmentation-tensorrt)=
 
@@ -410,4 +441,4 @@ See {py:meth}`~.DINOv3EoMTPanopticSegmentation.export_tensorrt` for all availabl
 options when exporting to TensorRT.
 
 You can also learn more about exporting EoMT to TensorRT using our Colab notebook:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/panoptic_segmentation_export.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/eomt_panoptic_segmentation_export.ipynb)

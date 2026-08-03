@@ -39,7 +39,7 @@ lightly_train.train_object_detection(
     # Model
     ## Name of the object detection model architecture to use.
     ## See https://docs.lightly.ai/train/stable/object_detection.html#model
-    model="{{ model or 'dinov3/vitt16-ltdetr-coco' }}",
+    model="{{ model or 'ltdetrv2-s-coco' }}",
     ## Dictionary with model-specific training parameters. The available keys vary by architecture.
     model_args={{ model_args|default(None) }},
 

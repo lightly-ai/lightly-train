@@ -214,6 +214,26 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_convnext_base_eupe_lvd1689.pth",
         list=True,
     ),
+    # LingBot Vision models (Robbyant, built on DINOv3 and pretrained with masked
+    # boundary modeling).
+    "vits16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vits16,
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-small/resolve/main/model.pt?download=true",
+        local_path="dinov3_vits16_lingbot.pth",
+        list=True,
+    ),
+    "vitb16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitb16,
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-base/resolve/main/model.pt?download=true",
+        local_path="dinov3_vitb16_lingbot.pth",
+        list=True,
+    ),
+    "vitl16-lingbot": _DINOv3ModelInfo(
+        builder=backbones.dinov3_vitl16,
+        default_weights="https://huggingface.co/robbyant/lingbot-vision-vit-large/resolve/main/model.pt?download=true",
+        local_path="dinov3_vitl16_lingbot.pth",
+        list=True,
+    ),
 }
 
 
@@ -300,6 +320,12 @@ class DINOv3Package(MultiScaleFeaturePackage):
         args: dict[str, Any] = {"in_chans": num_input_channels}
         if model_args is not None:
             args.update(model_args)
+
+        # DINOv3 builders hardcode drop_path_rate internally and re-splat **kwargs, so
+        # forwarding it here raises "got multiple values for keyword argument
+        # 'drop_path_rate'". No DINOv3 builder accepts it as a parameter, so dropping it
+        # is a no-op for the model.
+        args.pop("drop_path_rate", None)
 
         # We interpret entries from MODEL_NAME_TO_INFO as statedict not models.
         # Therefore model_name must be mapped to statedict_name.

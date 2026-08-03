@@ -1,0 +1,7 @@
+# The Dockerfile is built with the repository root as its context. Only send
+# files required to install the local LightlyTrain package.
+**
+!pyproject.toml
+!README.md
+!src/
+!src/**

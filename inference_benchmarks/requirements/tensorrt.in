@@ -1,0 +1,2 @@
+lightly-train[onnx,onnxruntime,onnxslim] @ git+https://github.com/lightly-ai/lightly-train.git@main
+tensorrt-cu13>=10

@@ -25,18 +25,18 @@ from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWra
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.dinov3.dinov3_src.models.convnext import ConvNeXt
 from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
-    DinoVisionTransformer,
+    DinoVisionTransformer as DINOv3DinoVisionTransformer,
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_convnext_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.dino_vit_wrapper import (
+    DINOSTAs,
+)
+from lightly_train._task_models.ltdetr_object_detection.dinov3_convnext_wrapper import (
     DINOv3ConvNextWrapper,
 )
-from lightly_train._task_models.dinov3_ltdetr_object_detection.dinov3_vit_wrapper import (
-    DINOv3STAs,
-)
-from lightly_train._task_models.dinov3_ltdetr_object_detection.ecvit_vit_wrapper import (
+from lightly_train._task_models.ltdetr_object_detection.ecvit_vit_wrapper import (
     ECViTBackboneWrapper,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
@@ -393,7 +393,7 @@ class _RTDETRPostProcessorConfig(PydanticConfig):
 
 
 class _DINOv3LTDETRConfig(PydanticConfig):
-    decoder_name: _LTDETRDecoderName = "rtdetrv2"
+    decoder_name: _LTDETRDecoderName = "dfine"
     hybrid_encoder: _HybridEncoderConfig
     rtdetr_transformer: _RTDETRTransformerv2Config
     dfine_transformer: _DFINETransformerConfig
@@ -553,6 +553,25 @@ class _DINOv3LTDETRViTLConfig(_DINOv3LTDETRConfig):
     )
 
 
+# Short aliases for EdgeCrafter (ECViT) LT-DETR object-detection models.
+# ``ltdetrv2-{s,m,l,x}`` -> ``edgecrafter/<ecvit preset>-ltdetr``.
+# These are resolved by ``_resolve_ltdetr_alias`` at the entry of
+# ``_DINOv3LTDETRBase.parse_model_name`` so users can pass the short form
+# directly to ``train_object_detection(model=...)`` and ``load_model(...)``.
+# Order follows increasing backbone capacity (embed_dim / ffn).
+_LTDETR_V2_ALIASES: dict[str, str] = {
+    "ltdetrv2-s": "edgecrafter/ecvitt-ltdetr",
+    "ltdetrv2-m": "edgecrafter/ecvittplus-ltdetr",
+    "ltdetrv2-l": "edgecrafter/ecvits-ltdetr",
+    "ltdetrv2-x": "edgecrafter/ecvitsplus-ltdetr",
+}
+
+
+def _resolve_ltdetr_alias(model_name: str) -> str:
+    """Return the canonical LT-DETR model name for a short alias, or the input unchanged."""
+    return _LTDETR_V2_ALIASES.get(model_name, model_name)
+
+
 class _DINOv3LTDETRBase(TaskModel):
     model_suffix = "ltdetr"
 
@@ -567,7 +586,7 @@ class _DINOv3LTDETRBase(TaskModel):
         backbone_freeze: bool = False,
         backbone_weights: PathLike | None = None,
         backbone_args: dict[str, Any] | None = None,
-        decoder_name: _LTDETRDecoderName = "rtdetrv2",
+        decoder_name: _LTDETRDecoderName = "dfine",
         load_weights: bool = True,
     ) -> None:
         """Create a DINOv3 LTDETR task model.
@@ -672,7 +691,7 @@ class _DINOv3LTDETRBase(TaskModel):
         # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
         # and ignores `patch_size`/`weights` in model_args).
         if package_name == EDGE_CRAFTER_PACKAGE.name:
-            backbone: ConvNeXt | DinoVisionTransformer | ECViTModelWrapper = (
+            backbone: ConvNeXt | DINOv3DinoVisionTransformer | ECViTModelWrapper = (
                 EDGE_CRAFTER_PACKAGE.get_model(
                     model_name=parsed_name["backbone_name"],
                     model_args=None,
@@ -687,7 +706,12 @@ class _DINOv3LTDETRBase(TaskModel):
                 **get_model_kwargs,
             )
         assert isinstance(
-            backbone, (ConvNeXt, DinoVisionTransformer, ECViTModelWrapper)
+            backbone,
+            (
+                ConvNeXt,
+                DINOv3DinoVisionTransformer,
+                ECViTModelWrapper,
+            ),
         )
 
         # Map preset name -> (config_cls, config_name_strip_suffixes). For
@@ -725,24 +749,23 @@ class _DINOv3LTDETRBase(TaskModel):
 
         config.resolve_auto(patch_size=patch_size)
 
-        self.backbone: DINOv3STAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
+        self.backbone: DINOSTAs | DINOv3ConvNextWrapper | ECViTBackboneWrapper
 
         if isinstance(backbone, ECViTModelWrapper):
             # ECViT already fuses its own pyramid; no SpatialPriorModule
             # (use_sta=False). The wrapper exposes (P3, P4, P5) with channel
             # counts matching the encoder config's in_channels via `proj_dim`.
             self.backbone = ECViTBackboneWrapper(model_wrapper=backbone)
-        elif isinstance(backbone, DinoVisionTransformer):
+        elif isinstance(backbone, DINOv3DinoVisionTransformer):
             # TODO(Guarin, 02/26): Improve how mask tokens are handled for fine-tuning.
             backbone.mask_token.requires_grad = False  # type: ignore
 
             # ViT models.
             vit_model_wrapper = DINOv3ViTModelWrapper(backbone)
-            self.backbone = DINOv3STAs(
+            self.backbone = DINOSTAs(
                 model_wrapper=vit_model_wrapper,
                 **config.backbone_wrapper.model_dump(),
             )
-
         else:
             # ConvNext models.
             assert isinstance(backbone, ConvNeXt)
@@ -763,11 +786,14 @@ class _DINOv3LTDETRBase(TaskModel):
     def list_model_names(cls) -> list[str]:
         # Concatenate the DINOv3 and EdgeCrafter (ECViT) backbone model names,
         # each suffixed with the LTDETR task suffix. Both packages share this
-        # task model.
+        # task model. Short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) are appended
+        # so they show up in error messages and discoverability listings.
         names: list[str] = []
         names.extend(DINOV3_PACKAGE.list_model_names())
         names.extend(EDGE_CRAFTER_PACKAGE.list_model_names())
-        return [f"{name}-{cls.model_suffix}" for name in names]
+        names = [f"{name}-{cls.model_suffix}" for name in names]
+        names.extend(_LTDETR_V2_ALIASES.keys())
+        return names
 
     @classmethod
     def is_supported_model(cls, model: str) -> bool:
@@ -780,6 +806,12 @@ class _DINOv3LTDETRBase(TaskModel):
 
     @classmethod
     def parse_model_name(cls, model_name: str) -> dict[str, str]:
+        # Resolve short LT-DETRv2 aliases (e.g. ``ltdetrv2-s``) to their
+        # canonical ``edgecrafter/<preset>-ltdetr`` form before format
+        # validation. Done first so the error message below reports the
+        # resolved canonical name when applicable.
+        model_name = _resolve_ltdetr_alias(model_name)
+
         def raise_invalid_name() -> NoReturn:
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "

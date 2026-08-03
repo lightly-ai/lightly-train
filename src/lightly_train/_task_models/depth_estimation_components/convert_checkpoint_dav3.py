@@ -23,11 +23,8 @@ import torch
 from torch import Tensor
 
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.dinov2_dav3_metric_depth_estimation.task_model import (
-    DepthAnythingV3MetricDepthEstimation,
-)
-from lightly_train._task_models.dinov2_dav3_relative_depth_estimation.task_model import (
-    DepthAnythingV3RelativeDepthEstimation,
+from lightly_train._task_models.depth_estimation.task_model import (
+    DepthAnythingDepthEstimation,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,14 +41,7 @@ _HF_WEIGHTS: dict[str, dict[str, str]] = {
     },
 }
 
-_MODEL_CLASSES: dict[
-    str,
-    type[DepthAnythingV3MetricDepthEstimation]
-    | type[DepthAnythingV3RelativeDepthEstimation],
-] = {
-    "dinov2/dav3-relative-large": DepthAnythingV3RelativeDepthEstimation,
-    "dinov2/dav3-metric-large": DepthAnythingV3MetricDepthEstimation,
-}
+_SUPPORTED_MODELS: frozenset[str] = frozenset(_HF_WEIGHTS)
 
 # ``backbone.mask_token`` only exists for masked-image-modeling pretraining and is
 # absent from the official inference checkpoints. It is never read during depth
@@ -79,8 +69,7 @@ def convert_checkpoint(
         The path to the exported checkpoint.
     """
     parsed_name = _parse_model_name(model_name)
-    model_cls = _MODEL_CLASSES[parsed_name]
-    model = model_cls(
+    model = DepthAnythingDepthEstimation(
         model_name=parsed_name,
         load_weights=False,
     )
@@ -154,11 +143,11 @@ def main() -> None:
 
 def _parse_model_name(model_name: str) -> str:
     key = model_name.lower()
-    if key in _MODEL_CLASSES:
+    if key in _SUPPORTED_MODELS:
         return key
     raise ValueError(
         f"Model name '{model_name}' is not supported. Available models are: "
-        f"{sorted(_MODEL_CLASSES)}."
+        f"{sorted(_SUPPORTED_MODELS)}."
     )
 
 
@@ -175,8 +164,7 @@ def _download_huggingface_weights(repo_id: str, filename: str) -> Path:
 
 
 def _load_official_weights(
-    model: DepthAnythingV3MetricDepthEstimation
-    | DepthAnythingV3RelativeDepthEstimation,
+    model: DepthAnythingDepthEstimation,
     path: Path,
 ) -> None:
     state_dict = _load_state_dict_file(path)

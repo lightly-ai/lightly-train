@@ -81,6 +81,10 @@ class ImageDataset(Dataset[DatasetItem]):
             "filename": filename,
             "views": [view["image"] for view in transformed],
         }
+        # Carry per-view crop geometry into the batch when the transform records
+        # it (e.g. dinov31 PaKA); otherwise absent.
+        if transformed and all("geometry" in view for view in transformed):
+            dataset_item["geometries"] = [view["geometry"] for view in transformed]
         if self.mask_dir:
             dataset_item["masks"] = [view["mask"] for view in transformed]
         return dataset_item

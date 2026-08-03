@@ -528,9 +528,9 @@ class TestInstanceSegmentationDatasetGetitem:
             from lightly_train._data.instance_segmentation_dataset import (
                 InstanceSegmentationDataset,
             )
-            from lightly_train._transforms.instance_segmentation_transform import (
-                InstanceSegmentationTransform,
-                InstanceSegmentationTransformArgs,
+            from lightly_train._transforms.eomt_transforms.instance_segmentation import (
+                EoMTInstanceSegmentationTransform,
+                EoMTInstanceSegmentationTransformArgs,
             )
             from lightly_train._transforms.transform import NormalizeArgs
 
@@ -567,7 +567,7 @@ class TestInstanceSegmentationDatasetGetitem:
                 skip_if_annotations_missing=False,
             )
             image_info = list(dataset_args.list_image_info())
-            transform_args = InstanceSegmentationTransformArgs(
+            transform_args = EoMTInstanceSegmentationTransformArgs(
                 image_size=None,
                 channel_drop=None,
                 num_channels=3,
@@ -590,7 +590,7 @@ class TestInstanceSegmentationDatasetGetitem:
                     **(dict(clip=True) if ALBUMENTATIONS_GE_1_4_5 else {}),
                 ),
             )
-            transform = InstanceSegmentationTransform(transform_args)
+            transform = EoMTInstanceSegmentationTransform(transform_args)
             dataset = InstanceSegmentationDataset(
                 dataset_args=dataset_args,
                 image_info=image_info,
