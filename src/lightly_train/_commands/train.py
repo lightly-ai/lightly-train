@@ -452,13 +452,18 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             total_num_devices=total_num_devices,
             loader_args=config.loader_args,
         )
+        global_batch_size = config.batch_size
+        per_device_batch_size = global_batch_size // total_num_devices
+        effective_global_batch_size = (
+            global_batch_size * config.gradient_accumulation_steps
+        )
         config.num_workers = common_helpers.get_num_workers(
             num_workers=config.num_workers,
             num_devices_per_node=total_num_devices // trainer_instance.num_nodes,
         )
         dataloader = train_helpers.get_dataloader(
             dataset=dataset,
-            batch_size=config.batch_size // total_num_devices,
+            batch_size=per_device_batch_size,
             num_workers=config.num_workers,
             loader_args=config.loader_args,
         )
@@ -482,7 +487,7 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             method_args=config.method_args,
             optimizer_args=config.optim_args,
             embedding_model=embedding_model,
-            global_batch_size=config.batch_size,
+            global_batch_size=effective_global_batch_size,
             num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
         train_helpers.load_checkpoint(

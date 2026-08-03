@@ -104,6 +104,41 @@ def test_pretrain__cpu(tmp_path: Path) -> None:
     assert filepaths == expected_filepaths
 
 
+@pytest.mark.parametrize("gradient_accumulation_steps", [1, 4])
+def test_pretrain__batch_sizes_for_gradient_accumulation(
+    tmp_path: Path,
+    mocker: MockerFixture,
+    gradient_accumulation_steps: int,
+) -> None:
+    global_batch_size = 4
+    total_num_devices = 1
+    per_device_batch_size = global_batch_size // total_num_devices
+    effective_global_batch_size = global_batch_size * gradient_accumulation_steps
+    data = tmp_path / "data"
+    helpers.create_images(image_dir=data, files=8)
+    get_dataloader_spy = mocker.spy(train.train_helpers, "get_dataloader")
+    get_method_spy = mocker.spy(train.train_helpers, "get_method")
+
+    train.pretrain(
+        out=tmp_path / "out",
+        data=data,
+        model=DummyCustomModel(),
+        method="simclr",
+        batch_size=global_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        num_workers=0,
+        devices=total_num_devices,
+        epochs=0,
+        accelerator="cpu",
+    )
+
+    assert get_dataloader_spy.call_args.kwargs["batch_size"] == per_device_batch_size
+    assert (
+        get_method_spy.call_args.kwargs["global_batch_size"]
+        == effective_global_batch_size
+    )
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
 def test_pretrain(
