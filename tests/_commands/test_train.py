@@ -23,7 +23,7 @@ from torch.nn import Module
 from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
-from lightly_train._commands import train
+from lightly_train._commands import train, train_helpers
 from lightly_train._commands.train import (
     CLITrainConfig,
     FunctionTrainConfig,
@@ -116,8 +116,8 @@ def test_pretrain__batch_sizes_for_gradient_accumulation(
     effective_global_batch_size = global_batch_size * gradient_accumulation_steps
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=8)
-    get_dataloader_spy = mocker.spy(train.train_helpers, "get_dataloader")
-    get_method_spy = mocker.spy(train.train_helpers, "get_method")
+    get_dataloader_spy = mocker.spy(train_helpers, "get_dataloader")
+    get_method_spy = mocker.spy(train_helpers, "get_method")
 
     train.pretrain(
         out=tmp_path / "out",
@@ -572,7 +572,7 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
 
     # Part 2: Load the checkpoint
-    spy_load_state_dict = mocker.spy(train.train_helpers, "load_state_dict")  # type: ignore[attr-defined]
+    spy_load_state_dict = mocker.spy(train_helpers, "load_state_dict")
     train.pretrain(
         out=out,
         data=data,
