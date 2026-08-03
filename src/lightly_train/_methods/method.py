@@ -8,11 +8,9 @@
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
-import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
 from pytorch_lightning import LightningModule
 from pytorch_lightning.loggers import WandbLogger as LightningWandbLogger
@@ -23,6 +21,11 @@ from torchvision.transforms import functional as torchvision_functional
 import lightly_train._plot as methods_helpers
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
+from lightly_train._methods.batch_timing import (
+    BatchTimingTracker,
+    TimingMetric,
+    create_batch_timing_tracker,
+)
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim import optimizer_helpers
@@ -42,15 +45,6 @@ class TrainingStepResult:
     log_dict: Mapping[str, Any] | None = None
 
 
-@dataclass
-class BatchStartEndTime:
-    batch_start_s: float | None = None
-    batch_end_s: float | None = None  # CPU-only
-    # CUDA-only: events bracketing the GPU step.
-    _start_event: torch.cuda.Event | None = None
-    _end_event: torch.cuda.Event | None = None
-
-
 class Method(LightningModule):
     def __init__(
         self,
@@ -64,7 +58,9 @@ class Method(LightningModule):
         self.optimizer_args: OptimizerArgs = optimizer_args
         self.global_batch_size = global_batch_size
         self.num_input_channels = num_input_channels
-        self.batch_start_end_time = BatchStartEndTime()
+        # Initialized lazily because Lightning moves the module to its runtime
+        # device only after __init__ has completed.
+        self._batch_timing_tracker: BatchTimingTracker | None = None
 
     @staticmethod
     def method_args_cls() -> type[MethodArgs]:
@@ -195,44 +191,20 @@ class Method(LightningModule):
                 )
 
     def _log_time_batch_start(self) -> None:
-        now = time.perf_counter()
-        t = self.batch_start_end_time
-
-        if self.device.type == "cuda":
-            # 1. Resolve previous step's GPU duration from events.
-            if (
-                t._start_event is not None
-                and t._end_event is not None
-                and t._end_event.query()  # type: ignore[no-untyped-call]
-            ):
-                batch_time = t._start_event.elapsed_time(t._end_event) / 1e3  # type: ignore[no-untyped-call]
-                self.log("profiling/batch_time", batch_time)
-
-                # 2. data_time = wall gap (start → start) minus GPU duration.
-                if t.batch_start_s is not None:
-                    wall_gap = now - t.batch_start_s
-                    self.log("profiling/data_time", max(0.0, wall_gap - batch_time))
-
-            # 3. Begin new step: record start event.
-            t._start_event = torch.cuda.Event(enable_timing=True)  # type: ignore[no-untyped-call]
-            t._start_event.record()  # type: ignore[no-untyped-call]
-        else:
-            # CPU: data_time is simply the gap between previous step end and now.
-            if t.batch_end_s is not None:
-                self.log("profiling/data_time", now - t.batch_end_s)
-
-        t.batch_start_s = now
+        tracker = self._get_batch_timing_tracker()
+        self._log_timing_metrics(tracker.on_batch_start())
 
     def _log_time_batch_end(self) -> None:
-        t = self.batch_start_end_time
+        tracker = self._get_batch_timing_tracker()
+        self._log_timing_metrics(tracker.on_batch_end())
 
-        if self.device.type == "cuda":
-            # Record end event — queried at next step start.
-            t._end_event = torch.cuda.Event(enable_timing=True)  # type: ignore[no-untyped-call]
-            t._end_event.record()  # type: ignore[no-untyped-call]
-        else:
-            # CPU: batch_time is just wall-clock step duration.
-            now = time.perf_counter()
-            if t.batch_start_s is not None:
-                self.log("profiling/batch_time", now - t.batch_start_s)
-            t.batch_end_s = now
+    def _get_batch_timing_tracker(self) -> BatchTimingTracker:
+        """Return a tracker selected after Lightning has placed the module."""
+        if self._batch_timing_tracker is None:
+            self._batch_timing_tracker = create_batch_timing_tracker(self.device.type)
+        return self._batch_timing_tracker
+
+    def _log_timing_metrics(self, metrics: list[TimingMetric]) -> None:
+        """Log timing samples emitted by the active device-specific tracker."""
+        for name, value_s in metrics:
+            self.log(f"profiling/{name}", value_s)
