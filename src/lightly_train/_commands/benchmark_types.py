@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, Literal, TypedDict, Union
+from typing import Any, Literal, Union
 
 from pydantic import ConfigDict, Field, field_validator
 from rich.console import Console
 from rich.markdown import Markdown
-from torch import Tensor
 from typing_extensions import Annotated
 
 from lightly_train._commands import data_helpers
@@ -27,14 +26,6 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
-
-
-class ObjectDetectionPrediction(TypedDict):
-    """Per-image object detection prediction."""
-
-    bboxes: Tensor
-    scores: Tensor
-    labels: Tensor
 
 
 class CpuDeviceInfo(PydanticConfig):

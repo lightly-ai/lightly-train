@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import gc
 import statistics
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import torch
 from albumentations import BboxParams
@@ -52,9 +52,6 @@ from lightly_train._data.yolo_object_detection_dataset import (
 from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
-)
-from lightly_train._pre_post_processing.object_detection import (
-    ObjectDetectionPrediction,
 )
 from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.object_detection_components.utils import (
@@ -257,9 +254,9 @@ def _benchmark_object_detection_from_config(
             # Convert predictions from "bboxes" to "boxes" for torchmetrics.
             metric_preds: list[dict[str, Tensor]] = [
                 {
-                    "boxes": _prediction_value(p, "bboxes"),
-                    "scores": _prediction_value(p, "scores"),
-                    "labels": _prediction_value(p, "labels"),
+                    "boxes": p["bboxes"],
+                    "scores": p["scores"],
+                    "labels": p["labels"],
                 }
                 for p in predictions_cpu
             ]
@@ -446,26 +443,13 @@ def _create_val_dataloader(
     )
 
 
-def _to_cpu(predictions: Sequence[Any]) -> list[Any]:
-    result: list[Any] = []
-    for prediction in predictions:
-        if isinstance(prediction, ObjectDetectionPrediction):
-            result.append(
-                ObjectDetectionPrediction(
-                    labels=prediction.labels.detach().cpu(),
-                    bboxes=prediction.bboxes.detach().cpu(),
-                    scores=prediction.scores.detach().cpu(),
-                )
-            )
-        else:
-            result.append(
-                {key: value.detach().cpu() for key, value in prediction.items()}
-            )
-    return result
-
-
-def _prediction_value(prediction: Any, name: str) -> Tensor:
-    return cast(Tensor, prediction[name])
+def _to_cpu(
+    predictions: Sequence[Mapping[str, Tensor]],
+) -> list[dict[str, Tensor]]:
+    return [
+        {key: value.detach().cpu() for key, value in prediction.items()}
+        for prediction in predictions
+    ]
 
 
 def _create_metric(

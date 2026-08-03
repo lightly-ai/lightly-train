@@ -239,6 +239,46 @@ def combine_object_detection_tiles(
     return labels, boxes, scores
 
 
+def combine_sahi_object_detection_predictions(
+    *,
+    labels: Tensor,
+    boxes: Tensor,
+    scores: Tensor,
+    tile_coordinates: Tensor,
+    threshold: float,
+    nms_iou_threshold: float,
+    global_local_iou_threshold: float,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Offset, filter, and merge decoded global/tile predictions for one image."""
+    boxes = boxes.clone()
+    boxes[1:] += tile_coordinates.to(boxes.device).repeat(1, 2).unsqueeze(1)
+
+    keep_global = scores[0] > threshold
+    labels_global = labels[0][keep_global]
+    boxes_global = boxes[0][keep_global]
+    scores_global = scores[0][keep_global]
+
+    labels_tiles = labels[1:].flatten()
+    boxes_tiles = boxes[1:].flatten(0, 1)
+    scores_tiles = scores[1:].flatten()
+    keep_tiles = scores_tiles > threshold
+
+    return combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles[keep_tiles],
+            "bboxes": boxes_tiles[keep_tiles],
+            "scores": scores_tiles[keep_tiles],
+        },
+        nms_iou_threshold=nms_iou_threshold,
+        global_local_iou_threshold=global_local_iou_threshold,
+    )
+
+
 def combine_instance_segmentation_tiles(
     pred_global: dict[str, Tensor],
     pred_tiles: dict[str, Tensor],
