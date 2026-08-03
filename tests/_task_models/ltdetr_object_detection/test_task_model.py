@@ -888,6 +888,61 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.skipif(
+    not RequirementCache(module="migraphx"), reason="migraphx not installed"
+)
+@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
+@pytest.mark.skipif(
+    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
+)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.parametrize("batch_size", [1, 3])
+def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
+    import migraphx  # type: ignore[import-not-found]
+    import numpy as np
+    import onnx
+    import onnxruntime as ort
+
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "car", 1: "person"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+
+    out = tmp_path / "model.mxr"
+    model.export_migraphx(out=out, batch_size=batch_size)
+
+    assert out.is_file()
+    assert out.with_suffix(".onnx").is_file()
+    onnx_model = onnx.load(out.with_suffix(".onnx"))
+    input_shape = onnx_model.graph.input[0].type.tensor_type.shape
+    assert [dimension.dim_value for dimension in input_shape.dim] == [
+        batch_size,
+        3,
+        256,
+        256,
+    ]
+
+    inputs = (
+        np.random.default_rng(0)
+        .normal(size=(batch_size, 3, 256, 256))
+        .astype(np.float32)
+    )
+    onnx_outputs = ort.InferenceSession(
+        str(out.with_suffix(".onnx")), providers=["CPUExecutionProvider"]
+    ).run(None, {"images": inputs})
+    program = migraphx.load(str(out))
+    migraphx_outputs = [
+        np.array(output)
+        for output in program.run({"images": migraphx.argument(inputs)})
+    ]
+
+    assert_onnx_outputs_close(
+        migraphx_outputs, [torch.from_numpy(output) for output in onnx_outputs]
+    )
+
+
 @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
 @pytest.mark.skipif(
     not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
