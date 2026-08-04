@@ -329,6 +329,8 @@ class VisionTransformer(nn.Module):
         norm_layer: type[nn.Module] | partial[Any] | None = None,
         act_layer: type[nn.Module] | None = None,
         ffn_layer: type[nn.Module] = Mlp,
+        activation_checkpointing: bool = False,
+        activation_checkpointing_every_n_blocks: int = 1,
     ) -> None:
         super().__init__()
         self.num_features = self.embed_dim = embed_dim
@@ -372,6 +374,11 @@ class VisionTransformer(nn.Module):
             ]
         )
 
+        self._activation_checkpointing = activation_checkpointing
+        self._activation_checkpointing_every_n_blocks = (
+            activation_checkpointing_every_n_blocks
+        )
+
         self.rope_embed = RopePositionEmbedding(
             embed_dim=embed_dim,
             num_heads=num_heads,
@@ -412,8 +419,18 @@ class VisionTransformer(nn.Module):
         cos = cos.to(device=x_embed.device, dtype=x_embed.dtype)
         rope_sincos = sin.unsqueeze(0).unsqueeze(0), cos.unsqueeze(0).unsqueeze(0)
 
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
         for i, blk in enumerate(self.blocks):
-            x = blk(x, rope_sincos=rope_sincos)
+            x = maybe_checkpoint(
+                blk,
+                x,
+                rope_sincos=rope_sincos,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
             if i in self.return_layers:
                 outs.append(x[:, 1:])
         return outs, (H, W)

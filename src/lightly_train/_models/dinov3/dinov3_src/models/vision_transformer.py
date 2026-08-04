@@ -102,6 +102,8 @@ class DinoVisionTransformer(nn.Module):
         untie_cls_and_patch_norms: bool = False,
         untie_global_and_local_cls_norm: bool = False,
         device: Any | None = None,
+        activation_checkpointing: bool = False,
+        activation_checkpointing_every_n_blocks: int = 1,
         **ignored_kwargs,
     ):
         super().__init__()
@@ -188,6 +190,11 @@ class DinoVisionTransformer(nn.Module):
         self.chunked_blocks = False
         self.blocks = nn.ModuleList(blocks_list)
 
+        self._activation_checkpointing = activation_checkpointing
+        self._activation_checkpointing_every_n_blocks = (
+            activation_checkpointing_every_n_blocks
+        )
+
         # This norm is applied to everything, or when untying, to patch and mask tokens.
         self.norm = norm_layer_cls(embed_dim)
 
@@ -261,12 +268,22 @@ class DinoVisionTransformer(nn.Module):
             t2_x, hw_tuple = self.prepare_tokens_with_masks(t_x, t_masks)
             x.append(t2_x)
             rope.append(hw_tuple)
-        for _, blk in enumerate(self.blocks):
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
+        for i, blk in enumerate(self.blocks):
             if self.rope_embed is not None:
                 rope_sincos = [self.rope_embed(H=H, W=W) for H, W in rope]
             else:
                 rope_sincos = [None for r in rope]
-            x = blk(x, rope_sincos)
+            x = maybe_checkpoint(
+                blk,
+                x,
+                rope_sincos,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
         all_x = x
         output = []
         for idx, (x, masks) in enumerate(zip(all_x, masks_list)):
@@ -314,12 +331,22 @@ class DinoVisionTransformer(nn.Module):
         blocks_to_take = (
             range(total_block_len - n, total_block_len) if isinstance(n, int) else n
         )
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
         for i, blk in enumerate(self.blocks):
             if self.rope_embed is not None:
                 rope_sincos = self.rope_embed(H=H, W=W)
             else:
                 rope_sincos = None
-            x = blk(x, rope_sincos)
+            x = maybe_checkpoint(
+                blk,
+                x,
+                rope_sincos,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
             if i in blocks_to_take:
                 output.append(x)
         assert len(output) == len(blocks_to_take), (

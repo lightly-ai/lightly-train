@@ -68,9 +68,23 @@ def named_apply(
 
 
 class BlockChunk(nn.ModuleList):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._activation_checkpointing = False
+        self._activation_checkpointing_every_n_blocks = 1
+
     def forward(self, x):
-        for b in self:
-            x = b(x)
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
+        for i, b in enumerate(self):
+            x = maybe_checkpoint(
+                b,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
         return x
 
 
@@ -99,6 +113,8 @@ class DinoVisionTransformer(nn.Module):
         interpolate_antialias=False,
         interpolate_offset=0.1,
         input_normalization: Literal["imagenet", "none"] = "imagenet",
+        activation_checkpointing: bool = False,
+        activation_checkpointing_every_n_blocks: int = 1,
     ):
         """
         Args:
@@ -126,6 +142,10 @@ class DinoVisionTransformer(nn.Module):
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
             input_normalization: Expected input normalization. ``"none"`` expects
                 RGB values in the [0, 1] range.
+            activation_checkpointing: Enable activation checkpointing to reduce
+                memory usage at the cost of additional compute.
+            activation_checkpointing_every_n_blocks: Apply checkpointing every
+                N blocks. 1 means all blocks are checkpointed.
         """
         check_xformers()
         super().__init__()
@@ -202,6 +222,11 @@ class DinoVisionTransformer(nn.Module):
             )
             for i in range(depth)
         ]
+        self._activation_checkpointing = activation_checkpointing
+        self._activation_checkpointing_every_n_blocks = (
+            activation_checkpointing_every_n_blocks
+        )
+
         if block_chunks > 0:
             self.chunked_blocks = True
             chunked_blocks = []
@@ -212,6 +237,11 @@ class DinoVisionTransformer(nn.Module):
                     [nn.Identity()] * i + blocks_list[i : i + chunksize]
                 )
             self.blocks = nn.ModuleList([BlockChunk(p) for p in chunked_blocks])
+            for chunk in self.blocks:
+                chunk._activation_checkpointing = activation_checkpointing
+                chunk._activation_checkpointing_every_n_blocks = (
+                    activation_checkpointing_every_n_blocks
+                )
         else:
             self.chunked_blocks = False
             self.blocks = nn.ModuleList(blocks_list)
@@ -319,12 +349,21 @@ class DinoVisionTransformer(nn.Module):
         return x
 
     def forward_features_list(self, x_list, masks_list):
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
         x = [
             self.prepare_tokens_with_masks(x, masks)
             for x, masks in zip(x_list, masks_list)
         ]
-        for blk in self.blocks:
-            x = blk(x)
+        for i, blk in enumerate(self.blocks):
+            x = maybe_checkpoint(
+                blk,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
 
         all_x = x
         output = []
@@ -342,13 +381,22 @@ class DinoVisionTransformer(nn.Module):
         return output
 
     def forward_features(self, x, masks=None):
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
         if isinstance(x, list):
             return self.forward_features_list(x, masks)
 
         x = self.prepare_tokens_with_masks(x, masks)
 
-        for blk in self.blocks:
-            x = blk(x)
+        for i, blk in enumerate(self.blocks):
+            x = maybe_checkpoint(
+                blk,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
 
         x_norm = self.norm(x)
         return {
@@ -360,6 +408,8 @@ class DinoVisionTransformer(nn.Module):
         }
 
     def _get_intermediate_layers_not_chunked(self, x, n=1):
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
         x = self.prepare_tokens_with_masks(x)
         # If n is an int, take the n last blocks. If it's a list, take them
         output, total_block_len = [], len(self.blocks)
@@ -367,7 +417,14 @@ class DinoVisionTransformer(nn.Module):
             range(total_block_len - n, total_block_len) if isinstance(n, int) else n
         )
         for i, blk in enumerate(self.blocks):
-            x = blk(x)
+            x = maybe_checkpoint(
+                blk,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
             if i in blocks_to_take:
                 output.append(x)
         assert len(output) == len(blocks_to_take), (
@@ -376,6 +433,8 @@ class DinoVisionTransformer(nn.Module):
         return output
 
     def _get_intermediate_layers_chunked(self, x, n=1):
+        from lightly_train._activation_checkpointing import maybe_checkpoint
+
         x = self.prepare_tokens_with_masks(x)
         output, i, total_block_len = [], 0, len(self.blocks[-1])
         # If n is an int, take the n last blocks. If it's a list, take them
@@ -384,7 +443,14 @@ class DinoVisionTransformer(nn.Module):
         )
         for block_chunk in self.blocks:
             for blk in block_chunk[i:]:  # Passing the nn.Identity()
-                x = blk(x)
+                x = maybe_checkpoint(
+                    blk,
+                    x,
+                    use_activation_checkpointing=self._activation_checkpointing
+                    and self.training,
+                    block_index=i,
+                    every_n_blocks=self._activation_checkpointing_every_n_blocks,
+                )
                 if i in blocks_to_take:
                     output.append(x)
                 i += 1
