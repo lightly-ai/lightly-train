@@ -729,6 +729,38 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     assert result is postprocess_spy.spy_return
 
 
+def test_postprocess__accepts_typed_and_mapping_outputs(
+    mocker: MockerFixture,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+    postprocess = mocker.patch.object(model.postprocessor, "postprocess", return_value=[])
+    logits = torch.rand(1, 2, 1)
+    boxes = torch.rand(1, 2, 4)
+    metadata = [ObjectDetectionMetadata(orig_h=480, orig_w=640)]
+
+    typed_raw = ObjectDetectionOutput(logits=logits, boxes=boxes)
+    model.postprocess(typed_raw, metadata, threshold=0.5)
+    raw, passed_metadata, threshold = postprocess.call_args.args
+    assert raw is typed_raw
+    assert passed_metadata is metadata
+    assert threshold == 0.5
+
+    model.postprocess(
+        {"pred_logits": logits, "pred_boxes": boxes}, metadata, threshold=0.25
+    )
+    raw, passed_metadata, threshold = postprocess.call_args.args
+    assert isinstance(raw, ObjectDetectionOutput)
+    assert raw.logits is logits
+    assert raw.boxes is boxes
+    assert passed_metadata is metadata
+    assert threshold == 0.25
+
+
 def test_predict_sahi_batch__splits_raw_outputs_per_image(
     mocker: MockerFixture,
 ) -> None:

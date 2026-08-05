@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
@@ -394,21 +394,17 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: Any | dict[str, Tensor],
-        metadata: Sequence[dict[str, Any]],
+        raw_outputs: ObjectDetectionOutput | Mapping[str, Tensor],
+        metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[ObjectDetectionPrediction]:
-        if isinstance(raw_outputs, dict):
+        if isinstance(raw_outputs, ObjectDetectionOutput):
+            raw = raw_outputs
+        else:
             raw = ObjectDetectionOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
-        else:
-            raw = cast(ObjectDetectionOutput, raw_outputs)
-        typed_metadata = [
-            ObjectDetectionMetadata(orig_h=item["orig_h"], orig_w=item["orig_w"])
-            for item in metadata
-        ]
-        return self.postprocessor.postprocess(raw, typed_metadata, threshold)
+        return self.postprocessor.postprocess(raw, metadata, threshold)
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()

@@ -24,6 +24,7 @@ from lightly_train._commands.benchmark_types import (
     TorchBackendArgs,
 )
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
     ObjectDetectionPrediction,
 )
 from lightly_train._task_models.task_model import TaskModel
@@ -35,7 +36,7 @@ def _rescale_and_filter_predictions(
     labels: Tensor,
     boxes: Tensor,
     scores: Tensor,
-    metadata: list[dict[str, int]],
+    metadata: Sequence[ObjectDetectionMetadata],
     model_w: int,
     model_h: int,
     threshold: float,
@@ -43,8 +44,8 @@ def _rescale_and_filter_predictions(
     """Rescale boxes from model input size to original image coordinates and filter by score threshold."""
     results: list[ObjectDetectionPrediction] = []
     for i in range(len(metadata)):
-        orig_w = metadata[i]["orig_w"]
-        orig_h = metadata[i]["orig_h"]
+        orig_w = metadata[i].orig_w
+        orig_h = metadata[i].orig_h
         img_boxes = boxes[i].clone()
         img_boxes[:, 0] *= orig_w / model_w
         img_boxes[:, 1] *= orig_h / model_h
@@ -95,7 +96,10 @@ class TorchBackend(ObjectDetectionBackend):
     ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         # preprocess
         images = batch["image"].to(self.device)
-        metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
+        metadata = [
+            ObjectDetectionMetadata(orig_w=w, orig_h=h)
+            for w, h in batch["original_size"]
+        ]
 
         # predict
         precision = self.backend_args.precision
@@ -223,7 +227,10 @@ class ONNXBackend(ObjectDetectionBackend):
             images = images.half()
         _, _, model_h, model_w = images.shape
         input_feed = {self.input_name: images.cpu().numpy()}
-        metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
+        metadata = [
+            ObjectDetectionMetadata(orig_w=w, orig_h=h)
+            for w, h in batch["original_size"]
+        ]
 
         # predict
         start_predict = time.perf_counter()
@@ -338,7 +345,10 @@ class TensorRTBackend(ObjectDetectionBackend):
     ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
         # Preprocess.
         images = batch["image"]
-        metadata = [dict(orig_w=w, orig_h=h) for w, h in batch["original_size"]]
+        metadata = [
+            ObjectDetectionMetadata(orig_w=w, orig_h=h)
+            for w, h in batch["original_size"]
+        ]
         _, _, model_h, model_w = images.shape
         if self.precision == "fp16":
             images = images.half()

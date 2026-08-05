@@ -25,6 +25,9 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
+)
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
 )
@@ -438,7 +441,7 @@ class PicoDetObjectDetection(TaskModel):
         obj_logits = cls_logits.max(dim=-1).values
         return boxes_xyxy, obj_logits, cls_logits
 
-    def forward_backend(self, x: Tensor) -> Any:
+    def forward_backend(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         """Run the model and return raw outputs in model-input coordinates.
 
         Calls ``forward`` without ``orig_target_size`` so that boxes remain in
@@ -455,8 +458,8 @@ class PicoDetObjectDetection(TaskModel):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: Any,
-        metadata: Sequence[dict[str, Any]],
+        raw_outputs: tuple[Tensor, Tensor, Tensor],
+        metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[dict[str, Tensor]]:
         """Rescale boxes to original image coordinates and filter by threshold.
@@ -483,8 +486,8 @@ class PicoDetObjectDetection(TaskModel):
 
         out: list[dict[str, Tensor]] = []
         for i in range(len(metadata)):
-            orig_w = metadata[i]["orig_w"]
-            orig_h = metadata[i]["orig_h"]
+            orig_w = metadata[i].orig_w
+            orig_h = metadata[i].orig_h
             boxes = boxes_xyxy[i].clone()
             boxes[:, 0] *= orig_w / model_w
             boxes[:, 1] *= orig_h / model_h

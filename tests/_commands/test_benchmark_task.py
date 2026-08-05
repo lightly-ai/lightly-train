@@ -36,6 +36,9 @@ from lightly_train._data.coco_object_detection_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -91,6 +94,7 @@ class _FakeObjectDetectionModel(TaskModel):
                 "image_size": (64, 64),
             },
         )
+        self.last_metadata: Sequence[ObjectDetectionMetadata] | None = None
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
@@ -103,12 +107,13 @@ class _FakeObjectDetectionModel(TaskModel):
     def forward_backend(self, x: Tensor) -> Any:
         return x
 
-    def postprocess(
+    def postprocess(  # type: ignore[override]
         self,
         raw_outputs: Any,
-        metadata: Sequence[dict[str, Any]],
+        metadata: Sequence[ObjectDetectionMetadata],
         **kwargs: Any,
     ) -> list[dict[str, Tensor]]:
+        self.last_metadata = metadata
         return [dict(self._PRED) for _ in metadata]
 
 
@@ -324,6 +329,10 @@ class TestBenchmarkObjectDetectionE2E:
         assert result.steps is None
         assert "val_metric/map" in result.metric_values
         assert isinstance(result.metric_values["val_metric/map"], float)
+        assert model.last_metadata == [
+            ObjectDetectionMetadata(orig_h=128, orig_w=128),
+            ObjectDetectionMetadata(orig_h=128, orig_w=128),
+        ]
 
         # Check inference timing.
         timing = result.timing

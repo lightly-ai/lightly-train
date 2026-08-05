@@ -19,6 +19,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
+)
 from lightly_train._task_models.picodet_object_detection.task_model import (
     PicoDetObjectDetection,
 )
@@ -70,6 +73,30 @@ def test_task_model_forward_shapes() -> None:
     assert boxes.shape == (1, num_preds, 4)
     assert obj_logits.shape == (1, num_preds)
     assert cls_logits.shape == (1, num_preds, 80)
+
+
+def test_postprocess__uses_typed_metadata() -> None:
+    model = PicoDetObjectDetection(
+        model_name="picodet/s-416",
+        image_size=(100, 200),
+        num_classes=1,
+        classes={0: "class_0"},
+        image_normalize=None,
+        load_weights=False,
+    )
+    boxes = torch.tensor([[[20.0, 10.0, 100.0, 50.0]]])
+    obj_logits = torch.tensor([[10.0]])
+    cls_logits = torch.tensor([[[10.0]]])
+
+    predictions = model.postprocess(
+        (boxes, obj_logits, cls_logits),
+        [ObjectDetectionMetadata(orig_h=200, orig_w=400)],
+        threshold=0.5,
+    )
+
+    torch.testing.assert_close(
+        predictions[0]["bboxes"], torch.tensor([[40.0, 20.0, 200.0, 100.0]])
+    )
 
 
 @pytest.mark.parametrize(
