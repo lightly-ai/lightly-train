@@ -80,7 +80,7 @@ def pretrain(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
-    activation_checkpointing: dict[str, Any] | None = None,
+    activation_checkpoint_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Pretrain a self-supervised model.
@@ -241,7 +241,7 @@ def pretrain(
             parameter. For example, if ``model='torchvision/<model_name>'``, the
             arguments are passed to
             ``torchvision.models.get_model(model_name, **model_args)``.
-        activation_checkpointing:
+        activation_checkpoint_args:
             Activation checkpointing configuration to reduce memory usage during
             training. Pass ``{"enabled": True}`` to enable checkpointing for all
             transformer blocks. Use ``{"enabled": True, "every_n_blocks": 2}``
@@ -284,7 +284,7 @@ def train(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
-    activation_checkpointing: dict[str, Any] | None = None,
+    activation_checkpoint_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Deprecated. Use :func:`pretrain` instead."""
@@ -378,14 +378,14 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             dataset_size=dataset_size,
             epochs=config.epochs,
         )
+        ac_args = train_helpers.get_activation_checkpoint_args(
+            config.activation_checkpoint_args
+        )
         model_args = dict(config.model_args) if config.model_args else {}
-        if config.activation_checkpointing is not None:
-            ac_args = validate.pydantic_model_validate(
-                ActivationCheckpointingArgs, dict(config.activation_checkpointing)
-            )
-        else:
-            ac_args = ActivationCheckpointingArgs()
         if ac_args.enabled:
+            train_helpers.validate_activation_checkpointing_model(
+                model=config.model,
+            )
             model_args["activation_checkpointing"] = True
             model_args["activation_checkpointing_every_n_blocks"] = (
                 ac_args.every_n_blocks
@@ -585,7 +585,7 @@ class TrainConfig(PydanticConfig):
     loader_args: dict[str, Any] | None = None
     trainer_args: dict[str, Any] | None = None
     model_args: dict[str, Any] | None = None
-    activation_checkpointing: dict[str, Any] | ActivationCheckpointingArgs | None = None
+    activation_checkpoint_args: dict[str, Any] | ActivationCheckpointingArgs | None = None
     resume: bool | None = None  # Deprecated, use `resume_interrupted` instead.
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
@@ -600,7 +600,7 @@ class FunctionTrainConfig(TrainConfig):
     optim: str = "auto"
     optim_args: dict[str, Any] | None = None
     transform_args: dict[str, Any] | None = None
-    activation_checkpointing: dict[str, Any] | None = None
+    activation_checkpoint_args: dict[str, Any] | None = None
 
 
 class CLITrainConfig(FunctionTrainConfig):

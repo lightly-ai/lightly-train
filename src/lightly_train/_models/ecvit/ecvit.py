@@ -45,6 +45,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from typing_extensions import Self
 
+from lightly_train._activation_checkpointing import maybe_checkpoint
 from lightly_train._models.dinov3.dinov3_src.layers.ffn_layers import Mlp
 from lightly_train._models.dinov3.dinov3_src.layers.rope_position_encoding import (
     RopePositionEmbedding,
@@ -418,8 +419,6 @@ class VisionTransformer(nn.Module):
         sin = sin.to(device=x_embed.device, dtype=x_embed.dtype)
         cos = cos.to(device=x_embed.device, dtype=x_embed.dtype)
         rope_sincos = sin.unsqueeze(0).unsqueeze(0), cos.unsqueeze(0).unsqueeze(0)
-
-        from lightly_train._activation_checkpointing import maybe_checkpoint
 
         for i, blk in enumerate(self.blocks):
             x = maybe_checkpoint(

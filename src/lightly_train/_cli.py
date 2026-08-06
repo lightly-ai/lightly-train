@@ -203,7 +203,7 @@ _PRETRAIN_HELP_MSG = f"""
             parameter. For example, if `model='torchvision/<model_name>'`, the
             arguments are passed to
             `torchvision.models.get_model(model_name, **model_args)`.
-        activation_checkpointing (dict):
+        activation_checkpoint_args (dict):
             Activation checkpointing configuration to reduce memory usage.
             Supported keys: `enabled` (bool), `every_n_blocks` (int).
             Only supported for ViT-based backbones (DINOv2, DINOv3, EdgeCrafter).

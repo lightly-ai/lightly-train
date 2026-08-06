@@ -26,6 +26,7 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
+from lightly_train._activation_checkpointing import ActivationCheckpointingArgs
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._configs import validate
 from lightly_train._env import Env
@@ -34,7 +35,10 @@ from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models import package_helpers
 from lightly_train._models.embedding_model import EmbeddingModel
-from lightly_train._models.model_wrapper import ModelWrapper
+from lightly_train._models.model_wrapper import (
+    ModelWrapper,
+    SupportsActivationCheckpointing,
+)
 from lightly_train._optim import optimizer_helpers
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
@@ -499,3 +503,51 @@ def load_state_dict(
         ckpt.lightly_train.models.embedding_model.state_dict()
     )
     method.load_state_dict(ckpt.state_dict)
+
+
+def get_activation_checkpoint_args(
+    activation_checkpoint_args: dict[str, Any] | ActivationCheckpointingArgs | None,
+) -> ActivationCheckpointingArgs:
+    """Resolve activation checkpoint args from a dict or None to an
+    ``ActivationCheckpointingArgs`` instance."""
+    if activation_checkpoint_args is None:
+        return ActivationCheckpointingArgs()
+    if isinstance(activation_checkpoint_args, ActivationCheckpointingArgs):
+        return activation_checkpoint_args
+    return validate.pydantic_model_validate(
+        ActivationCheckpointingArgs, dict(activation_checkpoint_args)
+    )
+
+
+_ACTIVATION_CHECKPOINTING_SUPPORTED_PACKAGES = {"dinov2", "dinov3", "edgecrafter"}
+
+
+def validate_activation_checkpointing_model(
+    model: str | Module | ModelWrapper | Any,
+) -> None:
+    """Validate that the model supports activation checkpointing.
+
+    Must be called before ``get_wrapped_model`` so that unsupported kwargs
+    are never forwarded to a model constructor that would reject them.
+
+    Raises:
+        ValueError: If the model does not support activation checkpointing.
+    """
+    if isinstance(model, str):
+        package_name, _ = package_helpers.parse_model_name(model)
+        if package_name not in _ACTIVATION_CHECKPOINTING_SUPPORTED_PACKAGES:
+            raise ValueError(
+                f"Activation checkpointing is not supported by package "
+                f"'{package_name}'. Supported packages: "
+                f"{sorted(_ACTIVATION_CHECKPOINTING_SUPPORTED_PACKAGES)}."
+            )
+        return
+    if isinstance(model, (ModelWrapper, Module)):
+        underlying = model.get_model() if isinstance(model, ModelWrapper) else model
+        if not isinstance(underlying, SupportsActivationCheckpointing):
+            raise ValueError(
+                f"Activation checkpointing is not supported by model "
+                f"'{type(underlying).__name__}'. Only ViT-based backbones "
+                f"(DINOv2, DINOv3, EdgeCrafter) support activation "
+                f"checkpointing."
+            )

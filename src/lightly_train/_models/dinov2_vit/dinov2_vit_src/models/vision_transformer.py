@@ -25,6 +25,7 @@ from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
 from lightly_train import _torch_helpers
+from lightly_train._activation_checkpointing import maybe_checkpoint
 from lightly_train._export.onnx_helpers import is_in_precalculate_for_onnx_export
 from lightly_train._models import _model_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
@@ -74,8 +75,6 @@ class BlockChunk(nn.ModuleList):
         self._activation_checkpointing_every_n_blocks = 1
 
     def forward(self, x):
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         for i, b in enumerate(self):
             x = maybe_checkpoint(
                 b,
@@ -349,8 +348,6 @@ class DinoVisionTransformer(nn.Module):
         return x
 
     def forward_features_list(self, x_list, masks_list):
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         x = [
             self.prepare_tokens_with_masks(x, masks)
             for x, masks in zip(x_list, masks_list)
@@ -381,8 +378,6 @@ class DinoVisionTransformer(nn.Module):
         return output
 
     def forward_features(self, x, masks=None):
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         if isinstance(x, list):
             return self.forward_features_list(x, masks)
 
@@ -408,8 +403,6 @@ class DinoVisionTransformer(nn.Module):
         }
 
     def _get_intermediate_layers_not_chunked(self, x, n=1):
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         x = self.prepare_tokens_with_masks(x)
         # If n is an int, take the n last blocks. If it's a list, take them
         output, total_block_len = [], len(self.blocks)
@@ -433,8 +426,6 @@ class DinoVisionTransformer(nn.Module):
         return output
 
     def _get_intermediate_layers_chunked(self, x, n=1):
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         x = self.prepare_tokens_with_masks(x)
         output, i, total_block_len = [], 0, len(self.blocks[-1])
         # If n is an int, take the n last blocks. If it's a list, take them

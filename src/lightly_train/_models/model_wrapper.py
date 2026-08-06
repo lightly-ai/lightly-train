@@ -226,6 +226,16 @@ class MultiScaleFeatureCNN(
     """Protocol for CNN models with multiscale feature extraction."""
 
 
+@runtime_checkable
+class SupportsActivationCheckpointing(Protocol):
+    """Protocol for model wrappers whose underlying model accepts
+    ``activation_checkpointing`` and ``activation_checkpointing_every_n_blocks``
+    constructor kwargs."""
+
+    _activation_checkpointing: bool
+    _activation_checkpointing_every_n_blocks: int
+
+
 def missing_model_wrapper_attrs(
     model_wrapper: Any, exclude_module_attrs: bool = False
 ) -> list[str]:

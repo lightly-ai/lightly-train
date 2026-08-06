@@ -295,7 +295,7 @@ class TestPretrainActivationCheckpointing:
             num_workers=0,
             epochs=1,
             accelerator="cpu",
-            activation_checkpointing={"enabled": True},
+            activation_checkpoint_args={"enabled": True},
         )
         assert (tmp_path / "out" / "checkpoints" / "last.ckpt").exists()
 
@@ -315,3 +315,21 @@ class TestPretrainActivationCheckpointing:
             accelerator="cpu",
         )
         assert (tmp_path / "out" / "checkpoints" / "last.ckpt").exists()
+
+    def test_pretrain_unsupported_model_raises(self, tmp_path: Path) -> None:
+        from lightly_train._commands import train
+
+        data = tmp_path / "data"
+        helpers.create_images(image_dir=data, files=10)
+        with pytest.raises(ValueError, match="not supported"):
+            train.pretrain(
+                out=tmp_path / "out",
+                data=data,
+                model="torchvision/resnet18",
+                method="simclr",
+                batch_size=4,
+                num_workers=0,
+                epochs=1,
+                accelerator="cpu",
+                activation_checkpoint_args={"enabled": True},
+            )

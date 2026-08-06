@@ -18,6 +18,7 @@ import torch
 import torch.nn.init
 from torch import Tensor, nn
 
+from lightly_train._activation_checkpointing import maybe_checkpoint
 from lightly_train._models.dinov3.dinov3_src.layers import (
     LayerScale,
     Mlp,
@@ -268,8 +269,6 @@ class DinoVisionTransformer(nn.Module):
             t2_x, hw_tuple = self.prepare_tokens_with_masks(t_x, t_masks)
             x.append(t2_x)
             rope.append(hw_tuple)
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         for i, blk in enumerate(self.blocks):
             if self.rope_embed is not None:
                 rope_sincos = [self.rope_embed(H=H, W=W) for H, W in rope]
@@ -331,8 +330,6 @@ class DinoVisionTransformer(nn.Module):
         blocks_to_take = (
             range(total_block_len - n, total_block_len) if isinstance(n, int) else n
         )
-        from lightly_train._activation_checkpointing import maybe_checkpoint
-
         for i, blk in enumerate(self.blocks):
             if self.rope_embed is not None:
                 rope_sincos = self.rope_embed(H=H, W=W)
