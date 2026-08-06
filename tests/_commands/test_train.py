@@ -23,7 +23,7 @@ from torch.nn import Module
 from torchvision import models
 
 from lightly_train._checkpoint import Checkpoint
-from lightly_train._commands import train
+from lightly_train._commands import train, train_helpers
 from lightly_train._commands.train import (
     CLITrainConfig,
     FunctionTrainConfig,
@@ -102,6 +102,41 @@ def test_pretrain__cpu(tmp_path: Path) -> None:
         next(fp for fp in filepaths if fp.name.startswith("events.out.tfevents")),
     }
     assert filepaths == expected_filepaths
+
+
+@pytest.mark.parametrize("gradient_accumulation_steps", [1, 4])
+def test_pretrain__batch_sizes_for_gradient_accumulation(
+    tmp_path: Path,
+    mocker: MockerFixture,
+    gradient_accumulation_steps: int,
+) -> None:
+    global_batch_size = 4
+    total_num_devices = 1
+    per_device_batch_size = global_batch_size // total_num_devices
+    effective_global_batch_size = global_batch_size * gradient_accumulation_steps
+    data = tmp_path / "data"
+    helpers.create_images(image_dir=data, files=8)
+    get_dataloader_spy = mocker.spy(train_helpers, "get_dataloader")
+    get_method_spy = mocker.spy(train_helpers, "get_method")
+
+    train.pretrain(
+        out=tmp_path / "out",
+        data=data,
+        model=DummyCustomModel(),
+        method="simclr",
+        batch_size=global_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        num_workers=0,
+        devices=total_num_devices,
+        epochs=0,
+        accelerator="cpu",
+    )
+
+    assert get_dataloader_spy.call_args.kwargs["batch_size"] == per_device_batch_size
+    assert (
+        get_method_spy.call_args.kwargs["global_batch_size"]
+        == effective_global_batch_size
+    )
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
@@ -537,7 +572,7 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     first_ckpt = Checkpoint.from_path(checkpoint=last_ckpt_path)
 
     # Part 2: Load the checkpoint
-    spy_load_state_dict = mocker.spy(train.train_helpers, "load_state_dict")  # type: ignore[attr-defined]
+    spy_load_state_dict = mocker.spy(train_helpers, "load_state_dict")
     train.pretrain(
         out=out,
         data=data,
