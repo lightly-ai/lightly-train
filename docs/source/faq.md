@@ -207,6 +207,11 @@ validation images in dataset used for pretraining with LightlyTrain as this
 leads to data leakage when you later evaluate the model on those images.
 The unlabeled dataset must always be treated like a training split and any images
 in the unlabeled set must not be used for evaluation.
+
+For a full protocol on comparing pretrained against non-pretrained models on your
+own data, see the
+{ref}`Evaluating Pretraining on Your Own Detection Data <tutorials-pretraining-evaluation>`
+tutorial.
 ```
 
 ```{dropdown} <h6>Is there a limit on the number of images I can use?<a class="headerlink" id="is-there-a-limit-on-the-number-of-images-i-can-use" href="#is-there-a-limit-on-the-number-of-images-i-can-use" title="Link to this heading">¶</a></h6>

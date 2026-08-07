@@ -16,6 +16,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   AMD GPUs.
 - Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
   available from PyPI.
+- Add a tutorial on evaluating pretraining on your own detection data, covering the
+  choice of compared configurations, data leakage, reproducible labeled subsets, matched
+  training budgets, and results reporting.
 
 ### Changed
 

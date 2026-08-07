@@ -289,6 +289,9 @@ a significantly higher mAP50-95 than the model trained from scratch!
 Congratulations, you've mastered the basics! 🎉 Ready to take it further? Here are some
 exciting next steps:
 
+- Wondering whether pretraining will pay off on your own dataset? Learn how to run a
+  fair comparison in
+  {ref}`Evaluating Pretraining on Your Own Detection Data <tutorials-pretraining-evaluation>`.
 - Go beyond distillation and explore other pretraining methods in LightlyTrain. Check
   [Methods](#methods) for more exciting possibilities!
 - Try your hand at different YOLO flavors (`YOLOv5`, `YOLOv6`, `YOLOv8`, `YOLOv11`).
