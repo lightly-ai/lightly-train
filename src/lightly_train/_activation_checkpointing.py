@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, cast
 
 import torch
 from pydantic import Field
@@ -64,7 +64,10 @@ def maybe_checkpoint(
         **kwargs: Keyword arguments forwarded to ``block``.
     """
     if use_activation_checkpointing and block_index % every_n_blocks == 0:
-        return torch.utils.checkpoint.checkpoint(
-            block, *args, use_reentrant=False, **kwargs
+        return cast(
+            _T,
+            torch.utils.checkpoint.checkpoint(
+                block, *args, use_reentrant=False, **kwargs
+            ),
         )
     return block(*args, **kwargs)

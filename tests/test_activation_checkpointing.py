@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 import pytest
 import torch
@@ -21,6 +21,29 @@ from lightly_train._activation_checkpointing import (
 )
 from lightly_train._models.model_wrapper import SupportsActivationCheckpointing
 from tests import helpers
+
+
+class ActivationCheckpointable(Protocol):
+    """Bare model interface needed by the checkpointing test helper."""
+
+    _activation_checkpointing: bool
+    _activation_checkpointing_every_n_blocks: int
+
+
+class DinoForwardFeatures(Protocol):
+    """Typed subset of the vendor DINO forward-features interface used in tests."""
+
+    def forward_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]: ...
+
+
+class DinoV3ForwardFeatures(DinoForwardFeatures, Protocol):
+    """DINOv3-specific list-input variant of forward-features."""
+
+    def forward_features_list(
+        self,
+        x_list: list[torch.Tensor],
+        masks_list: list[torch.Tensor | None],
+    ) -> list[dict[str, torch.Tensor]]: ...
 
 
 class CountingBlock(nn.Module):
@@ -40,10 +63,12 @@ class CountingBlock(nn.Module):
         return cast(torch.Tensor, self.linear(x))
 
 
-def enable_checkpointing(model: nn.Module, every_n_blocks: int = 1) -> None:
+def enable_checkpointing(
+    model: ActivationCheckpointable, every_n_blocks: int = 1
+) -> None:
     """Configure a bare ViT the way its model wrapper would."""
-    model._activation_checkpointing = True  # type: ignore[assignment]
-    model._activation_checkpointing_every_n_blocks = every_n_blocks  # type: ignore[assignment]
+    model._activation_checkpointing = True
+    model._activation_checkpointing_every_n_blocks = every_n_blocks
 
 
 class TestActivationCheckpointingArgs:
@@ -63,7 +88,9 @@ class TestActivationCheckpointingArgs:
 
     def test_extra_fields_rejected(self) -> None:
         with pytest.raises(ValueError):
-            ActivationCheckpointingArgs(enabled=True, unknown_field=42)
+            ActivationCheckpointingArgs.model_validate(
+                {"enabled": True, "unknown_field": 42}
+            )
 
 
 class TestMaybeCheckpoint:
@@ -130,7 +157,7 @@ class TestMaybeCheckpoint:
                 self.linear = nn.Linear(16, 16)
 
             def forward(self, x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
-                return self.linear(x) * scale
+                return cast(torch.Tensor, self.linear(x)) * scale
 
         block = BlockWithKwargs()
         x = torch.randn(2, 16, requires_grad=True)
@@ -152,6 +179,7 @@ class TestMaybeCheckpoint:
 
         y_ref = linear(x)
         y_ref.sum().backward()
+        assert x.grad is not None
         grad_ref = x.grad.clone()
 
         x.grad = None
@@ -163,6 +191,7 @@ class TestMaybeCheckpoint:
             every_n_blocks=1,
         )
         y_ckpt.sum().backward()
+        assert x.grad is not None
 
         assert torch.allclose(y_ref, y_ckpt)
         assert torch.allclose(grad_ref, x.grad)
@@ -185,9 +214,9 @@ class TestDINOv2ViTActivationCheckpointing:
         enable_checkpointing(model)
         model.train()
         x = torch.randn(2, 3, 56, 56, requires_grad=True)
-        out = model.forward_features(x)
+        out = cast(DinoForwardFeatures, model).forward_features(x)
         loss = out["x_norm_clstoken"].sum()
-        loss.backward()
+        torch.autograd.backward(loss)
         assert x.grad is not None
 
     def test_numerical_equivalence(self) -> None:
@@ -195,26 +224,32 @@ class TestDINOv2ViTActivationCheckpointing:
             DinoVisionTransformer,
         )
 
-        vit_kwargs = {
-            "img_size": 56,
-            "patch_size": 14,
-            "embed_dim": 64,
-            "depth": 4,
-            "num_heads": 4,
-            "mlp_ratio": 2.0,
-        }
         torch.manual_seed(0)
-        model_ref = DinoVisionTransformer(**vit_kwargs)
+        model_ref = DinoVisionTransformer(
+            img_size=56,
+            patch_size=14,
+            embed_dim=64,
+            depth=4,
+            num_heads=4,
+            mlp_ratio=2.0,
+        )
         torch.manual_seed(0)
-        model_ckpt = DinoVisionTransformer(**vit_kwargs)
+        model_ckpt = DinoVisionTransformer(
+            img_size=56,
+            patch_size=14,
+            embed_dim=64,
+            depth=4,
+            num_heads=4,
+            mlp_ratio=2.0,
+        )
         enable_checkpointing(model_ckpt)
         model_ckpt.load_state_dict(model_ref.state_dict())
         model_ref.train()
         model_ckpt.train()
 
         x = torch.randn(2, 3, 56, 56)
-        out_ref = model_ref.forward_features(x)
-        out_ckpt = model_ckpt.forward_features(x)
+        out_ref = cast(DinoForwardFeatures, model_ref).forward_features(x)
+        out_ckpt = cast(DinoForwardFeatures, model_ckpt).forward_features(x)
 
         assert torch.allclose(
             out_ref["x_norm_clstoken"], out_ckpt["x_norm_clstoken"], atol=1e-5
@@ -236,8 +271,8 @@ class TestDINOv2ViTActivationCheckpointing:
         enable_checkpointing(model, every_n_blocks=2)
         model.train()
         x = torch.randn(2, 3, 56, 56, requires_grad=True)
-        out = model.forward_features(x)
-        out["x_norm_clstoken"].sum().backward()
+        out = cast(DinoForwardFeatures, model).forward_features(x)
+        torch.autograd.backward(out["x_norm_clstoken"].sum())
         assert x.grad is not None
 
 
@@ -258,9 +293,9 @@ class TestDINOv3ViTActivationCheckpointing:
         enable_checkpointing(model)
         model.train()
         x = torch.randn(2, 3, 56, 56, requires_grad=True)
-        out = model.forward_features(x)
+        out = cast(DinoForwardFeatures, model).forward_features(x)
         loss = out["x_norm_clstoken"].sum()
-        loss.backward()
+        torch.autograd.backward(loss)
         assert x.grad is not None
 
     def test_list_input(self) -> None:
@@ -282,9 +317,11 @@ class TestDINOv3ViTActivationCheckpointing:
             torch.randn(2, 3, 56, 56, requires_grad=True),
             torch.randn(2, 3, 56, 56, requires_grad=True),
         ]
-        out_list = model.forward_features_list(x_list, [None, None])
-        loss = sum(o["x_norm_clstoken"].sum() for o in out_list)
-        loss.backward()
+        out_list = cast(DinoV3ForwardFeatures, model).forward_features_list(
+            x_list, [None, None]
+        )
+        loss = torch.stack([o["x_norm_clstoken"].sum() for o in out_list]).sum()
+        torch.autograd.backward(loss)
         assert all(x.grad is not None for x in x_list)
 
 
@@ -305,8 +342,8 @@ class TestECViTActivationCheckpointing:
         model.train()
         x = torch.randn(2, 3, 224, 224, requires_grad=True)
         outs, _ = model.forward_with_grid(x)
-        loss = sum(o.sum() for o in outs)
-        loss.backward()
+        loss = torch.stack([o.sum() for o in outs]).sum()
+        torch.autograd.backward(loss)
         assert x.grad is not None
 
 
@@ -473,7 +510,11 @@ class TestBlockChunkNotDoubleCheckpointed:
             )
 
         x = torch.randn(2, 3, 56, 56, requires_grad=True)
-        model.forward_features(x)["x_norm_clstoken"].sum().backward()
+        torch.autograd.backward(
+            cast(DinoForwardFeatures, model).forward_features(x)[
+                "x_norm_clstoken"
+            ].sum()
+        )
 
         assert counts, "no blocks were instrumented"
         # Exactly 2 = one forward plus one recompute. Checkpointing again inside
