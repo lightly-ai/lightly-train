@@ -103,8 +103,6 @@ class DinoVisionTransformer(nn.Module):
         untie_cls_and_patch_norms: bool = False,
         untie_global_and_local_cls_norm: bool = False,
         device: Any | None = None,
-        activation_checkpointing: bool = False,
-        activation_checkpointing_every_n_blocks: int = 1,
         **ignored_kwargs,
     ):
         super().__init__()
@@ -191,10 +189,9 @@ class DinoVisionTransformer(nn.Module):
         self.chunked_blocks = False
         self.blocks = nn.ModuleList(blocks_list)
 
-        self._activation_checkpointing = activation_checkpointing
-        self._activation_checkpointing_every_n_blocks = (
-            activation_checkpointing_every_n_blocks
-        )
+        # Configured post-instantiation via DINOv3ViTModelWrapper.
+        self._activation_checkpointing = False
+        self._activation_checkpointing_every_n_blocks = 1
 
         # This norm is applied to everything, or when untying, to patch and mask tokens.
         self.norm = norm_layer_cls(embed_dim)

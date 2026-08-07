@@ -228,12 +228,22 @@ class MultiScaleFeatureCNN(
 
 @runtime_checkable
 class SupportsActivationCheckpointing(Protocol):
-    """Protocol for model wrappers whose underlying model accepts
-    ``activation_checkpointing`` and ``activation_checkpointing_every_n_blocks``
-    constructor kwargs."""
+    """Protocol for model wrappers whose blocks can run with activation checkpointing."""
 
-    _activation_checkpointing: bool
-    _activation_checkpointing_every_n_blocks: int
+    def set_activation_checkpointing(
+        self, enabled: bool, every_n_blocks: int = 1
+    ) -> None:
+        """Enables or disables activation checkpointing on the wrapped model's blocks.
+
+        Args:
+            enabled:
+                Whether to checkpoint the model's blocks.
+            every_n_blocks:
+                Apply checkpointing every N blocks. 1 means all blocks are
+                checkpointed. See ``ActivationCheckpointingArgs.every_n_blocks`` for
+                how this interacts with chunked blocks.
+        """
+        ...
 
 
 def missing_model_wrapper_attrs(

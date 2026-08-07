@@ -519,35 +519,20 @@ def get_activation_checkpoint_args(
     )
 
 
-_ACTIVATION_CHECKPOINTING_SUPPORTED_PACKAGES = {"dinov2", "dinov3", "edgecrafter"}
-
-
-def validate_activation_checkpointing_model(
-    model: str | Module | ModelWrapper | Any,
+def set_activation_checkpointing(
+    wrapped_model: ModelWrapper, args: ActivationCheckpointingArgs
 ) -> None:
-    """Validate that the model supports activation checkpointing.
-
-    Must be called before ``get_wrapped_model`` so that unsupported kwargs
-    are never forwarded to a model constructor that would reject them.
+    """Enable activation checkpointing on an already instantiated model wrapper.
 
     Raises:
-        ValueError: If the model does not support activation checkpointing.
+        ValueError: If the model wrapper does not support activation checkpointing.
     """
-    if isinstance(model, str):
-        package_name, _ = package_helpers.parse_model_name(model)
-        if package_name not in _ACTIVATION_CHECKPOINTING_SUPPORTED_PACKAGES:
-            raise ValueError(
-                f"Activation checkpointing is not supported by package "
-                f"'{package_name}'. Supported packages: "
-                f"{sorted(_ACTIVATION_CHECKPOINTING_SUPPORTED_PACKAGES)}."
-            )
-        return
-    if isinstance(model, (ModelWrapper, Module)):
-        underlying = model.get_model() if isinstance(model, ModelWrapper) else model
-        if not isinstance(underlying, SupportsActivationCheckpointing):
-            raise ValueError(
-                f"Activation checkpointing is not supported by model "
-                f"'{type(underlying).__name__}'. Only ViT-based backbones "
-                f"(DINOv2, DINOv3, EdgeCrafter) support activation "
-                f"checkpointing."
-            )
+    if not isinstance(wrapped_model, SupportsActivationCheckpointing):
+        raise ValueError(
+            f"Activation checkpointing is not supported by model "
+            f"'{type(wrapped_model).__name__}'. Only ViT-based backbones "
+            f"(DINOv2, DINOv3, EdgeCrafter) support activation checkpointing."
+        )
+    wrapped_model.set_activation_checkpointing(
+        enabled=True, every_n_blocks=args.every_n_blocks
+    )

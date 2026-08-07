@@ -56,6 +56,7 @@ from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
+    SupportsActivationCheckpointing,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
     ConvNormLayer,
@@ -330,8 +331,6 @@ class VisionTransformer(nn.Module):
         norm_layer: type[nn.Module] | partial[Any] | None = None,
         act_layer: type[nn.Module] | None = None,
         ffn_layer: type[nn.Module] = Mlp,
-        activation_checkpointing: bool = False,
-        activation_checkpointing_every_n_blocks: int = 1,
     ) -> None:
         super().__init__()
         self.num_features = self.embed_dim = embed_dim
@@ -375,10 +374,9 @@ class VisionTransformer(nn.Module):
             ]
         )
 
-        self._activation_checkpointing = activation_checkpointing
-        self._activation_checkpointing_every_n_blocks = (
-            activation_checkpointing_every_n_blocks
-        )
+        # Configured post-instantiation via ECViTModelWrapper.
+        self._activation_checkpointing = False
+        self._activation_checkpointing_every_n_blocks = 1
 
         self.rope_embed = RopePositionEmbedding(
             embed_dim=embed_dim,
@@ -439,7 +437,12 @@ class VisionTransformer(nn.Module):
         return outs
 
 
-class ECViTModelWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
+class ECViTModelWrapper(
+    nn.Module,
+    ModelWrapper,
+    ArchitectureInfoGettable,
+    SupportsActivationCheckpointing,
+):
     """EdgeCrafter ECViT backbone wrapper for LTDETR-style feature pyramids.
 
     The forward path intentionally follows EdgeCrafter's ECViT adapter:
@@ -542,6 +545,13 @@ class ECViTModelWrapper(nn.Module, ModelWrapper, ArchitectureInfoGettable):
     @property
     def backbone_model(self) -> nn.Module:
         return self.backbone
+
+    def set_activation_checkpointing(
+        self, enabled: bool, every_n_blocks: int = 1
+    ) -> None:
+        # Target the backbone directly: get_model() returns the wrapper itself.
+        self.backbone._activation_checkpointing = enabled
+        self.backbone._activation_checkpointing_every_n_blocks = every_n_blocks
 
     def _load_backbone_weights(self, weights_path: PathLike) -> None:
         state = _load_torch_checkpoint(Path(weights_path))

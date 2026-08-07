@@ -25,14 +25,26 @@ from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     MultiScaleFeatureViT,
+    SupportsActivationCheckpointing,
 )
 
 
-class DINOv3ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettable):
+class DINOv3ViTModelWrapper(
+    Module,
+    MultiScaleFeatureViT,
+    ArchitectureInfoGettable,
+    SupportsActivationCheckpointing,
+):
     def __init__(self, model: DinoVisionTransformer) -> None:
         super().__init__()
         self._model = model
         self._feature_dim = int(self._model.embed_dim)
+
+    def set_activation_checkpointing(
+        self, enabled: bool, every_n_blocks: int = 1
+    ) -> None:
+        self._model._activation_checkpointing = enabled
+        self._model._activation_checkpointing_every_n_blocks = every_n_blocks
 
     def feature_dim(self) -> int:
         return self._feature_dim

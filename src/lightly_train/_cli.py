@@ -207,6 +207,8 @@ _PRETRAIN_HELP_MSG = f"""
             Activation checkpointing configuration to reduce memory usage.
             Supported keys: `enabled` (bool), `every_n_blocks` (int).
             Only supported for ViT-based backbones (DINOv2, DINOv3, EdgeCrafter).
+            Backbones with chunked blocks (DINOv2 ViT-L/14 and ViT-g/14) checkpoint
+            whole chunks, so there `every_n_blocks` counts chunks instead of blocks.
             Default: null
         resume (bool):
             Deprecated. Use `resume_interrupted` instead.

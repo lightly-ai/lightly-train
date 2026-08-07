@@ -24,6 +24,16 @@ class ActivationCheckpointingArgs(PydanticConfig):
     activations during the forward pass and recomputing them during the backward
     pass. This can significantly reduce peak GPU memory usage when pretraining
     large vision transformer backbones.
+
+    Attributes:
+        enabled:
+            Whether to enable activation checkpointing.
+        every_n_blocks:
+            Apply checkpointing every N blocks. 1 means all blocks are checkpointed.
+            Backbones with chunked blocks (DINOv2 with ``block_chunks > 0``, used by
+            ViT-L/14 and ViT-g/14) checkpoint whole chunks, so there ``every_n_blocks``
+            counts chunks and the effective granularity is
+            ``every_n_blocks * chunksize`` blocks.
     """
 
     enabled: bool = False
@@ -54,7 +64,7 @@ def maybe_checkpoint(
         **kwargs: Keyword arguments forwarded to ``block``.
     """
     if use_activation_checkpointing and block_index % every_n_blocks == 0:
-        return torch.utils.checkpoint.checkpoint(  # type: ignore[return-value]
+        return torch.utils.checkpoint.checkpoint(
             block, *args, use_reentrant=False, **kwargs
         )
     return block(*args, **kwargs)

@@ -69,21 +69,14 @@ def named_apply(
 
 
 class BlockChunk(nn.ModuleList):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._activation_checkpointing = False
-        self._activation_checkpointing_every_n_blocks = 1
-
+    # Activation checkpointing is applied by the caller iterating over
+    # DinoVisionTransformer.blocks, which wraps each chunk as a whole. Checkpointing
+    # again here would nest inside that region and recompute every block twice.
+    # Consequence: on this path every_n_blocks counts chunks, not blocks, so the
+    # effective granularity is every_n_blocks * chunksize blocks.
     def forward(self, x):
-        for i, b in enumerate(self):
-            x = maybe_checkpoint(
-                b,
-                x,
-                use_activation_checkpointing=self._activation_checkpointing
-                and self.training,
-                block_index=i,
-                every_n_blocks=self._activation_checkpointing_every_n_blocks,
-            )
+        for b in self:
+            x = b(x)
         return x
 
 
@@ -112,8 +105,6 @@ class DinoVisionTransformer(nn.Module):
         interpolate_antialias=False,
         interpolate_offset=0.1,
         input_normalization: Literal["imagenet", "none"] = "imagenet",
-        activation_checkpointing: bool = False,
-        activation_checkpointing_every_n_blocks: int = 1,
     ):
         """
         Args:
@@ -141,10 +132,6 @@ class DinoVisionTransformer(nn.Module):
             interpolate_offset: (float) work-around offset to apply when interpolating positional embeddings
             input_normalization: Expected input normalization. ``"none"`` expects
                 RGB values in the [0, 1] range.
-            activation_checkpointing: Enable activation checkpointing to reduce
-                memory usage at the cost of additional compute.
-            activation_checkpointing_every_n_blocks: Apply checkpointing every
-                N blocks. 1 means all blocks are checkpointed.
         """
         check_xformers()
         super().__init__()
@@ -221,10 +208,9 @@ class DinoVisionTransformer(nn.Module):
             )
             for i in range(depth)
         ]
-        self._activation_checkpointing = activation_checkpointing
-        self._activation_checkpointing_every_n_blocks = (
-            activation_checkpointing_every_n_blocks
-        )
+        # Configured post-instantiation via DINOv2ViTModelWrapper.
+        self._activation_checkpointing = False
+        self._activation_checkpointing_every_n_blocks = 1
 
         if block_chunks > 0:
             self.chunked_blocks = True
@@ -236,11 +222,6 @@ class DinoVisionTransformer(nn.Module):
                     [nn.Identity()] * i + blocks_list[i : i + chunksize]
                 )
             self.blocks = nn.ModuleList([BlockChunk(p) for p in chunked_blocks])
-            for chunk in self.blocks:
-                chunk._activation_checkpointing = activation_checkpointing
-                chunk._activation_checkpointing_every_n_blocks = (
-                    activation_checkpointing_every_n_blocks
-                )
         else:
             self.chunked_blocks = False
             self.blocks = nn.ModuleList(blocks_list)

@@ -378,24 +378,18 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             dataset_size=dataset_size,
             epochs=config.epochs,
         )
+        wrapped_model = package_helpers.get_wrapped_model(
+            model=config.model,
+            model_args=config.model_args,
+            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
+        )
         ac_args = train_helpers.get_activation_checkpoint_args(
             config.activation_checkpoint_args
         )
-        model_args = dict(config.model_args) if config.model_args else {}
         if ac_args.enabled:
-            train_helpers.validate_activation_checkpointing_model(
-                model=config.model,
+            train_helpers.set_activation_checkpointing(
+                wrapped_model=wrapped_model, args=ac_args
             )
-            model_args["activation_checkpointing"] = True
-            model_args["activation_checkpointing_every_n_blocks"] = (
-                ac_args.every_n_blocks
-            )
-
-        wrapped_model = package_helpers.get_wrapped_model(
-            model=config.model,
-            model_args=model_args or None,
-            num_input_channels=no_auto(transform_instance.transform_args.num_channels),
-        )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
         )
@@ -585,7 +579,9 @@ class TrainConfig(PydanticConfig):
     loader_args: dict[str, Any] | None = None
     trainer_args: dict[str, Any] | None = None
     model_args: dict[str, Any] | None = None
-    activation_checkpoint_args: dict[str, Any] | ActivationCheckpointingArgs | None = None
+    activation_checkpoint_args: dict[str, Any] | ActivationCheckpointingArgs | None = (
+        None
+    )
     resume: bool | None = None  # Deprecated, use `resume_interrupted` instead.
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
