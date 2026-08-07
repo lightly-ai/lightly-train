@@ -7,9 +7,8 @@
 #
 from __future__ import annotations
 
-from collections.abc import Iterable
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Iterable, Protocol, cast
 
 import pytest
 import torch
