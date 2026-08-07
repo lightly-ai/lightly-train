@@ -511,9 +511,9 @@ class TestBlockChunkNotDoubleCheckpointed:
 
         x = torch.randn(2, 3, 56, 56, requires_grad=True)
         torch.autograd.backward(
-            cast(DinoForwardFeatures, model).forward_features(x)[
-                "x_norm_clstoken"
-            ].sum()
+            cast(DinoForwardFeatures, model)
+            .forward_features(x)["x_norm_clstoken"]
+            .sum()
         )
 
         assert counts, "no blocks were instrumented"
