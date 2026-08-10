@@ -8,12 +8,18 @@
 from __future__ import annotations
 
 import math
-from typing import Literal
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 from torchvision.ops import batched_nms, box_iou
+
+if TYPE_CHECKING:
+    from lightly_train._pre_post_processing.object_detection import (
+        ObjectDetectionPrediction,
+    )
 
 
 def _tile_starts(size: int, tile_size: int, step: int) -> list[int]:
@@ -241,42 +247,36 @@ def combine_object_detection_tiles(
 
 def combine_sahi_object_detection_predictions(
     *,
-    labels: Tensor,
-    boxes: Tensor,
-    scores: Tensor,
+    predictions: Sequence[ObjectDetectionPrediction],
     tile_coordinates: Tensor,
     threshold: float,
     nms_iou_threshold: float,
     global_local_iou_threshold: float,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> ObjectDetectionPrediction:
     """Offset, filter, and merge decoded global/tile predictions for one image."""
-    boxes = boxes.clone()
-    boxes[1:] += tile_coordinates.to(boxes.device).repeat(1, 2).unsqueeze(1)
+    global_prediction = predictions[0]
+    tile_prediction = type(global_prediction)(
+        labels=torch.cat([prediction.labels for prediction in predictions[1:]]),
+        bboxes=torch.cat(
+            [
+                prediction.bboxes + coordinates.repeat(2)
+                for prediction, coordinates in zip(
+                    predictions[1:], tile_coordinates.to(global_prediction.bboxes.device)
+                )
+            ]
+        ),
+        scores=torch.cat([prediction.scores for prediction in predictions[1:]]),
+    )
+    global_prediction = global_prediction[global_prediction.scores > threshold]
+    tile_prediction = tile_prediction[tile_prediction.scores > threshold]
 
-    keep_global = scores[0] > threshold
-    labels_global = labels[0][keep_global]
-    boxes_global = boxes[0][keep_global]
-    scores_global = scores[0][keep_global]
-
-    labels_tiles = labels[1:].flatten()
-    boxes_tiles = boxes[1:].flatten(0, 1)
-    scores_tiles = scores[1:].flatten()
-    keep_tiles = scores_tiles > threshold
-
-    return combine_object_detection_tiles(
-        pred_global={
-            "labels": labels_global,
-            "bboxes": boxes_global,
-            "scores": scores_global,
-        },
-        pred_tiles={
-            "labels": labels_tiles[keep_tiles],
-            "bboxes": boxes_tiles[keep_tiles],
-            "scores": scores_tiles[keep_tiles],
-        },
+    labels, bboxes, scores = combine_object_detection_tiles(
+        pred_global=global_prediction,
+        pred_tiles=tile_prediction,
         nms_iou_threshold=nms_iou_threshold,
         global_local_iou_threshold=global_local_iou_threshold,
     )
+    return type(global_prediction)(labels=labels, bboxes=bboxes, scores=scores)
 
 
 def combine_instance_segmentation_tiles(

@@ -274,20 +274,19 @@ class ObjectDetectionPostprocessor(Module):
                 num_top_queries=self.num_top_queries,
                 internal_class_to_class=self.internal_class_to_class,
             )
-            labels_out, boxes_out, scores_out = (
+            predictions = [
+                ObjectDetectionPrediction(
+                    labels=labels_i, bboxes=boxes_i, scores=scores_i
+                )
+                for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
+            ]
+            return [
                 tiling_utils.combine_sahi_object_detection_predictions(
-                    labels=labels,
-                    boxes=boxes,
-                    scores=scores,
+                    predictions=predictions,
                     tile_coordinates=tile_coordinates,
                     threshold=threshold,
                     nms_iou_threshold=sahi_config.nms_iou_threshold,
                     global_local_iou_threshold=sahi_config.global_local_iou_threshold,
-                )
-            )
-            return [
-                ObjectDetectionPrediction(
-                    labels=labels_out, bboxes=boxes_out, scores=scores_out
                 )
             ]
 

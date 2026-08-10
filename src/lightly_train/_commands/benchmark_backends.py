@@ -33,9 +33,7 @@ from lightly_train.types import ObjectDetectionBatch
 
 def _rescale_and_filter_predictions(
     *,
-    labels: Tensor,
-    boxes: Tensor,
-    scores: Tensor,
+    predictions: Sequence[ObjectDetectionPrediction],
     metadata: Sequence[ObjectDetectionMetadata],
     model_w: int,
     model_h: int,
@@ -43,23 +41,21 @@ def _rescale_and_filter_predictions(
 ) -> list[ObjectDetectionPrediction]:
     """Rescale boxes from model input size to original image coordinates and filter by score threshold."""
     results: list[ObjectDetectionPrediction] = []
-    for i in range(len(metadata)):
-        orig_w = metadata[i].orig_w
-        orig_h = metadata[i].orig_h
-        img_boxes = boxes[i].clone()
-        img_boxes[:, 0] *= orig_w / model_w
-        img_boxes[:, 1] *= orig_h / model_h
-        img_boxes[:, 2] *= orig_w / model_w
-        img_boxes[:, 3] *= orig_h / model_h
-
-        keep = scores[i] > threshold
-        results.append(
-            ObjectDetectionPrediction(
-                labels=labels[i][keep],
-                bboxes=img_boxes[keep],
-                scores=scores[i][keep],
-            )
+    for prediction, item_metadata in zip(predictions, metadata):
+        scale = prediction.bboxes.new_tensor(
+            [
+                item_metadata.orig_w / model_w,
+                item_metadata.orig_h / model_h,
+                item_metadata.orig_w / model_w,
+                item_metadata.orig_h / model_h,
+            ]
         )
+        prediction = ObjectDetectionPrediction(
+            labels=prediction.labels,
+            bboxes=prediction.bboxes * scale,
+            scores=prediction.scores,
+        )
+        results.append(prediction[prediction.scores > threshold])
     return results
 
 
@@ -255,17 +251,20 @@ class ONNXBackend(ObjectDetectionBackend):
                 threshold=self.threshold,
             )
             return results, time_predict
-        labels = torch.from_numpy(outputs["labels"])
-        boxes_unscaled = torch.from_numpy(outputs["boxes"])
-        scores = torch.from_numpy(outputs["scores"])
+        predictions = [
+            ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
+            for labels, boxes, scores in zip(
+                torch.from_numpy(outputs["labels"]),
+                torch.from_numpy(outputs["boxes"]),
+                torch.from_numpy(outputs["scores"]),
+            )
+        ]
 
         # The ONNX forward() rescales boxes to the model input size when
         # orig_target_size is not provided. Rescale to original image
         # coordinates.
         results = _rescale_and_filter_predictions(
-            labels=labels,
-            boxes=boxes_unscaled,
-            scores=scores,
+            predictions=predictions,
             metadata=metadata,
             model_w=model_w,
             model_h=model_h,
@@ -393,14 +392,17 @@ class TensorRTBackend(ObjectDetectionBackend):
                 threshold=self.threshold,
             )
             return results, time_predict
-        labels_batch = outputs["labels"].cpu()
-        boxes_batch = outputs["boxes"].cpu()
-        scores_batch = outputs["scores"].cpu()
+        predictions = [
+            ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
+            for labels, boxes, scores in zip(
+                outputs["labels"].cpu(),
+                outputs["boxes"].cpu(),
+                outputs["scores"].cpu(),
+            )
+        ]
 
         results = _rescale_and_filter_predictions(
-            labels=labels_batch,
-            boxes=boxes_batch,
-            scores=scores_batch,
+            predictions=predictions,
             metadata=metadata,
             model_w=model_w,
             model_h=model_h,

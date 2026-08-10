@@ -494,14 +494,10 @@ class PicoDetObjectDetection(TaskModel):
             boxes[:, 2] *= orig_w / model_w
             boxes[:, 3] *= orig_h / model_h
 
-            keep = scores[i] > threshold
-            out.append(
-                ObjectDetectionPrediction(
-                    labels=labels[i][keep],
-                    bboxes=boxes[keep],
-                    scores=scores[i][keep],
-                )
+            prediction = ObjectDetectionPrediction(
+                labels=labels[i], bboxes=boxes, scores=scores[i]
             )
+            out.append(prediction[prediction.scores > threshold])
         return out
 
     @torch.no_grad()
@@ -551,13 +547,12 @@ class PicoDetObjectDetection(TaskModel):
         cls_for_label = cls_logits[0].gather(1, internal_labels.unsqueeze(1)).squeeze(1)
         scores = torch.sigmoid(cls_for_label)
         labels = self.internal_class_to_class[internal_labels]
+        prediction = ObjectDetectionPrediction(
+            labels=labels, bboxes=boxes, scores=scores
+        )
         if threshold > 0:
-            keep = scores >= threshold
-            labels = labels[keep]
-            boxes = boxes[keep]
-            scores = scores[keep]
-
-        return ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
+            prediction = prediction[prediction.scores >= threshold]
+        return prediction
 
     @torch.no_grad()
     def export_onnx(
