@@ -54,7 +54,11 @@ def _rescale_and_filter_predictions(
 
         keep = scores[i] > threshold
         results.append(
-            ObjectDetectionPrediction(labels[i][keep], img_boxes[keep], scores[i][keep])
+            ObjectDetectionPrediction(
+                labels=labels[i][keep],
+                bboxes=img_boxes[keep],
+                scores=scores[i][keep],
+            )
         )
     return results
 

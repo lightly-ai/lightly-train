@@ -129,12 +129,20 @@ model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict("image.jpg")
 results.labels   # Class labels, tensor of shape (num_boxes,)
 results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+                 # coordinates of the original image. Tensor of shape (num_boxes, 4).
 results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 Any other LTDETR model name (e.g. a `dinov3/...` model from the same family) works the
 same way.
+
+Predictions can be filtered by indexing them with a boolean mask.
+
+```python skip_ruff
+confident = results[results.scores > 0.8]   # Keep only high-confidence detections
+people = results[results.labels == 0]       # Keep only one class
+confident.num_detections                    # Number of remaining detections
+```
 
 ### Visualize the Result
 
@@ -183,7 +191,7 @@ model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict_sahi(image="image.jpg")
 results.labels   # Class labels, tensor of shape (num_boxes,)
 results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+                 # coordinates of the original image. Tensor of shape (num_boxes, 4).
 results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 

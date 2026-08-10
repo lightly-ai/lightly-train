@@ -14,6 +14,7 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
+    ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
     ObjectDetectionSahiConfig,
 )
@@ -66,18 +67,82 @@ class TestObjectDetectionPreprocessor:
             image_size=(4, 6),
             image_normalize=None,
             expected_input_channels=3,
-            sahi_config=ObjectDetectionSahiConfig(0.5, 0.3, 0.1),
         )
         batch, metadata = preprocessor.preprocess_image(
             torch.zeros(3, 8, 10, dtype=torch.uint8),
             device=torch.device("cpu"),
             dtype=torch.float32,
+            sahi_config=ObjectDetectionSahiConfig(
+                overlap=0.5,
+                nms_iou_threshold=0.3,
+                global_local_iou_threshold=0.1,
+            ),
         )
         assert batch.shape == (10, 3, 4, 6)
         assert metadata.orig_h == 8
         assert metadata.orig_w == 10
         assert metadata.tile_coordinates is not None
         assert metadata.tile_coordinates.shape == (9, 2)
+
+
+def _prediction() -> ObjectDetectionPrediction:
+    return ObjectDetectionPrediction(
+        labels=torch.tensor([17, 3, 17]),
+        bboxes=torch.arange(12, dtype=torch.float32).reshape(3, 4),
+        scores=torch.tensor([0.9, 0.4, 0.8]),
+    )
+
+
+class TestObjectDetectionPrediction:
+    def test_getitem__filters_by_score(self) -> None:
+        prediction = _prediction()
+
+        kept = prediction[prediction.scores > 0.5]
+
+        torch.testing.assert_close(kept.labels, torch.tensor([17, 17]))
+        torch.testing.assert_close(kept.scores, torch.tensor([0.9, 0.8]))
+        assert kept.bboxes.shape == (2, 4)
+
+    def test_getitem__filters_by_label(self) -> None:
+        prediction = _prediction()
+
+        cats = prediction[prediction.labels == 17]
+
+        torch.testing.assert_close(cats.labels, torch.tensor([17, 17]))
+        torch.testing.assert_close(cats.scores, torch.tensor([0.9, 0.8]))
+
+    def test_getitem__returns_new_prediction(self) -> None:
+        prediction = _prediction()
+
+        kept = prediction[prediction.scores > 0.0]
+
+        assert kept is not prediction
+        kept.bboxes[0, 0] = 999.0
+        assert prediction.bboxes[0, 0] == 0.0
+
+    def test_getitem__preserves_mapping_semantics(self) -> None:
+        prediction = _prediction()
+
+        assert prediction["bboxes"] is prediction.bboxes
+        assert len(prediction) == 3
+        assert list(prediction) == ["labels", "bboxes", "scores"]
+        assert dict(prediction)["scores"] is prediction.scores
+
+    def test_num_detections__counts_detections_not_fields(self) -> None:
+        prediction = _prediction()
+
+        assert prediction.num_detections == 3
+        assert len(prediction) == 3
+        assert prediction[prediction.scores > 0.5].num_detections == 2
+
+    def test_to_torchmetrics__after_filtering(self) -> None:
+        prediction = _prediction()[_prediction().scores > 0.5]
+
+        converted = prediction.to_torchmetrics()
+
+        assert set(converted) == {"boxes", "scores", "labels"}
+        assert converted["boxes"] is prediction.bboxes
+        torch.testing.assert_close(converted["labels"], torch.tensor([17, 17]))
 
 
 def _postprocessor() -> ObjectDetectionPostprocessor:
@@ -123,7 +188,6 @@ class TestObjectDetectionPostprocessor:
             num_top_queries=1,
             internal_class_to_class=torch.tensor([7]),
             image_size=(10, 20),
-            sahi_config=ObjectDetectionSahiConfig(0.2, 0.3, 0.1),
         )
         output = postprocessor.postprocess(
             ObjectDetectionOutput(
@@ -144,12 +208,36 @@ class TestObjectDetectionPostprocessor:
                 )
             ],
             threshold=0.5,
+            sahi_config=ObjectDetectionSahiConfig(
+                overlap=0.2,
+                nms_iou_threshold=0.3,
+                global_local_iou_threshold=0.1,
+            ),
         )[0]
         torch.testing.assert_close(output.labels, torch.tensor([7, 7]))
         torch.testing.assert_close(
             output.bboxes,
             torch.tensor([[40.0, 20.0, 60.0, 30.0], [13.0, 11.0, 17.0, 13.0]]),
         )
+
+    def test_postprocess__rejects_sahi_metadata_for_multiple_images(self) -> None:
+        raw = ObjectDetectionOutput(
+            logits=torch.zeros(2, 3, 2), boxes=torch.zeros(2, 3, 4)
+        )
+        with pytest.raises(ValueError, match="metadata for one image"):
+            _postprocessor().postprocess(
+                raw,
+                [
+                    ObjectDetectionMetadata(orig_w=10, orig_h=10),
+                    ObjectDetectionMetadata(orig_w=10, orig_h=10),
+                ],
+                threshold=0.5,
+                sahi_config=ObjectDetectionSahiConfig(
+                    overlap=0.2,
+                    nms_iou_threshold=0.3,
+                    global_local_iou_threshold=0.1,
+                ),
+            )
 
     def test_postprocess__prediction_supports_mapping_protocol(self) -> None:
         postprocessor = ObjectDetectionPostprocessor(

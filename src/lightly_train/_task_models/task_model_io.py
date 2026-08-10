@@ -11,13 +11,13 @@ import functools
 from abc import ABC
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, fields
-from typing import Any, cast
+from typing import Any, List, Union, cast, overload
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor
 from torch.export.dynamic_shapes import Dim
-from typing_extensions import Self
+from typing_extensions import Self, TypeAlias
 
 from lightly_train._export.onnx_helpers import check_model_input_spec_requirements
 
@@ -183,6 +183,12 @@ class ModelInputSpec(BaseModel):
         )
 
 
+@functools.lru_cache(maxsize=None)
+def _field_names(output_type: type) -> tuple[str, ...]:
+    """Return the dataclass field names of an output type, cached per class."""
+    return tuple(field.name for field in fields(output_type))
+
+
 @dataclass
 class BaseModelOutput(Mapping[str, Tensor], ABC):
     """Base for named model outputs that can cross torch export boundaries.
@@ -193,19 +199,25 @@ class BaseModelOutput(Mapping[str, Tensor], ABC):
     code written against dict-based prediction outputs. Note that
     ``isinstance(x, dict)`` is NOT true for these objects — check
     ``isinstance(x, collections.abc.Mapping)`` instead.
+
+    Mutating dict methods (``x[key] = ...``, ``.update()``, ``.pop()``, ``.copy()``)
+    are NOT supported. Use ``dict(x)`` to get a mutable copy.
+
+    Outputs whose fields share a leading row dimension should subclass
+    :class:`RowIndexableOutput` instead, which adds row filtering on top.
     """
 
     def __getitem__(self, key: str) -> Tensor:
         """Return a declared output field by name."""
-        if key not in {field.name for field in fields(self)}:
+        if key not in _field_names(type(self)):
             raise KeyError(key)
         return cast(Tensor, getattr(self, key))
 
     def __iter__(self) -> Iterator[str]:
-        return (field.name for field in fields(self))
+        return iter(_field_names(type(self)))
 
     def __len__(self) -> int:
-        return len(fields(self))
+        return len(_field_names(type(self)))
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -233,3 +245,111 @@ def _model_output_unflatten(
     output_type: type[BaseModelOutput],
 ) -> BaseModelOutput:
     return output_type(**dict(zip(context, values)))
+
+
+RowIndex: TypeAlias = Union[Tensor, int, slice, List[int]]
+
+
+@dataclass
+class RowIndexableOutput(BaseModelOutput, ABC):
+    """A model output whose fields all share a leading row dimension ``N``.
+
+    Adds row filtering on top of the ``Mapping`` behaviour of
+    :class:`BaseModelOutput`::
+
+        kept = prediction[prediction.scores > 0.5]
+        cats = prediction[prediction.labels == 17]
+
+    Indexing with a ``str`` keeps the ``Mapping`` semantics and returns the named
+    field. Indexing with anything else selects rows and returns a NEW instance of the
+    same class whose tensors never alias the original ones.
+
+    Note:
+        ``len(output)`` and iterating over an output keep their ``Mapping`` meaning:
+        the number of fields and the field names, NOT the number of rows. Use
+        :attr:`num_rows` to count rows.
+    """
+
+    @property
+    def num_rows(self) -> int:
+        """Number of rows ``N`` shared by all fields."""
+        return int(self._first_field().shape[0])
+
+    def select(self, index: RowIndex) -> Self:
+        """Return a new output containing only the selected rows.
+
+        Args:
+            index:
+                A 1-dimensional boolean mask of length :attr:`num_rows`, a
+                1-dimensional integer tensor, a list of integers, a slice, or a single
+                integer (which keeps the row dimension).
+
+        Returns:
+            A new instance of the same class. Its tensors are always copies, never
+            views of the original tensors.
+        """
+        normalized = self._normalize_index(index)
+        values = {
+            name: cast(Tensor, getattr(self, name))[normalized.to(self._device(name))]
+            for name in _field_names(type(self))
+        }
+        return type(self)(**values)
+
+    @overload
+    def __getitem__(self, index: str) -> Tensor: ...
+
+    @overload
+    def __getitem__(self, index: RowIndex) -> Self: ...
+
+    def __getitem__(self, index: Union[str, RowIndex]) -> Union[Tensor, Self]:
+        """Return a field by name, or a new output with the selected rows."""
+        if isinstance(index, str):
+            return super().__getitem__(index)
+        return self.select(index)
+
+    def __contains__(self, key: object) -> bool:
+        # Mapping.__contains__ delegates to __getitem__ and would therefore report a
+        # successful row selection as a successful field lookup.
+        return isinstance(key, str) and key in _field_names(type(self))
+
+    def _first_field(self) -> Tensor:
+        return cast(Tensor, getattr(self, _field_names(type(self))[0]))
+
+    def _device(self, name: str) -> torch.device:
+        return cast(Tensor, getattr(self, name)).device
+
+    def _normalize_index(self, index: RowIndex) -> Tensor:
+        """Return an index that is guaranteed to copy rather than return a view."""
+        device = self._first_field().device
+        if isinstance(index, Tensor):
+            if index.ndim != 1:
+                raise IndexError(
+                    f"Index tensor must be 1-dimensional but has {index.ndim} "
+                    "dimensions."
+                )
+            if index.dtype == torch.bool:
+                if index.shape[0] != self.num_rows:
+                    raise IndexError(
+                        f"Boolean mask has length {index.shape[0]} but the output has "
+                        f"{self.num_rows} rows."
+                    )
+                return index
+            if index.dtype not in (torch.int32, torch.int64):
+                raise IndexError(
+                    "Index tensor must have dtype bool, int32, or int64 but has "
+                    f"{index.dtype}."
+                )
+            return index.to(dtype=torch.int64)
+        # bool is a subclass of int, so it must be rejected before the int branch.
+        if isinstance(index, bool):
+            raise TypeError(
+                "Indexing with a bool is not supported, use a 1-dimensional bool "
+                "tensor mask instead."
+            )
+        if isinstance(index, int):
+            rows = [index]
+        elif isinstance(index, slice):
+            rows = list(range(*index.indices(self.num_rows)))
+        else:
+            rows = list(index)
+        return torch.tensor(rows, dtype=torch.int64, device=device)

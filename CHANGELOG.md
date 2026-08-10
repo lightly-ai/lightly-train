@@ -19,19 +19,34 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- `LTDETRObjectDetection.predict()`, `predict_batch()`, `predict_sahi()`, and
-  `predict_sahi_batch()` now return an `ObjectDetectionPrediction` object (access via
-  `results.bboxes`, `results.labels`, `results.scores`) instead of a plain `dict`.
-  Dict-style usage keeps working (`results["bboxes"]`, `"bboxes" in results`,
+- `LTDETRObjectDetection.predict()`, `predict_batch()`, `predict_sahi()`,
+  `predict_sahi_batch()`, and `PicoDetObjectDetection.predict()` now return an
+  `ObjectDetectionPrediction` object (access via `results.bboxes`, `results.labels`,
+  `results.scores`) instead of a plain `dict`. Dict-style *reads* keep working
+  (`results["bboxes"]`, `"bboxes" in results`,
   `results.keys()`/`.items()`/`.values()`/`.get(...)`, `dict(results)`, `**results`),
   but `isinstance(results, dict)` no longer holds — use
-  `isinstance(results, collections.abc.Mapping)` if a type check is needed.
+  `isinstance(results, collections.abc.Mapping)` if a type check is needed. Mutating
+  dict methods are no longer available: `results["bboxes"] = ...`,
+  `results.update(...)`, `results.pop(...)`, and `results.copy()` now raise
+  `AttributeError`. Use `results[results.scores > 0.5]` to filter, or `dict(results)`
+  for a mutable copy.
+- Object detection predictions now support row filtering, which always returns a new
+  prediction: `results[results.scores > 0.5]`, `results[results.labels == 17]`,
+  `results[[0, 2]]`. Note that `len(results)` still returns the number of fields and
+  iterating still yields field names, because predictions also behave like a `Mapping`.
+  Use `results.num_detections` to count detections.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Use class-aware non-maximum suppression when merging tile predictions in
+  `predict_sahi()` and `predict_sahi_batch()`. Previously a high-confidence detection
+  could suppress an overlapping detection of a different class, so SAHI may now return
+  additional boxes for overlapping objects of different classes.
 
 ### Security
 

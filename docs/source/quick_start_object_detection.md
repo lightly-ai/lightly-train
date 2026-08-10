@@ -59,8 +59,15 @@ paths, URLs, PIL Images, or tensors as input:
 results = model.predict("image.jpg")
 results.labels   # Class labels, tensor of shape (num_boxes,)
 results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+                 # coordinates of the original image. Tensor of shape (num_boxes, 4).
 results.scores   # Confidence scores, tensor of shape (num_boxes,)
+```
+
+Filter predictions by indexing them with a boolean mask. This always returns a new
+prediction and leaves the original untouched:
+
+```python skip_ruff
+confident = results[results.scores > 0.8]   # Keep only high-confidence detections
 ```
 
 ### Visualize the results
@@ -266,7 +273,7 @@ results = model.predict("image.jpg")
 
 results.labels   # Class labels, tensor of shape (num_boxes,)
 results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
+                 # coordinates of the original image. Tensor of shape (num_boxes, 4).
 results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 

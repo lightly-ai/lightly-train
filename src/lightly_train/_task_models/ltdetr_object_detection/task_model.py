@@ -480,12 +480,12 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         Returns:
             A list with one :class:`ObjectDetectionPrediction` per input image.
         """
+        if not images:
+            raise ValueError("images must contain at least one image.")
         self._track_inference()
         if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
-        if not images:
-            raise ValueError("images must contain at least one image.")
         prepared = [
             self.preprocessor.preprocess_image(
                 image, device=first_param.device, dtype=first_param.dtype
@@ -576,9 +576,9 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         global_local_iou_threshold: float = 0.1,
     ) -> list[ObjectDetectionPrediction]:
         """Run Slicing Aided Hyper Inference on a batch of images."""
-        self._track_inference()
         if not images:
             raise ValueError("images must contain at least one image.")
+        self._track_inference()
         if self.training or not self.is_deploy_mode:
             self.deploy()
         first_param = next(self.parameters())
@@ -587,27 +587,17 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
         )
-        preprocessor = ObjectDetectionPreprocessor(
-            image_size=self.image_size,
-            image_normalize=self.image_normalize,
-            expected_input_channels=self._expected_input_channels,
-            sahi_config=sahi_config,
-        )
-        postprocessor = ObjectDetectionPostprocessor(
-            num_classes=len(self.classes),
-            num_top_queries=self.num_top_queries,
-            internal_class_to_class=self.internal_class_to_class,
-            image_size=self.image_size,
-            sahi_config=sahi_config,
-        )
         prepared = [
-            preprocessor.preprocess_image(
-                image, device=first_param.device, dtype=first_param.dtype
+            self.preprocessor.preprocess_image(
+                image,
+                device=first_param.device,
+                dtype=first_param.dtype,
+                sahi_config=sahi_config,
             )
             for image in images
         ]
         counts = [len(image_batch) for image_batch, _ in prepared]
-        batch = preprocessor.preprocess_batch(
+        batch = self.preprocessor.preprocess_batch(
             torch.cat([image_batch for image_batch, _ in prepared])
         )
         raw = self(batch)
@@ -619,7 +609,9 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
                 logits=raw.logits[start:end], boxes=raw.boxes[start:end]
             )
             predictions.extend(
-                postprocessor.postprocess(raw_image, [metadata], threshold)
+                self.postprocessor.postprocess(
+                    raw_image, [metadata], threshold, sahi_config=sahi_config
+                )
             )
             start = end
         return predictions

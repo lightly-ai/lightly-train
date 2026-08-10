@@ -27,6 +27,7 @@ from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
+    ObjectDetectionPrediction,
 )
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
@@ -461,7 +462,7 @@ class PicoDetObjectDetection(TaskModel):
         raw_outputs: tuple[Tensor, Tensor, Tensor],
         metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
-    ) -> list[dict[str, Tensor]]:
+    ) -> list[ObjectDetectionPrediction]:
         """Rescale boxes to original image coordinates and filter by threshold.
 
         Args:
@@ -474,8 +475,7 @@ class PicoDetObjectDetection(TaskModel):
                 Score threshold for filtering detections.
 
         Returns:
-            List of prediction dicts with ``labels``, ``bboxes``, and
-            ``scores`` keys.
+            A list with one :class:`ObjectDetectionPrediction` per input image.
         """
         boxes_xyxy, obj_logits, cls_logits = raw_outputs
         model_h, model_w = self.image_size
@@ -484,7 +484,7 @@ class PicoDetObjectDetection(TaskModel):
         internal_labels = cls_logits.argmax(dim=-1)
         labels = self.internal_class_to_class[internal_labels]
 
-        out: list[dict[str, Tensor]] = []
+        out: list[ObjectDetectionPrediction] = []
         for i in range(len(metadata)):
             orig_w = metadata[i].orig_w
             orig_h = metadata[i].orig_h
@@ -496,11 +496,11 @@ class PicoDetObjectDetection(TaskModel):
 
             keep = scores[i] > threshold
             out.append(
-                {
-                    "labels": labels[i][keep],
-                    "bboxes": boxes[keep],
-                    "scores": scores[i][keep],
-                }
+                ObjectDetectionPrediction(
+                    labels=labels[i][keep],
+                    bboxes=boxes[keep],
+                    scores=scores[i][keep],
+                )
             )
         return out
 
@@ -509,7 +509,7 @@ class PicoDetObjectDetection(TaskModel):
         self,
         image: PathLike | PILImage | Tensor,
         threshold: float = 0.6,
-    ) -> dict[str, Tensor]:
+    ) -> ObjectDetectionPrediction:
         """Run inference on a single image.
 
         Args:
@@ -517,10 +517,9 @@ class PicoDetObjectDetection(TaskModel):
             threshold: Score threshold for detections.
 
         Returns:
-            Dictionary with:
-            - labels: Tensor of shape (N,) with class indices.
-            - bboxes: Tensor of shape (N, 4) with boxes in xyxy format.
-            - scores: Tensor of shape (N,) with confidence scores.
+            An :class:`ObjectDetectionPrediction` with ``labels`` of shape ``(N,)``,
+            ``bboxes`` of shape ``(N, 4)`` in ``xyxy`` format, and ``scores`` of shape
+            ``(N,)``.
         """
         self._track_inference()
         if self.training:
@@ -558,11 +557,7 @@ class PicoDetObjectDetection(TaskModel):
             boxes = boxes[keep]
             scores = scores[keep]
 
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
+        return ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
 
     @torch.no_grad()
     def export_onnx(

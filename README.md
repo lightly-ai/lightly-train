@@ -148,7 +148,7 @@ if __name__ == "__main__":
     results = model.predict("image.jpg")
     results.labels   # Class labels, tensor of shape (num_boxes,)
     results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                        # coordinates of the original image. Tensor of shape (num_boxes, 4).
+                     # coordinates of the original image. Tensor of shape (num_boxes, 4).
     results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
