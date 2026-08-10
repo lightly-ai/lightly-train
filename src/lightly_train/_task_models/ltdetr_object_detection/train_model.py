@@ -37,7 +37,6 @@ from lightly_train._metrics.detection.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._pre_post_processing.object_detection import (
-    ObjectDetectionPrediction,
     decode_object_detection_output,
 )
 from lightly_train._task_models.ltdetr_object_detection.config import (
@@ -117,19 +116,14 @@ def _decode_predictions_for_metrics(
     outputs: dict[str, Tensor],
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
-    labels, boxes, scores = decode_object_detection_output(
+    predictions = decode_object_detection_output(
         logits=outputs["pred_logits"],
         boxes=outputs["pred_boxes"],
         target_sizes=orig_target_sizes,
         num_top_queries=model.num_top_queries,
         internal_class_to_class=model.internal_class_to_class,
     )
-    return [
-        ObjectDetectionPrediction(
-            labels=labels_i, bboxes=boxes_i, scores=scores_i
-        ).to_torchmetrics()
-        for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
-    ]
+    return [prediction.to_torchmetrics() for prediction in predictions]
 
 
 class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):

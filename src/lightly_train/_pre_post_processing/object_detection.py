@@ -117,8 +117,8 @@ def decode_object_detection_output(
     target_sizes: Tensor,
     num_top_queries: int,
     internal_class_to_class: Tensor,
-) -> tuple[Tensor, Tensor, Tensor]:
-    """Decode raw detection outputs into per-image labels, boxes, and scores.
+) -> list[ObjectDetectionPrediction]:
+    """Decode raw detection outputs into one prediction per image.
 
     Args:
         logits: Shape ``(B, num_queries, num_classes)``. Raw (pre-sigmoid) logits.
@@ -130,9 +130,9 @@ def decode_object_detection_output(
             user-facing class ids.
 
     Returns:
-        Tuple ``(labels, boxes, scores)`` of shapes ``(B, num_top_queries)``,
-        ``(B, num_top_queries, 4)``, and ``(B, num_top_queries)``. Boxes are ``xyxy``
-        in ``target_sizes`` coordinates. No score thresholding is applied.
+        A list of ``B`` predictions, each holding ``num_top_queries`` detections with
+        ``xyxy`` boxes in ``target_sizes`` coordinates. No score thresholding is
+        applied.
     """
     scores = logits.sigmoid()
     num_classes = scores.shape[-1]
@@ -142,7 +142,10 @@ def decode_object_detection_output(
     boxes = box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
     boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
     boxes = boxes * target_sizes.repeat(1, 2).unsqueeze(1)
-    return labels, boxes, scores
+    return [
+        ObjectDetectionPrediction(labels=labels_i, bboxes=boxes_i, scores=scores_i)
+        for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
+    ]
 
 
 class ObjectDetectionPreprocessor(Module):
@@ -267,19 +270,13 @@ class ObjectDetectionPostprocessor(Module):
             target_sizes = self._target_sizes(
                 metadata, device=raw.boxes.device, tile_coordinates=tile_coordinates
             )
-            labels, boxes, scores = decode_object_detection_output(
+            predictions = decode_object_detection_output(
                 logits=raw.logits,
                 boxes=raw.boxes,
                 target_sizes=target_sizes,
                 num_top_queries=self.num_top_queries,
                 internal_class_to_class=self.internal_class_to_class,
             )
-            predictions = [
-                ObjectDetectionPrediction(
-                    labels=labels_i, bboxes=boxes_i, scores=scores_i
-                )
-                for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
-            ]
             return [
                 tiling_utils.combine_sahi_object_detection_predictions(
                     predictions=predictions,
@@ -291,17 +288,13 @@ class ObjectDetectionPostprocessor(Module):
             ]
 
         target_sizes = self._target_sizes(metadata, device=raw.boxes.device)
-        labels, boxes, scores = decode_object_detection_output(
+        predictions = decode_object_detection_output(
             logits=raw.logits,
             boxes=raw.boxes,
             target_sizes=target_sizes,
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
         )
-        predictions = [
-            ObjectDetectionPrediction(labels=labels_i, bboxes=boxes_i, scores=scores_i)
-            for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
-        ]
         return [prediction[prediction.scores > threshold] for prediction in predictions]
 
     def _target_sizes(
