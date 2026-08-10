@@ -738,7 +738,9 @@ def test_postprocess__accepts_typed_and_mapping_outputs(
         image_size=(256, 256),
         load_weights=False,
     )
-    postprocess = mocker.patch.object(model.postprocessor, "postprocess", return_value=[])
+    postprocess = mocker.patch.object(
+        model.postprocessor, "postprocess", return_value=[]
+    )
     logits = torch.rand(1, 2, 1)
     boxes = torch.rand(1, 2, 4)
     metadata = [ObjectDetectionMetadata(orig_h=480, orig_w=640)]
