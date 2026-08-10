@@ -54,6 +54,18 @@ class ObjectDetectionPrediction(BaseModelOutput):
     bboxes: Tensor
     scores: Tensor
 
+    def to_torchmetrics(self) -> dict[str, Tensor]:
+        """Convert to a format compatible with TorchMetrics.
+
+        Returns:
+            A dictionary with keys ``"boxes"``, ``"scores"``, and ``"labels"``.
+        """
+        return {
+            "boxes": self.bboxes,
+            "scores": self.scores,
+            "labels": self.labels,
+        }
+
 
 @dataclass
 class ObjectDetectionMetadata:
