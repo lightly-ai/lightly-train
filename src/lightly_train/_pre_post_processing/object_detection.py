@@ -497,9 +497,7 @@ class ObjectDetectionPostprocessor(Module):
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
         )
-        return [
-            prediction[prediction.scores > threshold] for prediction in predictions
-        ]
+        return [prediction[prediction.scores > threshold] for prediction in predictions]
 
     def _target_sizes(
         self,

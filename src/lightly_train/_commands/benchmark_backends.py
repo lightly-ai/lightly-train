@@ -252,8 +252,7 @@ class ONNXBackend(ObjectDetectionBackend):
             model_size=(model_h, model_w),
         )
         results = [
-            prediction[prediction.scores > self.threshold]
-            for prediction in predictions
+            prediction[prediction.scores > self.threshold] for prediction in predictions
         ]
         return results, time_predict
 
@@ -394,7 +393,6 @@ class TensorRTBackend(ObjectDetectionBackend):
             model_size=(model_h, model_w),
         )
         results = [
-            prediction[prediction.scores > self.threshold]
-            for prediction in predictions
+            prediction[prediction.scores > self.threshold] for prediction in predictions
         ]
         return results, time_predict

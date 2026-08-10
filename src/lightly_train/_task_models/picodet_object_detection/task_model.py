@@ -502,9 +502,7 @@ class PicoDetObjectDetection(TaskModel):
         predictions = rescale_predictions_to_original_size(
             predictions=predictions, metadata=metadata, model_size=self.image_size
         )
-        return [
-            prediction[prediction.scores > threshold] for prediction in predictions
-        ]
+        return [prediction[prediction.scores > threshold] for prediction in predictions]
 
     @torch.no_grad()
     def predict(
