@@ -34,50 +34,84 @@ the next section.
 
 To make this tutorial reproducible, we simulate that starting point from the PASCAL VOC
 dataset (downloaded as in the {ref}`YOLOv26 tutorial <tutorials-yolo>`): we keep the
-annotations for a small, randomly chosen part of the images and treat the rest as
-unlabeled. This split is *only* scaffolding — with your own data it already exists.
+annotations for a small, randomly chosen part of the training images and treat the rest
+as unlabeled. This is *only* scaffolding — with your own data these two directories
+already exist.
+
+From there we do what you would do with your own annotated directory: hold out part of
+it for evaluation, and leave the rest for fine-tuning.
 
 ```python
 import random
 import shutil
 from pathlib import Path
 
-for subdir in ["labeled/images", "labeled/labels", "unlabeled"]:
-    Path("my_dataset", subdir).mkdir(parents=True, exist_ok=True)
+from ultralytics import settings
 
-image_paths = sorted(Path("datasets/VOC/images/train2012").glob("*.jpg"))
+voc_dir = Path(settings["datasets_dir"]) / "VOC"
+voc_train_dir = voc_dir / "images" / "train2012"
+image_paths = sorted(voc_train_dir.glob("*.jpg"))
+if not image_paths:
+    raise FileNotFoundError(f"No images in {voc_train_dir}. Download VOC first.")
+
+# Scaffolding only: pretend most images were never annotated.
 random.Random(42).shuffle(image_paths)
-labeled_paths, unlabeled_paths = image_paths[:1000], image_paths[1000:]
+annotated_paths, unlabeled_paths = image_paths[:1000], image_paths[1000:]
 
-for image_path in labeled_paths:
-    split_name = image_path.parent.name
-    label_name = image_path.with_suffix(".txt").name
-    label_path = image_path.parents[2] / "labels" / split_name / label_name
-    shutil.copy(image_path, "my_dataset/labeled/images")
-    shutil.copy(label_path, "my_dataset/labeled/labels")
+# The split you would also do on your own annotated directory.
+train_paths, val_paths = annotated_paths[:800], annotated_paths[800:]
 
+
+def copy_annotated(paths, out_dir):
+    for subdir in ["images", "labels"]:
+        (out_dir / subdir).mkdir(parents=True, exist_ok=True)
+    for image_path in paths:
+        label_path = voc_dir / "labels" / "train2012" / f"{image_path.stem}.txt"
+        shutil.copy(image_path, out_dir / "images")
+        if label_path.exists():  # An image without a label file counts as background.
+            shutil.copy(label_path, out_dir / "labels")
+
+
+copy_annotated(train_paths, Path("my_dataset/train"))
+copy_annotated(val_paths, Path("my_valset"))
+
+unlabeled_dir = Path("my_dataset/unlabeled")
+unlabeled_dir.mkdir(parents=True, exist_ok=True)
 for image_path in unlabeled_paths:
-    shutil.copy(image_path, "my_dataset/unlabeled")
+    shutil.copy(image_path, unlabeled_dir)
+```
+
+That leaves two top-level directories:
+
+```text
+my_dataset/          # everything pretraining is allowed to see
+├── unlabeled/       # 4717 images, no annotations
+└── train/           # 800 annotated images for fine-tuning
+
+my_valset/           # 200 annotated images, held out for evaluation
 ```
 
 Two details matter here, and they apply to your own data as well:
 
-- **The split is seeded and persisted.** Sorting before shuffling makes the result
+- **The splits are seeded and persisted.** Sorting before shuffling makes the result
   independent of filesystem order, so the same seed gives the same split on any machine.
-  Every configuration you compare later must fine-tune on the *exact same* labeled
-  images — never re-sample the subset per run.
-- **Validation data stays outside.** `my_dataset/` contains training data only. The
-  validation images (`val2012`) remain where they are and never enter the pretraining
-  pool.
+  Every configuration you compare later must fine-tune on the *exact same* images and be
+  evaluated on the *exact same* held-out set — never re-sample per run. If you do change
+  the seed, delete `my_dataset/` and `my_valset/` first: files from the previous split
+  are not cleaned up, and the two sets would end up overlapping.
+- **The held-out set lives outside the pretraining directory.** `my_valset/` is
+  deliberately not inside `my_dataset/`, so pointing pretraining at `my_dataset/` cannot
+  reach it even by accident. Hold out as many images as you can afford — 200 keeps this
+  example quick, but a small held-out set makes small differences hard to measure.
 
-For fine-tuning, point a small dataset YAML at the labeled subset — and note that
-validation always uses the full, original validation set (adjust paths to your setup):
+The dataset YAML for fine-tuning then references both, and stays identical across all
+compared runs:
 
 ```yaml
 # my_dataset.yaml
-path: my_dataset/labeled
+path: my_dataset/train
 train: images
-val: ../../datasets/VOC/images/val2012 # the full val set, identical for every run
+val: ../../my_valset/images
 names: [aeroplane, bicycle, bird, boat, bottle, bus, car, cat, chair, cow,
     diningtable, dog, horse, motorbike, person, pottedplant, sheep, sofa, train,
     tvmonitor]
@@ -86,27 +120,30 @@ names: [aeroplane, bicycle, bird, boat, bottle, bus, car, cat, chair, cow,
 ## Choose What You're Comparing
 
 Decide — and write down — which configurations you are comparing *before* training
-anything. For YOLO-style detectors there are three meaningful starting points. Note
-which tool each model string is passed to:
+anything. For YOLO-style detectors there are four meaningful starting points. Note which
+tool each model string is passed to:
 
-| Configuration              | Pretraining step (LightlyTrain)                               | Fine-tuning starts from (Ultralytics)              |
-| -------------------------- | ------------------------------------------------------------- | -------------------------------------------------- |
-| Random initialization      | —                                                             | `YOLO("yolo26s.yaml")`                             |
-| COCO-pretrained weights    | —                                                             | `YOLO("yolo26s.pt")`                               |
-| Pretraining on top of COCO | `pretrain(model="ultralytics/yolo26s.pt", data="my_dataset")` | `YOLO("out/.../exported_models/exported_last.pt")` |
+| Configuration              | `lightly_train.pretrain(model=…)` | `YOLO(…)` for fine-tuning |
+| -------------------------- | --------------------------------- | ------------------------- |
+| Random initialization      | not used                          | `"yolo26s.yaml"`          |
+| COCO-pretrained weights    | not used                          | `"yolo26s.pt"`            |
+| Pretraining from scratch   | `"ultralytics/yolo26s.yaml"`      | the exported checkpoint   |
+| Pretraining on top of COCO | `"ultralytics/yolo26s.pt"`        | the exported checkpoint   |
 
-We recommend including the third configuration: pretraining does not have to replace
-COCO weights, it can build on them. Off-the-shelf initialization and pretraining on your
-own data are complementary, not mutually exclusive.
+The first two are baselines with no LightlyTrain step. The last two both pretrain on
+your unlabeled images and differ only in what that pretraining starts from. We recommend
+including the fourth: pretraining does not have to replace COCO weights, it can build on
+them. Off-the-shelf initialization and pretraining on your own data are complementary,
+not mutually exclusive.
 
 ```{warning}
-Watch out for the head-initialization trap: a model exported after LightlyTrain
-pretraining has a pretrained *backbone* but a randomly initialized *detection head*,
-while an off-the-shelf COCO checkpoint comes with a fully trained head. The head
-accounts for a significant portion of the model's parameters, so comparing these two
-directly puts the pretrained model at a disadvantage that has nothing to do with the
-quality of the pretraining. Pretraining on top of the COCO weights avoids this
-imbalance.
+Watch out for the head-initialization trap when comparing *COCO-pretrained weights*
+against *pretraining from scratch*: the pretrained model has a strong *backbone* but a
+randomly initialized *detection head*, while the off-the-shelf COCO checkpoint comes
+with a fully trained head. The head accounts for a significant portion of the model's
+parameters, so that comparison puts the pretrained model at a disadvantage that has
+nothing to do with the quality of the pretraining. Pretraining on top of the COCO
+weights keeps the head and avoids the imbalance.
 ```
 
 ## Draw the Data Boundary
@@ -115,16 +152,15 @@ Which images may enter the unlabeled pretraining pool?
 
 - **Your labeled training images: yes.** Pretraining works best when it sees the full
   data distribution, and this will make your model better.
-- **Validation and test images: never.** Including them leads to data leakage: the
-  evaluation is no longer measuring generalization. Treat the pretraining pool like a
-  training split — any image in it must not be used for evaluation.
+- **Your held-out images: never.** Including them leads to data leakage: the evaluation
+  is no longer measuring generalization. Treat the pretraining pool like a training
+  split — any image in it must not be used for evaluation.
 - **Additional unlabeled images: yes.** The more the better, as long as they come from
   the same domain.
 
-With the directory layout from the prerequisites this boundary is enforced by
-construction: point the pretraining at the whole `my_dataset` directory — LightlyTrain
-finds images in nested folders on its own and ignores label files — and the validation
-images can never leak in because they live outside of it.
+The layout from the prerequisites enforces this by construction: point pretraining at
+`my_dataset/` and it sees the unlabeled images plus the fine-tuning training images,
+nothing else. LightlyTrain walks nested folders on its own and ignores label files.
 
 See the {ref}`FAQ <faq>` entries *"Can I train on labeled images?"* and *"How much data
 do I need?"* for the underlying rules and recommended dataset sizes.
@@ -138,7 +174,7 @@ everything else identical across runs:
 - Learning rate and schedule
 - Image size and augmentations
 - Model architecture and size
-- The labeled training data and the validation data
+- The labeled training data and the held-out set
 - The `seed`
 
 The learning rate deserves special attention: it usually has the largest effect of all
@@ -152,30 +188,56 @@ Three more rules that frequently decide whether the comparison is meaningful:
   no benefit — that is a property of the budget, not of pretraining. See the
   {ref}`recommended epochs and batch sizes <methods-distillation>` before concluding
   anything from a quick test run.
-- **Evaluate every run on the identical, full validation set.** Even when fine-tuning on
-  a small labeled subset, validation uses the complete original validation split — never
-  a shrunken one.
+- **Evaluate every run on the identical, full held-out set.** Even when fine-tuning on a
+  small labeled subset, validation uses the complete held-out set — never a shrunken
+  one.
 - **Use the same checkpoint-selection rule for every run.** For example, always report
   the best validation mAP50-95. Comparing the best epoch of one run against the final
   epoch of another silently biases the result.
 
-The training commands themselves are the same as in the
-{ref}`YOLOv26 tutorial <tutorials-yolo>`; just give each run a distinct name, e.g.
-`name="from_scratch"`, `name="from_coco"`, and `name="pretrained_on_coco"`. If you use
-LightlyTrain for fine-tuning, the `seed` argument is documented in the
-{ref}`Train Settings <train-settings>` (and {ref}`Pretrain Settings <pretrain-settings>`
-for the pretraining run).
+The commands are the same as in the {ref}`YOLOv26 tutorial <tutorials-yolo>`, wired up
+so that only the starting weights change between runs:
+
+```python
+from ultralytics import YOLO
+
+import lightly_train
+
+# Pretraining — only for the two pretrained configurations.
+lightly_train.pretrain(
+    out="out/pretrained_on_coco",
+    model="ultralytics/yolo26s.pt",  # "ultralytics/yolo26s.yaml" starts from random
+    data="my_dataset",
+    epochs=100,
+)
+
+# Fine-tuning — identical for every run except the weights and the run name.
+YOLO("out/pretrained_on_coco/exported_models/exported_last.pt").train(
+    data="my_dataset.yaml",
+    epochs=50,
+    seed=0,
+    project="logs/comparison",
+    name="pretrained_on_coco",
+)
+```
+
+Repeat the fine-tuning block for the other three configurations, changing only the
+weights it starts from — `"yolo26s.yaml"`, `"yolo26s.pt"`, or the checkpoint exported by
+the from-scratch pretraining run — and the `name`. The `seed` argument is documented in
+the {ref}`Train Settings <train-settings>`, and in the
+{ref}`Pretrain Settings <pretrain-settings>` for the pretraining run.
 
 ## Report Results
 
 Record enough configuration alongside the metric that someone else — or you, three weeks
 later — can interpret the comparison. A minimal results table:
 
-| Run                | Initialization      | Pretraining data / epochs | Fine-tuning data / epochs | Seed | mAP50-95 |
-| ------------------ | ------------------- | ------------------------- | ------------------------- | ---- | -------- |
-| from_scratch       | random              | —                         | 1000 images / 50          | 0    | …        |
-| from_coco          | COCO weights        | —                         | 1000 images / 50          | 0    | …        |
-| pretrained_on_coco | COCO + LightlyTrain | my_dataset / …            | 1000 images / 50          | 0    | …        |
+| Run                     | Initialization             | Pretraining data / epochs | Fine-tuning data / epochs | Seed | mAP50-95 |
+| ----------------------- | -------------------------- | ------------------------- | ------------------------- | ---- | -------- |
+| random_init             | random                     | —                         | 800 images / 50           | 0    | …        |
+| coco                    | COCO weights               | —                         | 800 images / 50           | 0    | …        |
+| pretrained_from_scratch | LightlyTrain (from random) | my_dataset / 100          | 800 images / 50           | 0    | …        |
+| pretrained_on_coco      | LightlyTrain (on COCO)     | my_dataset / 100          | 800 images / 50           | 0    | …        |
 
 For Ultralytics fine-tuning the metric comes from the `results.csv` of each run, as
 shown in the {ref}`YOLOv26 tutorial <tutorials-yolo>`. If you fine-tune with
@@ -193,14 +255,26 @@ A few things to keep in mind before drawing conclusions:
 - **A null result is information, not failure.** If pretraining did not help, that is a
   valid, reportable outcome for your dataset and budget — it does not mean the
   comparison was wasted or that pretraining never helps.
-- **If you want to dig further**, the levers that most often change the outcome are:
-  training longer (see the
-  {ref}`recommended epochs for distillation <methods-distillation>`), pretraining on top
-  of the COCO weights if you started from scratch, using a larger model (small models
-  tend to profit less from pretraining), and revisiting the learning rate.
+- **If you want to dig further**, these are the levers that most often change the
+  outcome:
+  - Pretrain for longer — see the
+    {ref}`recommended epochs for distillation <methods-distillation>`.
+  - Pretrain on top of the COCO weights if you started from scratch.
+  - Use a larger model; small models tend to profit less from pretraining.
+  - Revisit the learning rate.
 
 And if results stay ambiguous: the fine-tuning comparison you just ran *is* the ground
 truth. Proxy metrics can speed up iteration, but the best way of truly knowing whether
 pretraining helps on your data is exactly what you did — the whole fine-tuning.
+
+## Next Steps
+
+- Repeat the comparison with a different pretraining method — see
+  {ref}`Methods <methods>` for the available options.
+- Run the same protocol against LightlyTrain's own
+  {ref}`LTDETR object detection models <object-detection>`, which ship with
+  COCO-pretrained checkpoints.
+- Revisit the {ref}`FAQ <faq>` for dataset size recommendations once you know how much
+  your unlabeled data is worth.
 
 Happy (fair) experimenting! 🔬
