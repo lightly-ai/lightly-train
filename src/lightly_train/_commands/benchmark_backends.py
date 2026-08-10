@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -26,37 +25,18 @@ from lightly_train._commands.benchmark_types import (
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionPrediction,
+    ObjectDetectionPreprocessor,
+    filter_predictions_by_score,
+    rescale_predictions_to_original_size,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import ObjectDetectionBatch
 
 
-def _rescale_and_filter_predictions(
-    *,
-    predictions: Sequence[ObjectDetectionPrediction],
-    metadata: Sequence[ObjectDetectionMetadata],
-    model_w: int,
-    model_h: int,
-    threshold: float,
-) -> list[ObjectDetectionPrediction]:
-    """Rescale boxes from model input size to original image coordinates and filter by score threshold."""
-    results: list[ObjectDetectionPrediction] = []
-    for prediction, item_metadata in zip(predictions, metadata):
-        scale = prediction.bboxes.new_tensor(
-            [
-                item_metadata.orig_w / model_w,
-                item_metadata.orig_h / model_h,
-                item_metadata.orig_w / model_w,
-                item_metadata.orig_h / model_h,
-            ]
-        )
-        prediction = ObjectDetectionPrediction(
-            labels=prediction.labels,
-            bboxes=prediction.bboxes * scale,
-            scores=prediction.scores,
-        )
-        results.append(prediction[prediction.scores > threshold])
-    return results
+def _get_preprocessor(model: TaskModel) -> ObjectDetectionPreprocessor:
+    preprocessor = model.preprocessor  # type: ignore[union-attr]
+    assert isinstance(preprocessor, ObjectDetectionPreprocessor)
+    return preprocessor
 
 
 class ObjectDetectionBackend(ABC):
@@ -65,7 +45,7 @@ class ObjectDetectionBackend(ABC):
     @abstractmethod
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
         pass
 
 
@@ -81,6 +61,7 @@ class TorchBackend(ObjectDetectionBackend):
         self.device = device
         self.backend_args = backend_args
         self.threshold = threshold
+        self.preprocessor = _get_preprocessor(model)
 
         if hasattr(self.model, "deploy"):
             self.model.deploy()  # type: ignore[operator]
@@ -93,9 +74,9 @@ class TorchBackend(ObjectDetectionBackend):
     @override
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
         # preprocess
-        images = batch["image"].to(self.device)
+        images = self.preprocessor.preprocess_batch(batch["image"].to(self.device))
         metadata = [
             ObjectDetectionMetadata(orig_w=w, orig_h=h)
             for w, h in batch["original_size"]
@@ -117,9 +98,10 @@ class TorchBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # postprocess
-        return self.model.postprocess(
+        results: list[ObjectDetectionPrediction] = self.model.postprocess(
             raw_outputs=raw_outputs, metadata=metadata, threshold=self.threshold
-        ), time_predict
+        )
+        return results, time_predict
 
 
 _ONNX_PROVIDERS: dict[str, list[str]] = {
@@ -151,6 +133,7 @@ class ONNXBackend(ObjectDetectionBackend):
         # buffers) must live on CPU to match.
         self.model = model.to("cpu")
         self.threshold = threshold
+        self.preprocessor = _get_preprocessor(model)
 
         self.device = torch.device(device)
 
@@ -217,12 +200,12 @@ class ONNXBackend(ObjectDetectionBackend):
     @override
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
 
         # preprocess
         # ONNX Runtime session.run() takes numpy arrays. The provider
         # (CPU/CUDA) handles device placement internally.
-        images = batch["image"]
+        images = self.preprocessor.preprocess_batch(batch["image"])
         if self.precision == "fp16":
             images = images.half()
         _, _, model_h, model_w = images.shape
@@ -241,6 +224,7 @@ class ONNXBackend(ObjectDetectionBackend):
 
         # postprocess
         outputs = dict(zip(self.output_names, raw_outputs))
+        results: list[ObjectDetectionPrediction]
         if "logits" in outputs:
             results = self.model.postprocess(
                 raw_outputs={
@@ -263,13 +247,12 @@ class ONNXBackend(ObjectDetectionBackend):
         # The ONNX forward() rescales boxes to the model input size when
         # orig_target_size is not provided. Rescale to original image
         # coordinates.
-        results = _rescale_and_filter_predictions(
+        predictions = rescale_predictions_to_original_size(
             predictions=predictions,
             metadata=metadata,
-            model_w=model_w,
-            model_h=model_h,
-            threshold=self.threshold,
+            model_size=(model_h, model_w),
         )
+        results = filter_predictions_by_score(predictions, self.threshold)
         return results, time_predict
 
 
@@ -289,6 +272,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         self.device = torch.device(device)
         self.precision = backend_args.precision
         self.threshold = threshold
+        self.preprocessor = _get_preprocessor(model)
 
         # Export model to TensorRT engine.
         engine_path = out_dir / "model.engine"
@@ -345,9 +329,9 @@ class TensorRTBackend(ObjectDetectionBackend):
     @override
     def run_batch(
         self, batch: ObjectDetectionBatch
-    ) -> tuple[Sequence[Mapping[str, Tensor]], float]:
+    ) -> tuple[list[ObjectDetectionPrediction], float]:
         # Preprocess.
-        images = batch["image"]
+        images = self.preprocessor.preprocess_batch(batch["image"])
         metadata = [
             ObjectDetectionMetadata(orig_w=w, orig_h=h)
             for w, h in batch["original_size"]
@@ -382,6 +366,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # Postprocess.
+        results: list[ObjectDetectionPrediction]
         if "logits" in outputs:
             results = self.model.postprocess(
                 raw_outputs={
@@ -401,11 +386,10 @@ class TensorRTBackend(ObjectDetectionBackend):
             )
         ]
 
-        results = _rescale_and_filter_predictions(
+        predictions = rescale_predictions_to_original_size(
             predictions=predictions,
             metadata=metadata,
-            model_w=model_w,
-            model_h=model_h,
-            threshold=self.threshold,
+            model_size=(model_h, model_w),
         )
+        results = filter_predictions_by_score(predictions, self.threshold)
         return results, time_predict

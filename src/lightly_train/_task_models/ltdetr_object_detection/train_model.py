@@ -38,6 +38,7 @@ from lightly_train._metrics.detection.task_metric import (
 from lightly_train._optim import optimizer_helpers
 from lightly_train._pre_post_processing.object_detection import (
     decode_object_detection_output,
+    targets_to_torchmetrics,
 )
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
@@ -79,10 +80,6 @@ from lightly_train._task_models.object_detection_components.matcher import (
 )
 from lightly_train._task_models.object_detection_components.rtdetrv2_criterion import (
     RTDETRCriterionv2,
-)
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.train_model import (
@@ -648,11 +645,11 @@ class LTDETRObjectDetectionTrain(TrainModel):
         )
         if self.metric_args.train:
             orig_target_sizes = batch["original_size"]
-            # Convert to xyxy format and de-normalize the boxes.
-            boxes = _yolo_to_xyxy(boxes)
-            boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
-            for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
-                target["boxes"] = sample_denormalized_boxes
+            # The criterion consumed the normalized cxcywh targets above. Metrics
+            # need xyxy boxes in original-image pixels instead.
+            targets = targets_to_torchmetrics(
+                bboxes=boxes, classes=classes, original_sizes=orig_target_sizes
+            )
 
             orig_target_sizes_tensor = torch.tensor(
                 orig_target_sizes, device=samples.device
@@ -721,11 +718,11 @@ class LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # Convert to xyxy format and de-normalize the boxes.
-        boxes = _yolo_to_xyxy(boxes)
-        boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
-        for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
-            target["boxes"] = sample_denormalized_boxes
+        # The criterion consumed the normalized cxcywh targets above. Metrics need
+        # xyxy boxes in original-image pixels instead.
+        targets = targets_to_torchmetrics(
+            bboxes=boxes, classes=classes, original_sizes=orig_target_sizes
+        )
 
         orig_target_sizes_tensor = torch.tensor(
             orig_target_sizes, device=samples.device

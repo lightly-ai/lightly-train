@@ -8,21 +8,18 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import pytest
 import torch
 import yaml
-from PIL.Image import Image as PILImage
 from torch import Tensor
 
 import lightly_train
 from lightly_train._commands.benchmark_task import (
-    _BenchmarkValTransformArgs,
     _create_val_dataloader,
-    _to_cpu,
     benchmark_object_detection,
 )
 from lightly_train._commands.benchmark_types import (
@@ -38,9 +35,10 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
+    ObjectDetectionPrediction,
+    ObjectDetectionPreprocessor,
 )
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train.types import PathLike
 
 from .. import helpers
 
@@ -80,11 +78,6 @@ class _FakeObjectDetectionModel(TaskModel):
     """Minimal TaskModel subclass that returns fixed predictions."""
 
     model_suffix = ".pt"
-    _PRED = {
-        "labels": torch.tensor([0]),
-        "bboxes": torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
-        "scores": torch.tensor([0.9]),
-    }
 
     def __init__(self) -> None:
         super().__init__(
@@ -95,14 +88,11 @@ class _FakeObjectDetectionModel(TaskModel):
             },
         )
         self.last_metadata: Sequence[ObjectDetectionMetadata] | None = None
-
-    def preprocess_image(
-        self, image: PathLike | PILImage | Tensor
-    ) -> tuple[Tensor, dict[str, Any]]:
-        return torch.zeros(3, 64, 64), {"orig_h": 128, "orig_w": 128}
-
-    def preprocess_batch(self, batch: Tensor) -> Tensor:
-        return batch
+        self.preprocessor = ObjectDetectionPreprocessor(
+            image_size=(64, 64),
+            image_normalize=None,
+            expected_input_channels=3,
+        )
 
     def forward_backend(self, x: Tensor) -> Any:
         return x
@@ -112,9 +102,22 @@ class _FakeObjectDetectionModel(TaskModel):
         raw_outputs: Any,
         metadata: Sequence[ObjectDetectionMetadata],
         **kwargs: Any,
-    ) -> list[dict[str, Tensor]]:
+    ) -> list[ObjectDetectionPrediction]:
         self.last_metadata = metadata
-        return [dict(self._PRED) for _ in metadata]
+        return [
+            ObjectDetectionPrediction(
+                labels=torch.tensor([0]),
+                bboxes=torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
+                scores=torch.tensor([0.9]),
+            )
+            for _ in metadata
+        ]
+
+
+def _preprocessor() -> ObjectDetectionPreprocessor:
+    return ObjectDetectionPreprocessor(
+        image_size=(64, 64), image_normalize=None, expected_input_channels=3
+    )
 
 
 class TestValDataloader:
@@ -125,7 +128,7 @@ class TestValDataloader:
             data_args=data_args,
             batch_size=2,
             num_workers=0,
-            transform_args=_BenchmarkValTransformArgs(),
+            preprocessor=_preprocessor(),
         )
 
         batches = list(dataloader)
@@ -150,7 +153,7 @@ class TestValDataloader:
             data_args=data_args,
             batch_size=2,
             num_workers=0,
-            transform_args=_BenchmarkValTransformArgs(),
+            preprocessor=_preprocessor(),
         )
 
         batch = next(iter(dataloader))
@@ -183,29 +186,13 @@ class TestValDataloader:
             data_args=data_args,
             batch_size=2,
             num_workers=0,
-            transform_args=_BenchmarkValTransformArgs(),
+            preprocessor=_preprocessor(),
         )
 
         batch = next(iter(dataloader))
         assert batch["image"].shape[0] == 2
         assert len(batch["bboxes"]) == 2
         assert len(batch["classes"]) == 2
-
-
-class TestToCpu:
-    def test_moves_to_cpu(self) -> None:
-        preds: list[Mapping[str, Tensor]] = [
-            {
-                "bboxes": torch.tensor([[1, 2, 3, 4]]),
-                "scores": torch.tensor([0.9]),
-                "labels": torch.tensor([0]),
-            }
-        ]
-        result = _to_cpu(preds)
-        r = result[0]
-        assert r["bboxes"].device.type == "cpu"
-        assert r["scores"].device.type == "cpu"
-        assert r["labels"].device.type == "cpu"
 
 
 class TestBenchmarkObjectDetectionConfig:

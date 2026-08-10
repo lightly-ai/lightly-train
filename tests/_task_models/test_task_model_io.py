@@ -266,3 +266,27 @@ def test_row_indexable_output__is_registered_pytree() -> None:
     assert isinstance(restored, _RowOutput)
     torch.testing.assert_close(restored.scores, output.scores)
     torch.testing.assert_close(restored.boxes, output.boxes)
+
+
+def test_to__applies_to_every_field() -> None:
+    output = _Output(
+        scores=torch.tensor([0.5, 0.25]), boxes=torch.ones(2, 4, dtype=torch.float32)
+    )
+
+    converted = output.to(dtype=torch.float64)
+
+    assert isinstance(converted, _Output)
+    assert converted.scores.dtype == torch.float64
+    assert converted.boxes.dtype == torch.float64
+    # The original is left untouched.
+    assert output.scores.dtype == torch.float32
+
+
+def test_to__preserves_row_indexable_type() -> None:
+    output = _row_output()
+
+    converted = output.to("cpu")
+
+    assert isinstance(converted, _RowOutput)
+    torch.testing.assert_close(converted.scores, output.scores)
+    torch.testing.assert_close(converted.boxes, output.boxes)

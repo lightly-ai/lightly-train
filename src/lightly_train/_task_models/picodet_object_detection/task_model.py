@@ -19,15 +19,16 @@ import torch.nn.functional as F
 from packaging import version
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
-from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionPrediction,
+    ObjectDetectionPreprocessor,
+    filter_predictions_by_score,
+    rescale_predictions_to_original_size,
 )
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
@@ -168,6 +169,16 @@ class PicoDetObjectDetection(TaskModel):
             iou_threshold=iou_threshold,
             max_detections=max_detections,
         )
+        # Grayscale inputs are expanded to this many channels by the preprocessor.
+        expected_input_channels = (
+            3 if image_normalize is None else len(image_normalize["mean"])
+        )
+        self.preprocessor = ObjectDetectionPreprocessor(
+            image_size=image_size,
+            image_normalize=image_normalize,
+            expected_input_channels=expected_input_channels,
+        )
+
         self._o2o_peak_score_thresholds = (0.005, 0.02, 0.04, 0.06)
         self._o2o_peak_kernels = (3, 3, 5, 5)
         self._o2o_suppress_logit = -1e6
@@ -478,27 +489,21 @@ class PicoDetObjectDetection(TaskModel):
             A list with one :class:`ObjectDetectionPrediction` per input image.
         """
         boxes_xyxy, obj_logits, cls_logits = raw_outputs
-        model_h, model_w = self.image_size
 
         scores = torch.sigmoid(obj_logits)
         internal_labels = cls_logits.argmax(dim=-1)
         labels = self.internal_class_to_class[internal_labels]
 
-        out: list[ObjectDetectionPrediction] = []
-        for i in range(len(metadata)):
-            orig_w = metadata[i].orig_w
-            orig_h = metadata[i].orig_h
-            boxes = boxes_xyxy[i].clone()
-            boxes[:, 0] *= orig_w / model_w
-            boxes[:, 1] *= orig_h / model_h
-            boxes[:, 2] *= orig_w / model_w
-            boxes[:, 3] *= orig_h / model_h
-
-            prediction = ObjectDetectionPrediction(
-                labels=labels[i], bboxes=boxes, scores=scores[i]
+        predictions = [
+            ObjectDetectionPrediction(
+                labels=labels[i], bboxes=boxes_xyxy[i], scores=scores[i]
             )
-            out.append(prediction[prediction.scores > threshold])
-        return out
+            for i in range(len(metadata))
+        ]
+        predictions = rescale_predictions_to_original_size(
+            predictions=predictions, metadata=metadata, model_size=self.image_size
+        )
+        return filter_predictions_by_score(predictions, threshold)
 
     @torch.no_grad()
     def predict(
@@ -521,17 +526,12 @@ class PicoDetObjectDetection(TaskModel):
         if self.training:
             self.eval()
 
-        device = next(self.parameters()).device
-        x = file_helpers.as_image_tensor(image).to(device)
-        orig_h, orig_w = x.shape[-2:]
-
-        x = transforms_functional.to_dtype(x, dtype=torch.float32, scale=True)
-        if self.image_normalize is not None:
-            x = transforms_functional.normalize(
-                x, mean=self.image_normalize["mean"], std=self.image_normalize["std"]
-            )
-        x = transforms_functional.resize(x, list(self.image_size))
-        x = x.unsqueeze(0)
+        first_param = next(self.parameters())
+        x, metadata = self.preprocessor.preprocess_image(
+            image, device=first_param.device, dtype=first_param.dtype
+        )
+        orig_h, orig_w = metadata.orig_h, metadata.orig_w
+        x = self.preprocessor.preprocess_batch(x.unsqueeze(0))
 
         feats = self.backbone(x)
         feats = self.neck(feats)

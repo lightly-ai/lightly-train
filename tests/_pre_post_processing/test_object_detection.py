@@ -17,6 +17,11 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
     ObjectDetectionSahiConfig,
+    filter_predictions_by_score,
+    rescale_predictions_to_original_size,
+    targets_to_torchmetrics,
+    combine_object_detection_tiles,
+    yolo_to_xyxy,
 )
 
 
@@ -260,3 +265,350 @@ class TestObjectDetectionPostprocessor:
         as_dict = dict(prediction)
         assert as_dict["labels"] is prediction.labels
         assert as_dict["scores"] is prediction.scores
+
+
+def test_combine_object_detection_tiles() -> None:
+    labels_global = torch.tensor([1])
+    boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])
+    scores_global = torch.tensor([0.8])
+    labels_tiles = torch.tensor([2, 3])
+    boxes_tiles = torch.tensor(
+        [
+            [20.0, 20.0, 30.0, 30.0],
+            [40.0, 40.0, 50.0, 50.0],
+        ]
+    )
+    scores_tiles = torch.tensor([0.7, 0.9])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 3, 2]))
+    torch.testing.assert_close(
+        boxes_out,
+        torch.tensor(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [40.0, 40.0, 50.0, 50.0],
+                [20.0, 20.0, 30.0, 30.0],
+            ]
+        ),
+    )
+    torch.testing.assert_close(scores_out, torch.tensor([0.8, 0.9, 0.7]))
+
+
+def test_combine_object_detection_tiles__suppresses_tile_nms() -> None:
+    labels_tiles = torch.tensor([1, 1, 2])
+    boxes_tiles = torch.tensor(
+        [
+            [0.0, 0.0, 10.0, 10.0],
+            [1.0, 1.0, 11.0, 11.0],
+            [20.0, 20.0, 30.0, 30.0],
+        ]
+    )
+    scores_tiles = torch.tensor([0.8, 0.9, 0.7])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 2]))
+    torch.testing.assert_close(boxes_out, boxes_tiles[[1, 2]])
+    torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.7]))
+
+
+def test_combine_object_detection_tiles__keeps_overlapping_different_labels() -> None:
+    boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 11.0, 11.0]])
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        pred_tiles={
+            "labels": torch.tensor([1, 2]),
+            "bboxes": boxes,
+            "scores": torch.tensor([0.9, 0.8]),
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 2]))
+    torch.testing.assert_close(boxes_out, boxes)
+    torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.8]))
+
+
+def test_combine_object_detection_tiles__suppresses_same_label_global_overlap() -> None:
+    labels_global = torch.tensor([1])
+    boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])
+    scores_global = torch.tensor([0.8])
+    labels_tiles = torch.tensor([1, 2, 1])
+    boxes_tiles = torch.tensor(
+        [
+            [1.0, 1.0, 9.0, 9.0],
+            [1.0, 1.0, 9.0, 9.0],
+            [20.0, 20.0, 30.0, 30.0],
+        ]
+    )
+    scores_tiles = torch.tensor([0.9, 0.7, 0.6])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=1.0,
+        global_local_iou_threshold=0.5,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 2, 1]))
+    torch.testing.assert_close(
+        boxes_out,
+        torch.tensor(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [1.0, 1.0, 9.0, 9.0],
+                [20.0, 20.0, 30.0, 30.0],
+            ]
+        ),
+    )
+    torch.testing.assert_close(scores_out, torch.tensor([0.8, 0.7, 0.6]))
+
+
+def test_combine_object_detection_tiles__suppresses_lower_iou_same_label_global() -> (
+    None
+):
+    # The tile box overlaps a different-label global box most strongly, but also
+    # overlaps a same-label global box above the threshold. It must be suppressed
+    # based on the same-label overlap, not the single strongest (different-label)
+    # match.
+    labels_global = torch.tensor([2, 1])
+    boxes_global = torch.tensor(
+        [
+            [1.0, 1.0, 9.0, 9.0],  # different label, IoU == 1.0 with the tile box
+            [0.0, 0.0, 10.0, 10.0],  # same label, IoU == 0.64 with the tile box
+        ]
+    )
+    scores_global = torch.tensor([0.9, 0.8])
+    labels_tiles = torch.tensor([1])
+    boxes_tiles = torch.tensor([[1.0, 1.0, 9.0, 9.0]])
+    scores_tiles = torch.tensor([0.7])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.5,
+    )
+
+    torch.testing.assert_close(labels_out, labels_global)
+    torch.testing.assert_close(boxes_out, boxes_global)
+    torch.testing.assert_close(scores_out, scores_global)
+
+
+def test_combine_object_detection_tiles__handles_empty_predictions() -> None:
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        pred_tiles={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    assert labels_out.shape == (0,)
+    assert boxes_out.shape == (0, 4)
+    assert scores_out.shape == (0,)
+    assert labels_out.dtype == torch.long
+    assert boxes_out.dtype == torch.float32
+    assert scores_out.dtype == torch.float32
+
+
+def test_yolo_to_xyxy_accepts_1d_box() -> None:
+    boxes = [torch.tensor([0.5, 0.5, 0.2, 0.4], dtype=torch.float32)]
+    converted = yolo_to_xyxy(boxes)
+
+    assert len(converted) == 1
+    assert converted[0].shape == (1, 4)
+    expected = torch.tensor([[0.4, 0.3, 0.6, 0.7]], dtype=torch.float32)
+    torch.testing.assert_close(converted[0], expected)
+
+
+def test_yolo_to_xyxy_accepts_empty_boxes() -> None:
+    boxes = [torch.zeros((0,), dtype=torch.float32)]
+    converted = yolo_to_xyxy(boxes)
+
+    assert len(converted) == 1
+    assert converted[0].shape == (0, 4)
+
+
+def test_yolo_to_xyxy_accepts_two_boxes() -> None:
+    boxes = [
+        torch.tensor(
+            [
+                [0.5, 0.5, 0.2, 0.4],
+                [0.25, 0.75, 0.1, 0.2],
+            ],
+            dtype=torch.float32,
+        )
+    ]
+    converted = yolo_to_xyxy(boxes)
+
+    assert len(converted) == 1
+    assert converted[0].shape == (2, 4)
+    expected = torch.tensor(
+        [
+            [0.4, 0.3, 0.6, 0.7],
+            [0.2, 0.65, 0.3, 0.85],
+        ],
+        dtype=torch.float32,
+    )
+    torch.testing.assert_close(converted[0], expected)
+
+
+def test_filter_predictions_by_score() -> None:
+    predictions = [
+        ObjectDetectionPrediction(
+            labels=torch.tensor([1, 2, 3]),
+            bboxes=torch.arange(12, dtype=torch.float32).reshape(3, 4),
+            scores=torch.tensor([0.1, 0.5, 0.9]),
+        )
+    ]
+
+    filtered = filter_predictions_by_score(predictions, threshold=0.5)
+
+    assert len(filtered) == 1
+    # The threshold is exclusive: a score exactly at it is dropped.
+    assert filtered[0].num_detections == 1
+    torch.testing.assert_close(filtered[0].labels, torch.tensor([3]))
+
+
+def test_rescale_predictions_to_original_size() -> None:
+    predictions = [
+        ObjectDetectionPrediction(
+            labels=torch.tensor([1]),
+            bboxes=torch.tensor([[10.0, 20.0, 30.0, 40.0]]),
+            scores=torch.tensor([0.9]),
+        )
+    ]
+    metadata = [ObjectDetectionMetadata(orig_h=320, orig_w=1280)]
+
+    rescaled = rescale_predictions_to_original_size(
+        predictions=predictions, metadata=metadata, model_size=(640, 640)
+    )
+
+    # x scales by 1280/640 = 2, y scales by 320/640 = 0.5.
+    torch.testing.assert_close(
+        rescaled[0].bboxes, torch.tensor([[20.0, 10.0, 60.0, 20.0]])
+    )
+    # Labels and scores are carried through untouched.
+    torch.testing.assert_close(rescaled[0].labels, predictions[0].labels)
+    torch.testing.assert_close(rescaled[0].scores, predictions[0].scores)
+
+
+def test_rescale_predictions_to_original_size__does_not_mutate_input() -> None:
+    bboxes = torch.tensor([[10.0, 20.0, 30.0, 40.0]])
+    predictions = [
+        ObjectDetectionPrediction(
+            labels=torch.tensor([1]), bboxes=bboxes, scores=torch.tensor([0.9])
+        )
+    ]
+
+    rescale_predictions_to_original_size(
+        predictions=predictions,
+        metadata=[ObjectDetectionMetadata(orig_h=320, orig_w=1280)],
+        model_size=(640, 640),
+    )
+
+    torch.testing.assert_close(bboxes, torch.tensor([[10.0, 20.0, 30.0, 40.0]]))
+
+
+def test_targets_to_torchmetrics() -> None:
+    # One box centered in the image, half as wide and a quarter as tall.
+    bboxes = [torch.tensor([[0.5, 0.5, 0.5, 0.25]])]
+    classes = [torch.tensor([7])]
+
+    targets = targets_to_torchmetrics(
+        bboxes=bboxes, classes=classes, original_sizes=[(200, 400)]
+    )
+
+    assert len(targets) == 1
+    torch.testing.assert_close(
+        targets[0]["boxes"], torch.tensor([[50.0, 150.0, 150.0, 250.0]])
+    )
+    torch.testing.assert_close(targets[0]["labels"], torch.tensor([7]))
+
+
+def test_targets_to_torchmetrics__matches_prediction_coordinates() -> None:
+    # A ground truth box and a prediction covering the same region must land on the
+    # same numbers, otherwise the metric compares boxes in different coordinates.
+    original_size = (640, 480)
+    targets = targets_to_torchmetrics(
+        bboxes=[torch.tensor([[0.5, 0.5, 1.0, 1.0]])],
+        classes=[torch.tensor([0])],
+        original_sizes=[original_size],
+    )
+    full_image = ObjectDetectionPrediction(
+        labels=torch.tensor([0]),
+        bboxes=torch.tensor([[0.0, 0.0, 640.0, 480.0]]),
+        scores=torch.tensor([1.0]),
+    )
+
+    torch.testing.assert_close(
+        targets[0]["boxes"], full_image.to_torchmetrics()["boxes"]
+    )
+
+
+def test_targets_to_torchmetrics__handles_empty_boxes() -> None:
+    targets = targets_to_torchmetrics(
+        bboxes=[torch.zeros((0, 4))],
+        classes=[torch.zeros((0,), dtype=torch.long)],
+        original_sizes=[(640, 480)],
+    )
+
+    assert targets[0]["boxes"].shape == (0, 4)
+    assert targets[0]["labels"].shape == (0,)

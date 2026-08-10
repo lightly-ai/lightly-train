@@ -213,6 +213,18 @@ class BaseModelOutput(Mapping[str, Tensor], ABC):
             raise KeyError(key)
         return cast(Tensor, getattr(self, key))
 
+    def to(self, *args: Any, **kwargs: Any) -> Self:
+        """Return a new output with ``Tensor.to`` applied to every field.
+
+        Accepts the same arguments as :meth:`torch.Tensor.to`, for example
+        ``output.to("cpu")`` or ``output.to(dtype=torch.float32)``.
+        """
+        values = {
+            name: cast(Tensor, getattr(self, name)).to(*args, **kwargs)
+            for name in _field_names(type(self))
+        }
+        return type(self)(**values)
+
     def __iter__(self) -> Iterator[str]:
         return iter(_field_names(type(self)))
 

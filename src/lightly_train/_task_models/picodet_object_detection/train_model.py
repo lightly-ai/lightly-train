@@ -30,11 +30,11 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._task_models.object_detection_components.ema import ModelEMA
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
+from lightly_train._pre_post_processing.object_detection import (
+    denormalize_xyxy_boxes,
+    yolo_to_xyxy,
 )
+from lightly_train._task_models.object_detection_components.ema import ModelEMA
 from lightly_train._task_models.picodet_object_detection.losses import (
     DistributionFocalLoss,
     GIoULoss,
@@ -255,9 +255,9 @@ class PicoDetObjectDetectionTrain(TrainModel):
         o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
 
         # Convert GT from YOLO format to pixel xyxy
-        gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
+        gt_boxes_xyxy_norm = yolo_to_xyxy(gt_bboxes_yolo)
         sizes = [(img_w, img_h)] * batch_size
-        gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
+        gt_boxes_xyxy_list = denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
         dense_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
             fabric=fabric,
@@ -372,10 +372,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
         o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
         o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
 
-        gt_boxes_xyxy_norm = _yolo_to_xyxy(gt_bboxes_yolo)
+        gt_boxes_xyxy_norm = yolo_to_xyxy(gt_bboxes_yolo)
         img_h, img_w = images.shape[-2:]
         sizes = [(img_w, img_h)] * batch_size
-        gt_boxes_xyxy_list = _denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
+        gt_boxes_xyxy_list = denormalize_xyxy_boxes(gt_boxes_xyxy_norm, sizes)
 
         dense_loss, loss_vfl, loss_giou, loss_dfl = self._compute_losses(
             fabric=fabric,

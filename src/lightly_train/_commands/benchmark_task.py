@@ -9,14 +9,12 @@ from __future__ import annotations
 
 import gc
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
+import numpy as np
 import torch
-from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
-from pydantic import Field
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -53,25 +51,21 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
 )
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPreprocessor,
+    targets_to_torchmetrics,
+)
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
-)
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train._transforms.ltdetr_transforms.object_detection import (
-    LTDETRObjectDetectionCollateFunction,
-    LTDETRObjectDetectionTransform,
-    LTDETRObjectDetectionTransformArgs,
+from lightly_train._transforms.task_transform import (
+    TaskTransform,
+    TaskTransformArgs,
 )
-from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
 from lightly_train.types import (
+    ObjectDetectionBatch,
     ObjectDetectionDatasetItem,
     PathLike,
 )
-
-_ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
-_ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 def benchmark_object_detection(
@@ -156,8 +150,9 @@ def _benchmark_object_detection_from_config(
 
     backend_args = config.backend_args
 
-    # Build val transform args from the model.
-    transform_args = _build_val_transform_args(model=model)
+    # Benchmark through the model's own preprocessing so that the reported metrics
+    # describe the pipeline that runs at deployment.
+    preprocessor = _get_preprocessor(model)
 
     # Set up validation data.
     data_arg_helpers.resolve_data_paths(config.data)
@@ -169,7 +164,7 @@ def _benchmark_object_detection_from_config(
         data_args=data_args,
         batch_size=config.batch_size,
         num_workers=num_workers,
-        transform_args=transform_args,
+        preprocessor=preprocessor,
     )
     num_batches = len(val_dataloader)
     if num_batches == 0:
@@ -249,24 +244,16 @@ def _benchmark_object_detection_from_config(
 
             predictions, t_infer = backend.run_batch(batch=batch)
             batch_times.append(t_infer)
-            predictions_cpu = _to_cpu(predictions)
 
-            # Convert predictions from "bboxes" to "boxes" for torchmetrics.
-            metric_preds: list[dict[str, Tensor]] = [
-                {
-                    "boxes": p["bboxes"],
-                    "scores": p["scores"],
-                    "labels": p["labels"],
-                }
-                for p in predictions_cpu
+            metric_preds = [
+                prediction.to(device="cpu").to_torchmetrics()
+                for prediction in predictions
             ]
-            # Convert ground truth boxes from YOLO format to denormalized xyxy.
-            boxes_xyxy = _yolo_to_xyxy(batch["bboxes"])
-            boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, batch["original_size"])
-            targets = [
-                {"boxes": boxes, "labels": classes}
-                for boxes, classes in zip(boxes_denorm, batch["classes"])
-            ]
+            targets = targets_to_torchmetrics(
+                bboxes=batch["bboxes"],
+                classes=batch["classes"],
+                original_sizes=batch["original_size"],
+            )
             metric.update_with_predictions(metric_preds, targets)
 
             if step % print_every == 0 or step == total_batches - 1:
@@ -330,101 +317,98 @@ def _benchmark_object_detection_from_config(
     return result
 
 
-def _make_val_bbox_params() -> BboxParams:
-    """Create standard YOLO bbox params matching training val transforms."""
-    return BboxParams(
-        format="yolo",
-        label_fields=["class_labels"],
-        min_width=0.0,
-        min_height=0.0,
-        **(dict(filter_invalid_bboxes=True) if _ALBUMENTATIONS_GE_2_0_1 else {}),
-        **(dict(clip=True) if _ALBUMENTATIONS_GE_1_4_5 else {}),
-    )
+def _get_preprocessor(model: TaskModel) -> ObjectDetectionPreprocessor:
+    """Return the preprocessor the model uses for inference.
 
-
-class _BenchmarkValTransformArgs(LTDETRObjectDetectionTransformArgs):
-    """Val transform args that mirror the training validation pipeline.
-
-    All augmentations are disabled. Only resize and normalize (plus bbox params)
-    are applied so that the collate function produces images at the model's
-    expected size with the correct normalization.
+    Benchmarking through the model's own preprocessor is what makes the reported
+    metrics describe the deployed pipeline rather than a re-derived approximation
+    of it.
     """
-
-    channel_drop: None = None
-    num_channels: int = 3
-    photometric_distort: None = None
-    random_zoom_out: None = None
-    random_iou_crop: None = None
-    random_flip: None = None
-    random_rotate_90: None = None
-    random_rotate: None = None
-    image_size: tuple[int, int] = (640, 640)
-    resize: ResizeArgs = Field(
-        default_factory=lambda: ResizeArgs(height=640, width=640)
-    )
-    normalize: NormalizeArgs | None = None
-    bbox_params: BboxParams = Field(default_factory=_make_val_bbox_params)
-
-
-def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
-    """Build val transform args from the model's ``init_args``.
-
-    Uses ``image_size`` and ``image_normalize`` stored in the model to
-    construct a transform that matches the training validation pipeline.
-
-    Args:
-        model: A loaded task model instance.
-
-    Returns:
-        Transform args configured for the model.
-    """
-    init_args = model.init_args
-    if "image_size" not in init_args:
+    preprocessor = getattr(model, "preprocessor", None)
+    if not isinstance(preprocessor, ObjectDetectionPreprocessor):
         raise ValueError(
-            "Model does not specify 'image_size' in init_args. Cannot build "
-            "validation transforms without a known image size."
+            f"Model '{type(model).__name__}' does not expose an "
+            "ObjectDetectionPreprocessor and cannot be benchmarked."
         )
-    image_size: tuple[int, int] = tuple(init_args["image_size"])  # type: ignore[assignment]
-    height, width = image_size
+    return preprocessor
 
-    # Resolve normalize the same way training val transforms do.
-    normalize: NormalizeArgs | None
-    raw_normalize = init_args.get("image_normalize", "none")
-    if raw_normalize is None:
-        normalize = None
-    elif raw_normalize == "none":
-        normalize = NormalizeArgs()
-    else:
-        if not isinstance(raw_normalize, dict):
-            raise ValueError(
-                f"Expected 'image_normalize' to be a dict, got {type(raw_normalize).__name__}."
-            )
-        normalize = NormalizeArgs.from_dict(raw_normalize)
 
-    num_channels = 3 if normalize is None else len(normalize.mean)
+class _BenchmarkTransformArgs(TaskTransformArgs):
+    pass
 
-    return _BenchmarkValTransformArgs(
-        image_size=image_size,
-        resize=ResizeArgs(height=height, width=width),
-        normalize=normalize,
-        num_channels=num_channels,
-    )
+
+class _BenchmarkTransform(TaskTransform):
+    """Decode-only transform. All model preprocessing happens in the collate function.
+
+    Ground truth boxes are passed through in normalized YOLO coordinates. They are
+    independent of the model input size and are denormalized to the original image
+    size by :func:`targets_to_torchmetrics` right before the metric update, so no
+    box transform is needed here.
+    """
+
+    transform_args_cls = _BenchmarkTransformArgs
+
+    def __init__(self) -> None:
+        super().__init__(transform_args=_BenchmarkTransformArgs())
+
+    def __call__(self, input: dict[str, Any]) -> dict[str, Any]:
+        image = torch.from_numpy(np.ascontiguousarray(input["image"]))
+        if image.ndim == 2:
+            image = image.unsqueeze(-1)
+        return {
+            "image": image.permute(2, 0, 1),
+            "bboxes": input["bboxes"],
+            "class_labels": input["class_labels"],
+        }
+
+
+class _BenchmarkCollateFunction:
+    """Run the model's per-image preprocessing and stack the batch.
+
+    Mirrors the host-side/device-side split of ``TaskModel.predict_batch``:
+    ``preprocess_image`` runs here (in the dataloader workers), while
+    ``preprocess_batch`` runs on the device in the backend.
+    """
+
+    def __init__(self, preprocessor: ObjectDetectionPreprocessor) -> None:
+        self.preprocessor = preprocessor
+
+    def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
+        images = [
+            self.preprocessor.preprocess_image(
+                # ObjectDetectionDatasetItem declares "image" as a numpy array, but
+                # it holds whatever the transform returned, here a (C, H, W) tensor.
+                cast(Tensor, item["image"]),
+                device=torch.device("cpu"),
+                dtype=torch.float32,
+            )[0]
+            for item in batch
+        ]
+        return ObjectDetectionBatch(
+            image_path=[item["image_path"] for item in batch],
+            image=torch.stack(images),
+            bboxes=[
+                torch.from_numpy(item["bboxes"]).float().reshape(-1, 4)
+                for item in batch
+            ],
+            classes=[torch.from_numpy(item["classes"]).long() for item in batch],
+            original_size=[item["original_size"] for item in batch],
+        )
 
 
 def _create_val_dataloader(
     data_args: COCOObjectDetectionDataArgs | YOLOObjectDetectionDataArgs,
     batch_size: int,
     num_workers: int,
-    transform_args: _BenchmarkValTransformArgs,
+    preprocessor: ObjectDetectionPreprocessor,
 ) -> DataLoader[ObjectDetectionDatasetItem]:
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
     image_info = list(val_dataset_args.list_image_info())
-    transform = LTDETRObjectDetectionTransform(transform_args=transform_args)
     dataset = dataset_cls(
         dataset_args=val_dataset_args,
         image_info=image_info,
-        transform=transform,
+        transform=_BenchmarkTransform(),
     )
 
     return DataLoader(
@@ -436,20 +420,8 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=LTDETRObjectDetectionCollateFunction(
-            split="val",
-            transform_args=transform_args,
-        ),
+        collate_fn=_BenchmarkCollateFunction(preprocessor=preprocessor),
     )
-
-
-def _to_cpu(
-    predictions: Sequence[Mapping[str, Tensor]],
-) -> list[dict[str, Tensor]]:
-    return [
-        {key: value.detach().cpu() for key, value in prediction.items()}
-        for prediction in predictions
-    ]
 
 
 def _create_metric(

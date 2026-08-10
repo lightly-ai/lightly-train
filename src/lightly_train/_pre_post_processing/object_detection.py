@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
@@ -15,11 +15,11 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
-from torchvision.ops import box_convert
+from torchvision.ops import batched_nms, box_convert, box_iou
 from torchvision.transforms.v2 import functional as transforms_functional
 
 from lightly_train._data import file_helpers
-from lightly_train._task_models.object_detection_components import tiling_utils
+from lightly_train._pre_post_processing import tiling
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     RowIndexableOutput,
@@ -148,6 +148,223 @@ def decode_object_detection_output(
     ]
 
 
+def filter_predictions_by_score(
+    predictions: Sequence[ObjectDetectionPrediction], threshold: float
+) -> list[ObjectDetectionPrediction]:
+    """Drop detections whose score is at or below ``threshold``.
+
+    Args:
+        predictions: One prediction per image.
+        threshold: Detections with a score <= threshold are discarded.
+
+    Returns:
+        A new list with one filtered prediction per image.
+    """
+    return [prediction[prediction.scores > threshold] for prediction in predictions]
+
+
+def rescale_predictions_to_original_size(
+    *,
+    predictions: Sequence[ObjectDetectionPrediction],
+    metadata: Sequence[ObjectDetectionMetadata],
+    model_size: tuple[int, int],
+) -> list[ObjectDetectionPrediction]:
+    """Rescale ``xyxy`` boxes from model input to original image coordinates.
+
+    Use this for models (or exported graphs) that emit boxes in model-input
+    coordinates. Decoders that already scale by ``target_sizes``, such as
+    :func:`decode_object_detection_output`, return original-image coordinates and
+    must not be rescaled again.
+
+    Args:
+        predictions: One prediction per image, with boxes in model-input coordinates.
+        metadata: Per-image metadata as returned by the preprocessor.
+        model_size: ``(height, width)`` of the model input the boxes refer to.
+
+    Returns:
+        A new list with one rescaled prediction per image.
+    """
+    model_h, model_w = model_size
+    results: list[ObjectDetectionPrediction] = []
+    for prediction, item_metadata in zip(predictions, metadata):
+        scale_w = item_metadata.orig_w / model_w
+        scale_h = item_metadata.orig_h / model_h
+        scale = prediction.bboxes.new_tensor([scale_w, scale_h, scale_w, scale_h])
+        results.append(
+            ObjectDetectionPrediction(
+                labels=prediction.labels,
+                bboxes=prediction.bboxes * scale,
+                scores=prediction.scores,
+            )
+        )
+    return results
+
+
+def yolo_to_xyxy(batch_boxes: Sequence[Tensor]) -> list[Tensor]:
+    """Convert boxes from normalized ``cxcywh`` to normalized ``xyxy``.
+
+    Args:
+        batch_boxes: Per-image boxes of shape ``(N, 4)`` with values in ``[0, 1]``.
+
+    Returns:
+        Per-image boxes in normalized ``xyxy`` format.
+    """
+    converted_boxes = []
+    for sample_boxes in batch_boxes:
+        cxcywh = sample_boxes
+        if cxcywh.ndim == 1:
+            cxcywh = cxcywh.reshape(-1, 4)
+        converted_boxes.append(box_convert(cxcywh, in_fmt="cxcywh", out_fmt="xyxy"))
+    return converted_boxes
+
+
+def denormalize_xyxy_boxes(
+    boxes: Sequence[Tensor],
+    sizes: Sequence[tuple[int, int]],
+) -> list[Tensor]:
+    """Scale normalized ``xyxy`` boxes to pixel coordinates.
+
+    Args:
+        boxes: Per-image boxes of shape ``(N, 4)`` with values in ``[0, 1]``.
+        sizes: Per-image ``(width, height)`` to scale by.
+
+    Returns:
+        Per-image boxes in ``xyxy`` pixel coordinates.
+    """
+    denormalized_boxes = []
+    for sample_boxes, (width, height) in zip(boxes, sizes):
+        scale = sample_boxes.new_tensor([width, height, width, height])
+        denormalized_boxes.append(sample_boxes * scale)
+    return denormalized_boxes
+
+
+def targets_to_torchmetrics(
+    *,
+    bboxes: Sequence[Tensor],
+    classes: Sequence[Tensor],
+    original_sizes: Sequence[tuple[int, int]],
+) -> list[dict[str, Tensor]]:
+    """Convert ground truth boxes into a format compatible with TorchMetrics.
+
+    This is the ground truth counterpart to
+    :meth:`ObjectDetectionPrediction.to_torchmetrics`: it brings targets into the
+    same ``xyxy`` original-image pixel coordinates the predictions use.
+
+    Args:
+        bboxes:
+            Per-image ground truth boxes of shape ``(N, 4)`` in YOLO format
+            (normalized ``cxcywh``).
+        classes: Per-image ground truth class ids of shape ``(N,)``.
+        original_sizes: Per-image ``(width, height)`` of the original image.
+
+    Returns:
+        A list with one dictionary per image, with keys ``"boxes"`` and ``"labels"``.
+    """
+    boxes_xyxy = yolo_to_xyxy(bboxes)
+    boxes_denormalized = denormalize_xyxy_boxes(boxes_xyxy, original_sizes)
+    return [
+        {"boxes": boxes, "labels": labels}
+        for boxes, labels in zip(boxes_denormalized, classes)
+    ]
+
+
+def combine_object_detection_tiles(
+    pred_global: Mapping[str, Tensor],
+    pred_tiles: Mapping[str, Tensor],
+    nms_iou_threshold: float = 0.2,
+    global_local_iou_threshold: float = 0.1,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """
+    Combine predictions from the global view (full image) and local views (image tiles).
+
+    Args:
+        pred_global: Mapping with keys "labels", "bboxes", "scores". An
+            :class:`ObjectDetectionPrediction` satisfies this.
+        pred_tiles: Mapping with keys "labels", "bboxes", "scores".
+        nms_iou_threshold: IoU used in NMS of tiles predictions.
+        global_local_iou_threshold: IoU above which a tile box is removed if it matches a global box of same label.
+
+    Returns:
+        Filtered labels, boxes, scores as a tuple.
+    """
+    # Get tiles and global predictions.
+    labels_global = pred_global["labels"]
+    boxes_global = pred_global["bboxes"]
+    scores_global = pred_global["scores"]
+    labels_tiles = pred_tiles["labels"]
+    boxes_tiles = pred_tiles["bboxes"]
+    scores_tiles = pred_tiles["scores"]
+
+    # NMS on tiles predictions is needed due overlapping tiles. Suppression is
+    # class-aware so a high-confidence prediction cannot hide another class.
+    if boxes_tiles.numel() > 0:
+        keep = batched_nms(boxes_tiles, scores_tiles, labels_tiles, nms_iou_threshold)
+        labels_tiles = labels_tiles[keep]
+        boxes_tiles = boxes_tiles[keep]
+        scores_tiles = scores_tiles[keep]
+
+    # Drop tile boxes that overlap global boxes of same class
+    if boxes_global.numel() > 0 and boxes_tiles.numel() > 0:
+        # Compute overlap between tiles and global predictions.
+        ious = box_iou(boxes_tiles, boxes_global)
+
+        # Only keep tiles predictions that do not overlap above the threshold with
+        # any global prediction of the same class. The same-label check must be
+        # applied before reducing over global predictions: reducing first (e.g.
+        # via the single max-IoU global box) would miss a same-label overlap that
+        # is not the strongest one.
+        same_label = labels_tiles[:, None] == labels_global[None, :]
+        overlaps_same_label = (same_label & (ious > global_local_iou_threshold)).any(
+            dim=1
+        )
+        keep = ~overlaps_same_label
+        labels_tiles = labels_tiles[keep]
+        boxes_tiles = boxes_tiles[keep]
+        scores_tiles = scores_tiles[keep]
+
+    # Concatenate the global and tiles predictions
+    labels = torch.cat([labels_global, labels_tiles], dim=0)
+    boxes = torch.cat([boxes_global, boxes_tiles], dim=0)
+    scores = torch.cat([scores_global, scores_tiles], dim=0)
+
+    return labels, boxes, scores
+
+
+def combine_sahi_object_detection_predictions(
+    *,
+    predictions: Sequence[ObjectDetectionPrediction],
+    tile_coordinates: Tensor,
+    threshold: float,
+    nms_iou_threshold: float,
+    global_local_iou_threshold: float,
+) -> ObjectDetectionPrediction:
+    """Offset, filter, and merge decoded global/tile predictions for one image."""
+    global_prediction = predictions[0]
+    tile_prediction = ObjectDetectionPrediction(
+        labels=torch.cat([prediction.labels for prediction in predictions[1:]]),
+        bboxes=torch.cat(
+            [
+                prediction.bboxes + coordinates.repeat(2)
+                for prediction, coordinates in zip(
+                    predictions[1:],
+                    tile_coordinates.to(global_prediction.bboxes.device),
+                )
+            ]
+        ),
+        scores=torch.cat([prediction.scores for prediction in predictions[1:]]),
+    )
+    global_prediction = global_prediction[global_prediction.scores > threshold]
+    tile_prediction = tile_prediction[tile_prediction.scores > threshold]
+
+    labels, bboxes, scores = combine_object_detection_tiles(
+        pred_global=global_prediction,
+        pred_tiles=tile_prediction,
+        nms_iou_threshold=nms_iou_threshold,
+        global_local_iou_threshold=global_local_iou_threshold,
+    )
+    return ObjectDetectionPrediction(labels=labels, bboxes=bboxes, scores=scores)
+
+
 class ObjectDetectionPreprocessor(Module):
     """Host image preparation plus dense, batch-friendly preprocessing."""
 
@@ -193,7 +410,7 @@ class ObjectDetectionPreprocessor(Module):
         if sahi_config is None:
             return transforms_functional.resize(image_tensor, self.image_size), metadata
 
-        tiles, coordinates = tiling_utils.tile_image(
+        tiles, coordinates = tiling.tile_image(
             image=image_tensor,
             overlap=sahi_config.overlap,
             tile_size=self.image_size,
@@ -278,7 +495,7 @@ class ObjectDetectionPostprocessor(Module):
                 internal_class_to_class=self.internal_class_to_class,
             )
             return [
-                tiling_utils.combine_sahi_object_detection_predictions(
+                combine_sahi_object_detection_predictions(
                     predictions=predictions,
                     tile_coordinates=tile_coordinates,
                     threshold=threshold,
@@ -295,7 +512,7 @@ class ObjectDetectionPostprocessor(Module):
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
         )
-        return [prediction[prediction.scores > threshold] for prediction in predictions]
+        return filter_predictions_by_score(predictions, threshold)
 
     def _target_sizes(
         self,

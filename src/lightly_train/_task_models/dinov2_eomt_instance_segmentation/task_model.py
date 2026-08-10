@@ -30,6 +30,10 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.layers.attention import Att
 from lightly_train._models.dinov2_vit.dinov2_vit_src.models.vision_transformer import (
     DinoVisionTransformer,
 )
+from lightly_train._pre_post_processing import (
+    instance_segmentation as instance_segmentation_utils,
+)
+from lightly_train._pre_post_processing import tiling
 from lightly_train._task_models.dinov2_eomt_instance_segmentation.config import (
     DINOV2_EOMT_INSTANCE_SEGMENTATION_MODEL_REGISTRY,
 )
@@ -37,7 +41,6 @@ from lightly_train._task_models.dinov2_eomt_semantic_segmentation.scale_block im
     ScaleBlock,
 )
 from lightly_train._task_models.eomt import hooks
-from lightly_train._task_models.object_detection_components import tiling_utils
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -456,7 +459,7 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             threshold=threshold,
         )[0]
 
-        tiles, coordinates = tiling_utils.tile_image(
+        tiles, coordinates = tiling.tile_image(
             image=x,
             overlap=overlap,
             tile_size=self.image_size,
@@ -530,15 +533,17 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             )
             scores_tiles = torch.empty(0, dtype=dtype, device=device)
 
-        labels, masks, scores = tiling_utils.combine_instance_segmentation_tiles(
-            pred_global=pred_global,
-            pred_tiles={
-                "labels": labels_tiles,
-                "masks": masks_tiles,
-                "scores": scores_tiles,
-            },
-            nms_iou_threshold=nms_iou_threshold,
-            global_local_iou_threshold=global_local_iou_threshold,
+        labels, masks, scores = (
+            instance_segmentation_utils.combine_instance_segmentation_tiles(
+                pred_global=pred_global,
+                pred_tiles={
+                    "labels": labels_tiles,
+                    "masks": masks_tiles,
+                    "scores": scores_tiles,
+                },
+                nms_iou_threshold=nms_iou_threshold,
+                global_local_iou_threshold=global_local_iou_threshold,
+            )
         )
         return {
             "labels": labels,
