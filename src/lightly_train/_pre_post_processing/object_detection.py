@@ -148,21 +148,6 @@ def decode_object_detection_output(
     ]
 
 
-def filter_predictions_by_score(
-    predictions: Sequence[ObjectDetectionPrediction], threshold: float
-) -> list[ObjectDetectionPrediction]:
-    """Drop detections whose score is at or below ``threshold``.
-
-    Args:
-        predictions: One prediction per image.
-        threshold: Detections with a score <= threshold are discarded.
-
-    Returns:
-        A new list with one filtered prediction per image.
-    """
-    return [prediction[prediction.scores > threshold] for prediction in predictions]
-
-
 def rescale_predictions_to_original_size(
     *,
     predictions: Sequence[ObjectDetectionPrediction],
@@ -512,7 +497,9 @@ class ObjectDetectionPostprocessor(Module):
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
         )
-        return filter_predictions_by_score(predictions, threshold)
+        return [
+            prediction[prediction.scores > threshold] for prediction in predictions
+        ]
 
     def _target_sizes(
         self,

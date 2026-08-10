@@ -27,7 +27,6 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
-    filter_predictions_by_score,
     rescale_predictions_to_original_size,
 )
 from lightly_train._task_models.picodet_object_detection.config import (
@@ -503,7 +502,9 @@ class PicoDetObjectDetection(TaskModel):
         predictions = rescale_predictions_to_original_size(
             predictions=predictions, metadata=metadata, model_size=self.image_size
         )
-        return filter_predictions_by_score(predictions, threshold)
+        return [
+            prediction[prediction.scores > threshold] for prediction in predictions
+        ]
 
     @torch.no_grad()
     def predict(

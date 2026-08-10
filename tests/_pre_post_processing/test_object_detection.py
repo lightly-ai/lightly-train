@@ -17,10 +17,9 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
     ObjectDetectionSahiConfig,
-    filter_predictions_by_score,
+    combine_object_detection_tiles,
     rescale_predictions_to_original_size,
     targets_to_torchmetrics,
-    combine_object_detection_tiles,
     yolo_to_xyxy,
 )
 
@@ -508,23 +507,6 @@ def test_yolo_to_xyxy_accepts_two_boxes() -> None:
         dtype=torch.float32,
     )
     torch.testing.assert_close(converted[0], expected)
-
-
-def test_filter_predictions_by_score() -> None:
-    predictions = [
-        ObjectDetectionPrediction(
-            labels=torch.tensor([1, 2, 3]),
-            bboxes=torch.arange(12, dtype=torch.float32).reshape(3, 4),
-            scores=torch.tensor([0.1, 0.5, 0.9]),
-        )
-    ]
-
-    filtered = filter_predictions_by_score(predictions, threshold=0.5)
-
-    assert len(filtered) == 1
-    # The threshold is exclusive: a score exactly at it is dropped.
-    assert filtered[0].num_detections == 1
-    torch.testing.assert_close(filtered[0].labels, torch.tensor([3]))
 
 
 def test_rescale_predictions_to_original_size() -> None:

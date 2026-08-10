@@ -26,7 +26,6 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
-    filter_predictions_by_score,
     rescale_predictions_to_original_size,
 )
 from lightly_train._task_models.task_model import TaskModel
@@ -252,7 +251,10 @@ class ONNXBackend(ObjectDetectionBackend):
             metadata=metadata,
             model_size=(model_h, model_w),
         )
-        results = filter_predictions_by_score(predictions, self.threshold)
+        results = [
+            prediction[prediction.scores > self.threshold]
+            for prediction in predictions
+        ]
         return results, time_predict
 
 
@@ -391,5 +393,8 @@ class TensorRTBackend(ObjectDetectionBackend):
             metadata=metadata,
             model_size=(model_h, model_w),
         )
-        results = filter_predictions_by_score(predictions, self.threshold)
+        results = [
+            prediction[prediction.scores > self.threshold]
+            for prediction in predictions
+        ]
         return results, time_predict

@@ -18,6 +18,7 @@ import yaml
 from torch import Tensor
 
 import lightly_train
+from lightly_train._commands.benchmark_backends import TorchBackend
 from lightly_train._commands.benchmark_task import (
     _create_val_dataloader,
     benchmark_object_detection,
@@ -37,6 +38,9 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
+)
+from lightly_train._task_models.ltdetr_object_detection.task_model import (
+    LTDETRObjectDetection,
 )
 from lightly_train._task_models.task_model import TaskModel
 
@@ -450,3 +454,44 @@ class TestBenchmarkObjectDetectionE2E:
 
     def test_benchmark_accessible_from_lightly_train(self) -> None:
         assert hasattr(lightly_train, "benchmark_object_detection")
+
+
+class TestPreprocessingMatchesPredict:
+    def test_benchmark_predictions_match_predict(self, tmp_path: Path) -> None:
+        # The point of routing the benchmark through the model's own
+        # ObjectDetectionPreprocessor: the numbers it reports must describe the
+        # pipeline that runs at deployment, so the benchmark's per-image
+        # predictions have to be identical to model.predict() on the same image.
+        data_dict = _create_coco_data_dict(tmp_path)
+        data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
+        model = LTDETRObjectDetection(
+            model_name="dinov3/vitt16-notpretrained-ltdetr",
+            classes={0: "class_0", 1: "class_1"},
+            image_size=(256, 256),
+            load_weights=False,
+        )
+        dataloader = _create_val_dataloader(
+            data_args=data_args,
+            batch_size=1,
+            num_workers=0,
+            preprocessor=model.preprocessor,
+        )
+        backend = TorchBackend(
+            model=model,
+            backend_args=TorchBackendArgs(),
+            device=torch.device("cpu"),
+            threshold=0.0,
+        )
+
+        num_compared = 0
+        with torch.no_grad():
+            for batch in dataloader:
+                predictions, _ = backend.run_batch(batch=batch)
+                expected = model.predict(batch["image_path"][0], threshold=0.0)
+
+                torch.testing.assert_close(predictions[0].bboxes, expected.bboxes)
+                torch.testing.assert_close(predictions[0].scores, expected.scores)
+                torch.testing.assert_close(predictions[0].labels, expected.labels)
+                num_compared += 1
+
+        assert num_compared > 0
