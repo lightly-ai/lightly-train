@@ -533,6 +533,7 @@ def test_pretrain__log_resolved_config(
             "Resolved configuration:\n"
             "{\n"
             '    "accelerator": "CPUAccelerator",\n'
+            '    "activation_checkpoint_args": null,\n'
             '    "batch_size": 4,\n'
         )
         assert expected in caplog.text
