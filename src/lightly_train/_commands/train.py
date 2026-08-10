@@ -25,6 +25,7 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 from torch.nn import Module
 
 from lightly_train import _float32_matmul_precision, _logging, _system
+from lightly_train._activation_checkpointing import ActivationCheckpointingArgs
 from lightly_train._callbacks import callback_helpers
 from lightly_train._callbacks.callback_args import CallbackArgs
 from lightly_train._commands import _warnings, common_helpers, train_helpers
@@ -79,6 +80,7 @@ def pretrain(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    activation_checkpoint_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Pretrain a self-supervised model.
@@ -239,6 +241,12 @@ def pretrain(
             parameter. For example, if ``model='torchvision/<model_name>'``, the
             arguments are passed to
             ``torchvision.models.get_model(model_name, **model_args)``.
+        activation_checkpoint_args:
+            Activation checkpointing configuration to reduce memory usage during
+            training. Pass ``{"enabled": True}`` to enable checkpointing for all
+            transformer blocks. Use ``{"enabled": True, "every_n_blocks": 2}``
+            to checkpoint every other block. Only supported for ViT-based
+            backbones (DINOv2, DINOv3, EdgeCrafter).
         resume:
             Deprecated. Use ``resume_interrupted`` instead.
     """
@@ -276,6 +284,7 @@ def train(
     loader_args: dict[str, Any] | None = None,
     trainer_args: dict[str, Any] | None = None,
     model_args: dict[str, Any] | None = None,
+    activation_checkpoint_args: dict[str, Any] | None = None,
     resume: bool | None = None,  # Deprecated, use `resume_interrupted`` instead.
 ) -> None:
     """Deprecated. Use :func:`pretrain` instead."""
@@ -374,6 +383,13 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
             model_args=config.model_args,
             num_input_channels=no_auto(transform_instance.transform_args.num_channels),
         )
+        ac_args = train_helpers.get_activation_checkpoint_args(
+            config.activation_checkpoint_args
+        )
+        if ac_args.enabled:
+            train_helpers.set_activation_checkpointing(
+                wrapped_model=wrapped_model, args=ac_args
+            )
         embedding_model = train_helpers.get_embedding_model(
             wrapped_model=wrapped_model, embed_dim=config.embed_dim
         )
@@ -563,6 +579,9 @@ class TrainConfig(PydanticConfig):
     loader_args: dict[str, Any] | None = None
     trainer_args: dict[str, Any] | None = None
     model_args: dict[str, Any] | None = None
+    activation_checkpoint_args: dict[str, Any] | ActivationCheckpointingArgs | None = (
+        None
+    )
     resume: bool | None = None  # Deprecated, use `resume_interrupted` instead.
 
     # Allow arbitrary field types such as Module, Dataset, Accelerator, ...
@@ -577,6 +596,7 @@ class FunctionTrainConfig(TrainConfig):
     optim: str = "auto"
     optim_args: dict[str, Any] | None = None
     transform_args: dict[str, Any] | None = None
+    activation_checkpoint_args: dict[str, Any] | None = None
 
 
 class CLITrainConfig(FunctionTrainConfig):

@@ -25,6 +25,7 @@ from lightning_utilities.core.imports import RequirementCache
 from torch.nn.init import trunc_normal_
 
 from lightly_train import _torch_helpers
+from lightly_train._activation_checkpointing import maybe_checkpoint
 from lightly_train._export.onnx_helpers import is_in_precalculate_for_onnx_export
 from lightly_train._models import _model_helpers
 from lightly_train._models.dinov2_vit.dinov2_vit_src.layers import (
@@ -68,6 +69,11 @@ def named_apply(
 
 
 class BlockChunk(nn.ModuleList):
+    # Activation checkpointing is applied by the caller iterating over
+    # DinoVisionTransformer.blocks, which wraps each chunk as a whole. Checkpointing
+    # again here would nest inside that region and recompute every block twice.
+    # Consequence: on this path every_n_blocks counts chunks, not blocks, so the
+    # effective granularity is every_n_blocks * chunksize blocks.
     def forward(self, x):
         for b in self:
             x = b(x)
@@ -202,6 +208,10 @@ class DinoVisionTransformer(nn.Module):
             )
             for i in range(depth)
         ]
+        # Configured post-instantiation via DINOv2ViTModelWrapper.
+        self._activation_checkpointing = False
+        self._activation_checkpointing_every_n_blocks = 1
+
         if block_chunks > 0:
             self.chunked_blocks = True
             chunked_blocks = []
@@ -323,8 +333,15 @@ class DinoVisionTransformer(nn.Module):
             self.prepare_tokens_with_masks(x, masks)
             for x, masks in zip(x_list, masks_list)
         ]
-        for blk in self.blocks:
-            x = blk(x)
+        for i, blk in enumerate(self.blocks):
+            x = maybe_checkpoint(
+                blk,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
 
         all_x = x
         output = []
@@ -347,8 +364,15 @@ class DinoVisionTransformer(nn.Module):
 
         x = self.prepare_tokens_with_masks(x, masks)
 
-        for blk in self.blocks:
-            x = blk(x)
+        for i, blk in enumerate(self.blocks):
+            x = maybe_checkpoint(
+                blk,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
 
         x_norm = self.norm(x)
         return {
@@ -367,7 +391,14 @@ class DinoVisionTransformer(nn.Module):
             range(total_block_len - n, total_block_len) if isinstance(n, int) else n
         )
         for i, blk in enumerate(self.blocks):
-            x = blk(x)
+            x = maybe_checkpoint(
+                blk,
+                x,
+                use_activation_checkpointing=self._activation_checkpointing
+                and self.training,
+                block_index=i,
+                every_n_blocks=self._activation_checkpointing_every_n_blocks,
+            )
             if i in blocks_to_take:
                 output.append(x)
         assert len(output) == len(blocks_to_take), (
@@ -384,7 +415,14 @@ class DinoVisionTransformer(nn.Module):
         )
         for block_chunk in self.blocks:
             for blk in block_chunk[i:]:  # Passing the nn.Identity()
-                x = blk(x)
+                x = maybe_checkpoint(
+                    blk,
+                    x,
+                    use_activation_checkpointing=self._activation_checkpointing
+                    and self.training,
+                    block_index=i,
+                    every_n_blocks=self._activation_checkpointing_every_n_blocks,
+                )
                 if i in blocks_to_take:
                     output.append(x)
                 i += 1
