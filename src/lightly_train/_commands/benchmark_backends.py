@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -24,40 +23,13 @@ from lightly_train._commands.benchmark_types import (
     TorchBackendArgs,
 )
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import ObjectDetectionBatch
-
-
-def _get_preprocessor(model: TaskModel) -> ObjectDetectionPreprocessor:
-    preprocessor = model.preprocessor  # type: ignore[union-attr]
-    assert isinstance(preprocessor, ObjectDetectionPreprocessor)
-    return preprocessor
-
-
-def _object_detection_output(outputs: Mapping[str, Tensor]) -> ObjectDetectionOutput:
-    """Build the typed raw output from an exported graph's named outputs.
-
-    Exported object detection graphs name their outputs after the fields of
-    ``ObjectDetectionOutput``, so the backends can hand the task model a typed
-    output instead of a decoder-specific mapping.
-    """
-    missing = sorted({"logits", "boxes"} - set(outputs))
-    if missing:
-        raise RuntimeError(
-            f"Exported model is missing the output(s) {missing}. Expected an object "
-            f"detection graph emitting 'logits' and 'boxes', but got "
-            f"{sorted(outputs)}."
-        )
-    # Upcast fp16 graph outputs so the decode runs in fp32 regardless of the export
-    # precision.
-    return ObjectDetectionOutput(
-        logits=outputs["logits"].float(), boxes=outputs["boxes"].float()
-    )
 
 
 class ObjectDetectionBackend(ABC):
@@ -76,13 +48,14 @@ class TorchBackend(ObjectDetectionBackend):
         model: TaskModel,
         backend_args: TorchBackendArgs,
         device: torch.device,
+        preprocessor: ObjectDetectionPreprocessor,
         threshold: float = 0.0,
     ) -> None:
         self.model = model.to(device)
         self.device = device
         self.backend_args = backend_args
         self.threshold = threshold
-        self.preprocessor = _get_preprocessor(model)
+        self.preprocessor = preprocessor
 
         # TaskModel.deploy() defaults to a no-op that does not leave training mode,
         # so eval() has to be explicit.
@@ -146,6 +119,7 @@ class ONNXBackend(ObjectDetectionBackend):
         batch_size: int,
         out_dir: Path,
         device: str,
+        preprocessor: ObjectDetectionPreprocessor,
         threshold: float = 0.0,
     ) -> None:
 
@@ -156,7 +130,7 @@ class ONNXBackend(ObjectDetectionBackend):
         # buffers) must live on CPU to match.
         self.model = model.to("cpu")
         self.threshold = threshold
-        self.preprocessor = _get_preprocessor(model)
+        self.preprocessor = preprocessor
 
         self.device = torch.device(device)
 
@@ -245,12 +219,17 @@ class ONNXBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # postprocess
-        outputs = {
-            name: torch.from_numpy(value)
-            for name, value in zip(self.output_names, raw_outputs)
-        }
+        # The exported graph names its outputs after the fields of
+        # ObjectDetectionBatchOutput. Upcast so the decode runs in fp32 regardless of
+        # the export precision.
+        outputs = ObjectDetectionBatchOutput(
+            **{
+                name: torch.from_numpy(value)
+                for name, value in zip(self.output_names, raw_outputs)
+            }
+        ).to(torch.float32)
         results: list[ObjectDetectionPrediction] = self.model.postprocess(
-            raw_outputs=_object_detection_output(outputs),
+            raw_outputs=outputs,
             metadata=metadata,
             threshold=self.threshold,
         )
@@ -265,6 +244,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         batch_size: int,
         out_dir: Path,
         device: str,
+        preprocessor: ObjectDetectionPreprocessor,
         threshold: float = 0.0,
     ) -> None:
         import tensorrt as trt  # type: ignore[import-untyped,import-not-found]
@@ -273,7 +253,7 @@ class TensorRTBackend(ObjectDetectionBackend):
         self.device = torch.device(device)
         self.precision = backend_args.precision
         self.threshold = threshold
-        self.preprocessor = _get_preprocessor(model)
+        self.preprocessor = preprocessor
 
         # Export model to TensorRT engine.
         engine_path = out_dir / "model.engine"
@@ -366,8 +346,10 @@ class TensorRTBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # Postprocess.
+        # The engine names its outputs after the fields of ObjectDetectionBatchOutput.
+        # Upcast so the decode runs in fp32 regardless of the engine precision.
         results: list[ObjectDetectionPrediction] = self.model.postprocess(
-            raw_outputs=_object_detection_output(outputs),
+            raw_outputs=ObjectDetectionBatchOutput(**outputs).to(torch.float32),
             metadata=metadata,
             threshold=self.threshold,
         )

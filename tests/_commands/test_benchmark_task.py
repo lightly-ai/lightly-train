@@ -480,6 +480,7 @@ class TestPreprocessingMatchesPredict:
             model=model,
             backend_args=TorchBackendArgs(),
             device=torch.device("cpu"),
+            preprocessor=model.preprocessor,
             threshold=0.0,
         )
 

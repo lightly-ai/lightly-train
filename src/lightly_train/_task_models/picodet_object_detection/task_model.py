@@ -26,8 +26,8 @@ from lightly_train._export.export_onnx import (
     ONNXExportPrecisionPolicy,
 )
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
@@ -372,7 +372,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         cls_scores_list: list[Tensor],
         bbox_preds_list: list[Tensor],
         input_size: tuple[int, int],
-    ) -> ObjectDetectionOutput:
+    ) -> ObjectDetectionBatchOutput:
         """Decode dense o2o head outputs into raw logits and normalized boxes.
 
         Args:
@@ -381,7 +381,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             input_size: ``(height, width)`` of the model input the boxes refer to.
 
         Returns:
-            An :class:`ObjectDetectionOutput` with ``logits`` of shape ``(B, N, C)``
+            An :class:`ObjectDetectionBatchOutput` with ``logits`` of shape ``(B, N, C)``
             (raw, pre-sigmoid) and ``boxes`` of shape ``(B, N, 4)`` in normalized
             ``cxcywh`` relative to the model input. ``N`` is the total number of
             anchor points over all stride levels.
@@ -431,9 +431,9 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         scale = boxes_xyxy.new_tensor([input_w, input_h, input_w, input_h])
         boxes_xyxy = (boxes_xyxy / scale).clamp(min=0.0, max=1.0)
         boxes = box_convert(boxes_xyxy, in_fmt="xyxy", out_fmt="cxcywh")
-        return ObjectDetectionOutput(logits=logits, boxes=boxes)
+        return ObjectDetectionBatchOutput(logits=logits, boxes=boxes)
 
-    def forward(self, images: Tensor) -> ObjectDetectionOutput:
+    def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
         """Run the model and return the raw graph outputs.
 
         The anchor decode is part of the exported graph. Top-k selection,
@@ -444,7 +444,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             images: Input tensor of shape (B, C, H, W).
 
         Returns:
-            An :class:`ObjectDetectionOutput` with raw logits and normalized
+            An :class:`ObjectDetectionBatchOutput` with raw logits and normalized
             ``cxcywh`` boxes relative to the model input.
         """
         feats = self.backbone(images)
@@ -458,7 +458,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: ObjectDetectionOutput | Mapping[str, Tensor],
+        raw_outputs: ObjectDetectionBatchOutput | Mapping[str, Tensor],
         metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[ObjectDetectionPrediction]:
@@ -466,7 +466,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
 
         Args:
             raw_outputs:
-                Either an :class:`ObjectDetectionOutput` as returned by
+                Either an :class:`ObjectDetectionBatchOutput` as returned by
                 :meth:`forward`, or a mapping with ``pred_logits`` and
                 ``pred_boxes`` keys.
             metadata: Per-image metadata as returned by the preprocessor.
@@ -476,10 +476,10 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             A list with one :class:`ObjectDetectionPrediction` per input image, with
             boxes in original-image ``xyxy`` pixel coordinates.
         """
-        if isinstance(raw_outputs, ObjectDetectionOutput):
+        if isinstance(raw_outputs, ObjectDetectionBatchOutput):
             raw = raw_outputs
         else:
-            raw = ObjectDetectionOutput(
+            raw = ObjectDetectionBatchOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
         return self.postprocessor.postprocess(
@@ -626,11 +626,11 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         torch_outputs: BaseModelOutput,
         onnx_outputs: BaseModelOutput,
     ) -> None:
-        if not isinstance(torch_outputs, ObjectDetectionOutput) or not isinstance(
-            onnx_outputs, ObjectDetectionOutput
+        if not isinstance(torch_outputs, ObjectDetectionBatchOutput) or not isinstance(
+            onnx_outputs, ObjectDetectionBatchOutput
         ):
             raise TypeError(
-                "PicoDet ONNX verification expects ObjectDetectionOutput instances."
+                "PicoDet ONNX verification expects ObjectDetectionBatchOutput instances."
             )
         # The o2o peak filter keeps an anchor only if its score is exactly equal to
         # the max-pooled score of its neighborhood. Backend rounding can therefore

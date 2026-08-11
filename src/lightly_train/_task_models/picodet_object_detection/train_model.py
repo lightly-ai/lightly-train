@@ -31,7 +31,7 @@ from lightly_train._metrics.detection.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._pre_post_processing.object_detection import (
-    ObjectDetectionOutput,
+    ObjectDetectionBatchOutput,
     decode_object_detection_output,
     denormalize_xyxy_boxes,
     targets_to_torchmetrics,
@@ -76,15 +76,14 @@ from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
 def _decode_predictions_for_metrics(
-    outputs: ObjectDetectionOutput,
+    outputs: ObjectDetectionBatchOutput,
     orig_target_sizes: Tensor,
     num_top_queries: int,
     internal_class_to_class: Tensor,
 ) -> list[dict[str, Tensor]]:
     """Decode raw model outputs the same way inference does, for metrics."""
     batch_prediction = decode_object_detection_output(
-        logits=outputs.logits,
-        boxes=outputs.boxes,
+        raw=outputs,
         target_sizes=orig_target_sizes,
         num_top_queries=num_top_queries,
         internal_class_to_class=internal_class_to_class,

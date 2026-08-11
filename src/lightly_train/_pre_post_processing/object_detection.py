@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -28,14 +29,20 @@ from lightly_train.types import PathLike
 
 
 @dataclass
-class ObjectDetectionOutput(BaseModelOutput):
-    """Raw object detection output: logits and normalized ``cxcywh`` boxes.
+class ObjectDetectionBatchOutput(BaseModelOutput):
+    """Raw object detection output for a whole batch of model inputs.
+
+    This is what the model's ``forward`` returns: per-query class logits and normalized
+    ``cxcywh`` boxes, before any decoding.
 
     Attributes:
         logits: Shape ``(B, num_queries, num_classes)``. Raw (pre-sigmoid) per-query
             class logits.
         boxes: Shape ``(B, num_queries, 4)``. Normalized ``cxcywh`` boxes (values in
             ``[0, 1]``) relative to the model input size.
+
+    Note that ``B`` counts model input rows, not input images: with SAHI a single
+    image contributes one global row plus one row per tile.
     """
 
     logits: Tensor
@@ -153,8 +160,7 @@ class ObjectDetectionSAHIConfig:
 
 def decode_object_detection_output(
     *,
-    logits: Tensor,
-    boxes: Tensor,
+    raw: ObjectDetectionBatchOutput,
     target_sizes: Tensor,
     num_top_queries: int,
     internal_class_to_class: Tensor,
@@ -162,8 +168,12 @@ def decode_object_detection_output(
     """Decode raw detection outputs into dense per-row predictions.
 
     Args:
-        logits: Shape ``(B, num_queries, num_classes)``. Raw (pre-sigmoid) logits.
-        boxes: Shape ``(B, num_queries, 4)``. Normalized ``cxcywh`` boxes.
+        raw:
+            The model's :class:`ObjectDetectionBatchOutput`, holding raw (pre-sigmoid)
+            logits of shape ``(B, num_queries, num_classes)`` and normalized ``cxcywh``
+            boxes of shape ``(B, num_queries, 4)``. Note that ``B`` counts model input
+            rows, not input images: with SAHI a single image contributes one global row
+            plus one row per tile.
         target_sizes: Shape ``(B, 2)``. ``(width, height)`` the boxes are scaled to.
         num_top_queries: Number of ``(query, class)`` pairs kept per row.
         internal_class_to_class:
@@ -175,12 +185,12 @@ def decode_object_detection_output(
         detections per row with ``xyxy`` boxes in ``target_sizes`` coordinates. No
         score thresholding is applied.
     """
-    scores = logits.sigmoid()
+    scores = raw.logits.sigmoid()
     num_classes = scores.shape[-1]
     scores, index = scores.flatten(1).topk(num_top_queries, dim=-1)
     labels = internal_class_to_class[index % num_classes]
     query_index = index // num_classes
-    boxes = box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
+    boxes = box_convert(raw.boxes, in_fmt="cxcywh", out_fmt="xyxy")
     boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
     boxes = boxes * target_sizes.repeat(1, 2).unsqueeze(1)
     return ObjectDetectionBatchPrediction(labels=labels, bboxes=boxes, scores=scores)
@@ -416,7 +426,7 @@ class ObjectDetectionPreprocessor(Module):
         """
         image_tensor = file_helpers.as_image_tensor(image).to(device)
         orig_h, orig_w = image_tensor.shape[-2:]
-        image_tensor = self._validate_channels(image_tensor)
+        image_tensor = self._to_expected_channels(image_tensor)
         image_tensor = transforms_functional.to_dtype(
             image_tensor, dtype=dtype, scale=True
         )
@@ -436,7 +446,12 @@ class ObjectDetectionPreprocessor(Module):
         metadata.tile_coordinates = coordinates
         return torch.cat([global_image, tiles]), metadata
 
-    def _validate_channels(self, image: Tensor) -> Tensor:
+    def _to_expected_channels(self, image: Tensor) -> Tensor:
+        """Expand a grayscale image to ``expected_input_channels``.
+
+        Raises:
+            ValueError: If the image cannot be brought to the expected channel count.
+        """
         if image.shape[-3] == 1 and self.expected_input_channels > 1:
             return image.expand(self.expected_input_channels, -1, -1)
         if image.shape[-3] != self.expected_input_channels:
@@ -535,7 +550,7 @@ class ObjectDetectionPostprocessor(Module):
 
     def postprocess_batch(
         self,
-        raw: ObjectDetectionOutput,
+        raw: ObjectDetectionBatchOutput,
         metadata: Sequence[ObjectDetectionMetadata],
     ) -> ObjectDetectionBatchPrediction:
         """Decode raw outputs into dense per-row predictions.
@@ -551,8 +566,7 @@ class ObjectDetectionPostprocessor(Module):
         """
         target_sizes = self._target_sizes(metadata, device=raw.boxes.device)
         return decode_object_detection_output(
-            logits=raw.logits,
-            boxes=raw.boxes,
+            raw=raw,
             target_sizes=target_sizes,
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
@@ -603,7 +617,7 @@ class ObjectDetectionPostprocessor(Module):
 
     def postprocess(
         self,
-        raw: ObjectDetectionOutput,
+        raw: ObjectDetectionBatchOutput,
         metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
         *,

@@ -36,8 +36,8 @@ from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
@@ -350,12 +350,12 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         torch_outputs: BaseModelOutput,
         onnx_outputs: BaseModelOutput,
     ) -> None:
-        if not isinstance(torch_outputs, ObjectDetectionOutput) or not isinstance(
-            onnx_outputs, ObjectDetectionOutput
+        if not isinstance(torch_outputs, ObjectDetectionBatchOutput) or not isinstance(
+            onnx_outputs, ObjectDetectionBatchOutput
         ):
             raise TypeError(
                 "LTDETRObjectDetection ONNX verification expects "
-                "ObjectDetectionOutput instances."
+                "ObjectDetectionBatchOutput instances."
             )
         for output_name in ("logits", "boxes"):
             output_model = getattr(torch_outputs, output_name).sum(dim=1)
@@ -377,11 +377,13 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
                 rtol=1e-1,
             )
 
-    def forward(self, images: Tensor) -> ObjectDetectionOutput:
+    def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
         x = self.backbone(images)
         x = self.encoder(x)
         raw = self.decoder(x)
-        return ObjectDetectionOutput(logits=raw["pred_logits"], boxes=raw["pred_boxes"])
+        return ObjectDetectionBatchOutput(
+            logits=raw["pred_logits"], boxes=raw["pred_boxes"]
+        )
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
@@ -391,14 +393,14 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: ObjectDetectionOutput | Mapping[str, Tensor],
+        raw_outputs: ObjectDetectionBatchOutput | Mapping[str, Tensor],
         metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[ObjectDetectionPrediction]:
-        if isinstance(raw_outputs, ObjectDetectionOutput):
+        if isinstance(raw_outputs, ObjectDetectionBatchOutput):
             raw = raw_outputs
         else:
-            raw = ObjectDetectionOutput(
+            raw = ObjectDetectionBatchOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
         return self.postprocessor.postprocess(

@@ -188,6 +188,7 @@ def _benchmark_object_detection_from_config(
             batch_size=config.batch_size,
             out_dir=out_dir,
             device=str(device),
+            preprocessor=preprocessor,
             threshold=config.threshold,
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
@@ -197,6 +198,7 @@ def _benchmark_object_detection_from_config(
             batch_size=config.batch_size,
             out_dir=out_dir,
             device=str(device),
+            preprocessor=preprocessor,
             threshold=config.threshold,
         )
     elif isinstance(backend_args, TorchBackendArgs):
@@ -204,6 +206,7 @@ def _benchmark_object_detection_from_config(
             model=model,
             backend_args=backend_args,
             device=device,
+            preprocessor=preprocessor,
             threshold=config.threshold,
         )
     else:

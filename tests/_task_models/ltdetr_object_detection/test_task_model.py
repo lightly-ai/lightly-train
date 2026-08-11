@@ -23,11 +23,8 @@ from lightly_train._data.yolo_object_detection_dataset import (
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
-)
-from lightly_train._task_models.dinov3_ltdetr.task_model import (
-    _RTDETRTransformerv2Config,
 )
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
@@ -680,7 +677,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
 def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     patch_size: int, feat_strides: list[int], num_levels: int
 ) -> None:
-    config = _RTDETRTransformerv2Config(
+    config = RTDETRTransformerv2Config(
         num_levels=num_levels, feat_channels=[-1] * num_levels
     )
 
@@ -751,7 +748,7 @@ def test_postprocess__accepts_typed_and_mapping_outputs(
     boxes = torch.rand(1, 2, 4)
     metadata = [ObjectDetectionMetadata(orig_h=480, orig_w=640)]
 
-    typed_raw = ObjectDetectionOutput(logits=logits, boxes=boxes)
+    typed_raw = ObjectDetectionBatchOutput(logits=logits, boxes=boxes)
     model.postprocess(typed_raw, metadata, threshold=0.5)
     call = postprocess.call_args.kwargs
     assert call["raw"] is typed_raw
@@ -763,7 +760,7 @@ def test_postprocess__accepts_typed_and_mapping_outputs(
     )
     call = postprocess.call_args.kwargs
     raw = call["raw"]
-    assert isinstance(raw, ObjectDetectionOutput)
+    assert isinstance(raw, ObjectDetectionBatchOutput)
     assert raw.logits is logits
     assert raw.boxes is boxes
     assert call["metadata"] is metadata
@@ -802,7 +799,7 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     forward = mocker.patch.object(
         model,
         "forward",
-        return_value=ObjectDetectionOutput(logits=logits, boxes=boxes),
+        return_value=ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
     )
     postprocess_batch_spy = mocker.spy(model.postprocessor, "postprocess_batch")
     postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
@@ -867,7 +864,7 @@ def test_predict__matches_predict_batch(mocker: MockerFixture) -> None:
     mocker.patch.object(
         model,
         "forward",
-        return_value=ObjectDetectionOutput(logits=logits, boxes=boxes),
+        return_value=ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
     )
     image = torch.zeros(3, 64, 128)
 

@@ -31,8 +31,8 @@ from lightly_train._license import LICENSE_INFO
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._metrics.mean_average_precision import MeanAveragePrecision
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
 )
 from lightly_train._task_models.picodet_object_detection.task_model import (
     PicoDetObjectDetection,
@@ -85,7 +85,7 @@ def test_task_model_forward_shapes() -> None:
 
     strides = model.o2o_head.strides
     num_preds = sum(math.ceil(416 / s) ** 2 for s in strides)
-    assert isinstance(output, ObjectDetectionOutput)
+    assert isinstance(output, ObjectDetectionBatchOutput)
     assert output.logits.shape == (1, num_preds, 80)
     assert output.boxes.shape == (1, num_preds, 4)
     # Boxes are normalized cxcywh relative to the model input, logits are pre-sigmoid.
@@ -110,7 +110,7 @@ def test_postprocess__scales_normalized_boxes_to_original_size() -> None:
     boxes = torch.tensor([[[0.3, 0.15, 0.4, 0.2], [0.0, 0.0, 0.0, 0.0]]])
 
     predictions = model.postprocess(
-        ObjectDetectionOutput(logits=logits, boxes=boxes),
+        ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
         [ObjectDetectionMetadata(orig_h=200, orig_w=400)],
         threshold=0.5,
     )
@@ -138,7 +138,7 @@ def test_postprocess__accepts_typed_and_mapping_outputs(mocker: MockerFixture) -
     boxes = torch.rand(1, 2, 4)
     metadata = [ObjectDetectionMetadata(orig_h=480, orig_w=640)]
 
-    typed_raw = ObjectDetectionOutput(logits=logits, boxes=boxes)
+    typed_raw = ObjectDetectionBatchOutput(logits=logits, boxes=boxes)
     model.postprocess(typed_raw, metadata, threshold=0.5)
     call = postprocess.call_args.kwargs
     assert call["raw"] is typed_raw
@@ -151,7 +151,7 @@ def test_postprocess__accepts_typed_and_mapping_outputs(mocker: MockerFixture) -
         {"pred_logits": logits, "pred_boxes": boxes}, metadata, threshold=0.25
     )
     call = postprocess.call_args.kwargs
-    assert isinstance(call["raw"], ObjectDetectionOutput)
+    assert isinstance(call["raw"], ObjectDetectionBatchOutput)
     assert call["raw"].logits is logits
     assert call["raw"].boxes is boxes
     assert call["threshold"] == 0.25
@@ -520,7 +520,7 @@ def test_decode_predictions_for_metrics__non_contiguous_class_ids() -> None:
     boxes = torch.tensor([[[0.075, 0.075, 0.1, 0.1], [0.0, 0.0, 0.0, 0.0]]])
 
     results = _decode_predictions_for_metrics(
-        outputs=ObjectDetectionOutput(logits=logits, boxes=boxes),
+        outputs=ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
         orig_target_sizes=torch.tensor([[400, 400]]),
         num_top_queries=2,
         internal_class_to_class=torch.arange(len(classes)),

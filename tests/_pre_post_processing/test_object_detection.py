@@ -11,8 +11,8 @@ import pytest
 import torch
 
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
@@ -210,7 +210,7 @@ class TestObjectDetectionPostprocessor:
             [[[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.2, 0.2], [0.8, 0.5, 0.1, 0.2]]]
         )
         output = _postprocessor().postprocess(
-            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
             [ObjectDetectionMetadata(orig_w=100, orig_h=200)],
             threshold=0.0,
         )[0]
@@ -224,7 +224,7 @@ class TestObjectDetectionPostprocessor:
         logits = torch.full((1, 3, 2), -10.0)
         boxes = torch.rand(1, 3, 4)
         output = _postprocessor().postprocess(
-            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
             [ObjectDetectionMetadata(orig_w=30, orig_h=20)],
             threshold=0.5,
         )
@@ -239,7 +239,7 @@ class TestObjectDetectionPostprocessor:
             image_size=(10, 20),
         )
         output = postprocessor.postprocess(
-            ObjectDetectionOutput(
+            ObjectDetectionBatchOutput(
                 logits=torch.tensor([[[10.0]], [[9.0]], [[-10.0]]]),
                 boxes=torch.tensor(
                     [
@@ -277,7 +277,7 @@ class TestObjectDetectionPostprocessor:
         )
         torch.manual_seed(0)
         # Two images with a different number of tiles: 2 and 3.
-        raw = ObjectDetectionOutput(
+        raw = ObjectDetectionBatchOutput(
             logits=torch.randn(7, 4, 2), boxes=torch.rand(7, 4, 4)
         )
         metadata = [
@@ -300,7 +300,7 @@ class TestObjectDetectionPostprocessor:
         for item, prediction in zip(metadata, predictions):
             end = start + item.num_rows
             expected = postprocessor.postprocess(
-                ObjectDetectionOutput(
+                ObjectDetectionBatchOutput(
                     logits=raw.logits[start:end], boxes=raw.boxes[start:end]
                 ),
                 [item],
@@ -323,7 +323,7 @@ class TestObjectDetectionPostprocessor:
         ]
 
         batch_prediction = _postprocessor().postprocess_batch(
-            ObjectDetectionOutput(logits=logits, boxes=boxes), metadata
+            ObjectDetectionBatchOutput(logits=logits, boxes=boxes), metadata
         )
 
         assert batch_prediction.scores.max() < 0.001
@@ -341,7 +341,7 @@ class TestObjectDetectionPostprocessor:
     ) -> None:
         postprocessor = _postprocessor()
         torch.manual_seed(0)
-        raw = ObjectDetectionOutput(
+        raw = ObjectDetectionBatchOutput(
             logits=torch.randn(2, 4, 2), boxes=torch.rand(2, 4, 4)
         )
         metadata = [
@@ -365,7 +365,7 @@ class TestObjectDetectionPostprocessor:
 
     def test_postprocess_image__requires_sahi_config_for_tiled_metadata(self) -> None:
         postprocessor = _postprocessor()
-        raw = ObjectDetectionOutput(
+        raw = ObjectDetectionBatchOutput(
             logits=torch.zeros(2, 3, 2), boxes=torch.rand(2, 3, 4)
         )
         metadata = ObjectDetectionMetadata(
@@ -386,7 +386,7 @@ class TestObjectDetectionPostprocessor:
         logits = torch.tensor([[[8.0, -8.0]]])
         boxes = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
         prediction = postprocessor.postprocess(
-            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
             [ObjectDetectionMetadata(orig_w=100, orig_h=200)],
             threshold=0.5,
         )[0]

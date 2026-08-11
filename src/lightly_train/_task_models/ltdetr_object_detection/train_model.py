@@ -37,6 +37,7 @@ from lightly_train._metrics.detection.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     decode_object_detection_output,
     targets_to_torchmetrics,
 )
@@ -114,8 +115,10 @@ def _decode_predictions_for_metrics(
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
     batch_prediction = decode_object_detection_output(
-        logits=outputs["pred_logits"],
-        boxes=outputs["pred_boxes"],
+        raw=ObjectDetectionBatchOutput(
+            logits=outputs["pred_logits"],
+            boxes=outputs["pred_boxes"],
+        ),
         target_sizes=orig_target_sizes,
         num_top_queries=model.num_top_queries,
         internal_class_to_class=model.internal_class_to_class,
