@@ -174,6 +174,8 @@ The predicted boxes are in the absolute `(x_min, y_min, x_max, y_max)` format, i
 represent the size of the dimension of the bounding boxes in pixels of the original
 image.
 
+(object-detection-sahi)=
+
 ### Improving Small Objects Detection
 
 Detecting small objects in high-resolution images can be challenging because they may
@@ -877,6 +879,8 @@ full list):
 - `steps`: Maximum number of batches to process. `None` (default) processes the whole
   validation split.
 - `threshold`: Score threshold below which detections are discarded. Default `0.0`.
+- `sahi_args`: Benchmark tiled inference instead of plain inference. `None` (default)
+  disables tiling. See [SAHI](object-detection-benchmark-sahi).
 - `num_workers`: Number of data loading workers. Default `"auto"`.
 - `device`: Device to run on, e.g. `"cpu"` or `"cuda"`. If `None` (default), the device
   is auto-detected based on the backend.
@@ -941,3 +945,38 @@ result = lightly_train.benchmark_object_detection(
 
 The ONNX and TensorRT backends require their respective optional dependencies to be
 installed (see the export sections above).
+
+(object-detection-benchmark-sahi)=
+
+### SAHI
+
+Passing `sahi_args` benchmarks [Slicing Aided Hyper Inference](object-detection-sahi)
+instead of plain inference: every image is tiled and the tile predictions are merged
+back exactly the way `predict_sahi()` does, so the reported mAP and timings describe the
+tiled pipeline.
+
+```python
+result = lightly_train.benchmark_object_detection(
+    ...,
+    threshold=0.5,
+    sahi_args={
+        "overlap": 0.2,                     # Fractional overlap between tiles.
+        "nms_iou_threshold": 0.3,           # IoU used for NMS of tile predictions.
+        "global_local_iou_threshold": 0.1,  # IoU above which a tile box is dropped.
+    },
+)
+```
+
+The defaults match `predict_sahi()`, so `sahi_args={}` enables tiling with the same
+settings a user gets from the model.
+
+Two things to keep in mind:
+
+- A non-zero `threshold` is strongly recommended. Merging tiles runs non-maximum
+  suppression over the surviving detections of every tile, which is slow when nothing is
+  filtered out first.
+- Latency is still reported per input image, but an image now costs one forward pass row
+  per tile plus one for the global view, so it is not comparable to an untiled run. The
+  ONNX and TensorRT backends need a dynamic export batch size because the number of
+  tiles depends on the image size; for TensorRT, also set
+  `export_args={"max_batchsize": ...}` high enough to cover the largest batch.

@@ -26,6 +26,9 @@ from lightly_train._commands.benchmark_task import (
 from lightly_train._commands.benchmark_types import (
     BenchmarkObjectDetectionConfig,
     BenchmarkResult,
+    BenchmarkSAHIArgs,
+    ONNXBackendArgs,
+    TensorRTBackendArgs,
     TorchBackendArgs,
 )
 from lightly_train._data.coco_object_detection_dataset import (
@@ -35,9 +38,12 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
+    ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
+    ObjectDetectionSAHIConfig,
 )
 from lightly_train._task_models.ltdetr_object_detection.task_model import (
     LTDETRObjectDetection,
@@ -78,6 +84,32 @@ def _create_coco_data_dict(tmp_path: Path) -> dict[str, Any]:
     }
 
 
+class _FakeObjectDetectionPostprocessor(ObjectDetectionPostprocessor):
+    """Records the metadata it is handed and returns one fixed detection per image."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            num_top_queries=1, internal_class_to_class=torch.tensor([0, 1])
+        )
+        self.last_metadata: Sequence[ObjectDetectionMetadata] | None = None
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw: Any,
+        metadata: Sequence[ObjectDetectionMetadata],
+        threshold: float,
+    ) -> list[ObjectDetectionPrediction]:
+        self.last_metadata = metadata
+        return [
+            ObjectDetectionPrediction(
+                labels=torch.tensor([0]),
+                bboxes=torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
+                scores=torch.tensor([0.9]),
+            )
+            for _ in metadata
+        ]
+
+
 class _FakeObjectDetectionModel(TaskModel):
     """Minimal TaskModel subclass that returns fixed predictions."""
 
@@ -91,31 +123,20 @@ class _FakeObjectDetectionModel(TaskModel):
                 "image_size": (64, 64),
             },
         )
-        self.last_metadata: Sequence[ObjectDetectionMetadata] | None = None
         self.preprocessor = ObjectDetectionPreprocessor(
             image_size=(64, 64),
             image_normalize=None,
             expected_input_channels=3,
         )
+        self.postprocessor = _FakeObjectDetectionPostprocessor()
 
-    def forward(self, images: Tensor) -> Any:
-        return images
-
-    def postprocess(  # type: ignore[override]
-        self,
-        raw_outputs: Any,
-        metadata: Sequence[ObjectDetectionMetadata],
-        **kwargs: Any,
-    ) -> list[ObjectDetectionPrediction]:
-        self.last_metadata = metadata
-        return [
-            ObjectDetectionPrediction(
-                labels=torch.tensor([0]),
-                bboxes=torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
-                scores=torch.tensor([0.9]),
-            )
-            for _ in metadata
-        ]
+    def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
+        # The fake postprocessor ignores the outputs, they only have to be a valid
+        # ObjectDetectionBatchOutput so the shared backend pipeline can carry them.
+        num_rows = images.shape[0]
+        return ObjectDetectionBatchOutput(
+            logits=torch.zeros(num_rows, 1, 2), boxes=torch.zeros(num_rows, 1, 4)
+        )
 
 
 def _preprocessor() -> ObjectDetectionPreprocessor:
@@ -197,6 +218,52 @@ class TestValDataloader:
         assert batch["image"].shape[0] == 2
         assert len(batch["bboxes"]) == 2
         assert len(batch["classes"]) == 2
+
+    def test_carries_preprocessing_metadata(self, tmp_path: Path) -> None:
+        # The metadata the preprocessor records travels on the batch, so the backends
+        # can hand it to the postprocessor instead of re-deriving it.
+        data_dict = _create_coco_data_dict(tmp_path)
+        data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
+        dataloader = _create_val_dataloader(
+            data_args=data_args,
+            batch_size=2,
+            num_workers=0,
+            preprocessor=_preprocessor(),
+        )
+
+        batch = next(iter(dataloader))
+        assert batch["metadata"] == [
+            ObjectDetectionMetadata(orig_h=128, orig_w=128),
+            ObjectDetectionMetadata(orig_h=128, orig_w=128),
+        ]
+        # Without tiling each image occupies exactly one model input row.
+        assert all(item.num_rows == 1 for item in batch["metadata"])
+        assert batch["image"].shape[0] == 2
+
+    def test_sahi_tiles_images(self, tmp_path: Path) -> None:
+        # With tiling an image occupies one global row plus one row per tile, and only
+        # the metadata records how many.
+        data_dict = _create_coco_data_dict(tmp_path)
+        data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
+        dataloader = _create_val_dataloader(
+            data_args=data_args,
+            batch_size=2,
+            num_workers=0,
+            preprocessor=_preprocessor(),
+            sahi_config=ObjectDetectionSAHIConfig(
+                overlap=0.2, nms_iou_threshold=0.3, global_local_iou_threshold=0.1
+            ),
+        )
+
+        batch = next(iter(dataloader))
+        assert len(batch["metadata"]) == 2
+        for item in batch["metadata"]:
+            assert item.tiling is not None
+            assert item.tiling.num_tiles > 0
+            assert item.num_rows == 1 + item.tiling.num_tiles
+        assert batch["image"].shape[0] == sum(
+            item.num_rows for item in batch["metadata"]
+        )
 
 
 class TestBenchmarkObjectDetectionConfig:
@@ -320,7 +387,10 @@ class TestBenchmarkObjectDetectionE2E:
         assert result.steps is None
         assert "val_metric/map" in result.metric_values
         assert isinstance(result.metric_values["val_metric/map"], float)
-        assert model.last_metadata == [
+        assert result.sahi_args is None
+        # The metadata the backend hands to the postprocessor is the one the
+        # preprocessor recorded in the dataloader, not a re-derived copy.
+        assert model.postprocessor.last_metadata == [
             ObjectDetectionMetadata(orig_h=128, orig_w=128),
             ObjectDetectionMetadata(orig_h=128, orig_w=128),
         ]
@@ -452,24 +522,95 @@ class TestBenchmarkObjectDetectionE2E:
         assert "val_metric/map" in result.metric_values
         assert result.timing.total_s > 0
 
+    def test_benchmark_with_sahi(self, tmp_path: Path) -> None:
+        data_dict = _create_coco_data_dict(tmp_path)
+        model = _FakeObjectDetectionModel()
+
+        result = benchmark_object_detection(
+            out=str(tmp_path / "out"),
+            dataset_name="test-coco",
+            data=data_dict,
+            model=model,
+            batch_size=2,
+            threshold=0.5,
+            sahi_args={"overlap": 0.2},
+            overwrite=True,
+        )
+
+        assert result.sahi_args == BenchmarkSAHIArgs(overlap=0.2)
+        # One prediction per input image, not per tile.
+        assert result.num_images == 2
+        metadata = model.postprocessor.last_metadata
+        assert metadata is not None
+        assert len(metadata) == 2
+        assert all(item.tiling is not None for item in metadata)
+        assert "val_metric/map" in result.metric_values
+
+        # A tiled report must not be mistaken for an untiled one.
+        summary = (tmp_path / "out" / "benchmark_summary.md").read_text()
+        assert "**SAHI**: overlap 0.2" in summary
+
     def test_benchmark_accessible_from_lightly_train(self) -> None:
         assert hasattr(lightly_train, "benchmark_object_detection")
 
 
-class TestPreprocessingMatchesPredict:
-    def test_benchmark_predictions_match_predict(self, tmp_path: Path) -> None:
-        # The point of routing the benchmark through the model's own
-        # ObjectDetectionPreprocessor: the numbers it reports must describe the
-        # pipeline that runs at deployment, so the benchmark's per-image
-        # predictions have to be identical to model.predict() on the same image.
-        data_dict = _create_coco_data_dict(tmp_path)
-        data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
-        model = LTDETRObjectDetection(
+class TestSAHIBackendValidation:
+    """SAHI needs a dynamic batch dimension: tiling makes the row count vary."""
+
+    def _benchmark(self, tmp_path: Path, backend_args: Any) -> BenchmarkResult:
+        return benchmark_object_detection(
+            out=str(tmp_path / "out"),
+            dataset_name="test-coco",
+            data=_create_coco_data_dict(tmp_path),
+            model=_FakeObjectDetectionModel(),
+            batch_size=2,
+            sahi_args={},
+            backend_args=backend_args,
+            overwrite=True,
+        )
+
+    def test_onnx_static_batch_size_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="dynamic batch dimension"):
+            self._benchmark(
+                tmp_path,
+                ONNXBackendArgs(export_args={"dynamic_batch_size": False}),
+            )
+
+    def test_tensorrt_static_batch_size_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="dynamic batch dimension"):
+            self._benchmark(
+                tmp_path,
+                TensorRTBackendArgs(
+                    export_args={"onnx_args": {"dynamic_batch_size": False}}
+                ),
+            )
+
+    def test_tensorrt_without_max_batchsize_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="max_batchsize"):
+            self._benchmark(tmp_path, TensorRTBackendArgs())
+
+
+class TestPrePostProcessingMatchesPredict:
+    """The benchmark must measure the pipeline that runs at deployment.
+
+    That is the point of routing it through the model's own preprocessor *and*
+    postprocessor: its per-image predictions have to be identical to what the model's
+    own predict methods return for the same images.
+    """
+
+    @staticmethod
+    def _model() -> LTDETRObjectDetection:
+        return LTDETRObjectDetection(
             model_name="dinov3/vitt16-notpretrained-ltdetr",
             classes={0: "class_0", 1: "class_1"},
             image_size=(256, 256),
             load_weights=False,
         )
+
+    def test_benchmark_predictions_match_predict(self, tmp_path: Path) -> None:
+        data_dict = _create_coco_data_dict(tmp_path)
+        data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
+        model = self._model()
         dataloader = _create_val_dataloader(
             data_args=data_args,
             batch_size=1,
@@ -481,6 +622,7 @@ class TestPreprocessingMatchesPredict:
             backend_args=TorchBackendArgs(),
             device=torch.device("cpu"),
             preprocessor=model.preprocessor,
+            postprocessor=model.postprocessor,
             threshold=0.0,
         )
 
@@ -489,6 +631,48 @@ class TestPreprocessingMatchesPredict:
             for batch in dataloader:
                 predictions, _ = backend.run_batch(batch=batch)
                 expected = model.predict(batch["image_path"][0], threshold=0.0)
+
+                torch.testing.assert_close(predictions[0].bboxes, expected.bboxes)
+                torch.testing.assert_close(predictions[0].scores, expected.scores)
+                torch.testing.assert_close(predictions[0].labels, expected.labels)
+                num_compared += 1
+
+        assert num_compared > 0
+
+    def test_benchmark_sahi_predictions_match_predict_sahi(
+        self, tmp_path: Path
+    ) -> None:
+        sahi_args = BenchmarkSAHIArgs()
+        data_dict = _create_coco_data_dict(tmp_path)
+        data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
+        model = self._model()
+        dataloader = _create_val_dataloader(
+            data_args=data_args,
+            batch_size=1,
+            num_workers=0,
+            preprocessor=model.preprocessor,
+            sahi_config=sahi_args.to_sahi_config(),
+        )
+        backend = TorchBackend(
+            model=model,
+            backend_args=TorchBackendArgs(),
+            device=torch.device("cpu"),
+            preprocessor=model.preprocessor,
+            postprocessor=model.postprocessor,
+            threshold=0.5,
+        )
+
+        num_compared = 0
+        with torch.no_grad():
+            for batch in dataloader:
+                predictions, _ = backend.run_batch(batch=batch)
+                expected = model.predict_sahi(
+                    batch["image_path"][0],
+                    threshold=0.5,
+                    overlap=sahi_args.overlap,
+                    nms_iou_threshold=sahi_args.nms_iou_threshold,
+                    global_local_iou_threshold=sahi_args.global_local_iou_threshold,
+                )
 
                 torch.testing.assert_close(predictions[0].bboxes, expected.bboxes)
                 torch.testing.assert_close(predictions[0].scores, expected.scores)

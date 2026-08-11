@@ -27,8 +27,10 @@ from lightly_train._commands.benchmark_backends import (
 )
 from lightly_train._commands.benchmark_types import (
     BenchmarkBackendArgs,
+    BenchmarkObjectDetectionBatch,
     BenchmarkObjectDetectionConfig,
     BenchmarkResult,
+    BenchmarkSAHIArgs,
     BenchmarkStatistics,
     BenchmarkTimingResult,
     CpuDeviceInfo,
@@ -52,7 +54,9 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPostprocessor,
     ObjectDetectionPreprocessor,
+    ObjectDetectionSAHIConfig,
     targets_to_torchmetrics,
 )
 from lightly_train._task_models import task_model_helpers
@@ -62,7 +66,6 @@ from lightly_train._transforms.task_transform import (
     TaskTransformArgs,
 )
 from lightly_train.types import (
-    ObjectDetectionBatch,
     ObjectDetectionDatasetItem,
     PathLike,
 )
@@ -82,6 +85,7 @@ def benchmark_object_detection(
     overwrite: bool = False,
     device: str | None = None,
     backend_args: dict[str, Any] | BenchmarkBackendArgs | None = None,
+    sahi_args: dict[str, Any] | None = None,
 ) -> BenchmarkResult:
     """Benchmark an object detection model on a validation dataset.
 
@@ -104,7 +108,10 @@ def benchmark_object_detection(
             Number of images to process at once.
         threshold:
             Score threshold for filtering detections. Predictions with scores
-            at or below this value are discarded.
+            at or below this value are discarded. With ``sahi_args`` a non-zero threshold
+            is strongly recommended: merging tiles runs non-maximum suppression over
+            the surviving detections of every tile, which is slow when nothing is
+            filtered out first.
         warmup_steps:
             Number of warmup batches to run before the benchmark. Warmup
             results are discarded. The dataloader restarts from the beginning
@@ -125,6 +132,13 @@ def benchmark_object_detection(
             ``"torch"`` (default), ``"onnx"``, or ``"tensorrt"``. ONNX and
             TensorRT backends accept an optional ``export_args`` dict
             forwarded to ``model.export_onnx()``.
+        sahi_args:
+            If given, benchmark Slicing Aided Hyper Inference instead of plain
+            inference: every image is tiled and the tile predictions are merged back
+            the same way ``model.predict_sahi()`` does. Accepts ``overlap``,
+            ``nms_iou_threshold``, and ``global_local_iou_threshold``, defaulting to
+            the values ``predict_sahi()`` uses, so ``{}`` enables tiling with those
+            defaults. ``None`` (default) disables tiling.
 
     Returns:
         BenchmarkResult containing metric values and timing statistics.
@@ -149,10 +163,14 @@ def _benchmark_object_detection_from_config(
         model = task_model_helpers.load_model(model=config.model)
 
     backend_args = config.backend_args
+    _validate_sahi_backend(sahi_args=config.sahi_args, backend_args=backend_args)
 
-    # Benchmark through the model's own preprocessing so that the reported metrics
-    # describe the pipeline that runs at deployment.
-    preprocessor = _get_preprocessor(model)
+    # Benchmark through the model's own pre- and postprocessing so that the reported
+    # metrics describe the pipeline that runs at deployment.
+    preprocessor, postprocessor = _get_pre_post_processors(model)
+    sahi_config = (
+        None if config.sahi_args is None else config.sahi_args.to_sahi_config()
+    )
 
     # Set up validation data.
     data_arg_helpers.resolve_data_paths(config.data)
@@ -165,6 +183,7 @@ def _benchmark_object_detection_from_config(
         batch_size=config.batch_size,
         num_workers=num_workers,
         preprocessor=preprocessor,
+        sahi_config=sahi_config,
     )
     num_batches = len(val_dataloader)
     if num_batches == 0:
@@ -189,6 +208,7 @@ def _benchmark_object_detection_from_config(
             out_dir=out_dir,
             device=str(device),
             preprocessor=preprocessor,
+            postprocessor=postprocessor,
             threshold=config.threshold,
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
@@ -199,6 +219,7 @@ def _benchmark_object_detection_from_config(
             out_dir=out_dir,
             device=str(device),
             preprocessor=preprocessor,
+            postprocessor=postprocessor,
             threshold=config.threshold,
         )
     elif isinstance(backend_args, TorchBackendArgs):
@@ -207,6 +228,7 @@ def _benchmark_object_detection_from_config(
             backend_args=backend_args,
             device=device,
             preprocessor=preprocessor,
+            postprocessor=postprocessor,
             threshold=config.threshold,
         )
     else:
@@ -302,6 +324,7 @@ def _benchmark_object_detection_from_config(
         batch_size=config.batch_size,
         warmup_steps=config.warmup_steps,
         steps=config.steps,
+        sahi_args=config.sahi_args,
         metric_values=metric_values,
         timing=timing,
     )
@@ -320,20 +343,71 @@ def _benchmark_object_detection_from_config(
     return result
 
 
-def _get_preprocessor(model: TaskModel) -> ObjectDetectionPreprocessor:
-    """Return the preprocessor the model uses for inference.
+def _get_pre_post_processors(
+    model: TaskModel,
+) -> tuple[ObjectDetectionPreprocessor, ObjectDetectionPostprocessor]:
+    """Return the pre- and postprocessor the model uses for inference.
 
-    Benchmarking through the model's own preprocessor is what makes the reported
-    metrics describe the deployed pipeline rather than a re-derived approximation
-    of it.
+    Benchmarking through the model's own pair is what makes the reported metrics
+    describe the deployed pipeline rather than a re-derived approximation of it: the
+    dataloader prepares images exactly as ``predict()`` does, and every backend decodes
+    its raw outputs exactly as ``predict()`` does.
     """
     preprocessor = getattr(model, "preprocessor", None)
-    if not isinstance(preprocessor, ObjectDetectionPreprocessor):
+    postprocessor = getattr(model, "postprocessor", None)
+    if not isinstance(preprocessor, ObjectDetectionPreprocessor) or not isinstance(
+        postprocessor, ObjectDetectionPostprocessor
+    ):
         raise ValueError(
             f"Model '{type(model).__name__}' does not expose an "
-            "ObjectDetectionPreprocessor and cannot be benchmarked."
+            "ObjectDetectionPreprocessor and an ObjectDetectionPostprocessor and "
+            "cannot be benchmarked."
         )
-    return preprocessor
+    return preprocessor, postprocessor
+
+
+def _validate_sahi_backend(
+    *, sahi_args: BenchmarkSAHIArgs | None, backend_args: BenchmarkBackendArgs
+) -> None:
+    """Reject SAHI on backends exported with a fixed batch size.
+
+    With tiling an image occupies ``1 + num_tiles`` model input rows and the tile count
+    depends on the image size, so the number of rows per batch varies from batch to
+    batch. Only a graph with a dynamic batch dimension, and for TensorRT a profile whose
+    upper bound covers the largest batch, can run that.
+
+    Raises:
+        ValueError: If the backend cannot run a varying number of input rows.
+    """
+    if sahi_args is None:
+        return
+
+    export_args = getattr(backend_args, "export_args", None) or {}
+
+    if isinstance(backend_args, ONNXBackendArgs):
+        if not export_args.get("dynamic_batch_size", True):
+            raise ValueError(
+                "sahi_args requires the ONNX backend to keep a dynamic batch "
+                "dimension, but export_args sets dynamic_batch_size=False. Tiling "
+                "makes the number of model input rows differ from batch to batch."
+            )
+    elif isinstance(backend_args, TensorRTBackendArgs):
+        onnx_args = export_args.get("onnx_args") or {}
+        if not onnx_args.get("dynamic_batch_size", True):
+            raise ValueError(
+                "sahi_args requires the TensorRT backend to keep a dynamic batch "
+                "dimension, but export_args['onnx_args'] sets "
+                "dynamic_batch_size=False. Tiling makes the number of model input "
+                "rows differ from batch to batch."
+            )
+        if "max_batchsize" not in export_args:
+            raise ValueError(
+                "sahi_args requires an explicit export_args['max_batchsize'] for the "
+                "TensorRT backend. It otherwise defaults to batch_size, which is an "
+                "upper bound only without tiling: with tiling each image contributes "
+                "one row plus one row per tile. Set it to at least "
+                "batch_size * (1 + the largest tile count in the dataset)."
+            )
 
 
 class _BenchmarkTransformArgs(TaskTransformArgs):
@@ -371,26 +445,40 @@ class _BenchmarkCollateFunction:
     Mirrors the host-side/device-side split of ``TaskModel.predict_batch``:
     ``preprocess_image`` runs here (in the dataloader workers), while
     ``preprocess_batch`` runs on the device in the backend.
+
+    The metadata ``preprocess_image`` returns is kept on the batch instead of being
+    discarded: it is what the backends hand to the postprocessor, and with tiling it is
+    the only record of how many rows of ``image`` belong to which input image.
     """
 
-    def __init__(self, preprocessor: ObjectDetectionPreprocessor) -> None:
+    def __init__(
+        self,
+        preprocessor: ObjectDetectionPreprocessor,
+        sahi_config: ObjectDetectionSAHIConfig | None = None,
+    ) -> None:
         self.preprocessor = preprocessor
+        self.sahi_config = sahi_config
 
-    def __call__(self, batch: list[ObjectDetectionDatasetItem]) -> ObjectDetectionBatch:
-        images = [
+    def __call__(
+        self, batch: list[ObjectDetectionDatasetItem]
+    ) -> BenchmarkObjectDetectionBatch:
+        prepared = [
             self.preprocessor.preprocess_image(
                 # ObjectDetectionDatasetItem declares "image" as a numpy array, but
                 # it holds whatever the transform returned, here a (C, H, W) tensor.
                 cast(Tensor, item["image"]),
                 device=torch.device("cpu"),
                 dtype=torch.float32,
-            )[0]
+                sahi_config=self.sahi_config,
+            )
             for item in batch
         ]
-        return ObjectDetectionBatch(
+        return BenchmarkObjectDetectionBatch(
             image_path=[item["image_path"] for item in batch],
-            # preprocess_image returns a (1, C, H, W) stack per image.
-            image=torch.cat(images),
+            # preprocess_image returns a (metadata.num_rows, C, H, W) stack per image:
+            # a single row without tiling, one global row plus one row per tile with.
+            image=torch.cat([rows for rows, _ in prepared]),
+            metadata=[metadata for _, metadata in prepared],
             bboxes=[
                 torch.from_numpy(item["bboxes"]).float().reshape(-1, 4)
                 for item in batch
@@ -405,6 +493,7 @@ def _create_val_dataloader(
     batch_size: int,
     num_workers: int,
     preprocessor: ObjectDetectionPreprocessor,
+    sahi_config: ObjectDetectionSAHIConfig | None = None,
 ) -> DataLoader[ObjectDetectionDatasetItem]:
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
@@ -424,7 +513,9 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=_BenchmarkCollateFunction(preprocessor=preprocessor),
+        collate_fn=_BenchmarkCollateFunction(
+            preprocessor=preprocessor, sahi_config=sahi_config
+        ),
     )
 
 

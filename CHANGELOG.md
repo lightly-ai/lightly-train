@@ -18,6 +18,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   available from PyPI.
 - Add `predict_batch()`, `predict_sahi()`, and `predict_sahi_batch()` to
   `PicoDetObjectDetection`, matching `LTDETRObjectDetection`.
+- Add a `sahi_args` argument to `benchmark_object_detection()` to benchmark Slicing
+  Aided Hyper Inference. It accepts `overlap`, `nms_iou_threshold`, and
+  `global_local_iou_threshold`, defaulting to the values `predict_sahi()` uses. A
+  non-zero `threshold` is recommended with it, and the ONNX and TensorRT backends
+  require a dynamic export batch size because tiling makes the number of model input
+  rows differ from batch to batch.
 
 ### Changed
 
@@ -78,6 +84,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Fix PicoDet models not being switched to eval mode by the Torch backend of
   `benchmark_object_detection()`, which left batch norm in training mode and made the
   reported PicoDet numbers wrong.
+- Fix the Torch backend of `benchmark_object_detection()` stopping its timer before the
+  GPU had finished. CUDA kernels are queued asynchronously, so the reported latency was
+  far too low and the throughput far too high on CUDA devices; the ONNX and TensorRT
+  backends were unaffected. CUDA timings from earlier releases are not comparable to the
+  ones reported now.
+- The Torch backend of `benchmark_object_detection()` now decodes raw model outputs in
+  FP32, like the ONNX and TensorRT backends already did. This can slightly change the
+  metrics reported for `precision="fp16-mixed"` and `"bf16-mixed"` runs, which are now
+  comparable to the other backends.
 - Use class-aware non-maximum suppression when merging tile predictions in
   `predict_sahi()` and `predict_sahi_batch()`. Previously a high-confidence detection
   could suppress an overlapping detection of a different class, so SAHI may now return
