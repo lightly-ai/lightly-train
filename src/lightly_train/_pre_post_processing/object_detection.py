@@ -147,6 +147,15 @@ class ObjectDetectionBatchPrediction(BaseModelOutput):
             for labels, bboxes, scores in zip(self.labels, self.bboxes, self.scores)
         ]
 
+    def to_torchmetrics_list(self) -> list[dict[str, Tensor]]:
+        """Return one TorchMetrics-compatible dict per row.
+
+        Convenience for callers (for example metrics computation) that want
+        :meth:`to_predictions` and :meth:`ObjectDetectionPrediction.to_torchmetrics`
+        chained together.
+        """
+        return [prediction.to_torchmetrics() for prediction in self.to_predictions()]
+
 
 @dataclass
 class ObjectDetectionMetadata:
@@ -177,9 +186,14 @@ def decode_object_detection_output(
     raw: ObjectDetectionBatchOutput,
     target_sizes: Tensor,
     num_top_queries: int,
-    internal_class_to_class: Tensor,
 ) -> ObjectDetectionBatchPrediction:
     """Decode raw detection outputs into dense per-row predictions.
+
+    Purely geometric: selects the top-scoring ``(query, class)`` pairs and converts
+    their boxes to pixel coordinates. Labels stay in the internal, contiguous class-id
+    space (positional index into the classes the model was built with); mapping them
+    to user-facing class ids is the caller's responsibility, done once on the final,
+    filtered prediction (see :meth:`ObjectDetectionPostprocessor.postprocess_image`).
 
     Args:
         raw:
@@ -190,19 +204,16 @@ def decode_object_detection_output(
             plus one row per tile.
         target_sizes: Shape ``(B, 2)``. ``(width, height)`` the boxes are scaled to.
         num_top_queries: Number of ``(query, class)`` pairs kept per row.
-        internal_class_to_class:
-            Shape ``(num_classes,)``. Maps internal contiguous class indices to
-            user-facing class ids.
 
     Returns:
         An :class:`ObjectDetectionBatchPrediction` holding ``num_top_queries``
-        detections per row with ``xyxy`` boxes in ``target_sizes`` coordinates. No
-        score thresholding is applied.
+        detections per row with ``xyxy`` boxes in ``target_sizes`` coordinates and
+        internal-id ``labels``. No score thresholding is applied.
     """
     scores = raw.logits.sigmoid()
     num_classes = scores.shape[-1]
     scores, index = scores.flatten(1).topk(num_top_queries, dim=-1)
-    labels = internal_class_to_class[index % num_classes]
+    labels = index % num_classes
     query_index = index // num_classes
     boxes = box_convert(raw.boxes, in_fmt="cxcywh", out_fmt="xyxy")
     boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
@@ -577,6 +588,9 @@ class ObjectDetectionPostprocessor(Module):
         the same number of detections for every row. Score thresholding, which is
         data-dependent, happens in :meth:`postprocess_image` instead.
 
+        Returned labels are internal, contiguous class ids; :meth:`postprocess_image`
+        remaps them to user-facing class ids on the final, filtered prediction.
+
         Args:
             raw: Raw model output for all rows in the batch.
             metadata: Per-image metadata as returned by the preprocessor.
@@ -586,7 +600,6 @@ class ObjectDetectionPostprocessor(Module):
             raw=raw,
             target_sizes=target_sizes,
             num_top_queries=self.num_top_queries,
-            internal_class_to_class=self.internal_class_to_class,
         )
 
     def postprocess_image(
@@ -632,7 +645,16 @@ class ObjectDetectionPostprocessor(Module):
                 global_local_iou_threshold=sahi_config.global_local_iou_threshold,
             )
 
-        return prediction
+        # This is the only place internal class ids are mapped to user-facing class
+        # ids: doing it last, on the filtered (and, for SAHI, merged) prediction,
+        # keeps the dense batch stage and the tile-merging same-label comparisons
+        # (which only need consistency, not any particular id space) working in the
+        # cheaper internal-id space.
+        return ObjectDetectionPrediction(
+            labels=self.internal_class_to_class[prediction.labels],
+            bboxes=prediction.bboxes,
+            scores=prediction.scores,
+        )
 
     def postprocess(
         self,

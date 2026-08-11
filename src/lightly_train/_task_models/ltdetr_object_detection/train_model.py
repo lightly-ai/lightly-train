@@ -109,25 +109,6 @@ logger = logging.getLogger(__name__)
 _DINOV2_PREFIX = "dinov2/"
 
 
-def _decode_predictions_for_metrics(
-    model: LTDETRObjectDetection,
-    outputs: dict[str, Tensor],
-    orig_target_sizes: Tensor,
-) -> list[dict[str, Tensor]]:
-    batch_prediction = decode_object_detection_output(
-        raw=ObjectDetectionBatchOutput(
-            logits=outputs["pred_logits"],
-            boxes=outputs["pred_boxes"],
-        ),
-        target_sizes=orig_target_sizes,
-        num_top_queries=model.num_top_queries,
-        internal_class_to_class=model.internal_class_to_class,
-    )
-    return [
-        prediction.to_torchmetrics() for prediction in batch_prediction.to_predictions()
-    ]
-
-
 class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
     """Shared defaults for LTDETRObjectDetectionTrainArgs and
     DINOv2LTDETRObjectDetectionTrainArgsV2.
@@ -659,11 +640,13 @@ class LTDETRObjectDetectionTrain(TrainModel):
             orig_target_sizes_tensor = torch.tensor(
                 orig_target_sizes, device=samples.device
             )
-            results = _decode_predictions_for_metrics(
-                model=self.model,
-                outputs=outputs,
-                orig_target_sizes=orig_target_sizes_tensor,
-            )
+            results = decode_object_detection_output(
+                raw=ObjectDetectionBatchOutput(
+                    logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
+                ),
+                target_sizes=orig_target_sizes_tensor,
+                num_top_queries=self.model.num_top_queries,
+            ).to_torchmetrics_list()
             self.train_metrics.update_with_predictions(results, targets)
 
         return TaskStepResult(
@@ -732,11 +715,13 @@ class LTDETRObjectDetectionTrain(TrainModel):
         orig_target_sizes_tensor = torch.tensor(
             orig_target_sizes, device=samples.device
         )
-        results = _decode_predictions_for_metrics(
-            model=self.model,
-            outputs=outputs,
-            orig_target_sizes=orig_target_sizes_tensor,
-        )
+        results = decode_object_detection_output(
+            raw=ObjectDetectionBatchOutput(
+                logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
+            ),
+            target_sizes=orig_target_sizes_tensor,
+            num_top_queries=self.model.num_top_queries,
+        ).to_torchmetrics_list()
 
         # Metrics
         self.val_metrics.update_with_losses(

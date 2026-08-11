@@ -336,6 +336,22 @@ class TestObjectDetectionPostprocessor:
             batch_prediction.bboxes[0], batch_prediction.bboxes[1] * 10
         )
 
+    def test_postprocess_batch__labels_stay_in_internal_id_space(self) -> None:
+        # The dense stage must not remap to user-facing class ids: that happens once,
+        # in postprocess_image, on the final filtered/merged prediction.
+        logits = torch.tensor(
+            [[[8.0, -8.0], [1.0, 7.0], [6.0, 0.0]]]
+        )  # -> internal labels [0, 1, 0]
+        boxes = torch.tensor(
+            [[[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.2, 0.2], [0.8, 0.5, 0.1, 0.2]]]
+        )
+        batch_prediction = _postprocessor().postprocess_batch(
+            ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
+            [ObjectDetectionMetadata(orig_w=100, orig_h=200)],
+        )
+
+        torch.testing.assert_close(batch_prediction.labels, torch.tensor([[0, 1, 0]]))
+
     def test_postprocess_batch__then_postprocess_image_matches_postprocess(
         self,
     ) -> None:

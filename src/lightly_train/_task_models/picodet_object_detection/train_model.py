@@ -31,7 +31,6 @@ from lightly_train._metrics.detection.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._pre_post_processing.object_detection import (
-    ObjectDetectionBatchOutput,
     decode_object_detection_output,
     denormalize_xyxy_boxes,
     targets_to_torchmetrics,
@@ -73,24 +72,6 @@ from lightly_train._task_models.train_model import (
 from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
-
-
-def _decode_predictions_for_metrics(
-    outputs: ObjectDetectionBatchOutput,
-    orig_target_sizes: Tensor,
-    num_top_queries: int,
-    internal_class_to_class: Tensor,
-) -> list[dict[str, Tensor]]:
-    """Decode raw model outputs the same way inference does, for metrics."""
-    batch_prediction = decode_object_detection_output(
-        raw=outputs,
-        target_sizes=orig_target_sizes,
-        num_top_queries=num_top_queries,
-        internal_class_to_class=internal_class_to_class,
-    )
-    return [
-        prediction.to_torchmetrics() for prediction in batch_prediction.to_predictions()
-    ]
 
 
 class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
@@ -213,17 +194,6 @@ class PicoDetObjectDetectionTrain(TrainModel):
             score_threshold=self.model.score_threshold,
             iou_threshold=self.model.iou_threshold,
             max_detections=self.model.max_detections,
-        )
-
-        # Ground truth labels in batch["classes"] are already internal, contiguous
-        # class ids (see YOLOObjectDetectionDatasetArgs.list_image_info), and the
-        # metric indexes class_names by that internal id. The decoder must therefore
-        # NOT remap predictions to user-facing class ids when computing metrics.
-        self.metric_class_mapping: Tensor
-        self.register_buffer(
-            "metric_class_mapping",
-            torch.arange(num_classes, dtype=torch.long),
-            persistent=False,
         )
 
         self.assigner = SimOTAAssigner(
@@ -448,12 +418,11 @@ class PicoDetObjectDetectionTrain(TrainModel):
             input_size=(int(img_h), int(img_w)),
         )
         orig_target_sizes = batch["original_size"]
-        results = _decode_predictions_for_metrics(
-            outputs=raw,
-            orig_target_sizes=torch.tensor(orig_target_sizes, device=device),
+        results = decode_object_detection_output(
+            raw=raw,
+            target_sizes=torch.tensor(orig_target_sizes, device=device),
             num_top_queries=ema_model.num_top_queries,
-            internal_class_to_class=self.metric_class_mapping,
-        )
+        ).to_torchmetrics_list()
         # Metrics use xyxy boxes in original-image pixels, matching the decoded
         # predictions and the coordinates predict() returns.
         targets = targets_to_torchmetrics(

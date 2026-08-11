@@ -19,7 +19,6 @@ from pytest_mock import MockerFixture
 from torch import nn
 
 from lightly_train import __version__
-from lightly_train._data import label_helpers
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -29,7 +28,6 @@ from lightly_train._export.onnx_helpers import (
 )
 from lightly_train._license import LICENSE_INFO
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
-from lightly_train._metrics.mean_average_precision import MeanAveragePrecision
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
@@ -40,7 +38,6 @@ from lightly_train._task_models.picodet_object_detection.task_model import (
 from lightly_train._task_models.picodet_object_detection.train_model import (
     PicoDetObjectDetectionTrain,
     PicoDetObjectDetectionTrainArgs,
-    _decode_predictions_for_metrics,
 )
 from lightly_train._task_models.picodet_object_detection.transforms import (
     PicoDetObjectDetectionTrainTransformArgs,
@@ -489,55 +486,6 @@ def test_predict_sahi_batch__matches_predict_sahi_per_image() -> None:
         torch.testing.assert_close(actual.labels, expected.labels)
         torch.testing.assert_close(actual.bboxes, expected.bboxes)
         torch.testing.assert_close(actual.scores, expected.scores)
-
-
-def test_decode_predictions_for_metrics__non_contiguous_class_ids() -> None:
-    """Validation metrics decode predictions into the internal class id space.
-
-    Ground truth labels are remapped to internal contiguous ids by the dataset, and
-    the metric indexes class_names by that internal id, so predictions must not be
-    remapped to user-facing class ids here. See the train model's
-    ``metric_class_mapping`` buffer.
-    """
-    # A non-contiguous user class map, as `data.names` would provide.
-    classes = {0: "person", 5: "bus"}
-    class_id_to_internal_class_id = (
-        label_helpers.get_class_id_to_internal_class_id_mapping(
-            class_ids=classes.keys(), ignore_classes=None
-        )
-    )
-    gt_label = class_id_to_internal_class_id[5]
-    assert gt_label == 1
-    targets = [
-        {
-            "boxes": torch.tensor([[10.0, 10.0, 50.0, 50.0]]),
-            "labels": torch.tensor([gt_label]),
-        }
-    ]
-
-    # One anchor predicts "bus" with a box exactly matching the ground truth.
-    logits = torch.tensor([[[-20.0, 10.0], [-20.0, -20.0]]])
-    boxes = torch.tensor([[[0.075, 0.075, 0.1, 0.1], [0.0, 0.0, 0.0, 0.0]]])
-
-    results = _decode_predictions_for_metrics(
-        outputs=ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
-        orig_target_sizes=torch.tensor([[400, 400]]),
-        num_top_queries=2,
-        internal_class_to_class=torch.arange(len(classes)),
-    )
-
-    assert int(results[0]["labels"][0]) == gt_label
-
-    metric = MeanAveragePrecision(
-        prefix="val", class_names=list(classes.values()), class_metrics=True
-    )
-    metric.update(results, targets)
-    computed = metric.compute()
-
-    # A perfect prediction scores a perfect mAP, and classwise metrics resolve the
-    # class name through the internal id without going out of range.
-    assert float(computed["val/map"]) == 1.0
-    assert float(computed["val_classwise/map_bus"]) == 1.0
 
 
 def test_predict_batch__rejects_empty_input() -> None:
