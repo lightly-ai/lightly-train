@@ -430,21 +430,24 @@ class ObjectDetectionPreprocessor(Module):
         image_tensor = transforms_functional.to_dtype(
             image_tensor, dtype=dtype, scale=True
         )
-        metadata = ObjectDetectionMetadata(orig_h=orig_h, orig_w=orig_w)
-        if sahi_config is None:
-            resized = transforms_functional.resize(image_tensor, self.image_size)
-            return resized.unsqueeze(0), metadata
-
-        tiles, coordinates = tiling.tile_image(
-            image=image_tensor,
-            overlap=sahi_config.overlap,
-            tile_size=self.image_size,
-        )
         global_image = transforms_functional.resize(
             image_tensor, self.image_size
         ).unsqueeze(0)
-        metadata.tile_coordinates = coordinates
-        return torch.cat([global_image, tiles]), metadata
+
+        if sahi_config is None:
+            rows = global_image
+            tile_coordinates = None
+        else:
+            tiles, tile_coordinates = tiling.tile_image(
+                image=image_tensor,
+                overlap=sahi_config.overlap,
+                tile_size=self.image_size,
+            )
+            rows = torch.cat([global_image, tiles])
+
+        return rows, ObjectDetectionMetadata(
+            orig_h=orig_h, orig_w=orig_w, tile_coordinates=tile_coordinates
+        )
 
     def _to_expected_channels(self, image: Tensor) -> Tensor:
         """Expand a grayscale image to ``expected_input_channels``.
