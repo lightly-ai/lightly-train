@@ -134,11 +134,14 @@ def benchmark_object_detection(
             forwarded to ``model.export_onnx()``.
         sahi_args:
             If given, benchmark Slicing Aided Hyper Inference instead of plain
-            inference: every image is tiled and the tile predictions are merged back
-            the same way ``model.predict_sahi()`` does. Accepts ``overlap``,
-            ``nms_iou_threshold``, and ``global_local_iou_threshold``, defaulting to
-            the values ``predict_sahi()`` uses, so ``{}`` enables tiling with those
-            defaults. ``None`` (default) disables tiling.
+            inference: every image larger than a single tile is tiled and the tile
+            predictions are merged back the same way ``model.predict_sahi()`` does.
+            Accepts ``tile_size``, ``overlap``, ``nms_iou_threshold``, and
+            ``global_local_iou_threshold``, defaulting to the values ``predict_sahi()``
+            uses, so ``{}`` enables tiling with those defaults. ``None`` (default)
+            disables tiling. Note that ``tile_size`` defaults to half the model's input
+            size, so tiles are magnified 2x and an image contributes several times more
+            rows than it would with tiles cut at the model input size.
 
     Returns:
         BenchmarkResult containing metric values and timing statistics.

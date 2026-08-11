@@ -181,8 +181,11 @@ image.
 Detecting small objects in high-resolution images can be challenging because they may
 occupy only a few pixels when the image is resized to the model’s input resolution. To
 address this, we support Slicing Aided Hyper Inference (SAHI) allowing the model to make
-predictions from overlapping tiles of the original image at full resolution and then
-merge the predictions.
+predictions from overlapping tiles of the original image and then merge the predictions.
+Each tile covers a smaller region of the image than the model's input resolution, so
+feeding it to the model magnifies its content and small objects become detectable. By
+default a tile covers half the model's input size in each dimension, i.e. tiles are
+magnified 2x.
 
 Using tiled inference requires no extra setup:
 
@@ -200,16 +203,29 @@ results.scores   # Confidence scores, tensor of shape (num_boxes,)
 You can customize the behavior of {py:meth}`~.LTDETRObjectDetection.predict_sahi` via
 the following parameters:
 
+- `tile_size`: `(height, width)` of the region each tile covers, in pixels of the
+  original image. Smaller values magnify more, which helps smaller objects, but produce
+  more tiles and therefore cost more. Defaults to half the model's input size. Images
+  that fit inside a single tile are not tiled at all, since a tile would then show the
+  same pixels as the full-image view at no higher resolution.
 - `overlap`: Fraction of overlap between neighboring tiles. Higher values increase
   small-object recall but also increase computation.
 - `threshold`: Minimum confidence score required to keep a predicted box.
 - `nms_iou_threshold`: IoU threshold used for non-maximum suppression when merging
   predictions coming from different tiles.
 - `global_local_iou_threshold`: Our SAHI-style inference combines predictions from both
-  the *global* (full-image) view and the *local* tiles. To avoid duplicate detections,
-  tile predictions are suppressed when they significantly overlap
-  (`iou > global_local_iou_threshold`) with a prediction of the same class coming from
-  the global view.
+  the *global* (full-image) view and the *local* tiles. The two views divide the work by
+  object size: the tiles are responsible for every object that fits inside a single
+  tile, and the global view only for objects too large for one tile. Global predictions
+  for objects that fit inside a tile are therefore discarded — the tiles see those
+  objects magnified and localize them much more accurately. For the large objects the
+  global view does contribute, a tile only ever sees a part of the object, so tile
+  predictions that overlap a same-class global prediction
+  (`iou > global_local_iou_threshold`) are suppressed as fragments of it. Lower values
+  suppress fragments more aggressively.
+- Because the split is geometric, `tile_size` and `overlap` also affect it: larger tiles
+  and denser tiling cover more objects completely, so more of the global view's
+  predictions are handed over to the tiles.
 
 <!--
 # Figure created with
@@ -951,18 +967,21 @@ installed (see the export sections above).
 ### SAHI
 
 Passing `sahi_args` benchmarks [Slicing Aided Hyper Inference](object-detection-sahi)
-instead of plain inference: every image is tiled and the tile predictions are merged
-back exactly the way `predict_sahi()` does, so the reported mAP and timings describe the
-tiled pipeline.
+instead of plain inference: every image larger than a single tile is tiled and the tile
+predictions are merged back exactly the way `predict_sahi()` does, so the reported mAP
+and timings describe the tiled pipeline.
 
 ```python
 result = lightly_train.benchmark_object_detection(
     ...,
     threshold=0.5,
     sahi_args={
+        "tile_size": (320, 320),            # Image region each tile covers. Defaults to
+                                            # half the model input, i.e. 2x magnification.
         "overlap": 0.2,                     # Fractional overlap between tiles.
         "nms_iou_threshold": 0.3,           # IoU used for NMS of tile predictions.
-        "global_local_iou_threshold": 0.1,  # IoU above which a tile box is dropped.
+        "global_local_iou_threshold": 0.1,  # IoU above which a tile box is dropped as a
+                                            # fragment of a larger global box.
     },
 )
 ```
@@ -976,7 +995,8 @@ Two things to keep in mind:
   suppression over the surviving detections of every tile, which is slow when nothing is
   filtered out first.
 - Latency is still reported per input image, but an image now costs one forward pass row
-  per tile plus one for the global view, so it is not comparable to an untiled run. The
+  per tile plus one for the global view, so it is not comparable to an untiled run.
+  `tile_size` dominates that cost: halving it roughly quadruples the number of tiles. The
   ONNX and TensorRT backends need a dynamic export batch size because the number of
   tiles depends on the image size; for TensorRT, also set
   `export_args={"max_batchsize": ...}` high enough to cover the largest batch.

@@ -548,7 +548,7 @@ class TestBenchmarkObjectDetectionE2E:
 
         # A tiled report must not be mistaken for an untiled one.
         summary = (tmp_path / "out" / "benchmark_summary.md").read_text()
-        assert "**SAHI**: overlap 0.2" in summary
+        assert "**SAHI**: tile size half the model input, overlap 0.2" in summary
 
     def test_benchmark_accessible_from_lightly_train(self) -> None:
         assert hasattr(lightly_train, "benchmark_object_detection")
@@ -642,7 +642,11 @@ class TestPrePostProcessingMatchesPredict:
     def test_benchmark_sahi_predictions_match_predict_sahi(
         self, tmp_path: Path
     ) -> None:
-        sahi_args = BenchmarkSAHIArgs()
+        # An explicit tile_size below the 128x128 test images, so SAHI actually tiles
+        # them. The default is half the model input, i.e. 128 here, which every test
+        # image fits inside exactly -- the comparison would then silently be between two
+        # untiled predictions.
+        sahi_args = BenchmarkSAHIArgs(tile_size=(64, 64))
         data_dict = _create_coco_data_dict(tmp_path)
         data_args = COCOObjectDetectionDataArgs.model_validate(data_dict)
         model = self._model()
@@ -672,6 +676,7 @@ class TestPrePostProcessingMatchesPredict:
                     overlap=sahi_args.overlap,
                     nms_iou_threshold=sahi_args.nms_iou_threshold,
                     global_local_iou_threshold=sahi_args.global_local_iou_threshold,
+                    tile_size=sahi_args.tile_size,
                 )
 
                 torch.testing.assert_close(predictions[0].bboxes, expected.bboxes)

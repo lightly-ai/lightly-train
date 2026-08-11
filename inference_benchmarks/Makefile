@@ -48,6 +48,17 @@ benchmark-tensorrt:
 benchmark-torch-sahi:
 	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_torch_sahi_benchmark.py --data $(VISDRONE_DATA)
 
+# COCO val2017 images are around 640x480, so a tile at the models' 640x640 input never
+# tiles anything and the sweep would collapse onto the untiled baseline. Sweep tile sizes
+# below the input instead, which is also the only way to magnify.
+COCO_TILE_SIZES := 320,160
+
+.PHONY: benchmark-torch-sahi-coco
+benchmark-torch-sahi-coco:
+	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt \
+		run_torch_sahi_benchmark.py --coco-root $(COCO_ROOT) \
+		--tile-sizes $(COCO_TILE_SIZES) --out out/torch_sahi_benchmark_coco
+
 # --no-project keeps uv from layering the requirements on top of the repository's own
 # environment, which holds a CUDA build of torch.
 .PHONY: benchmark-torch-sahi-rocm
@@ -57,6 +68,14 @@ benchmark-torch-sahi-rocm:
 		--with-editable .. --with-requirements requirements/rocm.txt \
 		run_torch_sahi_benchmark.py --data $(VISDRONE_DATA) \
 		--out out/torch_sahi_benchmark_rocm
+
+.PHONY: benchmark-torch-sahi-coco-rocm
+benchmark-torch-sahi-coco-rocm:
+	uv run --python $(PINNED_PYTHON_VERSION) --no-project \
+		--extra-index-url $(ROCM_INDEX_URL) --index-strategy unsafe-best-match \
+		--with-editable .. --with-requirements requirements/rocm.txt \
+		run_torch_sahi_benchmark.py --coco-root $(COCO_ROOT) \
+		--tile-sizes $(COCO_TILE_SIZES) --out out/torch_sahi_benchmark_coco_rocm
 
 .PHONY: format
 format:

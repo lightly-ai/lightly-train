@@ -542,18 +542,29 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         overlap: float = 0.2,
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
+        tile_size: tuple[int, int] | None = None,
     ) -> ObjectDetectionPrediction:
         """Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
 
         The image is first converted to a tensor, then:
 
-        - Tiled into overlapping crops of size `self.image_size`.
+        - Tiled into overlapping crops of `tile_size` pixels of the original image, each
+          resized to `self.image_size` for the model. A `tile_size` below
+          `self.image_size` therefore magnifies the tiles, which is what makes small
+          objects detectable.
         - A resized full-image version is added as a "global" tile.
         - All tiles (global + local) are passed through the model in parallel.
-        - Predictions are filtered by score and merged using NMS and a
-          global/local consistency heuristic. NMS is only applied on tiles predictions.
-          The heuristic discards tiles predictions that heavily overlaps with global
-          predictions.
+        - Predictions are filtered by score, clipped to the image, and merged. The two
+          views divide the work by object size: the tiles are responsible for every
+          object that fits inside a single tile, and the global view only for objects
+          too large for one tile. Global predictions for objects that fit inside a tile
+          are discarded, because the tiles see those objects at a higher resolution and
+          localize them far more accurately. Overlapping tile predictions are then
+          deduplicated with class-aware NMS, and tile predictions overlapping one of the
+          remaining global predictions are dropped as fragments of it.
+
+        Images that fit inside a single tile are not tiled at all, since a tile would
+        then show the same pixels as the global view at no higher resolution.
 
         Args:
             image:
@@ -564,12 +575,19 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
                 Fractional overlap between tiles in [0, 1). 0.0 means no overlap.
             nms_iou_threshold:
                 IoU threshold used for non-maximum suppression when merging
-                predictions from tiles and global image. A lower nms_iou_threshold
+                predictions from different tiles. A lower nms_iou_threshold
                 value yields less predictions.
             global_local_iou_threshold:
-                Minimum IoU required to consider a tile prediction
-                as matching a global prediction when combining them. A lower
+                Minimum IoU required to consider a tile prediction a fragment of a
+                same-class global prediction, in which case it is dropped. Only global
+                predictions of objects too large for one tile survive to be compared
+                against, so this only removes fragments of those. A lower
                 global_local_iou_threshold yields less predictions.
+            tile_size:
+                `(height, width)` of the region each tile covers, in original-image
+                pixels. Tiles are cut at this size and resized to `self.image_size`, so
+                a smaller value magnifies more and produces more tiles. Defaults to half
+                `self.image_size`, i.e. 2x magnification.
 
         Returns:
             An :class:`ObjectDetectionPrediction` in original-image coordinates.
@@ -580,6 +598,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             overlap=overlap,
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
+            tile_size=tile_size,
         )[0]
 
     @torch.no_grad()
@@ -590,6 +609,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         overlap: float = 0.2,
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
+        tile_size: tuple[int, int] | None = None,
     ) -> list[ObjectDetectionPrediction]:
         """Run Slicing Aided Hyper Inference on a batch of images.
 
@@ -600,6 +620,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             overlap=overlap,
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
+            tile_size=tile_size,
         )
         first_param = next(self.parameters())
         batch, metadata = self.preprocessor.preprocess(

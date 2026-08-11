@@ -56,9 +56,12 @@ class BenchmarkSAHIArgs(PydanticConfig):
     pipeline a user gets from the model.
     """
 
-    overlap: float = 0.2
-    nms_iou_threshold: float = 0.3
-    global_local_iou_threshold: float = 0.1
+    overlap: float = Field(default=0.2, ge=0.0, lt=1.0)
+    nms_iou_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    global_local_iou_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
+    # None means half the model input size. Cannot be resolved here: it depends on the
+    # model, which the preprocessor knows and this config does not.
+    tile_size: tuple[int, int] | None = None
 
     def to_sahi_config(self) -> ObjectDetectionSAHIConfig:
         """Return the config the preprocessor consumes."""
@@ -175,8 +178,13 @@ class BenchmarkResult(PydanticConfig):
         if self.sahi_args is None:
             lines.append("- **SAHI**: disabled")
         else:
+            tile_size = self.sahi_args.tile_size
+            tile_size_str = (
+                "half the model input" if tile_size is None else f"{tile_size}"
+            )
             lines.append(
-                f"- **SAHI**: overlap {self.sahi_args.overlap}, "
+                f"- **SAHI**: tile size {tile_size_str}, "
+                f"overlap {self.sahi_args.overlap}, "
                 f"NMS IoU {self.sahi_args.nms_iou_threshold}, "
                 f"global/local IoU {self.sahi_args.global_local_iou_threshold}"
             )

@@ -137,6 +137,29 @@ class ObjectDetectionPrediction(RowIndexableOutput):
             scores=self.scores,
         )
 
+    def clip_to_image(self, *, height: int, width: int) -> Self:
+        """Return the detections clipped to the image rectangle, dropping empty boxes.
+
+        Boxes are clamped into ``[0, width] x [0, height]``, and detections whose
+        clipped box has zero or negative area are dropped: a box lying entirely outside
+        the rectangle carries no information, and a zero-area box would survive NMS (its
+        IoU with everything is 0) and pollute the output.
+
+        SAHI needs this because a tile is zero padded when the image is smaller than a
+        tile in a dimension (see
+        :func:`~lightly_train._pre_post_processing.tiling.tile_image`), so a tile
+        detection can sit partly or wholly inside that padding, outside the image.
+
+        Args:
+            height: Height of the image in pixels.
+            width: Width of the image in pixels.
+        """
+        limits = self.bboxes.new_tensor([width, height, width, height])
+        bboxes = self.bboxes.clamp(min=0.0).minimum(limits)
+        clipped = type(self)(labels=self.labels, bboxes=bboxes, scores=self.scores)
+        keep = (bboxes[:, 2] > bboxes[:, 0]) & (bboxes[:, 3] > bboxes[:, 1])
+        return clipped[keep]
+
     def apply_nms(self, iou_threshold: float) -> Self:
         """Return the detections surviving class-aware non-maximum suppression.
 
@@ -164,6 +187,29 @@ class ObjectDetectionPrediction(RowIndexableOutput):
         same_label = self.labels[:, None] == other.labels[None, :]
         overlaps_same_label = (same_label & (ious > iou_threshold)).any(dim=1)
         return self[~overlaps_same_label]
+
+    def drop_contained_predictions(self, regions: Tensor) -> Self:
+        """Drop detections whose box lies entirely inside one of ``regions``.
+
+        Purely geometric: unlike :meth:`drop_overlapping_predictions` this ignores
+        labels and scores. Used to drop the global-view boxes of objects that fit
+        inside a single SAHI tile, because the tiles saw those objects at a higher
+        resolution and localize them better.
+
+        Args:
+            regions:
+                Shape ``(M, 4)``. ``xyxy`` regions in the same coordinates as
+                :attr:`bboxes`. May contain infinities.
+        """
+        regions = regions.to(self.bboxes.device)
+        # Corner comparisons rather than intersection areas, so infinite regions stay
+        # well defined. Index 0 of the last dimension holds both x conditions and index
+        # 1 both y conditions, so ``all`` over it requires all four corners to be in.
+        inside = (self.bboxes[:, None, :2] >= regions[None, :, :2]) & (
+            self.bboxes[:, None, 2:] <= regions[None, :, 2:]
+        )
+        contained = inside.all(dim=-1).any(dim=1)
+        return self[~contained]
 
     def map_labels(self, mapping: Tensor) -> Self:
         """Return a prediction with each label replaced by ``mapping[label]``.
@@ -273,31 +319,71 @@ class ObjectDetectionBatchPrediction(RowIndexableOutput):
         )
 
     def merge_tiles(
-        self, tiling: ObjectDetectionTiling, *, threshold: float
+        self,
+        tiling: ObjectDetectionTiling,
+        *,
+        threshold: float,
+        orig_h: int,
+        orig_w: int,
     ) -> ObjectDetectionPrediction:
         """Merge the rows of one tiled image into a single prediction.
 
         Row 0 holds the global view in original-image coordinates, rows ``1:`` hold the
-        tiles in tile coordinates. Tile boxes are shifted into original-image
-        coordinates, both halves are score filtered, overlapping tile boxes are
-        deduplicated with class-aware NMS (needed because tiles overlap), and tile boxes
-        that repeat a global box of the same label are dropped. Global boxes always win:
-        they are never suppressed.
+        tiles. A tile's boxes are decoded against the size of the image region that tile
+        covers (:attr:`ObjectDetectionTiling.tile_size`), so shifting them by the tile's
+        top-left corner is the whole transform and no scale is involved even when the
+        tiles were magnified. Both halves are score filtered and clipped to the original
+        image, and then the two views divide the work by object size:
+
+        - The global view is responsible only for objects that no single tile saw whole.
+          Every global box that fits inside some tile is dropped, because for those
+          objects the tiles saw the same object at a higher resolution and localize it
+          far better, while the downscaled global view tends to return a coarse box with
+          a high score that would otherwise evict the accurate tile box.
+        - The tiles are responsible for everything else. Overlapping tile boxes are
+          deduplicated with class-aware NMS (needed because tiles overlap), and a tile
+          box that repeats a surviving global box of the same label is dropped: those
+          global boxes belong to objects larger than a tile, so an overlapping tile box
+          is a fragment of one rather than a competing detection.
+
+        Clipping happens before the NMS and before dropping fragments so that every IoU
+        is computed on in-image boxes. A tile is zero padded when the image is smaller
+        than a tile in a dimension, and a detection reaching into that padding covers
+        area that exists nowhere in the image: comparing it un-clipped would let it
+        suppress the real detection it overlaps.
 
         Args:
             tiling: The tiling record from the image's metadata.
             threshold: Detections with a score <= threshold are discarded.
+            orig_h: Height of the original image in pixels.
+            orig_w: Width of the original image in pixels.
         """
         global_row = self.row(0)
-        global_prediction = global_row[global_row.scores > threshold]
+        global_prediction = global_row[global_row.scores > threshold].clip_to_image(
+            height=orig_h, width=orig_w
+        )
+        if tiling.num_tiles > 1:
+            # A single tile spans the whole image, so it has no field-of-view advantage
+            # over the global view and there is nothing to arbitrate: both views are
+            # entitled to every object. The preprocessor never produces a single tile
+            # (it skips tiling entirely in that case), but merge_tiles should not depend
+            # on that to stay correct.
+            global_prediction = global_prediction.drop_contained_predictions(
+                tiling.tile_boxes
+            )
         tile_flat = self[1:].offset_rows(tiling.coordinates).flatten()
-        tile_prediction = tile_flat[tile_flat.scores > threshold]
+        tile_prediction = tile_flat[tile_flat.scores > threshold].clip_to_image(
+            height=orig_h, width=orig_w
+        )
         tile_prediction = tile_prediction.apply_nms(
             tiling.nms_iou_threshold
         ).drop_overlapping_predictions(
             global_prediction, tiling.global_local_iou_threshold
         )
-        return ObjectDetectionPrediction.concat([global_prediction, tile_prediction])
+        merged = ObjectDetectionPrediction.concat([global_prediction, tile_prediction])
+        # Untiled predictions come out of top-k in descending score order; sorting here
+        # gives the tiled path the same guarantee instead of "global first, then tiles".
+        return merged[torch.argsort(merged.scores, descending=True, stable=True)]
 
     def to_predictions(self) -> list[ObjectDetectionPrediction]:
         """Return one :class:`ObjectDetectionPrediction` per row."""
@@ -320,14 +406,28 @@ class ObjectDetectionBatchPrediction(RowIndexableOutput):
 class ObjectDetectionSAHIConfig:
     """User-facing SAHI settings, consumed by :class:`ObjectDetectionPreprocessor`.
 
-    Only :attr:`overlap` affects tiling itself; the two IoU thresholds describe how the
-    tiles are merged again and are recorded on the metadata the preprocessor returns,
-    so the postprocessor does not need this config.
+    Only :attr:`tile_size` and :attr:`overlap` affect tiling itself; the two IoU
+    thresholds describe how the tiles are merged again and are recorded on the metadata
+    the preprocessor returns, so the postprocessor does not need this config.
+
+    Attributes:
+        overlap: Fractional overlap between neighbouring tiles, in ``[0, 1)``.
+        nms_iou_threshold: IoU used in the class-aware NMS of the tile predictions.
+        global_local_iou_threshold:
+            IoU above which a tile box is dropped as a fragment of a same-label global
+            box. Global boxes only survive the merge for objects too large for a tile,
+            so this only ever removes fragments of those.
+        tile_size:
+            ``(height, width)`` of the image region each tile covers, in original-image
+            pixels. Tiles are cut at this size and then resized to the model's input
+            size, so a value below the model input magnifies the tiles, which is what
+            makes small objects detectable. ``None`` means half the model input size.
     """
 
     overlap: float
     nms_iou_threshold: float
     global_local_iou_threshold: float
+    tile_size: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -335,8 +435,14 @@ class ObjectDetectionTiling:
     """Record of how the preprocessor tiled one image, and how to merge it back.
 
     Attributes:
-        coordinates: Shape ``(num_tiles, 2)``. Top-left ``(x, y)`` of each tile.
-        tile_size: ``(height, width)`` each tile was resized to.
+        coordinates:
+            Shape ``(num_tiles, 2)``. Top-left ``(x, y)`` of each tile, in
+            original-image pixels.
+        tile_size:
+            ``(height, width)`` of the image region each tile covers, in original-image
+            pixels. This is the size the tile's boxes are decoded against, which is what
+            lets tiles be magnified: a tile may be fed to the model at a different
+            resolution, but its boxes always scale back to the region it covers.
         nms_iou_threshold: IoU used in NMS of the tile predictions.
         global_local_iou_threshold:
             IoU above which a tile box is dropped if it matches a global box of the
@@ -352,6 +458,30 @@ class ObjectDetectionTiling:
     def num_tiles(self) -> int:
         return int(self.coordinates.shape[0])
 
+    @property
+    def tile_boxes(self) -> Tensor:
+        """Shape ``(num_tiles, 4)``. The ``xyxy`` region each tile covers.
+
+        In original-image coordinates, so these are directly comparable with the boxes
+        :meth:`ObjectDetectionBatchPrediction.merge_tiles` works on.
+
+        Edges lying on the image border are pushed out to infinity. Predicted boxes may
+        stick out of the image, and a box that only leaves the image through the border
+        is still an object the tile saw whole; without this a detection at the image
+        edge would look like it crosses a tile seam.
+        """
+        tile_h, tile_w = self.tile_size
+        top_left = self.coordinates.to(torch.float32)
+        bottom_right = top_left + top_left.new_tensor([tile_w, tile_h])
+        # amin/amax are per coordinate over tiles, so a tile's left edge is extended only
+        # if that tile is in the first column, its top edge only if it is in the first
+        # row, and so on. Interior seams are left untouched.
+        top_left = torch.where(top_left <= top_left.amin(dim=0), -torch.inf, top_left)
+        bottom_right = torch.where(
+            bottom_right >= bottom_right.amax(dim=0), torch.inf, bottom_right
+        )
+        return torch.cat([top_left, bottom_right], dim=-1)
+
 
 @dataclass(frozen=True)
 class ObjectDetectionMetadata:
@@ -360,7 +490,9 @@ class ObjectDetectionMetadata:
     Attributes:
         orig_h: Height of the original image in pixels.
         orig_w: Width of the original image in pixels.
-        tiling: The tiling record, or ``None`` if the image was not tiled.
+        tiling:
+            The tiling record, or ``None`` if the image was not tiled -- either because
+            no SAHI config was given, or because the image fits inside a single tile.
     """
 
     orig_h: int
@@ -379,10 +511,15 @@ class ObjectDetectionMetadata:
 
     @property
     def row_sizes(self) -> list[tuple[int, int]]:
-        """The ``(width, height)`` each of this image's rows is scaled to.
+        """The ``(width, height)`` of the image region each of this image's rows covers.
 
-        Row 0 is the global row and scales back to the original image, while tile rows
-        stay in tile coordinates and are offset when the tiles are merged.
+        This is what the decode multiplies a row's normalized boxes by, so it answers the
+        only question postprocessing has per row: which rectangle of the original image
+        does this model input show? Row 0 is the global row and covers the whole image.
+        A tile row covers ``tiling.tile_size`` pixels of the original image, which is
+        independent of the resolution the tile was fed to the model at -- that is what
+        lets tiles be magnified -- and is offset by the tile's corner when the tiles are
+        merged.
         """
         sizes = [(self.orig_w, self.orig_h)]
         if self.tiling is not None:
@@ -552,17 +689,19 @@ class ObjectDetectionPreprocessor(Module):
             device: Device the returned tensor is placed on.
             dtype: Floating point dtype the image is converted to.
             sahi_config:
-                If ``None``, the image is resized to ``image_size``. Otherwise the
-                image is tiled and the resized global image is prepended to the tiles,
-                with an :class:`ObjectDetectionTiling` recorded on the metadata. The
-                config is not needed again afterwards: everything the postprocessor
-                needs to merge the tiles is on that record.
+                If ``None``, the image is resized to ``image_size``. Otherwise the image
+                is tiled and the resized global image is prepended to the tiles, with an
+                :class:`ObjectDetectionTiling` recorded on the metadata. The config is
+                not needed again afterwards: everything the postprocessor needs to merge
+                the tiles is on that record. Images that fit inside a single tile are not
+                tiled even when a config is given: the metadata then has ``tiling=None``
+                and a single row, see :meth:`_fits_in_one_tile`.
 
         Returns:
             A ``(num_rows, C, H, W)`` stack and the image's metadata. Without
             ``sahi_config`` there is a single row, otherwise there is one global row
-            followed by one row per tile. The row count is always
-            ``metadata.num_rows``.
+            followed by one row per tile, or a single row if the image fits inside one
+            tile. The row count is always ``metadata.num_rows``.
         """
         image_tensor = file_helpers.as_image_tensor(image).to(device)
         orig_h, orig_w = image_tensor.shape[-2:]
@@ -574,26 +713,61 @@ class ObjectDetectionPreprocessor(Module):
             image_tensor, self.image_size
         ).unsqueeze(0)
 
-        if sahi_config is None:
-            rows = global_image
-            image_tiling = None
-        else:
-            tiles, coordinates = tile_image(
-                image=image_tensor,
-                overlap=sahi_config.overlap,
-                tile_size=self.image_size,
-            )
-            rows = torch.cat([global_image, tiles])
-            image_tiling = ObjectDetectionTiling(
-                coordinates=coordinates,
-                tile_size=self.image_size,
-                nms_iou_threshold=sahi_config.nms_iou_threshold,
-                global_local_iou_threshold=sahi_config.global_local_iou_threshold,
-            )
+        rows = global_image
+        image_tiling: ObjectDetectionTiling | None = None
+        if sahi_config is not None:
+            tile_size = self._tile_size(sahi_config)
+            if not self._fits_in_one_tile(tile_size, orig_h=orig_h, orig_w=orig_w):
+                tiles, coordinates = tile_image(
+                    image=image_tensor,
+                    overlap=sahi_config.overlap,
+                    tile_size=tile_size,
+                )
+                # The tiles cover ``tile_size`` pixels of the original image but the
+                # model takes ``image_size``, so resizing them here is what magnifies the
+                # tiles when ``tile_size`` is smaller than the model input. Their boxes
+                # are decoded against ``tile_size`` (recorded below and reported by
+                # ``ObjectDetectionMetadata.row_sizes``), so the scale is undone for free.
+                if tile_size != self.image_size:
+                    tiles = transforms_functional.resize(tiles, list(self.image_size))
+                rows = torch.cat([global_image, tiles])
+                image_tiling = ObjectDetectionTiling(
+                    coordinates=coordinates,
+                    tile_size=tile_size,
+                    nms_iou_threshold=sahi_config.nms_iou_threshold,
+                    global_local_iou_threshold=sahi_config.global_local_iou_threshold,
+                )
 
         return rows, ObjectDetectionMetadata(
             orig_h=orig_h, orig_w=orig_w, tiling=image_tiling
         )
+
+    def _tile_size(self, sahi_config: ObjectDetectionSAHIConfig) -> tuple[int, int]:
+        """Resolve the SAHI tile size in original-image pixels.
+
+        ``None`` means half the model input size, so tiles are magnified 2x by default:
+        cutting tiles at the model input size makes them native-resolution crops, which
+        magnifies nothing and leaves small objects exactly as small as they were.
+        """
+        if sahi_config.tile_size is not None:
+            return sahi_config.tile_size
+        tile_h, tile_w = self.image_size
+        return max(1, tile_h // 2), max(1, tile_w // 2)
+
+    def _fits_in_one_tile(
+        self, tile_size: tuple[int, int], *, orig_h: int, orig_w: int
+    ) -> bool:
+        """Whether tiling would add nothing over the global row.
+
+        An image no larger than one tile yields a single tile: the zero-padded original
+        at native resolution. The global row already carries the same pixels, resized to
+        the size the model was trained on, so the tile magnifies nothing -- it shows the
+        same content at a *smaller* apparent object size, which is the opposite of what
+        SAHI is for. It would only cost a model input row plus a near-duplicate detection
+        to deduplicate, and when the image is exactly one tile the two rows are identical.
+        """
+        tile_h, tile_w = tile_size
+        return orig_h <= tile_h and orig_w <= tile_w
 
     def _to_expected_channels(self, image: Tensor) -> Tensor:
         """Expand a grayscale image to ``expected_input_channels``.
@@ -644,7 +818,7 @@ class ObjectDetectionPreprocessor(Module):
             images: Input images as paths, PIL images, or ``(C, H, W)`` tensors.
             device: Device the returned batch is placed on.
             dtype: Floating point dtype the images are converted to.
-            sahi_config: If given, every image is tiled.
+            sahi_config: If given, every image larger than a single tile is tiled.
 
         Returns:
             The model input batch and one metadata entry per *image*. With SAHI an
@@ -742,7 +916,10 @@ class ObjectDetectionPostprocessor(Module):
             prediction = row[row.scores > threshold]
         else:
             prediction = batch_prediction.merge_tiles(
-                metadata.tiling, threshold=threshold
+                metadata.tiling,
+                threshold=threshold,
+                orig_h=metadata.orig_h,
+                orig_w=metadata.orig_w,
             )
 
         # This is the only place internal class ids are mapped to user-facing class

@@ -463,7 +463,6 @@ class DINOv2EoMTInstanceSegmentation(TaskModel):
             image=x,
             overlap=overlap,
             tile_size=self.image_size,
-            padding_mode="pad",
         )
 
         if batch_size is None:

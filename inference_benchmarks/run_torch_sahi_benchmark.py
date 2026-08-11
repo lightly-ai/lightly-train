@@ -6,20 +6,30 @@
 # LICENSE file in the root directory of this source tree.
 #
 """Benchmark the ltdetrv2 detection checkpoints with the compiled torch backend in
-fp32 precision on CUDA, under three amounts of SAHI tiling.
+fp32 precision on CUDA, under several amounts of SAHI tiling.
 
 Produces a latency vs. mAP@0.5:0.95 plot with one curve per SAHI setting, each curve
 running through the small, medium, and large model.
 
-The dataset should have large images: SAHI tiles are cut at the model's image_size (640)
-from the original image, so on a dataset whose images are not much larger than a tile
-(COCO val2017, for example) every setting collapses to the same one or two tiles and the
-curves become indistinguishable. VisDrone2019-DET is a good fit. Note that the class ids
-of the data config must line up with the class ids of the COCO-pretrained checkpoints,
-as the benchmark matches ground truth against predictions by id and does not remap them.
+Two knobs control the tiling. ``tile_size`` is the region of the original image a tile
+covers; the tile is resized to the model's image_size (640) before the forward pass, so a
+tile_size below that magnifies the tile, which is where the gain on small objects comes
+from. ``overlap`` controls how densely the tiles are laid down. Both increase the number
+of tiles, and therefore the latency, so the sweep varies them separately.
+
+The dataset must have images larger than a tile, otherwise an image is not tiled at all
+and the setting collapses onto the untiled baseline. Pick ``--tile-sizes`` accordingly:
+on COCO val2017, whose images are around 640x480, a 640 tile does nothing at all and only
+sub-640 tiles tile anything.
+
+For a yolo/coco data YAML the class ids must line up with the class ids of the
+COCO-pretrained checkpoints, as the benchmark matches ground truth against predictions by
+id and does not remap them. ``--coco-root`` builds the config for a COCO 2017 tree
+directly and needs no remapping.
 
 Usage:
     python run_torch_sahi_benchmark.py --data /path/to/visdrone/data.yaml
+    python run_torch_sahi_benchmark.py --coco-root /path/to/coco --tile-sizes 320,160
 """
 
 from __future__ import annotations
@@ -37,14 +47,28 @@ MODEL_NAMES = [
     "ltdetrv2-l-coco",
 ]
 
-# SAHI tiles are always cut at the model's image_size, so the overlap is the only knob
-# controlling how many tiles an image is split into. On a 2000x1500 image with 640x640
-# tiles this is roughly 0, 12, and 35 tiles per image.
-SAHI_SETTINGS: list[tuple[str, dict[str, Any] | None]] = [
-    ("no-sahi", None),
-    ("sahi-0.2", {"overlap": 0.2}),
-    ("sahi-0.6", {"overlap": 0.6}),
-]
+# Swept per tile size. A tile is resized to the model's 640x640 input before the forward
+# pass, so a 640 tile is a native-resolution crop that magnifies nothing (and does not
+# tile an image at all unless it is larger than 640), while 320 magnifies every tile 2x.
+DEFAULT_TILE_SIZES = [640, 320]
+OVERLAPS = [0.2, 0.6]
+
+
+def build_sahi_settings(
+    tile_sizes: Sequence[int],
+) -> list[tuple[str, dict[str, Any] | None]]:
+    """Return the (name, sahi_args) sweep, untiled baseline first."""
+    settings: list[tuple[str, dict[str, Any] | None]] = [("no-sahi", None)]
+    for tile_size in tile_sizes:
+        for overlap in OVERLAPS:
+            settings.append(
+                (
+                    f"sahi-{tile_size}-{overlap}",
+                    {"tile_size": (tile_size, tile_size), "overlap": overlap},
+                )
+            )
+    return settings
+
 
 # Same threshold for every run so that the mAP values stay comparable across curves. A
 # small non-zero value keeps the cross-tile merge tractable: at 0.0 the heaviest SAHI
@@ -54,26 +78,46 @@ THRESHOLD = 0.05
 
 @dataclass(frozen=True)
 class BenchmarkPoint:
-    """One (model, SAHI setting) run, reduced to the two plotted quantities."""
+    """One (model, SAHI setting) run, reduced to the quantities that get reported."""
 
     model_name: str
     sahi_setting: str
     map_5095: float
     latency_ms: float
+    # Not plotted, but reported: tiling exists for the small objects, so the overall mAP
+    # alone hides most of what a setting actually did.
+    map_small: float
+    map_large: float
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
         "--data",
-        required=True,
         help="Path to the data YAML file, in either yolo or coco format. Passed to "
         "benchmark_object_detection as is.",
     )
+    source.add_argument(
+        "--coco-root",
+        help="Root directory of a COCO 2017 tree, containing annotations/ and the "
+        "train2017/val2017 image directories. The data config is built from it, so no "
+        "data YAML and no class id remapping are needed.",
+    )
     parser.add_argument(
         "--dataset-name",
-        default="VisDrone2019-DET val",
-        help="Dataset name recorded in the benchmark reports.",
+        default=None,
+        help="Dataset name recorded in the benchmark reports. Defaults to "
+        "'COCO val2017' with --coco-root and 'VisDrone2019-DET val' otherwise.",
+    )
+    parser.add_argument(
+        "--tile-sizes",
+        default=",".join(str(size) for size in DEFAULT_TILE_SIZES),
+        help="Comma-separated square tile sizes to sweep, in pixels of the original "
+        "image. Each is swept at every overlap in OVERLAPS. A tile size at or above the "
+        "model input (640) magnifies nothing and only tiles images larger than it, so "
+        f"on COCO val2017 use something below 640. Default: "
+        f"{','.join(str(size) for size in DEFAULT_TILE_SIZES)}.",
     )
     parser.add_argument(
         "--out",
@@ -112,6 +156,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def build_coco_data_config(coco_root: str) -> dict[str, Any]:
+    """Return the data config for a COCO 2017 tree.
+
+    Accepts both the ``<root>/images/val2017`` and the ``<root>/val2017`` layout, since
+    the official zips extract to the latter.
+    """
+    root = Path(coco_root)
+    images = root / "images" if (root / "images" / "val2017").is_dir() else root
+    return {
+        "format": "coco",
+        "train": {
+            "annotations": str(root / "annotations" / "instances_train2017.json"),
+            "images": str(images / "train2017"),
+        },
+        "val": {
+            "annotations": str(root / "annotations" / "instances_val2017.json"),
+            "images": str(images / "val2017"),
+        },
+    }
+
+
 def sanitize(model_name: str) -> str:
     return model_name.replace("/", "_")
 
@@ -128,19 +193,28 @@ def short_label(model_name: str) -> str:
 def format_summary_row(point: BenchmarkPoint, throughput: float) -> str:
     return (
         f"| {point.model_name} | {point.sahi_setting} | {point.map_5095:.4f} "
+        f"| {point.map_small:.4f} | {point.map_large:.4f} "
         f"| {point.latency_ms:.2f} | {throughput:.2f} |"
     )
 
 
-def write_plot(*, path: Path, points: Sequence[BenchmarkPoint], dpi: int) -> None:
-    """Write the latency vs. mAP plot, with one curve per SAHI setting."""
+def write_plot(
+    *,
+    path: Path,
+    points: Sequence[BenchmarkPoint],
+    sahi_settings: Sequence[tuple[str, dict[str, Any] | None]],
+    dpi: int,
+    metric: str = "map_5095",
+    ylabel: str = "Val mAP@0.5:0.95",
+) -> None:
+    """Write a latency vs. metric plot, with one curve per SAHI setting."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(9, 6))
-    for index, (setting_name, _) in enumerate(SAHI_SETTINGS):
+    for index, (setting_name, _) in enumerate(sahi_settings):
         # Sorted by latency so that the line reads from left to right. The models are
         # ordered by size, which is the same order in practice, but a heavier model is
         # not guaranteed to be slower.
@@ -153,7 +227,7 @@ def write_plot(*, path: Path, points: Sequence[BenchmarkPoint], dpi: int) -> Non
         color = f"C{index}"
         ax.plot(
             [point.latency_ms for point in setting_points],
-            [point.map_5095 for point in setting_points],
+            [getattr(point, metric) for point in setting_points],
             marker="o",
             color=color,
             label=setting_name,
@@ -161,17 +235,21 @@ def write_plot(*, path: Path, points: Sequence[BenchmarkPoint], dpi: int) -> Non
         for point in setting_points:
             ax.annotate(
                 short_label(point.model_name),
-                xy=(point.latency_ms, point.map_5095),
+                xy=(point.latency_ms, getattr(point, metric)),
                 xytext=(4, 5),
                 textcoords="offset points",
                 fontsize=9,
                 color=color,
             )
 
-    ax.set_xlabel("Latency (ms/img)")
-    ax.set_ylabel("Val mAP@0.5:0.95")
+    # The settings span more than an order of magnitude in latency (an untiled run
+    # against a densely tiled, magnified one), which on a linear axis squashes every
+    # cheap setting into the left edge.
+    ax.set_xscale("log")
+    ax.set_xlabel("Latency (ms/img, log scale)")
+    ax.set_ylabel(ylabel)
     ax.set_title("torch.compile, fp32, CUDA")
-    ax.grid(alpha=0.25)
+    ax.grid(alpha=0.25, which="both")
     ax.legend(loc="best")
     fig.tight_layout()
     fig.savefig(path, dpi=dpi)
@@ -181,21 +259,27 @@ def write_plot(*, path: Path, points: Sequence[BenchmarkPoint], dpi: int) -> Non
 def main() -> None:
     args = parse_args()
     out_root = Path(args.out)
+    if args.coco_root is not None:
+        data: Any = build_coco_data_config(args.coco_root)
+        dataset_name = args.dataset_name or "COCO val2017"
+    else:
+        data = args.data
+        dataset_name = args.dataset_name or "VisDrone2019-DET val"
+    tile_sizes = [int(size) for size in args.tile_sizes.split(",") if size.strip()]
+    sahi_settings = build_sahi_settings(tile_sizes)
 
     points: list[BenchmarkPoint] = []
     summary_rows: list[str] = []
     for model_name in MODEL_NAMES:
-        for setting_name, sahi_args in SAHI_SETTINGS:
+        for setting_name, sahi_args in sahi_settings:
             out_dir = out_root / sanitize(model_name) / setting_name
-            print(
-                f"\n=== Benchmarking {model_name} (torch, fp32, {setting_name}) ==="
-            )
+            print(f"\n=== Benchmarking {model_name} (torch, fp32, {setting_name}) ===")
             try:
                 result = lightly_train.benchmark_object_detection(
                     out=str(out_dir),
-                    dataset_name=args.dataset_name,
+                    dataset_name=dataset_name,
                     model=model_name,
-                    data=args.data,
+                    data=data,
                     batch_size=args.batch_size,
                     threshold=THRESHOLD,
                     warmup_steps=args.warmup_steps,
@@ -212,11 +296,14 @@ def main() -> None:
             except Exception as e:
                 print(f"FAILED: {model_name} ({setting_name}): {e}")
                 continue
+            metrics = result.metric_values
             point = BenchmarkPoint(
                 model_name=model_name,
                 sahi_setting=setting_name,
-                map_5095=result.metric_values.get("val_metric/map", float("nan")),
+                map_5095=metrics.get("val_metric/map", float("nan")),
                 latency_ms=result.timing.statistics.latency_image_s.mean * 1000,
+                map_small=metrics.get("val_metric/map_small", float("nan")),
+                map_large=metrics.get("val_metric/map_large", float("nan")),
             )
             points.append(point)
             summary_rows.append(
@@ -228,10 +315,12 @@ def main() -> None:
     summary_lines = [
         "# Torch SAHI Object Detection Benchmark Summary",
         "",
-        f"Backend: torch, compiled, fp32, CUDA. Score threshold: {THRESHOLD}.",
+        f"Dataset: {dataset_name}. Backend: torch, compiled, fp32, CUDA. "
+        f"Score threshold: {THRESHOLD}.",
         "",
-        "| Model | SAHI | Val mAP@0.5:0.95 | Latency (ms/img) | Throughput (img/s) |",
-        "| --- | --- | ---: | ---: | ---: |",
+        "| Model | SAHI | Val mAP@0.5:0.95 | mAP small | mAP large "
+        "| Latency (ms/img) | Throughput (img/s) |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
         *summary_rows,
     ]
     out_root.mkdir(parents=True, exist_ok=True)
@@ -241,8 +330,25 @@ def main() -> None:
 
     if points:
         plot_path = out_root / "latency_vs_map.png"
-        write_plot(path=plot_path, points=points, dpi=args.dpi)
+        write_plot(
+            path=plot_path,
+            points=points,
+            sahi_settings=sahi_settings,
+            dpi=args.dpi,
+        )
         print(f"Wrote plot to {plot_path}")
+        # Tiling exists for the small objects, and the overall mAP averages that effect
+        # away against the medium and large ones.
+        small_plot_path = out_root / "latency_vs_map_small.png"
+        write_plot(
+            path=small_plot_path,
+            points=points,
+            sahi_settings=sahi_settings,
+            dpi=args.dpi,
+            metric="map_small",
+            ylabel="Val mAP@0.5:0.95, small objects",
+        )
+        print(f"Wrote plot to {small_plot_path}")
     else:
         print("No successful runs, skipping the plot.")
 

@@ -779,14 +779,15 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     model._deployed = True
     num_queries = model.num_top_queries
 
-    # With overlap=0.0 the 64x64 image yields one tile (2 rows: global + tile) and the
-    # 64x128 image yields two tiles (3 rows). Every row carries exactly one
-    # high-confidence detection, made distinguishable by class column, score, and box
-    # location, so a wrong start/end slice lands a box in the wrong image.
+    # With tile_size=(64, 64) and overlap=0.0 the 64x64 image fits inside a single tile,
+    # so it is not tiled and occupies one row, while the 64x128 image yields two tiles
+    # (3 rows). Every row carries exactly one high-confidence detection, made
+    # distinguishable by class column, score, and box location, so a wrong start/end
+    # slice lands a box in the wrong image. Image 1's global detection spans the full
+    # width so that no tile contains it and it survives the merge's size split.
     rows = [
-        (0, 10.0, [0.25, 0.25, 0.25, 0.25]),  # image 0, global
-        (1, 9.0, [0.75, 0.75, 0.25, 0.25]),  # image 0, tile (0, 0)
-        (1, 8.0, [0.25, 0.25, 0.25, 0.25]),  # image 1, global
+        (0, 10.0, [0.25, 0.25, 0.25, 0.25]),  # image 0, global (its only row)
+        (1, 8.0, [0.5, 0.75, 1.0, 0.25]),  # image 1, global
         (0, 7.0, [0.75, 0.75, 0.25, 0.25]),  # image 1, tile (0, 0)
         (1, 6.0, [0.25, 0.25, 0.25, 0.25]),  # image 1, tile (64, 0)
     ]
@@ -808,36 +809,35 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
         [torch.zeros(3, 64, 64), torch.zeros(3, 64, 128)],
         threshold=0.6,
         overlap=0.0,
+        tile_size=(64, 64),
     )
 
     # All tiles of all images go through the model in a single forward pass.
-    assert forward.call_args.args[0].shape == (5, 3, 64, 64)
+    assert forward.call_args.args[0].shape == (4, 3, 64, 64)
 
     # The rows of all images are decoded together, then each image is finalized from
     # exactly its own rows.
     assert postprocess_batch_spy.call_count == 1
     decoded = postprocess_batch_spy.spy_return
     assert postprocess_image_spy.call_count == 2
-    for index, (start, end) in enumerate([(0, 2), (2, 5)]):
+    for index, (start, end) in enumerate([(0, 1), (1, 4)]):
         rows_in = postprocess_image_spy.call_args_list[index].args[0]
         torch.testing.assert_close(rows_in.bboxes, decoded.bboxes[start:end])
         torch.testing.assert_close(rows_in.scores, decoded.scores[start:end])
 
     # Boxes are in original-image coordinates: global boxes scale by the original
-    # size, tile boxes by the tile size plus the tile offset.
+    # size, tile boxes by the region the tile covers plus the tile offset.
     assert len(output) == 2
-    torch.testing.assert_close(output[0].labels, torch.tensor([3, 5]))
-    torch.testing.assert_close(
-        output[0].bboxes,
-        torch.tensor([[8.0, 8.0, 24.0, 24.0], [40.0, 40.0, 56.0, 56.0]]),
-    )
-    torch.testing.assert_close(output[0].scores, torch.tensor([10.0, 9.0]).sigmoid())
+    torch.testing.assert_close(output[0].labels, torch.tensor([3]))
+    torch.testing.assert_close(output[0].bboxes, torch.tensor([[8.0, 8.0, 24.0, 24.0]]))
+    torch.testing.assert_close(output[0].scores, torch.tensor([10.0]).sigmoid())
+    # Descending score order: global, then the two tile detections.
     torch.testing.assert_close(output[1].labels, torch.tensor([5, 3, 5]))
     torch.testing.assert_close(
         output[1].bboxes,
         torch.tensor(
             [
-                [16.0, 8.0, 48.0, 24.0],
+                [0.0, 40.0, 128.0, 56.0],
                 [40.0, 40.0, 56.0, 56.0],
                 [72.0, 8.0, 88.0, 24.0],
             ]

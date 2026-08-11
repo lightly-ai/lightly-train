@@ -7,9 +7,6 @@
 #
 from __future__ import annotations
 
-import math
-from typing import Literal
-
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -30,31 +27,45 @@ def tile_image(
     image: Tensor,
     overlap: float,
     tile_size: tuple[int, int],
-    *,
-    padding_mode: Literal["resize", "pad"] = "resize",
 ) -> tuple[Tensor, Tensor]:
     """
     Split an image tensor into tiles.
 
-    If the input image is smaller than `tile_size` in either spatial dimension, it
-    is either upscaled or padded depending on `padding_mode`.
+    Tiles are crops of the image at its native resolution, never resampled, so the
+    returned coordinates are always in ORIGINAL-image pixels: a box predicted on tile
+    ``i`` is brought into original-image coordinates by adding
+    ``tiles_coordinates[i]``, with no scale factor involved. Callers that want the
+    tiles at a different resolution (SAHI magnification, for example) resize the
+    returned stack themselves and keep `tile_size` as the size the coordinates and box
+    scales refer to.
+
+    That unconditional contract is deliberate. An earlier ``padding_mode="resize"``
+    upscaled images smaller than a tile and returned coordinates in that upscaled
+    frame without recording the scale, which silently multiplied every tile detection
+    of such an image by that factor. Upscaling also made the tile count explode on
+    extreme aspect ratios: fitting a 1x1000 image to a 640x640 tile produced 1250
+    tiles, one model input row each, where padding produces 2.
+
+    Tiles are not necessarily fully inside the image: if the image is smaller than
+    `tile_size` in a dimension it is zero padded on the bottom/right, so a tile can
+    extend up to ``tile_size - 1`` pixels past the image in that dimension. Padding can
+    only happen in a dimension in which the image is smaller than the tile, and in that
+    dimension there is exactly one tile position. Callers must account for the padded
+    band: clip boxes to the original image or crop pasted masks to
+    ``min(tile_size, orig - start)``.
 
     Args:
         image: Image tensor of shape (C, H, W).
         overlap: Fractional overlap between tiles in [0, 1) (0.0 means no overlap).
-        tile_size: (tile_height, tile_width).
-        padding_mode: How to handle images smaller than `tile_size`. "resize" keeps
-            the historical behavior and upscales the image. "pad" pads the image on
-            the bottom and right without changing the original pixels.
+        tile_size: (tile_height, tile_width), in original-image pixels.
 
     Returns:
         tiles: Tensor of shape (N, C, tile_size[0], tile_size[1]), containing all extracted tiles.
-        tiles_coordinates: Tensor of shape (N, 2) with (x, y) = (w_start, h_start) for each tile.
+        tiles_coordinates: Tensor of shape (N, 2) with (x, y) = (w_start, h_start) for
+            each tile, in original-image pixels.
     """
     if not (0.0 <= overlap < 1.0):
         raise ValueError("overlap must be in the range [0.0, 1.0).")
-    if padding_mode not in ("resize", "pad"):
-        raise ValueError("padding_mode must be either 'resize' or 'pad'.")
 
     # Current image shape.
     _, h, w = image.shape
@@ -62,22 +73,12 @@ def tile_image(
     if h_tile <= 0 or w_tile <= 0:
         raise ValueError("tile_size must contain positive values.")
 
-    # If the image is too small, resize or pad it to fit at least one tile.
+    # Pad, never resize: resizing would put the coordinates in a frame the caller has no
+    # way to undo.
     if h < h_tile or w < w_tile:
-        if padding_mode == "resize":
-            scale = max(h_tile / h, w_tile / w)
-            new_h = math.ceil(h * scale)
-            new_w = math.ceil(w * scale)
-            image = F.interpolate(
-                image.unsqueeze(0),
-                size=(new_h, new_w),
-                mode="bilinear",
-                align_corners=False,
-            ).squeeze(0)
-        else:
-            pad_h = max(0, h_tile - h)
-            pad_w = max(0, w_tile - w)
-            image = F.pad(image, pad=[0, pad_w, 0, pad_h])
+        pad_h = max(0, h_tile - h)
+        pad_w = max(0, w_tile - w)
+        image = F.pad(image, pad=[0, pad_w, 0, pad_h])
         _, h, w = image.shape
 
     # Define the steps.

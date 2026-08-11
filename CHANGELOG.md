@@ -19,14 +19,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add `predict_batch()`, `predict_sahi()`, and `predict_sahi_batch()` to
   `PicoDetObjectDetection`, matching `LTDETRObjectDetection`.
 - Add a `sahi_args` argument to `benchmark_object_detection()` to benchmark Slicing
-  Aided Hyper Inference. It accepts `overlap`, `nms_iou_threshold`, and
+  Aided Hyper Inference. It accepts `tile_size`, `overlap`, `nms_iou_threshold`, and
   `global_local_iou_threshold`, defaulting to the values `predict_sahi()` uses. A
   non-zero `threshold` is recommended with it, and the ONNX and TensorRT backends
   require a dynamic export batch size because tiling makes the number of model input
   rows differ from batch to batch.
+- Add a `tile_size` argument to `predict_sahi()` and `predict_sahi_batch()` on
+  `LTDETRObjectDetection` and `PicoDetObjectDetection`, giving the region each tile
+  covers in pixels of the original image. Tiles are cut at this size and then resized to
+  the model's input size, so a value below the model input magnifies them, which is what
+  makes small objects detectable. This also makes SAHI useful on images at or near the
+  model's input size, which previously produced a single tile identical to the
+  full-image view.
 
 ### Changed
 
+- SAHI tiles now cover **half the model's input size** by default instead of the full
+  input size, so they are magnified 2x. Tiles used to be native-resolution crops that
+  magnified nothing, which is the opposite of what SAHI is for. Existing
+  `predict_sahi()`, `predict_sahi_batch()`, and
+  `benchmark_object_detection(sahi_args=...)` calls therefore return different boxes and
+  cost roughly three to four times more forward passes per image. Pass
+  `tile_size=<the model's image_size>` for the previous geometry.
+- Images that fit inside a single SAHI tile are no longer tiled, because the tile would
+  show the same pixels as the full-image view at no higher resolution. `predict_sahi()`
+  returns what `predict()` returns for such images.
+- SAHI predictions are now returned in descending score order, like untiled predictions,
+  instead of listing the full-image view's predictions first.
 - `LTDETRObjectDetection.predict()`, `predict_batch()`, `predict_sahi()`,
   `predict_sahi_batch()`, and `PicoDetObjectDetection.predict()` now return an
   `ObjectDetectionPrediction` object (access via `results.bboxes`, `results.labels`,
@@ -97,6 +116,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `predict_sahi()` and `predict_sahi_batch()`. Previously a high-confidence detection
   could suppress an overlapping detection of a different class, so SAHI may now return
   additional boxes for overlapping objects of different classes.
+- Fix tile predictions being returned in the wrong coordinate frame by `predict_sahi()`,
+  `predict_sahi_batch()`, and `benchmark_object_detection(sahi_args=...)` when an image
+  was smaller than a tile in either dimension. Such images were silently upscaled before
+  being tiled and the tile coordinates were left in that upscaled frame, so every tile
+  detection came back stretched about the top-left corner and could land outside the
+  image. Images are now zero padded instead, which also bounds the number of tiles:
+  fitting a 1x1000 image to a 640x640 tile used to produce 1250 tiles, one model input
+  row each. Tile predictions are additionally clipped to the image and dropped if nothing
+  is left of them.
+- Fix the tile/global merge in `predict_sahi()` and `predict_sahi_batch()` discarding the
+  accurate tile predictions it exists to add. The global (full-image) view sees small
+  objects at a heavily reduced resolution and returns coarse but confident boxes for
+  them, and those boxes were suppressing the precise tile predictions of the same
+  objects. The two views now divide the work by object size: the tiles are responsible
+  for every object that fits inside a single tile, the global view only for objects too
+  large for one tile, and `global_local_iou_threshold` now only suppresses tile
+  predictions that are fragments of such a large global prediction. Its default of `0.1`
+  is unchanged and still appropriate for that. On VisDrone2019-DET this raises
+  `ltdetrv2-l-coco` mAP@0.5:0.95 from 0.212 to 0.289 (mAP_small 0.089 to 0.168,
+  mAR_small 0.288 to 0.410) at an unchanged mAP for large objects, so SAHI returns
+  noticeably different — and many more — boxes than before.
 
 ### Security
 
