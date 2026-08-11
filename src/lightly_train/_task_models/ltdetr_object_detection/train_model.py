@@ -633,7 +633,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
             orig_target_sizes = batch["original_size"]
             # The criterion consumed the normalized cxcywh targets above. Metrics
             # need xyxy boxes in original-image pixels instead.
-            targets = targets_to_torchmetrics(
+            metric_targets = targets_to_torchmetrics(
                 bboxes=boxes, classes=classes, original_sizes=orig_target_sizes
             )
 
@@ -647,7 +647,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
                 target_sizes=orig_target_sizes_tensor,
                 num_top_queries=self.model.num_top_queries,
             ).to_torchmetrics_list()
-            self.train_metrics.update_with_predictions(results, targets)
+            self.train_metrics.update_with_predictions(results, metric_targets)
 
         return TaskStepResult(
             loss=total_loss,
@@ -708,7 +708,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
 
         # The criterion consumed the normalized cxcywh targets above. Metrics need
         # xyxy boxes in original-image pixels instead.
-        targets = targets_to_torchmetrics(
+        metric_targets = targets_to_torchmetrics(
             bboxes=boxes, classes=classes, original_sizes=orig_target_sizes
         )
 
@@ -732,7 +732,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
             ),
             weight=samples.shape[0],
         )
-        self.val_metrics.update_with_predictions(results, targets)
+        self.val_metrics.update_with_predictions(results, metric_targets)
 
         return TaskStepResult(
             loss=total_loss,

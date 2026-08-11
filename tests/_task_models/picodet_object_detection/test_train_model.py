@@ -7,7 +7,10 @@
 #
 from __future__ import annotations
 
+from typing import cast
+
 import torch
+from torch import Tensor
 
 from lightly_train._data import label_helpers
 from lightly_train._metrics.mean_average_precision import MeanAveragePrecision
@@ -56,7 +59,7 @@ def test_decode_predictions_for_metrics__non_contiguous_class_ids() -> None:
     metric = MeanAveragePrecision(
         prefix="val", class_names=list(classes.values()), class_metrics=True
     )
-    metric.update(results, targets)
+    metric.update(cast(list[dict[str, Tensor]], results), targets)
     computed = metric.compute()
 
     # A perfect prediction scores a perfect mAP, and classwise metrics resolve the
