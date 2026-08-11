@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import cast
+from typing import TypedDict, cast
 
 import torch
 from PIL.Image import Image as PILImage
@@ -26,6 +26,34 @@ from lightly_train._task_models.task_model_io import (
     RowIndexableOutput,
 )
 from lightly_train.types import PathLike
+
+
+class ObjectDetectionTorchmetricsPrediction(TypedDict):
+    """Single-image prediction in the format expected by TorchMetrics detection
+    metrics (for example ``MeanAveragePrecision``).
+
+    Attributes:
+        boxes: Shape ``(N, 4)``. ``xyxy`` boxes in original-image pixel coordinates.
+        scores: Shape ``(N,)``. Confidence score in ``[0, 1]`` for each detection.
+        labels: Shape ``(N,)``, ``int64``. Predicted class id for each detection.
+    """
+
+    boxes: Tensor
+    scores: Tensor
+    labels: Tensor
+
+
+class ObjectDetectionTorchmetricsTarget(TypedDict):
+    """Single-image ground truth in the format expected by TorchMetrics detection
+    metrics (for example ``MeanAveragePrecision``).
+
+    Attributes:
+        boxes: Shape ``(N, 4)``. ``xyxy`` boxes in original-image pixel coordinates.
+        labels: Shape ``(N,)``, ``int64``. Ground truth class id for each box.
+    """
+
+    boxes: Tensor
+    labels: Tensor
 
 
 @dataclass
@@ -83,7 +111,7 @@ class ObjectDetectionPrediction(RowIndexableOutput):
         """
         return self.num_rows
 
-    def to_torchmetrics(self) -> dict[str, Tensor]:
+    def to_torchmetrics(self) -> ObjectDetectionTorchmetricsPrediction:
         """Convert to a format compatible with TorchMetrics.
 
         Returns:
@@ -147,7 +175,7 @@ class ObjectDetectionBatchPrediction(BaseModelOutput):
             for labels, bboxes, scores in zip(self.labels, self.bboxes, self.scores)
         ]
 
-    def to_torchmetrics_list(self) -> list[dict[str, Tensor]]:
+    def to_torchmetrics_list(self) -> list[ObjectDetectionTorchmetricsPrediction]:
         """Return one TorchMetrics-compatible dict per row.
 
         Convenience for callers (for example metrics computation) that want
@@ -264,7 +292,7 @@ def targets_to_torchmetrics(
     bboxes: Sequence[Tensor],
     classes: Sequence[Tensor],
     original_sizes: Sequence[tuple[int, int]],
-) -> list[dict[str, Tensor]]:
+) -> list[ObjectDetectionTorchmetricsTarget]:
     """Convert ground truth boxes into a format compatible with TorchMetrics.
 
     This is the ground truth counterpart to

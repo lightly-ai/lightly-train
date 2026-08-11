@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import functools
 from abc import ABC
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator
 from dataclasses import dataclass, fields
-from typing import Any, List, Union, cast, overload
+from typing import Any, List, Mapping, Union, cast, overload
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
