@@ -1,5 +1,6 @@
 EXCLUDE_NEWER := 2026-04-30
 COCO_ROOT := "/datasets/coco"
+VISDRONE_DATA := "/datasets/visdrone/data.yaml"
 PINNED_PYTHON_VERSION := 3.13
 
 .PHONY: lock
@@ -10,6 +11,10 @@ lock:
 .PHONY: benchmark-tensorrt
 benchmark-tensorrt:
 	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_tensorrt_benchmark.py --coco-root $(COCO_ROOT)
+
+.PHONY: benchmark-torch-sahi
+benchmark-torch-sahi:
+	uv run --python $(PINNED_PYTHON_VERSION) --frozen --with-requirements requirements/tensorrt.txt run_torch_sahi_benchmark.py --data $(VISDRONE_DATA)
 
 .PHONY: format
 format:

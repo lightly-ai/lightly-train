@@ -57,6 +57,74 @@ Results are written to `out/tensorrt_benchmark/<model>/<precision>/`:
 A combined `out/tensorrt_benchmark/summary.md` aggregates mAP, latency, and throughput
 for every model/precision combination into a single table.
 
+## Torch SAHI Benchmark
+
+Runs the three `ltdetrv2` checkpoints (`ltdetrv2-{s,m,l}-coco`) through the torch
+backend with `torch.compile` and bf16-mixed autocast on CUDA, under three amounts of
+SAHI tiling:
+
+- `no-sahi` — no tiling.
+- `sahi-0.2` — tiles with 20% overlap (the `predict_sahi()` default).
+- `sahi-0.6` — tiles with 60% overlap, roughly three times as many tiles.
+
+All runs use a score threshold of `0.05`, so the mAP values are comparable across
+settings.
+
+### Requirements
+
+- A CUDA GPU.
+- A detection dataset in yolo or coco format, provided as a data YAML file. **The images
+  should be considerably larger than the models' 640x640 input**: SAHI tiles are cut at
+  the model's input size from the original image, so on a dataset with small images
+  (COCO val2017, for example) every setting collapses to the same one or two tiles and
+  the three curves become indistinguishable. VisDrone2019-DET is a good fit.
+- The class ids in the data config must line up with the class ids of the
+  COCO-pretrained checkpoints. The benchmark matches ground truth against predictions by
+  class id and does not remap them by name, so a mismatched class list silently yields a
+  meaningless mAP.
+- [uv](https://docs.astral.sh/uv/) for dependency management.
+
+### Running
+
+```bash
+make benchmark-torch-sahi VISDRONE_DATA=/path/to/visdrone/data.yaml
+```
+
+This runs `run_torch_sahi_benchmark.py` with the pinned dependencies from
+`requirements/tensorrt.txt`. `VISDRONE_DATA` defaults to `/datasets/visdrone/data.yaml`
+(see [Makefile](./Makefile)). This benchmark does not use TensorRT, but it shares that
+environment rather than pinning a second one: it is a superset of what the torch backend
+needs.
+
+To run the script directly with more control over its options:
+
+```bash
+uv run --frozen --with-requirements requirements/tensorrt.txt run_torch_sahi_benchmark.py \
+    --data /path/to/visdrone/data.yaml \
+    --dataset-name "VisDrone2019-DET val" \
+    --out out/torch_sahi_benchmark \
+    --batch-size 1 \
+    --warmup-steps 20 \
+    --steps 10  # limit batches per run, useful for smoke-testing
+```
+
+Warmup defaults to 20 batches rather than 5: with SAHI the number of tiles differs
+between images, so `torch.compile` re-traces the graph until it settles on a dynamic
+batch dimension, and those recompilations must land outside the measured window.
+
+### Output
+
+Results are written to `out/torch_sahi_benchmark/<model>/<sahi-setting>/`:
+
+- `benchmark_results.json` — raw metrics and timing data.
+- `benchmark_summary.md` — human-readable report for that model/SAHI setting.
+
+Aggregated over all runs, at `out/torch_sahi_benchmark/`:
+
+- `summary.md` — mAP, latency, and throughput for every model/SAHI combination.
+- `latency_vs_map.png` — latency vs. mAP@0.5:0.95, with one curve per SAHI setting
+  running through the small, medium, and large model.
+
 ## Managing dependencies
 
 Never edit the `.txt` files in `requirements/` directly. Instead, edit the corresponding
