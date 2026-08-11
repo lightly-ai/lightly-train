@@ -113,14 +113,16 @@ def _decode_predictions_for_metrics(
     outputs: dict[str, Tensor],
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
-    predictions = decode_object_detection_output(
+    batch_prediction = decode_object_detection_output(
         logits=outputs["pred_logits"],
         boxes=outputs["pred_boxes"],
         target_sizes=orig_target_sizes,
         num_top_queries=model.num_top_queries,
         internal_class_to_class=model.internal_class_to_class,
     )
-    return [prediction.to_torchmetrics() for prediction in predictions]
+    return [
+        prediction.to_torchmetrics() for prediction in batch_prediction.to_predictions()
+    ]
 
 
 class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):

@@ -82,14 +82,16 @@ def _decode_predictions_for_metrics(
     internal_class_to_class: Tensor,
 ) -> list[dict[str, Tensor]]:
     """Decode raw model outputs the same way inference does, for metrics."""
-    predictions = decode_object_detection_output(
+    batch_prediction = decode_object_detection_output(
         logits=outputs.logits,
         boxes=outputs.boxes,
         target_sizes=orig_target_sizes,
         num_top_queries=num_top_queries,
         internal_class_to_class=internal_class_to_class,
     )
-    return [prediction.to_torchmetrics() for prediction in predictions]
+    return [
+        prediction.to_torchmetrics() for prediction in batch_prediction.to_predictions()
+    ]
 
 
 class PicoDetObjectDetectionTrainArgs(TrainModelArgs):

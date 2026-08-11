@@ -140,21 +140,21 @@ def test_postprocess__accepts_typed_and_mapping_outputs(mocker: MockerFixture) -
 
     typed_raw = ObjectDetectionOutput(logits=logits, boxes=boxes)
     model.postprocess(typed_raw, metadata, threshold=0.5)
-    raw_in, metadata_in, threshold_in = postprocess.call_args.args
-    assert raw_in is typed_raw
-    assert metadata_in is metadata
-    assert threshold_in == 0.5
+    call = postprocess.call_args.kwargs
+    assert call["raw"] is typed_raw
+    assert call["metadata"] is metadata
+    assert call["threshold"] == 0.5
 
     # The benchmark backends pass the decoder key names, so the mapping branch must
     # keep accepting them and one code path can serve both detection models.
     model.postprocess(
         {"pred_logits": logits, "pred_boxes": boxes}, metadata, threshold=0.25
     )
-    raw_in, _, threshold_in = postprocess.call_args.args
-    assert isinstance(raw_in, ObjectDetectionOutput)
-    assert raw_in.logits is logits
-    assert raw_in.boxes is boxes
-    assert threshold_in == 0.25
+    call = postprocess.call_args.kwargs
+    assert isinstance(call["raw"], ObjectDetectionOutput)
+    assert call["raw"].logits is logits
+    assert call["raw"].boxes is boxes
+    assert call["threshold"] == 0.25
 
 
 @pytest.mark.parametrize(
@@ -363,7 +363,9 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
     preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
-    forward_backend_spy = mocker.spy(model, "forward_backend")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_batch_spy = mocker.spy(model.postprocessor, "postprocess_batch")
+    postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
     postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
@@ -375,20 +377,25 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    assert forward_backend_spy.call_count == 1
-    (forward_in,) = forward_backend_spy.call_args.args
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
     assert forward_in.shape == (2, 3, 256, 256)
 
-    # postprocess receives forward_backend's output and per-image metadata.
+    # postprocess receives forward's output and per-image metadata.
     assert postprocess_spy.call_count == 1
-    raw_in, metadata, _ = postprocess_spy.call_args.args
-    assert raw_in.logits is forward_backend_spy.spy_return.logits
-    assert raw_in.boxes is forward_backend_spy.spy_return.boxes
-    assert metadata == [
+    call = postprocess_spy.call_args.kwargs
+    assert call["raw"].logits is forward_spy.spy_return.logits
+    assert call["raw"].boxes is forward_spy.spy_return.boxes
+    assert call["metadata"] == [
         ObjectDetectionMetadata(orig_h=480, orig_w=640),
         ObjectDetectionMetadata(orig_h=720, orig_w=1280),
     ]
     assert result is postprocess_spy.spy_return
+
+    # Postprocessing mirrors preprocessing: one dense pass over the batch, then one
+    # host-side pass per image.
+    assert postprocess_batch_spy.call_count == 1
+    assert postprocess_image_spy.call_count == 2
 
 
 def test_predict__matches_predict_batch() -> None:
@@ -438,30 +445,50 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
         classes={0: "class_0", 1: "class_1"},
         load_weights=False,
     )
-    forward_backend_spy = mocker.spy(model, "forward_backend")
-    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
 
     images = [torch.rand(3, 96, 96), torch.rand(3, 96, 96)]
     predictions = model.predict_sahi_batch(images, threshold=0.0, overlap=0.0)
 
     # All tiles of all images go through the model in a single forward pass.
-    assert forward_backend_spy.call_count == 1
-    (forward_in,) = forward_backend_spy.call_args.args
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
     total_tiles = forward_in.shape[0]
 
-    # Each image is postprocessed separately from its own slice of the raw output.
-    assert postprocess_spy.call_count == 2
+    # Each image is postprocessed separately from its own slice of the decoded batch.
+    assert postprocess_image_spy.call_count == 2
     assert len(predictions) == 2
-    raw_all = forward_backend_spy.spy_return
     seen = 0
-    for call in postprocess_spy.call_args_list:
-        raw_in, metadata, _ = call.args
-        count = raw_in.logits.shape[0]
-        torch.testing.assert_close(raw_in.logits, raw_all.logits[seen : seen + count])
-        torch.testing.assert_close(raw_in.boxes, raw_all.boxes[seen : seen + count])
-        assert len(metadata) == 1
-        seen += count
+    for call in postprocess_image_spy.call_args_list:
+        batch_prediction, metadata, _ = call.args
+        assert batch_prediction.labels.shape[0] == metadata.num_rows
+        seen += metadata.num_rows
     assert seen == total_tiles
+
+
+def test_predict_sahi_batch__matches_predict_sahi_per_image() -> None:
+    """Batching images must not change the result of any single image."""
+    model = PicoDetObjectDetection(
+        model_name="picodet/s-416",
+        image_size=(64, 64),
+        num_classes=2,
+        classes={0: "class_0", 1: "class_1"},
+        load_weights=False,
+    )
+    # Different sizes, so the images contribute a different number of tiles each.
+    images = [torch.rand(3, 96, 96), torch.rand(3, 150, 70)]
+
+    batched = model.predict_sahi_batch(images, threshold=0.0, overlap=0.2)
+    separate = [
+        model.predict_sahi(image, threshold=0.0, overlap=0.2) for image in images
+    ]
+
+    assert len(batched) == 2
+    for actual, expected in zip(batched, separate):
+        torch.testing.assert_close(actual.labels, expected.labels)
+        torch.testing.assert_close(actual.bboxes, expected.bboxes)
+        torch.testing.assert_close(actual.scores, expected.scores)
 
 
 def test_decode_predictions_for_metrics__non_contiguous_class_ids() -> None:

@@ -90,7 +90,9 @@ class TorchBackend(ObjectDetectionBackend):
         self.model.deploy()
 
         if backend_args.compile:
-            self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
+            # Compiles the module's __call__ in place, so run_batch keeps calling the
+            # model directly.
+            self.model.compile()  # type: ignore[no-untyped-call]
 
     @override
     def run_batch(
@@ -115,7 +117,7 @@ class TorchBackend(ObjectDetectionBackend):
             dtype=autocast_dtype or torch.float16,
             enabled=autocast_dtype is not None,
         ):
-            raw_outputs = self.model.forward_backend(images)
+            raw_outputs = self.model(images)
         time_predict = time.perf_counter() - start_predict
 
         # postprocess

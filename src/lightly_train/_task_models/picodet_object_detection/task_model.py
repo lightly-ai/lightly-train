@@ -31,7 +31,7 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
-    ObjectDetectionSahiConfig,
+    ObjectDetectionSAHIConfig,
 )
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
@@ -433,31 +433,28 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         boxes = box_convert(boxes_xyxy, in_fmt="xyxy", out_fmt="cxcywh")
         return ObjectDetectionOutput(logits=logits, boxes=boxes)
 
-    def forward_backend(self, x: Tensor) -> ObjectDetectionOutput:
+    def forward(self, images: Tensor) -> ObjectDetectionOutput:
         """Run the model and return the raw graph outputs.
 
-        The anchor decode is part of the exported graph, so this is identical to
-        :meth:`forward`. Top-k selection, thresholding, class-id remapping and
-        rescaling to original image coordinates happen in :meth:`postprocess`.
+        The anchor decode is part of the exported graph. Top-k selection,
+        thresholding, class-id remapping and rescaling to original image coordinates
+        happen in :meth:`postprocess`.
 
         Args:
-            x: Input tensor of shape (B, C, H, W).
+            images: Input tensor of shape (B, C, H, W).
 
         Returns:
             An :class:`ObjectDetectionOutput` with raw logits and normalized
             ``cxcywh`` boxes relative to the model input.
         """
-        feats = self.backbone(x)
+        feats = self.backbone(images)
         feats = self.neck(feats)
         cls_scores_list, bbox_preds_list = self.o2o_head(feats)
         return self.decode_o2o_outputs(
             cls_scores_list=cls_scores_list,
             bbox_preds_list=bbox_preds_list,
-            input_size=(int(x.shape[-2]), int(x.shape[-1])),
+            input_size=(int(images.shape[-2]), int(images.shape[-1])),
         )
-
-    def forward(self, images: Tensor) -> ObjectDetectionOutput:
-        return self.forward_backend(images)
 
     def postprocess(  # type: ignore[override]
         self,
@@ -470,7 +467,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         Args:
             raw_outputs:
                 Either an :class:`ObjectDetectionOutput` as returned by
-                :meth:`forward_backend`, or a mapping with ``pred_logits`` and
+                :meth:`forward`, or a mapping with ``pred_logits`` and
                 ``pred_boxes`` keys.
             metadata: Per-image metadata as returned by the preprocessor.
             threshold: Detections with a score <= threshold are discarded.
@@ -485,7 +482,9 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             raw = ObjectDetectionOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
-        return self.postprocessor.postprocess(raw, metadata, threshold)
+        return self.postprocessor.postprocess(
+            raw=raw, metadata=metadata, threshold=threshold
+        )
 
     @torch.no_grad()
     def predict_batch(
@@ -506,23 +505,15 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         Returns:
             A list with one :class:`ObjectDetectionPrediction` per input image.
         """
-        if not images:
-            raise ValueError("images must contain at least one image.")
+        first_param = next(self.parameters())
+        batch, metadata = self.preprocessor.preprocess(
+            images, device=first_param.device, dtype=first_param.dtype
+        )
         self._track_inference()
         if self.training or not self.is_deploy_mode:
             self.deploy()
-        first_param = next(self.parameters())
-        prepared = [
-            self.preprocessor.preprocess_image(
-                image, device=first_param.device, dtype=first_param.dtype
-            )
-            for image in images
-        ]
-        batch = self.preprocessor.preprocess_batch(
-            torch.stack([image for image, _ in prepared])
-        )
         return self.postprocessor.postprocess(
-            self(batch), [metadata for _, metadata in prepared], threshold
+            raw=self(batch), metadata=metadata, threshold=threshold
         )
 
     @torch.no_grad()
@@ -602,46 +593,32 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
     ) -> list[ObjectDetectionPrediction]:
-        """Run Slicing Aided Hyper Inference on a batch of images."""
-        if not images:
-            raise ValueError("images must contain at least one image.")
-        self._track_inference()
-        if self.training or not self.is_deploy_mode:
-            self.deploy()
-        first_param = next(self.parameters())
-        sahi_config = ObjectDetectionSahiConfig(
+        """Run Slicing Aided Hyper Inference on a batch of images.
+
+        All tiles of all images go through the model in a single forward pass. The
+        postprocessor maps each image back to its own slice of the raw output.
+        """
+        sahi_config = ObjectDetectionSAHIConfig(
             overlap=overlap,
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
         )
-        prepared = [
-            self.preprocessor.preprocess_image(
-                image,
-                device=first_param.device,
-                dtype=first_param.dtype,
-                sahi_config=sahi_config,
-            )
-            for image in images
-        ]
-        counts = [len(image_batch) for image_batch, _ in prepared]
-        batch = self.preprocessor.preprocess_batch(
-            torch.cat([image_batch for image_batch, _ in prepared])
+        first_param = next(self.parameters())
+        batch, metadata = self.preprocessor.preprocess(
+            images,
+            device=first_param.device,
+            dtype=first_param.dtype,
+            sahi_config=sahi_config,
         )
-        raw = self(batch)
-        predictions: list[ObjectDetectionPrediction] = []
-        start = 0
-        for count, (_, metadata) in zip(counts, prepared):
-            end = start + count
-            raw_image = ObjectDetectionOutput(
-                logits=raw.logits[start:end], boxes=raw.boxes[start:end]
-            )
-            predictions.extend(
-                self.postprocessor.postprocess(
-                    raw_image, [metadata], threshold, sahi_config=sahi_config
-                )
-            )
-            start = end
-        return predictions
+        self._track_inference()
+        if self.training or not self.is_deploy_mode:
+            self.deploy()
+        return self.postprocessor.postprocess(
+            raw=self(batch),
+            metadata=metadata,
+            threshold=threshold,
+            sahi_config=sahi_config,
+        )
 
     def verify_onnx_export_outputs(
         self,

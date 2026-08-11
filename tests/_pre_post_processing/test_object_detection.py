@@ -16,7 +16,7 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
-    ObjectDetectionSahiConfig,
+    ObjectDetectionSAHIConfig,
     combine_object_detection_tiles,
     targets_to_torchmetrics,
     yolo_to_xyxy,
@@ -34,10 +34,11 @@ class TestObjectDetectionPreprocessor:
             image, device=torch.device("cpu"), dtype=torch.float32
         )
 
-        assert output.shape == (3, 32, 48)
+        assert output.shape == (1, 3, 32, 48)
         assert output.dtype == torch.float32
         assert output.min() >= 0 and output.max() <= 1
         assert metadata == ObjectDetectionMetadata(orig_h=60, orig_w=80)
+        assert metadata.num_rows == output.shape[0]
 
     def test_preprocess_image__validates_channels(self) -> None:
         preprocessor = ObjectDetectionPreprocessor(
@@ -48,7 +49,7 @@ class TestObjectDetectionPreprocessor:
             device=torch.device("cpu"),
             dtype=torch.float32,
         )
-        assert grayscale.shape == (3, 16, 16)
+        assert grayscale.shape == (1, 3, 16, 16)
         with pytest.raises(ValueError, match="channels"):
             preprocessor.preprocess_image(
                 torch.rand(2, 8, 8),
@@ -75,7 +76,7 @@ class TestObjectDetectionPreprocessor:
             torch.zeros(3, 8, 10, dtype=torch.uint8),
             device=torch.device("cpu"),
             dtype=torch.float32,
-            sahi_config=ObjectDetectionSahiConfig(
+            sahi_config=ObjectDetectionSAHIConfig(
                 overlap=0.5,
                 nms_iou_threshold=0.3,
                 global_local_iou_threshold=0.1,
@@ -86,6 +87,51 @@ class TestObjectDetectionPreprocessor:
         assert metadata.orig_w == 10
         assert metadata.tile_coordinates is not None
         assert metadata.tile_coordinates.shape == (9, 2)
+        assert metadata.num_rows == batch.shape[0]
+
+    def test_preprocess__stacks_images_and_returns_metadata_per_image(self) -> None:
+        preprocessor = ObjectDetectionPreprocessor(
+            image_size=(4, 4),
+            image_normalize={"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)},
+            expected_input_channels=3,
+        )
+        batch, metadata = preprocessor.preprocess(
+            [torch.zeros(3, 8, 6, dtype=torch.uint8), torch.zeros(3, 5, 5)],
+            device=torch.device("cpu"),
+            dtype=torch.float32,
+        )
+
+        assert batch.shape == (2, 3, 4, 4)
+        # preprocess_batch normalized the (already scaled to [0, 1]) images.
+        torch.testing.assert_close(batch, torch.full_like(batch, -1))
+        assert metadata == [
+            ObjectDetectionMetadata(orig_h=8, orig_w=6),
+            ObjectDetectionMetadata(orig_h=5, orig_w=5),
+        ]
+
+    def test_preprocess__concatenates_tiles_of_all_images(self) -> None:
+        preprocessor = ObjectDetectionPreprocessor(
+            image_size=(4, 6), image_normalize=None, expected_input_channels=3
+        )
+        batch, metadata = preprocessor.preprocess(
+            [torch.zeros(3, 8, 10), torch.zeros(3, 4, 6)],
+            device=torch.device("cpu"),
+            dtype=torch.float32,
+            sahi_config=ObjectDetectionSAHIConfig(
+                overlap=0.5, nms_iou_threshold=0.3, global_local_iou_threshold=0.1
+            ),
+        )
+
+        # One metadata per image, but one batch row per global image and per tile.
+        assert len(metadata) == 2
+        assert batch.shape[0] == sum(item.num_rows for item in metadata)
+
+    def test_preprocess__rejects_empty_input(self) -> None:
+        preprocessor = ObjectDetectionPreprocessor(
+            image_size=(4, 4), image_normalize=None, expected_input_channels=3
+        )
+        with pytest.raises(ValueError, match="at least one image"):
+            preprocessor.preprocess([], device=torch.device("cpu"), dtype=torch.float32)
 
 
 def _prediction() -> ObjectDetectionPrediction:
@@ -211,7 +257,7 @@ class TestObjectDetectionPostprocessor:
                 )
             ],
             threshold=0.5,
-            sahi_config=ObjectDetectionSahiConfig(
+            sahi_config=ObjectDetectionSAHIConfig(
                 overlap=0.2,
                 nms_iou_threshold=0.3,
                 global_local_iou_threshold=0.1,
@@ -223,24 +269,112 @@ class TestObjectDetectionPostprocessor:
             torch.tensor([[40.0, 20.0, 60.0, 30.0], [13.0, 11.0, 17.0, 13.0]]),
         )
 
-    def test_postprocess__rejects_sahi_metadata_for_multiple_images(self) -> None:
-        raw = ObjectDetectionOutput(
-            logits=torch.zeros(2, 3, 2), boxes=torch.zeros(2, 3, 4)
+    def test_postprocess_sahi__handles_multiple_images(self) -> None:
+        """SAHI predictions for a batch match postprocessing each image on its own."""
+        postprocessor = _postprocessor()
+        sahi_config = ObjectDetectionSAHIConfig(
+            overlap=0.2, nms_iou_threshold=0.3, global_local_iou_threshold=0.1
         )
-        with pytest.raises(ValueError, match="metadata for one image"):
-            _postprocessor().postprocess(
-                raw,
-                [
-                    ObjectDetectionMetadata(orig_w=10, orig_h=10),
-                    ObjectDetectionMetadata(orig_w=10, orig_h=10),
-                ],
-                threshold=0.5,
-                sahi_config=ObjectDetectionSahiConfig(
-                    overlap=0.2,
-                    nms_iou_threshold=0.3,
-                    global_local_iou_threshold=0.1,
+        torch.manual_seed(0)
+        # Two images with a different number of tiles: 2 and 3.
+        raw = ObjectDetectionOutput(
+            logits=torch.randn(7, 4, 2), boxes=torch.rand(7, 4, 4)
+        )
+        metadata = [
+            ObjectDetectionMetadata(
+                orig_w=100, orig_h=50, tile_coordinates=torch.tensor([[0, 0], [30, 20]])
+            ),
+            ObjectDetectionMetadata(
+                orig_w=64,
+                orig_h=64,
+                tile_coordinates=torch.tensor([[0, 0], [10, 0], [0, 10]]),
+            ),
+        ]
+
+        predictions = postprocessor.postprocess(
+            raw, metadata, threshold=0.3, sahi_config=sahi_config
+        )
+
+        assert len(predictions) == 2
+        start = 0
+        for item, prediction in zip(metadata, predictions):
+            end = start + item.num_rows
+            expected = postprocessor.postprocess(
+                ObjectDetectionOutput(
+                    logits=raw.logits[start:end], boxes=raw.boxes[start:end]
                 ),
+                [item],
+                threshold=0.3,
+                sahi_config=sahi_config,
+            )[0]
+            torch.testing.assert_close(prediction.labels, expected.labels)
+            torch.testing.assert_close(prediction.bboxes, expected.bboxes)
+            torch.testing.assert_close(prediction.scores, expected.scores)
+            start = end
+
+    def test_postprocess_batch__keeps_every_row_dense(self) -> None:
+        # Scores are far below any sane threshold, yet the dense stage must keep
+        # num_top_queries detections for every row.
+        logits = torch.full((2, 3, 2), -9.0)
+        boxes = torch.rand(1, 3, 4).expand(2, -1, -1)
+        metadata = [
+            ObjectDetectionMetadata(orig_w=100, orig_h=200),
+            ObjectDetectionMetadata(orig_w=10, orig_h=20),
+        ]
+
+        batch_prediction = _postprocessor().postprocess_batch(
+            ObjectDetectionOutput(logits=logits, boxes=boxes), metadata
+        )
+
+        assert batch_prediction.scores.max() < 0.001
+        assert batch_prediction.labels.shape == (2, 3)
+        assert batch_prediction.bboxes.shape == (2, 3, 4)
+        assert batch_prediction.scores.shape == (2, 3)
+        # Both rows hold the same normalized boxes but are rescaled to their own
+        # original image size, which here differ by a factor of ten.
+        torch.testing.assert_close(
+            batch_prediction.bboxes[0], batch_prediction.bboxes[1] * 10
+        )
+
+    def test_postprocess_batch__then_postprocess_image_matches_postprocess(
+        self,
+    ) -> None:
+        postprocessor = _postprocessor()
+        torch.manual_seed(0)
+        raw = ObjectDetectionOutput(
+            logits=torch.randn(2, 4, 2), boxes=torch.rand(2, 4, 4)
+        )
+        metadata = [
+            ObjectDetectionMetadata(orig_w=100, orig_h=50),
+            ObjectDetectionMetadata(orig_w=17, orig_h=33),
+        ]
+
+        batch_prediction = postprocessor.postprocess_batch(raw, metadata)
+        stagewise = [
+            postprocessor.postprocess_image(
+                batch_prediction.select_rows(index, index + 1), item, threshold=0.4
             )
+            for index, item in enumerate(metadata)
+        ]
+        combined = postprocessor.postprocess(raw, metadata, threshold=0.4)
+
+        for expected, actual in zip(combined, stagewise):
+            torch.testing.assert_close(actual.labels, expected.labels)
+            torch.testing.assert_close(actual.bboxes, expected.bboxes)
+            torch.testing.assert_close(actual.scores, expected.scores)
+
+    def test_postprocess_image__requires_sahi_config_for_tiled_metadata(self) -> None:
+        postprocessor = _postprocessor()
+        raw = ObjectDetectionOutput(
+            logits=torch.zeros(2, 3, 2), boxes=torch.rand(2, 3, 4)
+        )
+        metadata = ObjectDetectionMetadata(
+            orig_w=10, orig_h=10, tile_coordinates=torch.tensor([[0, 0]])
+        )
+        batch_prediction = postprocessor.postprocess_batch(raw, [metadata])
+
+        with pytest.raises(ValueError, match="no sahi_config"):
+            postprocessor.postprocess_image(batch_prediction, metadata, threshold=0.5)
 
     def test_postprocess__prediction_supports_mapping_protocol(self) -> None:
         postprocessor = ObjectDetectionPostprocessor(

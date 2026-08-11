@@ -386,7 +386,8 @@ class _BenchmarkCollateFunction:
         ]
         return ObjectDetectionBatch(
             image_path=[item["image_path"] for item in batch],
-            image=torch.stack(images),
+            # preprocess_image returns a (1, C, H, W) stack per image.
+            image=torch.cat(images),
             bboxes=[
                 torch.from_numpy(item["bboxes"]).float().reshape(-1, 4)
                 for item in batch

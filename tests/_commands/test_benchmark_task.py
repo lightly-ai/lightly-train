@@ -98,8 +98,8 @@ class _FakeObjectDetectionModel(TaskModel):
             expected_input_channels=3,
         )
 
-    def forward_backend(self, x: Tensor) -> Any:
-        return x
+    def forward(self, images: Tensor) -> Any:
+        return images
 
     def postprocess(  # type: ignore[override]
         self,

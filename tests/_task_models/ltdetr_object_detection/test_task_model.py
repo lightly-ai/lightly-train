@@ -697,7 +697,9 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
     preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
-    forward_backend_spy = mocker.spy(model, "forward_backend")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_batch_spy = mocker.spy(model.postprocessor, "postprocess_batch")
+    postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
     postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
@@ -710,20 +712,24 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    # forward_backend receives the dense preprocessed batch.
-    assert forward_backend_spy.call_count == 1
-    (forward_in,) = forward_backend_spy.call_args.args
+    # forward receives the dense preprocessed batch.
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
     assert forward_in.shape == (2, 3, 256, 256)
 
-    # postprocess receives forward_backend's output and tensor target sizes.
+    # postprocess receives forward's output and one metadata entry per image.
     assert postprocess_spy.call_count == 1
-    raw_in, metadata, _ = postprocess_spy.call_args.args
-    assert raw_in.logits is forward_backend_spy.spy_return["pred_logits"]
-    assert raw_in.boxes is forward_backend_spy.spy_return["pred_boxes"]
-    assert metadata == [
+    call = postprocess_spy.call_args.kwargs
+    assert call["raw"] is forward_spy.spy_return
+    assert call["metadata"] == [
         ObjectDetectionMetadata(orig_h=480, orig_w=640),
         ObjectDetectionMetadata(orig_h=720, orig_w=1280),
     ]
+
+    # Postprocessing mirrors preprocessing: one dense pass over the batch, then one
+    # host-side pass per image.
+    assert postprocess_batch_spy.call_count == 1
+    assert postprocess_image_spy.call_count == 2
 
     # predict_batch returns whatever the standalone postprocessor produced.
     assert result is postprocess_spy.spy_return
@@ -747,20 +753,21 @@ def test_postprocess__accepts_typed_and_mapping_outputs(
 
     typed_raw = ObjectDetectionOutput(logits=logits, boxes=boxes)
     model.postprocess(typed_raw, metadata, threshold=0.5)
-    raw, passed_metadata, threshold = postprocess.call_args.args
-    assert raw is typed_raw
-    assert passed_metadata is metadata
-    assert threshold == 0.5
+    call = postprocess.call_args.kwargs
+    assert call["raw"] is typed_raw
+    assert call["metadata"] is metadata
+    assert call["threshold"] == 0.5
 
     model.postprocess(
         {"pred_logits": logits, "pred_boxes": boxes}, metadata, threshold=0.25
     )
-    raw, passed_metadata, threshold = postprocess.call_args.args
+    call = postprocess.call_args.kwargs
+    raw = call["raw"]
     assert isinstance(raw, ObjectDetectionOutput)
     assert raw.logits is logits
     assert raw.boxes is boxes
-    assert passed_metadata is metadata
-    assert threshold == 0.25
+    assert call["metadata"] is metadata
+    assert call["threshold"] == 0.25
 
 
 def test_predict_sahi_batch__splits_raw_outputs_per_image(
@@ -797,7 +804,8 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
         "forward",
         return_value=ObjectDetectionOutput(logits=logits, boxes=boxes),
     )
-    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
+    postprocess_batch_spy = mocker.spy(model.postprocessor, "postprocess_batch")
+    postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
 
     output = model.predict_sahi_batch(
         [torch.zeros(3, 64, 64), torch.zeros(3, 64, 128)],
@@ -808,14 +816,15 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
     # All tiles of all images go through the model in a single forward pass.
     assert forward.call_args.args[0].shape == (5, 3, 64, 64)
 
-    # The shared postprocessor is reused and receives exactly each image's own rows.
-    assert postprocess_spy.call_count == 2
-    torch.testing.assert_close(
-        postprocess_spy.call_args_list[0].args[0].logits, logits[:2]
-    )
-    torch.testing.assert_close(
-        postprocess_spy.call_args_list[1].args[0].logits, logits[2:]
-    )
+    # The rows of all images are decoded together, then each image is finalized from
+    # exactly its own rows.
+    assert postprocess_batch_spy.call_count == 1
+    decoded = postprocess_batch_spy.spy_return
+    assert postprocess_image_spy.call_count == 2
+    for index, (start, end) in enumerate([(0, 2), (2, 5)]):
+        rows_in = postprocess_image_spy.call_args_list[index].args[0]
+        torch.testing.assert_close(rows_in.bboxes, decoded.bboxes[start:end])
+        torch.testing.assert_close(rows_in.scores, decoded.scores[start:end])
 
     # Boxes are in original-image coordinates: global boxes scale by the original
     # size, tile boxes by the tile size plus the tile offset.
