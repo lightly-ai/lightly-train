@@ -217,6 +217,14 @@ def test_row_indexable_output__num_rows_differs_from_len() -> None:
     assert len(output) == 2
 
 
+def test_row_indexable_output__raises_on_mismatched_row_dimensions() -> None:
+    with pytest.raises(ValueError, match="scores.*3 rows.*boxes.*2"):
+        _RowOutput(
+            scores=torch.tensor([0.9, 0.4, 0.8]),
+            boxes=torch.arange(8, dtype=torch.float32).reshape(2, 4),
+        )
+
+
 def test_row_indexable_output__preserves_mapping_protocol() -> None:
     output = _row_output()
 

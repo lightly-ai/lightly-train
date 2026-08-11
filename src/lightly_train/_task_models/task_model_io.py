@@ -282,6 +282,20 @@ class RowIndexableOutput(BaseModelOutput, ABC):
         :attr:`num_rows` to count rows.
     """
 
+    def __post_init__(self) -> None:
+        """Validate that all fields share the same leading row dimension."""
+        names = _field_names(type(self))
+        first_name = names[0]
+        first_size = cast(Tensor, getattr(self, first_name)).shape[0]
+        for name in names[1:]:
+            size = cast(Tensor, getattr(self, name)).shape[0]
+            if size != first_size:
+                raise ValueError(
+                    f"All fields of {type(self).__name__} must share the same "
+                    f"leading row dimension, but '{first_name}' has {first_size} "
+                    f"rows while '{name}' has {size}."
+                )
+
     @property
     def num_rows(self) -> int:
         """Number of rows ``N`` shared by all fields."""
