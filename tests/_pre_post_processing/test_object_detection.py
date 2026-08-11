@@ -351,10 +351,8 @@ class TestObjectDetectionPostprocessor:
 
         batch_prediction = postprocessor.postprocess_batch(raw, metadata)
         stagewise = [
-            postprocessor.postprocess_image(
-                batch_prediction.select_rows(index, index + 1), item, threshold=0.4
-            )
-            for index, item in enumerate(metadata)
+            postprocessor.postprocess_image(item_prediction, item, threshold=0.4)
+            for item_prediction, item in zip(batch_prediction.split(metadata), metadata)
         ]
         combined = postprocessor.postprocess(raw, metadata, threshold=0.4)
 

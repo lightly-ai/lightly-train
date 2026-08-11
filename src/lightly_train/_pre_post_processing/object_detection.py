@@ -118,13 +118,27 @@ class ObjectDetectionBatchPrediction(BaseModelOutput):
     bboxes: Tensor
     scores: Tensor
 
-    def select_rows(self, start: int, end: int) -> ObjectDetectionBatchPrediction:
-        """Return the rows in ``[start, end)``, for example the rows of one image."""
-        return ObjectDetectionBatchPrediction(
-            labels=self.labels[start:end],
-            bboxes=self.bboxes[start:end],
-            scores=self.scores[start:end],
-        )
+    def split(
+        self, metadata: Sequence[ObjectDetectionMetadata]
+    ) -> list[ObjectDetectionBatchPrediction]:
+        """Split rows into consecutive per-image groups sized by ``metadata``.
+
+        Each item in ``metadata`` consumes ``item.num_rows`` consecutive rows: one row
+        for the image itself, plus one row per SAHI tile.
+        """
+        predictions = []
+        start = 0
+        for item in metadata:
+            end = start + item.num_rows
+            predictions.append(
+                ObjectDetectionBatchPrediction(
+                    labels=self.labels[start:end],
+                    bboxes=self.bboxes[start:end],
+                    scores=self.scores[start:end],
+                )
+            )
+            start = end
+        return predictions
 
     def to_predictions(self) -> list[ObjectDetectionPrediction]:
         """Return one :class:`ObjectDetectionPrediction` per row."""
@@ -588,7 +602,7 @@ class ObjectDetectionPostprocessor(Module):
         Args:
             batch_prediction:
                 The ``metadata.num_rows`` rows belonging to a single image, as
-                returned by :meth:`ObjectDetectionBatchPrediction.select_rows`.
+                returned by :meth:`ObjectDetectionBatchPrediction.split`.
             metadata: The image's metadata as returned by the preprocessor.
             threshold: Detections with a score <= threshold are discarded.
             sahi_config:
@@ -603,20 +617,22 @@ class ObjectDetectionPostprocessor(Module):
                 bboxes=batch_prediction.bboxes[0],
                 scores=batch_prediction.scores[0],
             )
-            return prediction[prediction.scores > threshold]
-
-        if sahi_config is None:
-            raise ValueError(
-                "Metadata contains tile coordinates but no sahi_config was given to "
-                "merge the tile predictions."
+            prediction = prediction[prediction.scores > threshold]
+        else:
+            if sahi_config is None:
+                raise ValueError(
+                    "Metadata contains tile coordinates but no sahi_config was given "
+                    "to merge the tile predictions."
+                )
+            prediction = combine_sahi_object_detection_predictions(
+                batch_prediction=batch_prediction,
+                tile_coordinates=metadata.tile_coordinates,
+                threshold=threshold,
+                nms_iou_threshold=sahi_config.nms_iou_threshold,
+                global_local_iou_threshold=sahi_config.global_local_iou_threshold,
             )
-        return combine_sahi_object_detection_predictions(
-            batch_prediction=batch_prediction,
-            tile_coordinates=metadata.tile_coordinates,
-            threshold=threshold,
-            nms_iou_threshold=sahi_config.nms_iou_threshold,
-            global_local_iou_threshold=sahi_config.global_local_iou_threshold,
-        )
+
+        return prediction
 
     def postprocess(
         self,
@@ -639,20 +655,12 @@ class ObjectDetectionPostprocessor(Module):
                 Merge settings, required when any image in ``metadata`` was tiled.
         """
         batch_prediction = self.postprocess_batch(raw, metadata)
-        predictions = []
-        start = 0
-        for item in metadata:
-            end = start + item.num_rows
-            predictions.append(
-                self.postprocess_image(
-                    batch_prediction.select_rows(start, end),
-                    item,
-                    threshold,
-                    sahi_config=sahi_config,
-                )
+        return [
+            self.postprocess_image(
+                item_prediction, item, threshold, sahi_config=sahi_config
             )
-            start = end
-        return predictions
+            for item_prediction, item in zip(batch_prediction.split(metadata), metadata)
+        ]
 
     def _target_sizes(
         self,
