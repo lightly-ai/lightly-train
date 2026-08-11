@@ -166,9 +166,16 @@ class ObjectDetectionPrediction(RowIndexableOutput):
         return self[~overlaps_same_label]
 
     def map_labels(self, mapping: Tensor) -> Self:
-        """Return a prediction whose labels are looked up in ``mapping``.
+        """Return a prediction with each label replaced by ``mapping[label]``.
 
-        Used to map internal, contiguous class ids to user-facing class ids.
+        Used to translate internal, contiguous class ids (``0..num_classes - 1``,
+        the model's output space) to the user-facing class ids stored in the task
+        checkpoint, via :attr:`ObjectDetectionPostprocessor.internal_class_to_class`.
+
+        Args:
+            mapping:
+                Shape ``(num_classes,)``, ``int64``. ``mapping[i]`` is the
+                user-facing class id for internal class ``i``.
         """
         return type(self)(
             labels=mapping[self.labels], bboxes=self.bboxes, scores=self.scores
@@ -176,7 +183,16 @@ class ObjectDetectionPrediction(RowIndexableOutput):
 
     @classmethod
     def concat(cls, predictions: Sequence[ObjectDetectionPrediction]) -> Self:
-        """Concatenate the detections of several predictions, in order."""
+        """Concatenate several single-image predictions into one.
+
+        Used to merge the global-view and tile detections of a tiled (SAHI) image
+        back into a single prediction, after they have already been filtered and
+        deduplicated. Detections are kept in the given order; nothing else is
+        deduplicated or sorted here.
+
+        Args:
+            predictions: Predictions to concatenate, all for the same image.
+        """
         return cls(
             labels=torch.cat([prediction.labels for prediction in predictions], dim=0),
             bboxes=torch.cat([prediction.bboxes for prediction in predictions], dim=0),
