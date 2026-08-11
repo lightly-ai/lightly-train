@@ -124,7 +124,7 @@ class ObjectDetectionPrediction(RowIndexableOutput):
             "labels": self.labels,
         }
 
-    def offset(self, xy: Tensor) -> Self:
+    def offset_boxes(self, xy: Tensor) -> Self:
         """Return a prediction with the boxes shifted by ``xy``.
 
         Args:
@@ -137,7 +137,7 @@ class ObjectDetectionPrediction(RowIndexableOutput):
             scores=self.scores,
         )
 
-    def nms(self, iou_threshold: float) -> Self:
+    def apply_nms(self, iou_threshold: float) -> Self:
         """Return the detections surviving class-aware non-maximum suppression.
 
         Suppression is class-aware so that a high-confidence detection cannot hide a
@@ -146,7 +146,7 @@ class ObjectDetectionPrediction(RowIndexableOutput):
         keep: Tensor = batched_nms(self.bboxes, self.scores, self.labels, iou_threshold)
         return self[keep]
 
-    def drop_overlapping(
+    def drop_overlapping_predictions(
         self, other: ObjectDetectionPrediction, iou_threshold: float
     ) -> Self:
         """Drop detections that overlap a same-label detection in ``other``.
@@ -276,9 +276,9 @@ class ObjectDetectionBatchPrediction(RowIndexableOutput):
         global_prediction = global_row[global_row.scores > threshold]
         tile_flat = self[1:].offset_rows(tiling.coordinates).flatten()
         tile_prediction = tile_flat[tile_flat.scores > threshold]
-        tile_prediction = tile_prediction.nms(
+        tile_prediction = tile_prediction.apply_nms(
             tiling.nms_iou_threshold
-        ).drop_overlapping(global_prediction, tiling.global_local_iou_threshold)
+        ).drop_overlapping_predictions(global_prediction, tiling.global_local_iou_threshold)
         return ObjectDetectionPrediction.concat([global_prediction, tile_prediction])
 
     def to_predictions(self) -> list[ObjectDetectionPrediction]:

@@ -231,7 +231,7 @@ class TestObjectDetectionPrediction:
     def test_offset__shifts_every_corner(self) -> None:
         prediction = _pred([1], [[0, 0, 10, 10]], [0.9])
 
-        shifted = prediction.offset(torch.tensor([5, 7]))
+        shifted = prediction.offset_boxes(torch.tensor([5, 7]))
 
         torch.testing.assert_close(
             shifted.bboxes, torch.tensor([[5.0, 7.0, 15.0, 17.0]])
@@ -244,7 +244,7 @@ class TestObjectDetectionPrediction:
     def test_offset__accepts_one_offset_per_detection(self) -> None:
         prediction = _pred([1, 2], [[0, 0, 10, 10], [0, 0, 10, 10]], [0.9, 0.8])
 
-        shifted = prediction.offset(torch.tensor([[5, 7], [1, 2]]))
+        shifted = prediction.offset_boxes(torch.tensor([[5, 7], [1, 2]]))
 
         torch.testing.assert_close(
             shifted.bboxes,
@@ -258,7 +258,7 @@ class TestObjectDetectionPrediction:
             [0.8, 0.9, 0.7],
         )
 
-        kept = prediction.nms(0.5)
+        kept = prediction.apply_nms(0.5)
 
         # Highest score first, as batched_nms orders its output by score.
         torch.testing.assert_close(kept.labels, torch.tensor([1, 2]))
@@ -270,14 +270,14 @@ class TestObjectDetectionPrediction:
         # detection of another class.
         prediction = _pred([1, 2], [[0, 0, 10, 10], [1, 1, 11, 11]], [0.9, 0.8])
 
-        kept = prediction.nms(0.5)
+        kept = prediction.apply_nms(0.5)
 
         torch.testing.assert_close(kept.labels, torch.tensor([1, 2]))
         torch.testing.assert_close(kept.bboxes, prediction.bboxes)
         torch.testing.assert_close(kept.scores, torch.tensor([0.9, 0.8]))
 
     def test_nms__handles_empty(self) -> None:
-        kept = _pred([], [], []).nms(0.5)
+        kept = _pred([], [], []).apply_nms(0.5)
 
         assert kept.num_detections == 0
         assert kept.bboxes.shape == (0, 4)
@@ -291,7 +291,7 @@ class TestObjectDetectionPrediction:
             [0.9, 0.7, 0.6],
         )
 
-        kept = prediction.drop_overlapping(other, 0.5)
+        kept = prediction.drop_overlapping_predictions(other, 0.5)
 
         # Index 0 overlaps a same-label box and goes; index 1 has a different label
         # and index 2 does not overlap, so both stay.
@@ -313,7 +313,7 @@ class TestObjectDetectionPrediction:
         )
         prediction = _pred([1], [[1, 1, 9, 9]], [0.7])
 
-        kept = prediction.drop_overlapping(other, 0.5)
+        kept = prediction.drop_overlapping_predictions(other, 0.5)
 
         assert kept.num_detections == 0
 
@@ -321,8 +321,8 @@ class TestObjectDetectionPrediction:
         empty = _pred([], [], [])
         full = _pred([1], [[0, 0, 10, 10]], [0.9])
 
-        assert empty.drop_overlapping(full, 0.1).num_detections == 0
-        assert full.drop_overlapping(empty, 0.1).num_detections == 1
+        assert empty.drop_overlapping_predictions(full, 0.1).num_detections == 0
+        assert full.drop_overlapping_predictions(empty, 0.1).num_detections == 1
 
     def test_map_labels__looks_labels_up(self) -> None:
         prediction = _pred([0, 2, 0], [[0, 0, 1, 1]] * 3, [0.9, 0.8, 0.7])
