@@ -24,10 +24,16 @@ from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     MultiScaleFeatureViT,
+    SupportsActivationCheckpointing,
 )
 
 
-class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettable):
+class DINOv2ViTModelWrapper(
+    Module,
+    MultiScaleFeatureViT,
+    ArchitectureInfoGettable,
+    SupportsActivationCheckpointing,
+):
     _input_mean: Tensor
     _input_std: Tensor
 
@@ -45,6 +51,12 @@ class DINOv2ViTModelWrapper(Module, MultiScaleFeatureViT, ArchitectureInfoGettab
             torch.tensor(IMAGENET_NORMALIZE["std"]).view(1, -1, 1, 1),
             persistent=False,
         )
+
+    def set_activation_checkpointing(
+        self, enabled: bool, every_n_blocks: int = 1
+    ) -> None:
+        self._model._activation_checkpointing = enabled
+        self._model._activation_checkpointing_every_n_blocks = every_n_blocks
 
     def feature_dim(self) -> int:
         return self._feature_dim
