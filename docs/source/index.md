@@ -191,7 +191,7 @@ See the full [quick start guide](quick-start-object-detection) for more details.
   including [multi-GPU](https://docs.lightly.ai/train/stable/performance/multi_gpu.html)
   and [multi-node](https://docs.lightly.ai/train/stable/performance/multi_node.html)
   support
-- [Monitor training progress](https://docs.lightly.ai/train/stable/pretrain_distill.html#logging)
+- [Monitor training progress](https://docs.lightly.ai/train/stable/pretrain_distill/index.html#logging)
   with MLflow, TensorBoard, Weights & Biases, and more
 - Runs fully on-premises with no API authentication
 - Export models in their native format for fine-tuning or inference
