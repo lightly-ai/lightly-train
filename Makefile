@@ -132,18 +132,16 @@ add-header:
 	# Apply the Apache 2.0 license header to RT-DETR derived files
 	uv run --frozen licenseheaders -t dev_tools/rtdetr_licenseheader.tmpl \
 		-d src/lightly_train/_task_models/object_detection_components/ \
-		-x src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
-		   src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
+		-x src/lightly_train/_task_models/object_detection_components/dfine_decoder.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_utils.py \
 		   src/lightly_train/_task_models/object_detection_components/dfine_criterion.py \
 		   src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
 		   src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 
-	# Apply Lightly's header to tiling_utils.py and LT-DETR files
+	# Apply Lightly's header LT-DETR files
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl \
-		-f src/lightly_train/_task_models/object_detection_components/tiling_utils.py \
-		src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
+		-f src/lightly_train/_task_models/object_detection_components/ltdetr_schedule.py \
 		src/lightly_train/_task_models/object_detection_components/ltdetr_geometry.py \
 		-E py
 

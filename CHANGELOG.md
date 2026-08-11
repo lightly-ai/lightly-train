@@ -41,21 +41,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` now use
   the same graph contract as LT-DETR. The outputs change from
   `["labels", "boxes", "scores"]` to `["logits", "boxes"]`, where `logits` are raw
-  pre-sigmoid class scores of shape `(batch_size, num_anchors, num_classes)` and
-  `boxes` are normalized `cxcywh` boxes of shape `(batch_size, num_anchors, 4)`
-  relative to the model input — previously boxes were `xyxy` in model-input pixels.
-  The dynamic batch dimension is renamed from `"N"` to `"batch_size"`. Class-id
-  remapping, argmax/top-k selection, score thresholding, and rescaling to original
-  image coordinates are no longer part of the graph; use `model.postprocess(...)` or
-  replicate `decode_object_detection_output` in your deployment code. The NMS-free
-  o2o peak filter remains inside the graph. Existing exported PicoDet ONNX/TensorRT
-  artifacts must be re-exported and their postprocessing updated. The export now goes
-  through the shared TorchDynamo pipeline, which requires `torch>=2.6`.
-- **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` no
-  longer accept `precision="auto"`. Use `"fp32"` (the new default) or `"fp16"`.
+  pre-sigmoid class scores of shape `(batch_size, num_anchors, num_classes)` and `boxes`
+  are normalized `cxcywh` boxes of shape `(batch_size, num_anchors, 4)` relative to the
+  model input — previously boxes were `xyxy` in model-input pixels. The dynamic batch
+  dimension is renamed from `"N"` to `"batch_size"`. Class-id remapping, argmax/top-k
+  selection, score thresholding, and rescaling to original image coordinates are no
+  longer part of the graph; use `model.postprocess(...)` or replicate
+  `decode_object_detection_output` in your deployment code. The NMS-free o2o peak filter
+  remains inside the graph. Existing exported PicoDet ONNX/TensorRT artifacts must be
+  re-exported and their postprocessing updated. The export now goes through the shared
+  TorchDynamo pipeline, which requires `torch>=2.6`.
+- **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` no longer
+  accept `precision="auto"`. Use `"fp32"` (the new default) or `"fp16"`.
 - Exported PicoDet ONNX models now carry the same metadata as other task models
-  (`lightly_train_version`, `license_info`, `image_normalize`, `classes`,
-  `model_name`) instead of only `classes`.
+  (`lightly_train_version`, `license_info`, `image_normalize`, `classes`, `model_name`)
+  instead of only `classes`.
 - `PicoDetObjectDetection.predict()` now returns at most `max_detections` (default
   `100`) detections instead of one per anchor (3598 for `picodet-s-coco`), keeps
   detections with `score > threshold` instead of `score >= threshold`, and can return
@@ -63,9 +63,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pairs. It is now implemented via `predict_batch()` and shares the postprocessor with
   LT-DETR.
 - PicoDet training and validation detection metrics are now computed in original-image
-  pixel coordinates instead of model-input pixels, matching LT-DETR and the
-  coordinates `predict()` returns. Absolute-area metrics (`map_small`, `map_medium`,
-  `map_large`) therefore change for an otherwise identical model.
+  pixel coordinates instead of model-input pixels, matching LT-DETR and the coordinates
+  `predict()` returns. Absolute-area metrics (`map_small`, `map_medium`, `map_large`)
+  therefore change for an otherwise identical model.
 
 ### Deprecated
 
