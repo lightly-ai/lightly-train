@@ -740,6 +740,12 @@ preprocess an image and interpret the outputs straight from the file with `onnx`
 `onnxruntime`, and run inference without installing LightlyTrain. The Colab notebook
 below demonstrates this.
 
+Object detection graphs return two outputs: `logits`, the raw pre-sigmoid class scores
+of shape `(batch_size, num_predictions, num_classes)`, and `boxes`, normalized `cxcywh`
+boxes of shape `(batch_size, num_predictions, 4)` relative to the model input. Top-k
+selection, score thresholding, and rescaling to original image coordinates run outside
+the graph.
+
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
 

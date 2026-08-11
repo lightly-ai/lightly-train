@@ -16,6 +16,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   AMD GPUs.
 - Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
   available from PyPI.
+- Add `predict_batch()`, `predict_sahi()`, and `predict_sahi_batch()` to
+  `PicoDetObjectDetection`, matching `LTDETRObjectDetection`.
 
 ### Changed
 
@@ -36,6 +38,34 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `results[[0, 2]]`. Note that `len(results)` still returns the number of fields and
   iterating still yields field names, because predictions also behave like a `Mapping`.
   Use `results.num_detections` to count detections.
+- **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` now use
+  the same graph contract as LT-DETR. The outputs change from
+  `["labels", "boxes", "scores"]` to `["logits", "boxes"]`, where `logits` are raw
+  pre-sigmoid class scores of shape `(batch_size, num_anchors, num_classes)` and
+  `boxes` are normalized `cxcywh` boxes of shape `(batch_size, num_anchors, 4)`
+  relative to the model input — previously boxes were `xyxy` in model-input pixels.
+  The dynamic batch dimension is renamed from `"N"` to `"batch_size"`. Class-id
+  remapping, argmax/top-k selection, score thresholding, and rescaling to original
+  image coordinates are no longer part of the graph; use `model.postprocess(...)` or
+  replicate `decode_object_detection_output` in your deployment code. The NMS-free
+  o2o peak filter remains inside the graph. Existing exported PicoDet ONNX/TensorRT
+  artifacts must be re-exported and their postprocessing updated. The export now goes
+  through the shared TorchDynamo pipeline, which requires `torch>=2.6`.
+- **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` no
+  longer accept `precision="auto"`. Use `"fp32"` (the new default) or `"fp16"`.
+- Exported PicoDet ONNX models now carry the same metadata as other task models
+  (`lightly_train_version`, `license_info`, `image_normalize`, `classes`,
+  `model_name`) instead of only `classes`.
+- `PicoDetObjectDetection.predict()` now returns at most `max_detections` (default
+  `100`) detections instead of one per anchor (3598 for `picodet-s-coco`), keeps
+  detections with `score > threshold` instead of `score >= threshold`, and can return
+  several classes for the same anchor because the top-k runs over `(anchor, class)`
+  pairs. It is now implemented via `predict_batch()` and shares the postprocessor with
+  LT-DETR.
+- PicoDet training and validation detection metrics are now computed in original-image
+  pixel coordinates instead of model-input pixels, matching LT-DETR and the
+  coordinates `predict()` returns. Absolute-area metrics (`map_small`, `map_medium`,
+  `map_large`) therefore change for an otherwise identical model.
 
 ### Deprecated
 
@@ -43,6 +73,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix `PicoDetObjectDetection.export_tensorrt(precision="fp16")` exporting the
+  intermediate ONNX model in FP32. The FP16 engine was built from an FP32 graph.
+- Fix PicoDet models not being switched to eval mode by the Torch backend of
+  `benchmark_object_detection()`, which left batch norm in training mode and made the
+  reported PicoDet numbers wrong.
 - Use class-aware non-maximum suppression when merging tile predictions in
   `predict_sahi()` and `predict_sahi_batch()`. Previously a high-confidence detection
   could suppress an overlapping detection of a different class, so SAHI may now return

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +25,9 @@ from lightly_train._commands.benchmark_types import (
 )
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
+    ObjectDetectionOutput,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
-    rescale_predictions_to_original_size,
 )
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import ObjectDetectionBatch
@@ -36,6 +37,27 @@ def _get_preprocessor(model: TaskModel) -> ObjectDetectionPreprocessor:
     preprocessor = model.preprocessor  # type: ignore[union-attr]
     assert isinstance(preprocessor, ObjectDetectionPreprocessor)
     return preprocessor
+
+
+def _object_detection_output(outputs: Mapping[str, Tensor]) -> ObjectDetectionOutput:
+    """Build the typed raw output from an exported graph's named outputs.
+
+    Exported object detection graphs name their outputs after the fields of
+    ``ObjectDetectionOutput``, so the backends can hand the task model a typed
+    output instead of a decoder-specific mapping.
+    """
+    missing = sorted({"logits", "boxes"} - set(outputs))
+    if missing:
+        raise RuntimeError(
+            f"Exported model is missing the output(s) {missing}. Expected an object "
+            f"detection graph emitting 'logits' and 'boxes', but got "
+            f"{sorted(outputs)}."
+        )
+    # Upcast fp16 graph outputs so the decode runs in fp32 regardless of the export
+    # precision.
+    return ObjectDetectionOutput(
+        logits=outputs["logits"].float(), boxes=outputs["boxes"].float()
+    )
 
 
 class ObjectDetectionBackend(ABC):
@@ -62,10 +84,10 @@ class TorchBackend(ObjectDetectionBackend):
         self.threshold = threshold
         self.preprocessor = _get_preprocessor(model)
 
-        if hasattr(self.model, "deploy"):
-            self.model.deploy()  # type: ignore[operator]
-        else:
-            self.model.eval()
+        # TaskModel.deploy() defaults to a no-op that does not leave training mode,
+        # so eval() has to be explicit.
+        self.model.eval()
+        self.model.deploy()
 
         if backend_args.compile:
             self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
@@ -207,7 +229,6 @@ class ONNXBackend(ObjectDetectionBackend):
         images = self.preprocessor.preprocess_batch(batch["image"])
         if self.precision == "fp16":
             images = images.half()
-        _, _, model_h, model_w = images.shape
         input_feed = {self.input_name: images.cpu().numpy()}
         metadata = [
             ObjectDetectionMetadata(orig_w=w, orig_h=h)
@@ -222,38 +243,15 @@ class ONNXBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # postprocess
-        outputs = dict(zip(self.output_names, raw_outputs))
-        results: list[ObjectDetectionPrediction]
-        if "logits" in outputs:
-            results = self.model.postprocess(
-                raw_outputs={
-                    "pred_logits": torch.from_numpy(outputs["logits"]),
-                    "pred_boxes": torch.from_numpy(outputs["boxes"]),
-                },
-                metadata=metadata,
-                threshold=self.threshold,
-            )
-            return results, time_predict
-        predictions = [
-            ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
-            for labels, boxes, scores in zip(
-                torch.from_numpy(outputs["labels"]),
-                torch.from_numpy(outputs["boxes"]),
-                torch.from_numpy(outputs["scores"]),
-            )
-        ]
-
-        # The ONNX forward() rescales boxes to the model input size when
-        # orig_target_size is not provided. Rescale to original image
-        # coordinates.
-        predictions = rescale_predictions_to_original_size(
-            predictions=predictions,
+        outputs = {
+            name: torch.from_numpy(value)
+            for name, value in zip(self.output_names, raw_outputs)
+        }
+        results: list[ObjectDetectionPrediction] = self.model.postprocess(
+            raw_outputs=_object_detection_output(outputs),
             metadata=metadata,
-            model_size=(model_h, model_w),
+            threshold=self.threshold,
         )
-        results = [
-            prediction[prediction.scores > self.threshold] for prediction in predictions
-        ]
         return results, time_predict
 
 
@@ -337,7 +335,6 @@ class TensorRTBackend(ObjectDetectionBackend):
             ObjectDetectionMetadata(orig_w=w, orig_h=h)
             for w, h in batch["original_size"]
         ]
-        _, _, model_h, model_w = images.shape
         if self.precision == "fp16":
             images = images.half()
         images = images.to(device=self.device).contiguous()
@@ -367,32 +364,9 @@ class TensorRTBackend(ObjectDetectionBackend):
         time_predict = time.perf_counter() - start_predict
 
         # Postprocess.
-        results: list[ObjectDetectionPrediction]
-        if "logits" in outputs:
-            results = self.model.postprocess(
-                raw_outputs={
-                    "pred_logits": outputs["logits"],
-                    "pred_boxes": outputs["boxes"],
-                },
-                metadata=metadata,
-                threshold=self.threshold,
-            )
-            return results, time_predict
-        predictions = [
-            ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
-            for labels, boxes, scores in zip(
-                outputs["labels"].cpu(),
-                outputs["boxes"].cpu(),
-                outputs["scores"].cpu(),
-            )
-        ]
-
-        predictions = rescale_predictions_to_original_size(
-            predictions=predictions,
+        results: list[ObjectDetectionPrediction] = self.model.postprocess(
+            raw_outputs=_object_detection_output(outputs),
             metadata=metadata,
-            model_size=(model_h, model_w),
+            threshold=self.threshold,
         )
-        results = [
-            prediction[prediction.scores > self.threshold] for prediction in predictions
-        ]
         return results, time_predict

@@ -148,43 +148,6 @@ def decode_object_detection_output(
     ]
 
 
-def rescale_predictions_to_original_size(
-    *,
-    predictions: Sequence[ObjectDetectionPrediction],
-    metadata: Sequence[ObjectDetectionMetadata],
-    model_size: tuple[int, int],
-) -> list[ObjectDetectionPrediction]:
-    """Rescale ``xyxy`` boxes from model input to original image coordinates.
-
-    Use this for models (or exported graphs) that emit boxes in model-input
-    coordinates. Decoders that already scale by ``target_sizes``, such as
-    :func:`decode_object_detection_output`, return original-image coordinates and
-    must not be rescaled again.
-
-    Args:
-        predictions: One prediction per image, with boxes in model-input coordinates.
-        metadata: Per-image metadata as returned by the preprocessor.
-        model_size: ``(height, width)`` of the model input the boxes refer to.
-
-    Returns:
-        A new list with one rescaled prediction per image.
-    """
-    model_h, model_w = model_size
-    results: list[ObjectDetectionPrediction] = []
-    for prediction, item_metadata in zip(predictions, metadata):
-        scale_w = item_metadata.orig_w / model_w
-        scale_h = item_metadata.orig_h / model_h
-        scale = prediction.bboxes.new_tensor([scale_w, scale_h, scale_w, scale_h])
-        results.append(
-            ObjectDetectionPrediction(
-                labels=prediction.labels,
-                bboxes=prediction.bboxes * scale,
-                scores=prediction.scores,
-            )
-        )
-    return results
-
-
 def yolo_to_xyxy(batch_boxes: Sequence[Tensor]) -> list[Tensor]:
     """Convert boxes from normalized ``cxcywh`` to normalized ``xyxy``.
 

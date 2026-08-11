@@ -18,7 +18,6 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionPreprocessor,
     ObjectDetectionSahiConfig,
     combine_object_detection_tiles,
-    rescale_predictions_to_original_size,
     targets_to_torchmetrics,
     yolo_to_xyxy,
 )
@@ -507,46 +506,6 @@ def test_yolo_to_xyxy_accepts_two_boxes() -> None:
         dtype=torch.float32,
     )
     torch.testing.assert_close(converted[0], expected)
-
-
-def test_rescale_predictions_to_original_size() -> None:
-    predictions = [
-        ObjectDetectionPrediction(
-            labels=torch.tensor([1]),
-            bboxes=torch.tensor([[10.0, 20.0, 30.0, 40.0]]),
-            scores=torch.tensor([0.9]),
-        )
-    ]
-    metadata = [ObjectDetectionMetadata(orig_h=320, orig_w=1280)]
-
-    rescaled = rescale_predictions_to_original_size(
-        predictions=predictions, metadata=metadata, model_size=(640, 640)
-    )
-
-    # x scales by 1280/640 = 2, y scales by 320/640 = 0.5.
-    torch.testing.assert_close(
-        rescaled[0].bboxes, torch.tensor([[20.0, 10.0, 60.0, 20.0]])
-    )
-    # Labels and scores are carried through untouched.
-    torch.testing.assert_close(rescaled[0].labels, predictions[0].labels)
-    torch.testing.assert_close(rescaled[0].scores, predictions[0].scores)
-
-
-def test_rescale_predictions_to_original_size__does_not_mutate_input() -> None:
-    bboxes = torch.tensor([[10.0, 20.0, 30.0, 40.0]])
-    predictions = [
-        ObjectDetectionPrediction(
-            labels=torch.tensor([1]), bboxes=bboxes, scores=torch.tensor([0.9])
-        )
-    ]
-
-    rescale_predictions_to_original_size(
-        predictions=predictions,
-        metadata=[ObjectDetectionMetadata(orig_h=320, orig_w=1280)],
-        model_size=(640, 640),
-    )
-
-    torch.testing.assert_close(bboxes, torch.tensor([[10.0, 20.0, 30.0, 40.0]]))
 
 
 def test_targets_to_torchmetrics() -> None:

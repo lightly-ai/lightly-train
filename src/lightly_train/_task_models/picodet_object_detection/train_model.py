@@ -31,7 +31,10 @@ from lightly_train._metrics.detection.task_metric import (
 )
 from lightly_train._optim import optimizer_helpers
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionOutput,
+    decode_object_detection_output,
     denormalize_xyxy_boxes,
+    targets_to_torchmetrics,
     yolo_to_xyxy,
 )
 from lightly_train._task_models.object_detection_components.ema import ModelEMA
@@ -70,6 +73,23 @@ from lightly_train._task_models.train_model import (
 from lightly_train._torch_compile import TorchCompileArgs
 from lightly_train._visualize import object_detection
 from lightly_train.types import ObjectDetectionBatch, PathLike
+
+
+def _decode_predictions_for_metrics(
+    outputs: ObjectDetectionOutput,
+    orig_target_sizes: Tensor,
+    num_top_queries: int,
+    internal_class_to_class: Tensor,
+) -> list[dict[str, Tensor]]:
+    """Decode raw model outputs the same way inference does, for metrics."""
+    predictions = decode_object_detection_output(
+        logits=outputs.logits,
+        boxes=outputs.boxes,
+        target_sizes=orig_target_sizes,
+        num_top_queries=num_top_queries,
+        internal_class_to_class=internal_class_to_class,
+    )
+    return [prediction.to_torchmetrics() for prediction in predictions]
 
 
 class PicoDetObjectDetectionTrainArgs(TrainModelArgs):
@@ -179,6 +199,31 @@ class PicoDetObjectDetectionTrain(TrainModel):
         self.giou_loss = GIoULoss()
 
         self.integral = Integral(self.reg_max)
+
+        # The dense (one-to-many) head is a training-only branch: it is not part of
+        # the inference or export path, so its NMS-based decoder lives here rather
+        # than on the task model. PicoDetPostProcessor holds no persistent state, so
+        # registering it as a submodule adds no keys to state_dict() while still
+        # following the parent module's .to(device).
+        self.dense_postprocessor = PicoDetPostProcessor(
+            num_classes=num_classes,
+            reg_max=self.reg_max,
+            strides=self.strides,
+            score_threshold=self.model.score_threshold,
+            iou_threshold=self.model.iou_threshold,
+            max_detections=self.model.max_detections,
+        )
+
+        # Ground truth labels in batch["classes"] are already internal, contiguous
+        # class ids (see YOLOObjectDetectionDatasetArgs.list_image_info), and the
+        # metric indexes class_names by that internal id. The decoder must therefore
+        # NOT remap predictions to user-facing class ids when computing metrics.
+        self.metric_class_mapping: Tensor
+        self.register_buffer(
+            "metric_class_mapping",
+            torch.arange(num_classes, dtype=torch.long),
+            persistent=False,
+        )
 
         self.assigner = SimOTAAssigner(
             center_radius=model_args.simota_center_radius,
@@ -294,40 +339,34 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
         if self.metric_args.train:
             device = images.device
-            postprocessor = self.model.postprocessor
-            assert isinstance(postprocessor, PicoDetPostProcessor)
-            predictions = postprocessor.forward_batch(
-                cls_scores=cls_scores_list,
-                bbox_preds=bbox_preds_list,
-                original_sizes=torch.tensor(
-                    [[img_h, img_w]] * batch_size, device=device
-                ),
-                score_threshold=0.001,
+            orig_target_sizes = batch["original_size"]
+            with torch.no_grad():
+                predictions = self.dense_postprocessor.forward_batch(
+                    cls_scores=cls_scores_list,
+                    bbox_preds=bbox_preds_list,
+                    # ObjectDetectionBatch stores (width, height) but the decoder
+                    # takes (height, width).
+                    original_sizes=torch.tensor(
+                        [[height, width] for width, height in orig_target_sizes],
+                        device=device,
+                    ),
+                    score_threshold=0.001,
+                )
+            preds = [
+                {
+                    "boxes": prediction["bboxes"],
+                    "scores": prediction["scores"],
+                    "labels": prediction["labels"],
+                }
+                for prediction in predictions
+            ]
+            # Metrics use xyxy boxes in original-image pixels, matching the decoded
+            # predictions and the coordinates predict() returns.
+            targets = targets_to_torchmetrics(
+                bboxes=gt_bboxes_yolo,
+                classes=gt_labels_list,
+                original_sizes=orig_target_sizes,
             )
-
-            preds = []
-            targets = []
-
-            for i in range(batch_size):
-                pred_boxes = predictions[i]["bboxes"].detach()
-                pred_scores = predictions[i]["scores"].detach()
-                pred_labels = predictions[i]["labels"].detach()
-                gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
-                gt_labels_i = gt_labels_list[i].to(device).long().detach()
-
-                preds.append(
-                    {
-                        "boxes": pred_boxes,
-                        "scores": pred_scores,
-                        "labels": pred_labels,
-                    }
-                )
-                targets.append(
-                    {
-                        "boxes": gt_boxes,
-                        "labels": gt_labels_i,
-                    }
-                )
             self.train_metrics.update_with_predictions(preds, targets)
 
         return TaskStepResult(
@@ -400,48 +439,27 @@ class PicoDetObjectDetectionTrain(TrainModel):
         )
         total_loss = o2o_loss + 0.5 * dense_loss
 
-        boxes_xyxy, cls_logits = ema_model._decode_o2o_predictions(
+        # Decode the o2o head exactly the way inference does, so validation metrics
+        # measure the deployed prediction path.
+        raw = ema_model.decode_o2o_outputs(
             cls_scores_list=o2o_cls_scores,
             bbox_preds_list=o2o_bbox_preds,
-            image_size=(img_h, img_w),
             input_size=(int(img_h), int(img_w)),
         )
-        cls_labels = cls_logits.argmax(dim=-1)
-        cls_scores = cls_logits.gather(2, cls_labels.unsqueeze(-1)).squeeze(-1)
-        scores = torch.sigmoid(cls_scores)
-
-        preds = []
-        targets = []
-        max_detections = int(ema_model.postprocessor.max_detections)
-
-        for i in range(batch_size):
-            pred_boxes = boxes_xyxy[i].detach()
-            pred_scores = scores[i].detach()
-            pred_labels = cls_labels[i].detach()
-            gt_boxes = gt_boxes_xyxy_list[i].to(device).detach()
-            gt_labels_i = gt_labels_list[i].to(device).long().detach()
-
-            if pred_scores.numel() > max_detections:
-                topk_scores, topk_idx = torch.topk(
-                    pred_scores, k=max_detections, largest=True
-                )
-                pred_boxes = pred_boxes[topk_idx]
-                pred_labels = pred_labels[topk_idx]
-                pred_scores = topk_scores
-
-            preds.append(
-                {
-                    "boxes": pred_boxes,
-                    "scores": pred_scores,
-                    "labels": pred_labels,
-                }
-            )
-            targets.append(
-                {
-                    "boxes": gt_boxes,
-                    "labels": gt_labels_i,
-                }
-            )
+        orig_target_sizes = batch["original_size"]
+        results = _decode_predictions_for_metrics(
+            outputs=raw,
+            orig_target_sizes=torch.tensor(orig_target_sizes, device=device),
+            num_top_queries=ema_model.num_top_queries,
+            internal_class_to_class=self.metric_class_mapping,
+        )
+        # Metrics use xyxy boxes in original-image pixels, matching the decoded
+        # predictions and the coordinates predict() returns.
+        targets = targets_to_torchmetrics(
+            bboxes=gt_bboxes_yolo,
+            classes=gt_labels_list,
+            original_sizes=orig_target_sizes,
+        )
 
         self.val_metrics.update_with_losses(
             {
@@ -452,29 +470,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             },
             weight=images.shape[0],
         )
-        self.val_metrics.update_with_predictions(preds, targets)
-
-        # TODO(Nauryz, 05/2026): The visualization expects boxes in original image
-        # coordinates, so we rescale here. A better alternative should be
-        # implemented in the future so this rescaling can be removed.
-        viz_results: list[dict[str, Tensor]] = []
-        for i in range(batch_size):
-            orig_w, orig_h = batch["original_size"][i]
-            scale = preds[i]["boxes"].new_tensor(
-                [
-                    orig_w / img_w,
-                    orig_h / img_h,
-                    orig_w / img_w,
-                    orig_h / img_h,
-                ]
-            )
-            viz_results.append(
-                {
-                    "boxes": preds[i]["boxes"] * scale,
-                    "scores": preds[i]["scores"],
-                    "labels": preds[i]["labels"],
-                }
-            )
+        self.val_metrics.update_with_predictions(results, targets)
 
         return TaskStepResult(
             loss=total_loss,
@@ -482,7 +478,7 @@ class PicoDetObjectDetectionTrain(TrainModel):
             metrics=self.val_metrics,
             visualization=object_detection.ObjectDetectionTaskStepVisualization(
                 batch=batch,
-                results=viz_results,
+                results=results,
                 class_names=self.model.included_classes,
                 image_normalize=self.model.image_normalize,
                 score_threshold=self.viz_score_threshold,
