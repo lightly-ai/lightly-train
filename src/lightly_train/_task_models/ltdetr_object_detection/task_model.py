@@ -293,10 +293,8 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
             expected_input_channels=self._expected_input_channels,
         )
         self.postprocessor = ObjectDetectionPostprocessor(
-            num_classes=len(self.classes),
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
-            image_size=self.image_size,
         )
         self._deployed = False
 
@@ -589,10 +587,7 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         if self.training or not self.is_deploy_mode:
             self.deploy()
         return self.postprocessor.postprocess(
-            raw=self(batch),
-            metadata=metadata,
-            threshold=threshold,
-            sahi_config=sahi_config,
+            raw=self(batch), metadata=metadata, threshold=threshold
         )
 
     @torch.no_grad()

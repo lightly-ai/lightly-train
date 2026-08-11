@@ -12,12 +12,13 @@ import torch
 
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionBatchOutput,
+    ObjectDetectionBatchPrediction,
     ObjectDetectionMetadata,
     ObjectDetectionPostprocessor,
     ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
     ObjectDetectionSAHIConfig,
-    combine_object_detection_tiles,
+    ObjectDetectionTiling,
     targets_to_torchmetrics,
     yolo_to_xyxy,
 )
@@ -85,9 +86,18 @@ class TestObjectDetectionPreprocessor:
         assert batch.shape == (10, 3, 4, 6)
         assert metadata.orig_h == 8
         assert metadata.orig_w == 10
-        assert metadata.tile_coordinates is not None
-        assert metadata.tile_coordinates.shape == (9, 2)
+        assert metadata.tiling is not None
+        assert metadata.tiling.coordinates.shape == (9, 2)
+        assert metadata.tiling.num_tiles == 9
         assert metadata.num_rows == batch.shape[0]
+        # The merge settings are recorded on the metadata, so the postprocessor does
+        # not need the config again.
+        assert metadata.tiling.tile_size == (4, 6)
+        assert metadata.tiling.nms_iou_threshold == 0.3
+        assert metadata.tiling.global_local_iou_threshold == 0.1
+        # Row 0 is the global row and scales back to the original image, tile rows
+        # stay in tile coordinates.
+        assert metadata.row_sizes == [(10, 8)] + [(6, 4)] * 9
 
     def test_preprocess__stacks_images_and_returns_metadata_per_image(self) -> None:
         preprocessor = ObjectDetectionPreprocessor(
@@ -142,6 +152,31 @@ def _prediction() -> ObjectDetectionPrediction:
     )
 
 
+def _pred(
+    labels: list[int], bboxes: list[list[float]], scores: list[float]
+) -> ObjectDetectionPrediction:
+    return ObjectDetectionPrediction(
+        labels=torch.tensor(labels, dtype=torch.int64),
+        bboxes=torch.tensor(bboxes, dtype=torch.float32).reshape(-1, 4),
+        scores=torch.tensor(scores, dtype=torch.float32),
+    )
+
+
+def _batch_prediction(
+    *, num_rows: int, num_queries: int = 2
+) -> ObjectDetectionBatchPrediction:
+    """A dense batch prediction whose values identify their row and query."""
+    return ObjectDetectionBatchPrediction(
+        labels=torch.arange(num_rows * num_queries).reshape(num_rows, num_queries),
+        bboxes=torch.arange(num_rows * num_queries * 4, dtype=torch.float32).reshape(
+            num_rows, num_queries, 4
+        ),
+        scores=torch.linspace(0.1, 0.9, num_rows * num_queries).reshape(
+            num_rows, num_queries
+        ),
+    )
+
+
 class TestObjectDetectionPrediction:
     def test_getitem__filters_by_score(self) -> None:
         prediction = _prediction()
@@ -193,13 +228,159 @@ class TestObjectDetectionPrediction:
         assert converted["boxes"] is prediction.bboxes
         torch.testing.assert_close(converted["labels"], torch.tensor([17, 17]))
 
+    def test_filter_by_score__drops_detections_at_or_below_threshold(self) -> None:
+        # The threshold is exclusive: a detection scoring exactly the threshold goes.
+        prediction = _pred([1, 2, 3], [[0, 0, 1, 1]] * 3, [0.9, 0.5, 0.4])
+
+        kept = prediction.filter_by_score(0.5)
+
+        torch.testing.assert_close(kept.labels, torch.tensor([1]))
+
+    def test_offset__shifts_every_corner(self) -> None:
+        prediction = _pred([1], [[0, 0, 10, 10]], [0.9])
+
+        shifted = prediction.offset(torch.tensor([5, 7]))
+
+        torch.testing.assert_close(
+            shifted.bboxes, torch.tensor([[5.0, 7.0, 15.0, 17.0]])
+        )
+        # A copy, not a view: the original is untouched.
+        torch.testing.assert_close(
+            prediction.bboxes, torch.tensor([[0.0, 0.0, 10, 10]])
+        )
+
+    def test_offset__accepts_one_offset_per_detection(self) -> None:
+        prediction = _pred([1, 2], [[0, 0, 10, 10], [0, 0, 10, 10]], [0.9, 0.8])
+
+        shifted = prediction.offset(torch.tensor([[5, 7], [1, 2]]))
+
+        torch.testing.assert_close(
+            shifted.bboxes,
+            torch.tensor([[5.0, 7.0, 15.0, 17.0], [1.0, 2.0, 11.0, 12.0]]),
+        )
+
+    def test_nms__suppresses_overlapping_same_label(self) -> None:
+        prediction = _pred(
+            [1, 1, 2],
+            [[0, 0, 10, 10], [1, 1, 11, 11], [20, 20, 30, 30]],
+            [0.8, 0.9, 0.7],
+        )
+
+        kept = prediction.nms(0.5)
+
+        # Highest score first, as batched_nms orders its output by score.
+        torch.testing.assert_close(kept.labels, torch.tensor([1, 2]))
+        torch.testing.assert_close(kept.bboxes, prediction.bboxes[[1, 2]])
+        torch.testing.assert_close(kept.scores, torch.tensor([0.9, 0.7]))
+
+    def test_nms__keeps_overlapping_different_labels(self) -> None:
+        # Suppression is class-aware so a high-confidence detection cannot hide a
+        # detection of another class.
+        prediction = _pred([1, 2], [[0, 0, 10, 10], [1, 1, 11, 11]], [0.9, 0.8])
+
+        kept = prediction.nms(0.5)
+
+        torch.testing.assert_close(kept.labels, torch.tensor([1, 2]))
+        torch.testing.assert_close(kept.bboxes, prediction.bboxes)
+        torch.testing.assert_close(kept.scores, torch.tensor([0.9, 0.8]))
+
+    def test_nms__handles_empty(self) -> None:
+        kept = _pred([], [], []).nms(0.5)
+
+        assert kept.num_detections == 0
+        assert kept.bboxes.shape == (0, 4)
+        assert kept.labels.dtype == torch.int64
+
+    def test_drop_overlapping__drops_same_label_matches_only(self) -> None:
+        other = _pred([1], [[0, 0, 10, 10]], [0.8])
+        prediction = _pred(
+            [1, 2, 1],
+            [[1, 1, 9, 9], [1, 1, 9, 9], [20, 20, 30, 30]],
+            [0.9, 0.7, 0.6],
+        )
+
+        kept = prediction.drop_overlapping(other, 0.5)
+
+        # Index 0 overlaps a same-label box and goes; index 1 has a different label
+        # and index 2 does not overlap, so both stay.
+        torch.testing.assert_close(kept.labels, torch.tensor([2, 1]))
+        torch.testing.assert_close(kept.bboxes, prediction.bboxes[[1, 2]])
+        torch.testing.assert_close(kept.scores, torch.tensor([0.7, 0.6]))
+
+    def test_drop_overlapping__compares_labels_before_reducing(self) -> None:
+        # The detection overlaps a different-label box most strongly, but also
+        # overlaps a same-label box above the threshold. It must be dropped based on
+        # the same-label overlap, not on the single strongest (different-label) match.
+        other = _pred(
+            [2, 1],
+            [
+                [1, 1, 9, 9],  # different label, IoU == 1.0
+                [0, 0, 10, 10],  # same label, IoU == 0.64
+            ],
+            [0.9, 0.8],
+        )
+        prediction = _pred([1], [[1, 1, 9, 9]], [0.7])
+
+        kept = prediction.drop_overlapping(other, 0.5)
+
+        assert kept.num_detections == 0
+
+    def test_drop_overlapping__handles_empty(self) -> None:
+        empty = _pred([], [], [])
+        full = _pred([1], [[0, 0, 10, 10]], [0.9])
+
+        assert empty.drop_overlapping(full, 0.1).num_detections == 0
+        assert full.drop_overlapping(empty, 0.1).num_detections == 1
+
+    def test_map_labels__looks_labels_up(self) -> None:
+        prediction = _pred([0, 2, 0], [[0, 0, 1, 1]] * 3, [0.9, 0.8, 0.7])
+
+        remapped = prediction.map_labels(torch.tensor([10, 20, 30]))
+
+        torch.testing.assert_close(remapped.labels, torch.tensor([10, 30, 10]))
+        assert remapped.bboxes is prediction.bboxes
+
+    def test_concat__keeps_order_and_dtypes(self) -> None:
+        first = _pred([1], [[0, 0, 10, 10]], [0.8])
+        second = _pred([2, 3], [[20, 20, 30, 30], [40, 40, 50, 50]], [0.7, 0.9])
+
+        combined = ObjectDetectionPrediction.concat([first, second])
+
+        torch.testing.assert_close(combined.labels, torch.tensor([1, 2, 3]))
+        torch.testing.assert_close(combined.scores, torch.tensor([0.8, 0.7, 0.9]))
+        assert combined.bboxes.shape == (3, 4)
+
+    def test_concat__handles_empty(self) -> None:
+        empty = _pred([], [], [])
+
+        combined = ObjectDetectionPrediction.concat([empty, empty])
+
+        assert combined.labels.shape == (0,)
+        assert combined.bboxes.shape == (0, 4)
+        assert combined.scores.shape == (0,)
+        assert combined.labels.dtype == torch.int64
+        assert combined.bboxes.dtype == torch.float32
+        assert combined.scores.dtype == torch.float32
+
 
 def _postprocessor() -> ObjectDetectionPostprocessor:
     return ObjectDetectionPostprocessor(
-        num_classes=2,
-        num_top_queries=3,
-        internal_class_to_class=torch.tensor([10, 20]),
-        image_size=(20, 30),
+        num_top_queries=3, internal_class_to_class=torch.tensor([10, 20])
+    )
+
+
+def _tiling(
+    coordinates: torch.Tensor,
+    *,
+    tile_size: tuple[int, int] = (20, 30),
+    nms_iou_threshold: float = 0.3,
+    global_local_iou_threshold: float = 0.1,
+) -> ObjectDetectionTiling:
+    return ObjectDetectionTiling(
+        coordinates=coordinates,
+        tile_size=tile_size,
+        nms_iou_threshold=nms_iou_threshold,
+        global_local_iou_threshold=global_local_iou_threshold,
     )
 
 
@@ -233,10 +414,7 @@ class TestObjectDetectionPostprocessor:
 
     def test_postprocess_sahi__offsets_tiles(self) -> None:
         postprocessor = ObjectDetectionPostprocessor(
-            num_classes=1,
-            num_top_queries=1,
-            internal_class_to_class=torch.tensor([7]),
-            image_size=(10, 20),
+            num_top_queries=1, internal_class_to_class=torch.tensor([7])
         )
         output = postprocessor.postprocess(
             ObjectDetectionBatchOutput(
@@ -253,15 +431,12 @@ class TestObjectDetectionPostprocessor:
                 ObjectDetectionMetadata(
                     orig_w=100,
                     orig_h=50,
-                    tile_coordinates=torch.tensor([[5, 7], [30, 20]]),
+                    tiling=_tiling(
+                        torch.tensor([[5, 7], [30, 20]]), tile_size=(10, 20)
+                    ),
                 )
             ],
             threshold=0.5,
-            sahi_config=ObjectDetectionSAHIConfig(
-                overlap=0.2,
-                nms_iou_threshold=0.3,
-                global_local_iou_threshold=0.1,
-            ),
         )[0]
         torch.testing.assert_close(output.labels, torch.tensor([7, 7]))
         torch.testing.assert_close(
@@ -272,9 +447,6 @@ class TestObjectDetectionPostprocessor:
     def test_postprocess_sahi__handles_multiple_images(self) -> None:
         """SAHI predictions for a batch match postprocessing each image on its own."""
         postprocessor = _postprocessor()
-        sahi_config = ObjectDetectionSAHIConfig(
-            overlap=0.2, nms_iou_threshold=0.3, global_local_iou_threshold=0.1
-        )
         torch.manual_seed(0)
         # Two images with a different number of tiles: 2 and 3.
         raw = ObjectDetectionBatchOutput(
@@ -282,18 +454,16 @@ class TestObjectDetectionPostprocessor:
         )
         metadata = [
             ObjectDetectionMetadata(
-                orig_w=100, orig_h=50, tile_coordinates=torch.tensor([[0, 0], [30, 20]])
+                orig_w=100, orig_h=50, tiling=_tiling(torch.tensor([[0, 0], [30, 20]]))
             ),
             ObjectDetectionMetadata(
                 orig_w=64,
                 orig_h=64,
-                tile_coordinates=torch.tensor([[0, 0], [10, 0], [0, 10]]),
+                tiling=_tiling(torch.tensor([[0, 0], [10, 0], [0, 10]])),
             ),
         ]
 
-        predictions = postprocessor.postprocess(
-            raw, metadata, threshold=0.3, sahi_config=sahi_config
-        )
+        predictions = postprocessor.postprocess(raw, metadata, threshold=0.3)
 
         assert len(predictions) == 2
         start = 0
@@ -305,7 +475,6 @@ class TestObjectDetectionPostprocessor:
                 ),
                 [item],
                 threshold=0.3,
-                sahi_config=sahi_config,
             )[0]
             torch.testing.assert_close(prediction.labels, expected.labels)
             torch.testing.assert_close(prediction.bboxes, expected.bboxes)
@@ -366,9 +535,10 @@ class TestObjectDetectionPostprocessor:
         ]
 
         batch_prediction = postprocessor.postprocess_batch(raw, metadata)
+        num_rows = [item.num_rows for item in metadata]
         stagewise = [
             postprocessor.postprocess_image(item_prediction, item, threshold=0.4)
-            for item_prediction, item in zip(batch_prediction.split(metadata), metadata)
+            for item_prediction, item in zip(batch_prediction.split(num_rows), metadata)
         ]
         combined = postprocessor.postprocess(raw, metadata, threshold=0.4)
 
@@ -377,25 +547,26 @@ class TestObjectDetectionPostprocessor:
             torch.testing.assert_close(actual.bboxes, expected.bboxes)
             torch.testing.assert_close(actual.scores, expected.scores)
 
-    def test_postprocess_image__requires_sahi_config_for_tiled_metadata(self) -> None:
+    def test_postprocess__tiled_metadata_needs_no_extra_arguments(self) -> None:
+        # The metadata alone carries the merge settings, so the same call that handles
+        # untiled images handles tiled ones. This is what lets TaskModel.postprocess,
+        # which has no SAHI parameter, work with tiled metadata.
         postprocessor = _postprocessor()
         raw = ObjectDetectionBatchOutput(
             logits=torch.zeros(2, 3, 2), boxes=torch.rand(2, 3, 4)
         )
         metadata = ObjectDetectionMetadata(
-            orig_w=10, orig_h=10, tile_coordinates=torch.tensor([[0, 0]])
+            orig_w=10, orig_h=10, tiling=_tiling(torch.tensor([[0, 0]]))
         )
-        batch_prediction = postprocessor.postprocess_batch(raw, [metadata])
 
-        with pytest.raises(ValueError, match="no sahi_config"):
-            postprocessor.postprocess_image(batch_prediction, metadata, threshold=0.5)
+        prediction = postprocessor.postprocess(raw, [metadata], threshold=0.1)[0]
+
+        assert prediction.num_detections > 0
+        assert set(prediction.labels.tolist()) <= {10, 20}
 
     def test_postprocess__prediction_supports_mapping_protocol(self) -> None:
         postprocessor = ObjectDetectionPostprocessor(
-            num_classes=2,
-            num_top_queries=1,
-            internal_class_to_class=torch.tensor([10, 20]),
-            image_size=(20, 30),
+            num_top_queries=1, internal_class_to_class=torch.tensor([10, 20])
         )
         logits = torch.tensor([[[8.0, -8.0]]])
         boxes = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
@@ -413,205 +584,117 @@ class TestObjectDetectionPostprocessor:
         assert as_dict["scores"] is prediction.scores
 
 
-def test_combine_object_detection_tiles() -> None:
-    labels_global = torch.tensor([1])
-    boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])
-    scores_global = torch.tensor([0.8])
-    labels_tiles = torch.tensor([2, 3])
-    boxes_tiles = torch.tensor(
-        [
-            [20.0, 20.0, 30.0, 30.0],
-            [40.0, 40.0, 50.0, 50.0],
-        ]
-    )
-    scores_tiles = torch.tensor([0.7, 0.9])
+class TestObjectDetectionBatchPrediction:
+    def test_split__groups_consecutive_rows(self) -> None:
+        batch_prediction = _batch_prediction(num_rows=4)
 
-    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
-        pred_global={
-            "labels": labels_global,
-            "bboxes": boxes_global,
-            "scores": scores_global,
-        },
-        pred_tiles={
-            "labels": labels_tiles,
-            "bboxes": boxes_tiles,
-            "scores": scores_tiles,
-        },
-        nms_iou_threshold=0.5,
-        global_local_iou_threshold=0.1,
-    )
+        groups = batch_prediction.split([1, 3])
 
-    torch.testing.assert_close(labels_out, torch.tensor([1, 3, 2]))
-    torch.testing.assert_close(
-        boxes_out,
-        torch.tensor(
-            [
-                [0.0, 0.0, 10.0, 10.0],
-                [40.0, 40.0, 50.0, 50.0],
-                [20.0, 20.0, 30.0, 30.0],
-            ]
-        ),
-    )
-    torch.testing.assert_close(scores_out, torch.tensor([0.8, 0.9, 0.7]))
+        assert [group.num_rows for group in groups] == [1, 3]
+        torch.testing.assert_close(groups[1].labels, batch_prediction.labels[1:])
 
+    def test_getitem__selects_model_input_rows(self) -> None:
+        batch_prediction = _batch_prediction(num_rows=3)
 
-def test_combine_object_detection_tiles__suppresses_tile_nms() -> None:
-    labels_tiles = torch.tensor([1, 1, 2])
-    boxes_tiles = torch.tensor(
-        [
-            [0.0, 0.0, 10.0, 10.0],
-            [1.0, 1.0, 11.0, 11.0],
-            [20.0, 20.0, 30.0, 30.0],
-        ]
-    )
-    scores_tiles = torch.tensor([0.8, 0.9, 0.7])
+        tiles = batch_prediction[1:]
 
-    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
-        pred_global={
-            "labels": torch.empty(0, dtype=torch.long),
-            "bboxes": torch.empty(0, 4),
-            "scores": torch.empty(0),
-        },
-        pred_tiles={
-            "labels": labels_tiles,
-            "bboxes": boxes_tiles,
-            "scores": scores_tiles,
-        },
-        nms_iou_threshold=0.5,
-        global_local_iou_threshold=0.1,
-    )
+        assert tiles.num_rows == 2
+        assert tiles.bboxes.shape == (2, 2, 4)
 
-    torch.testing.assert_close(labels_out, torch.tensor([1, 2]))
-    torch.testing.assert_close(boxes_out, boxes_tiles[[1, 2]])
-    torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.7]))
+    def test_row__returns_a_flat_prediction(self) -> None:
+        batch_prediction = _batch_prediction(num_rows=3)
 
+        row = batch_prediction.row(0)
 
-def test_combine_object_detection_tiles__keeps_overlapping_different_labels() -> None:
-    boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 11.0, 11.0]])
-    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
-        pred_global={
-            "labels": torch.empty(0, dtype=torch.long),
-            "bboxes": torch.empty(0, 4),
-            "scores": torch.empty(0),
-        },
-        pred_tiles={
-            "labels": torch.tensor([1, 2]),
-            "bboxes": boxes,
-            "scores": torch.tensor([0.9, 0.8]),
-        },
-        nms_iou_threshold=0.5,
-        global_local_iou_threshold=0.1,
-    )
+        assert isinstance(row, ObjectDetectionPrediction)
+        assert row.num_detections == 2
+        torch.testing.assert_close(row.bboxes, batch_prediction.bboxes[0])
 
-    torch.testing.assert_close(labels_out, torch.tensor([1, 2]))
-    torch.testing.assert_close(boxes_out, boxes)
-    torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.8]))
+    def test_offset_rows__shifts_each_row_by_its_own_offset(self) -> None:
+        batch_prediction = ObjectDetectionBatchPrediction(
+            labels=torch.zeros(2, 1, dtype=torch.int64),
+            bboxes=torch.zeros(2, 1, 4),
+            scores=torch.zeros(2, 1),
+        )
 
+        shifted = batch_prediction.offset_rows(torch.tensor([[5, 7], [1, 2]]))
 
-def test_combine_object_detection_tiles__suppresses_same_label_global_overlap() -> None:
-    labels_global = torch.tensor([1])
-    boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])
-    scores_global = torch.tensor([0.8])
-    labels_tiles = torch.tensor([1, 2, 1])
-    boxes_tiles = torch.tensor(
-        [
-            [1.0, 1.0, 9.0, 9.0],
-            [1.0, 1.0, 9.0, 9.0],
-            [20.0, 20.0, 30.0, 30.0],
-        ]
-    )
-    scores_tiles = torch.tensor([0.9, 0.7, 0.6])
+        torch.testing.assert_close(
+            shifted.bboxes,
+            torch.tensor([[[5.0, 7.0, 5.0, 7.0]], [[1.0, 2.0, 1.0, 2.0]]]),
+        )
 
-    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
-        pred_global={
-            "labels": labels_global,
-            "bboxes": boxes_global,
-            "scores": scores_global,
-        },
-        pred_tiles={
-            "labels": labels_tiles,
-            "bboxes": boxes_tiles,
-            "scores": scores_tiles,
-        },
-        nms_iou_threshold=1.0,
-        global_local_iou_threshold=0.5,
-    )
+    def test_flatten__collapses_the_row_dimension(self) -> None:
+        batch_prediction = _batch_prediction(num_rows=3)
 
-    torch.testing.assert_close(labels_out, torch.tensor([1, 2, 1]))
-    torch.testing.assert_close(
-        boxes_out,
-        torch.tensor(
-            [
-                [0.0, 0.0, 10.0, 10.0],
-                [1.0, 1.0, 9.0, 9.0],
-                [20.0, 20.0, 30.0, 30.0],
-            ]
-        ),
-    )
-    torch.testing.assert_close(scores_out, torch.tensor([0.8, 0.7, 0.6]))
+        flat = batch_prediction.flatten()
 
+        assert flat.num_detections == 6
+        assert flat.bboxes.shape == (6, 4)
 
-def test_combine_object_detection_tiles__suppresses_lower_iou_same_label_global() -> (
-    None
-):
-    # The tile box overlaps a different-label global box most strongly, but also
-    # overlaps a same-label global box above the threshold. It must be suppressed
-    # based on the same-label overlap, not the single strongest (different-label)
-    # match.
-    labels_global = torch.tensor([2, 1])
-    boxes_global = torch.tensor(
-        [
-            [1.0, 1.0, 9.0, 9.0],  # different label, IoU == 1.0 with the tile box
-            [0.0, 0.0, 10.0, 10.0],  # same label, IoU == 0.64 with the tile box
-        ]
-    )
-    scores_global = torch.tensor([0.9, 0.8])
-    labels_tiles = torch.tensor([1])
-    boxes_tiles = torch.tensor([[1.0, 1.0, 9.0, 9.0]])
-    scores_tiles = torch.tensor([0.7])
+    def test_merge_tiles__offsets_filters_and_merges(self) -> None:
+        # Row 0 is the global view, rows 1: are tiles at (20, 20) and (40, 40). Each
+        # row holds one detection above and one below the threshold.
+        batch_prediction = ObjectDetectionBatchPrediction(
+            labels=torch.tensor([[1, 0], [2, 1], [3, 1]]),
+            bboxes=torch.tensor(
+                [
+                    [[0.0, 0.0, 10.0, 10.0], [0.0, 0.0, 1.0, 1.0]],
+                    [[0.0, 0.0, 10.0, 10.0], [0.0, 0.0, 1.0, 1.0]],
+                    [[0.0, 0.0, 10.0, 10.0], [0.0, 0.0, 1.0, 1.0]],
+                ]
+            ),
+            scores=torch.tensor([[0.8, 0.05], [0.7, 0.02], [0.9, 0.01]]),
+        )
 
-    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
-        pred_global={
-            "labels": labels_global,
-            "bboxes": boxes_global,
-            "scores": scores_global,
-        },
-        pred_tiles={
-            "labels": labels_tiles,
-            "bboxes": boxes_tiles,
-            "scores": scores_tiles,
-        },
-        nms_iou_threshold=0.5,
-        global_local_iou_threshold=0.5,
-    )
+        merged = batch_prediction.merge_tiles(
+            _tiling(torch.tensor([[20, 20], [40, 40]])), threshold=0.1
+        )
 
-    torch.testing.assert_close(labels_out, labels_global)
-    torch.testing.assert_close(boxes_out, boxes_global)
-    torch.testing.assert_close(scores_out, scores_global)
+        # Global first, then the surviving tile boxes in NMS (score) order, all in
+        # original-image coordinates.
+        torch.testing.assert_close(merged.labels, torch.tensor([1, 3, 2]))
+        torch.testing.assert_close(
+            merged.bboxes,
+            torch.tensor(
+                [
+                    [0.0, 0.0, 10.0, 10.0],
+                    [40.0, 40.0, 50.0, 50.0],
+                    [20.0, 20.0, 30.0, 30.0],
+                ]
+            ),
+        )
+        torch.testing.assert_close(merged.scores, torch.tensor([0.8, 0.9, 0.7]))
 
+    def test_merge_tiles__never_suppresses_global_boxes(self) -> None:
+        # The tile box duplicates the global box exactly. The tile copy is dropped and
+        # the global one is kept, even though it has the lower score.
+        batch_prediction = ObjectDetectionBatchPrediction(
+            labels=torch.tensor([[1], [1]]),
+            bboxes=torch.tensor([[[0.0, 0.0, 10.0, 10.0]], [[0.0, 0.0, 10.0, 10.0]]]),
+            scores=torch.tensor([[0.5], [0.9]]),
+        )
 
-def test_combine_object_detection_tiles__handles_empty_predictions() -> None:
-    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
-        pred_global={
-            "labels": torch.empty(0, dtype=torch.long),
-            "bboxes": torch.empty(0, 4),
-            "scores": torch.empty(0),
-        },
-        pred_tiles={
-            "labels": torch.empty(0, dtype=torch.long),
-            "bboxes": torch.empty(0, 4),
-            "scores": torch.empty(0),
-        },
-        nms_iou_threshold=0.5,
-        global_local_iou_threshold=0.1,
-    )
+        merged = batch_prediction.merge_tiles(
+            _tiling(torch.tensor([[0, 0]])), threshold=0.1
+        )
 
-    assert labels_out.shape == (0,)
-    assert boxes_out.shape == (0, 4)
-    assert scores_out.shape == (0,)
-    assert labels_out.dtype == torch.long
-    assert boxes_out.dtype == torch.float32
-    assert scores_out.dtype == torch.float32
+        torch.testing.assert_close(merged.labels, torch.tensor([1]))
+        torch.testing.assert_close(merged.scores, torch.tensor([0.5]))
+
+    def test_merge_tiles__handles_everything_filtered_out(self) -> None:
+        batch_prediction = ObjectDetectionBatchPrediction(
+            labels=torch.tensor([[1], [1]]),
+            bboxes=torch.zeros(2, 1, 4),
+            scores=torch.tensor([[0.01], [0.02]]),
+        )
+
+        merged = batch_prediction.merge_tiles(
+            _tiling(torch.tensor([[0, 0]])), threshold=0.1
+        )
+
+        assert merged.num_detections == 0
+        assert merged.bboxes.shape == (0, 4)
 
 
 def test_yolo_to_xyxy_accepts_1d_box() -> None:

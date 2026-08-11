@@ -185,10 +185,8 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             expected_input_channels=self._expected_input_channels,
         )
         self.postprocessor = ObjectDetectionPostprocessor(
-            num_classes=num_classes,
             num_top_queries=self.num_top_queries,
             internal_class_to_class=self.internal_class_to_class,
-            image_size=image_size,
         )
         self._deployed = False
 
@@ -614,10 +612,7 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
         if self.training or not self.is_deploy_mode:
             self.deploy()
         return self.postprocessor.postprocess(
-            raw=self(batch),
-            metadata=metadata,
-            threshold=threshold,
-            sahi_config=sahi_config,
+            raw=self(batch), metadata=metadata, threshold=threshold
         )
 
     def verify_onnx_export_outputs(

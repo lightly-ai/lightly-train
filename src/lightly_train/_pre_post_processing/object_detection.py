@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TypedDict, cast
 
@@ -18,9 +18,10 @@ from torch import Tensor
 from torch.nn import Module
 from torchvision.ops import batched_nms, box_convert, box_iou
 from torchvision.transforms.v2 import functional as transforms_functional
+from typing_extensions import Self
 
 from lightly_train._data import file_helpers
-from lightly_train._pre_post_processing import tiling
+from lightly_train._pre_post_processing.tiling import tile_image
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     RowIndexableOutput,
@@ -123,9 +124,72 @@ class ObjectDetectionPrediction(RowIndexableOutput):
             "labels": self.labels,
         }
 
+    def filter_by_score(self, threshold: float) -> Self:
+        """Return only the detections with a score strictly above ``threshold``."""
+        return self[self.scores > threshold]
+
+    def offset(self, xy: Tensor) -> Self:
+        """Return a prediction with the boxes shifted by ``xy``.
+
+        Args:
+            xy: Shape ``(N, 2)`` or ``(2,)``. ``(x, y)`` offset added to every corner.
+        """
+        xy = xy.to(self.bboxes.device)
+        return type(self)(
+            labels=self.labels,
+            bboxes=self.bboxes + torch.cat([xy, xy], dim=-1),
+            scores=self.scores,
+        )
+
+    def nms(self, iou_threshold: float) -> Self:
+        """Return the detections surviving class-aware non-maximum suppression.
+
+        Suppression is class-aware so that a high-confidence detection cannot hide a
+        detection of another class.
+        """
+        keep: Tensor = batched_nms(self.bboxes, self.scores, self.labels, iou_threshold)
+        return self[keep]
+
+    def drop_overlapping(
+        self, other: ObjectDetectionPrediction, iou_threshold: float
+    ) -> Self:
+        """Drop detections that overlap a same-label detection in ``other``.
+
+        Args:
+            other: The detections to compare against. Never modified.
+            iou_threshold:
+                IoU above which a detection is dropped if ``other`` holds a detection
+                of the same label.
+        """
+        ious: Tensor = box_iou(self.bboxes, other.bboxes)
+        # The same-label check must be applied before reducing over ``other``:
+        # reducing first (e.g. via the single max-IoU box) would miss a same-label
+        # overlap that is not the strongest one.
+        same_label = self.labels[:, None] == other.labels[None, :]
+        overlaps_same_label = (same_label & (ious > iou_threshold)).any(dim=1)
+        return self[~overlaps_same_label]
+
+    def map_labels(self, mapping: Tensor) -> Self:
+        """Return a prediction whose labels are looked up in ``mapping``.
+
+        Used to map internal, contiguous class ids to user-facing class ids.
+        """
+        return type(self)(
+            labels=mapping[self.labels], bboxes=self.bboxes, scores=self.scores
+        )
+
+    @classmethod
+    def concat(cls, predictions: Sequence[ObjectDetectionPrediction]) -> Self:
+        """Concatenate the detections of several predictions, in order."""
+        return cls(
+            labels=torch.cat([prediction.labels for prediction in predictions], dim=0),
+            bboxes=torch.cat([prediction.bboxes for prediction in predictions], dim=0),
+            scores=torch.cat([prediction.scores for prediction in predictions], dim=0),
+        )
+
 
 @dataclass
-class ObjectDetectionBatchPrediction(BaseModelOutput):
+class ObjectDetectionBatchPrediction(RowIndexableOutput):
     """Dense, unfiltered predictions for a whole batch of model inputs.
 
     This is what the batched half of postprocessing produces: every row keeps exactly
@@ -139,25 +203,25 @@ class ObjectDetectionBatchPrediction(BaseModelOutput):
         scores: Shape ``(B, K)``. Confidence score in ``[0, 1]``.
 
     Note that ``B`` counts model input rows, not input images: with SAHI a single
-    image contributes one global row plus one row per tile.
+    image contributes one global row plus one row per tile. Row selection
+    (``batch_prediction[1:]``) therefore selects model input rows, not detections.
     """
 
     labels: Tensor
     bboxes: Tensor
     scores: Tensor
 
-    def split(
-        self, metadata: Sequence[ObjectDetectionMetadata]
-    ) -> list[ObjectDetectionBatchPrediction]:
-        """Split rows into consecutive per-image groups sized by ``metadata``.
+    def split(self, num_rows: Sequence[int]) -> list[ObjectDetectionBatchPrediction]:
+        """Split rows into consecutive groups of the given sizes.
 
-        Each item in ``metadata`` consumes ``item.num_rows`` consecutive rows: one row
-        for the image itself, plus one row per SAHI tile.
+        Used to regroup the batch per image: an image consumes
+        :attr:`ObjectDetectionMetadata.num_rows` consecutive rows, one for the image
+        itself plus one per SAHI tile.
         """
         predictions = []
         start = 0
-        for item in metadata:
-            end = start + item.num_rows
+        for rows in num_rows:
+            end = start + rows
             predictions.append(
                 ObjectDetectionBatchPrediction(
                     labels=self.labels[start:end],
@@ -167,6 +231,62 @@ class ObjectDetectionBatchPrediction(BaseModelOutput):
             )
             start = end
         return predictions
+
+    def row(self, index: int) -> ObjectDetectionPrediction:
+        """Return a single row as a flat :class:`ObjectDetectionPrediction`."""
+        return ObjectDetectionPrediction(
+            labels=self.labels[index],
+            bboxes=self.bboxes[index],
+            scores=self.scores[index],
+        )
+
+    def offset_rows(self, xy: Tensor) -> Self:
+        """Return a prediction with each row's boxes shifted by its own offset.
+
+        Args:
+            xy: Shape ``(B, 2)``. ``(x, y)`` offset for each row, broadcast over ``K``.
+        """
+        xy = xy.to(self.bboxes.device)
+        offsets = torch.cat([xy, xy], dim=-1).unsqueeze(1)
+        return type(self)(
+            labels=self.labels, bboxes=self.bboxes + offsets, scores=self.scores
+        )
+
+    def flatten(self) -> ObjectDetectionPrediction:
+        """Collapse the row dimension: ``(B, K, ...)`` becomes ``(B * K, ...)``."""
+        return ObjectDetectionPrediction(
+            labels=self.labels.flatten(),
+            bboxes=self.bboxes.flatten(0, 1),
+            scores=self.scores.flatten(),
+        )
+
+    def merge_tiles(
+        self, tiling: ObjectDetectionTiling, *, threshold: float
+    ) -> ObjectDetectionPrediction:
+        """Merge the rows of one tiled image into a single prediction.
+
+        Row 0 holds the global view in original-image coordinates, rows ``1:`` hold the
+        tiles in tile coordinates. Tile boxes are shifted into original-image
+        coordinates, both halves are score filtered, overlapping tile boxes are
+        deduplicated with class-aware NMS (needed because tiles overlap), and tile boxes
+        that repeat a global box of the same label are dropped. Global boxes always win:
+        they are never suppressed.
+
+        Args:
+            tiling: The tiling record from the image's metadata.
+            threshold: Detections with a score <= threshold are discarded.
+        """
+        global_prediction = self.row(0).filter_by_score(threshold)
+        tile_prediction = (
+            self[1:]
+            .offset_rows(tiling.coordinates)
+            .flatten()
+            .filter_by_score(threshold)
+        )
+        tile_prediction = tile_prediction.nms(
+            tiling.nms_iou_threshold
+        ).drop_overlapping(global_prediction, tiling.global_local_iou_threshold)
+        return ObjectDetectionPrediction.concat([global_prediction, tile_prediction])
 
     def to_predictions(self) -> list[ObjectDetectionPrediction]:
         """Return one :class:`ObjectDetectionPrediction` per row."""
@@ -185,11 +305,56 @@ class ObjectDetectionBatchPrediction(BaseModelOutput):
         return [prediction.to_torchmetrics() for prediction in self.to_predictions()]
 
 
-@dataclass
+@dataclass(frozen=True)
+class ObjectDetectionSAHIConfig:
+    """User-facing SAHI settings, consumed by :class:`ObjectDetectionPreprocessor`.
+
+    Only :attr:`overlap` affects tiling itself; the two IoU thresholds describe how the
+    tiles are merged again and are recorded on the metadata the preprocessor returns,
+    so the postprocessor does not need this config.
+    """
+
+    overlap: float
+    nms_iou_threshold: float
+    global_local_iou_threshold: float
+
+
+@dataclass(frozen=True)
+class ObjectDetectionTiling:
+    """Record of how the preprocessor tiled one image, and how to merge it back.
+
+    Attributes:
+        coordinates: Shape ``(num_tiles, 2)``. Top-left ``(x, y)`` of each tile.
+        tile_size: ``(height, width)`` each tile was resized to.
+        nms_iou_threshold: IoU used in NMS of the tile predictions.
+        global_local_iou_threshold:
+            IoU above which a tile box is dropped if it matches a global box of the
+            same label.
+    """
+
+    coordinates: Tensor
+    tile_size: tuple[int, int]
+    nms_iou_threshold: float
+    global_local_iou_threshold: float
+
+    @property
+    def num_tiles(self) -> int:
+        return int(self.coordinates.shape[0])
+
+
+@dataclass(frozen=True)
 class ObjectDetectionMetadata:
+    """What the preprocessor did to one image, so the postprocessor can undo it.
+
+    Attributes:
+        orig_h: Height of the original image in pixels.
+        orig_w: Width of the original image in pixels.
+        tiling: The tiling record, or ``None`` if the image was not tiled.
+    """
+
     orig_h: int
     orig_w: int
-    tile_coordinates: Tensor | None = None
+    tiling: ObjectDetectionTiling | None = None
 
     @property
     def num_rows(self) -> int:
@@ -197,16 +362,22 @@ class ObjectDetectionMetadata:
 
         One row for the image itself, plus one row per SAHI tile.
         """
-        if self.tile_coordinates is None:
+        if self.tiling is None:
             return 1
-        return 1 + len(self.tile_coordinates)
+        return 1 + self.tiling.num_tiles
 
+    @property
+    def row_sizes(self) -> list[tuple[int, int]]:
+        """The ``(width, height)`` each of this image's rows is scaled to.
 
-@dataclass(frozen=True)
-class ObjectDetectionSAHIConfig:
-    overlap: float
-    nms_iou_threshold: float
-    global_local_iou_threshold: float
+        Row 0 is the global row and scales back to the original image, while tile rows
+        stay in tile coordinates and are offset when the tiles are merged.
+        """
+        sizes = [(self.orig_w, self.orig_h)]
+        if self.tiling is not None:
+            tile_h, tile_w = self.tiling.tile_size
+            sizes += [(tile_w, tile_h)] * self.tiling.num_tiles
+        return sizes
 
 
 def decode_object_detection_output(
@@ -247,6 +418,18 @@ def decode_object_detection_output(
     boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
     boxes = boxes * target_sizes.repeat(1, 2).unsqueeze(1)
     return ObjectDetectionBatchPrediction(labels=labels, bboxes=boxes, scores=scores)
+
+
+def _target_sizes(
+    metadata: Sequence[ObjectDetectionMetadata], *, device: torch.device
+) -> Tensor:
+    """Return the ``(width, height)`` each row in the batch is scaled to.
+
+    Concatenates :attr:`ObjectDetectionMetadata.row_sizes` over all images, so the
+    result has one row per model input row.
+    """
+    sizes = [size for item in metadata for size in item.row_sizes]
+    return torch.tensor(sizes, dtype=torch.int64, device=device)
 
 
 def yolo_to_xyxy(batch_boxes: Sequence[Tensor]) -> list[Tensor]:
@@ -317,115 +500,6 @@ def targets_to_torchmetrics(
     ]
 
 
-def combine_object_detection_tiles(
-    pred_global: Mapping[str, Tensor],
-    pred_tiles: Mapping[str, Tensor],
-    nms_iou_threshold: float = 0.2,
-    global_local_iou_threshold: float = 0.1,
-) -> tuple[Tensor, Tensor, Tensor]:
-    """
-    Combine predictions from the global view (full image) and local views (image tiles).
-
-    Args:
-        pred_global: Mapping with keys "labels", "bboxes", "scores". An
-            :class:`ObjectDetectionPrediction` satisfies this.
-        pred_tiles: Mapping with keys "labels", "bboxes", "scores".
-        nms_iou_threshold: IoU used in NMS of tiles predictions.
-        global_local_iou_threshold: IoU above which a tile box is removed if it matches a global box of same label.
-
-    Returns:
-        Filtered labels, boxes, scores as a tuple.
-    """
-    # Get tiles and global predictions.
-    labels_global = pred_global["labels"]
-    boxes_global = pred_global["bboxes"]
-    scores_global = pred_global["scores"]
-    labels_tiles = pred_tiles["labels"]
-    boxes_tiles = pred_tiles["bboxes"]
-    scores_tiles = pred_tiles["scores"]
-
-    # NMS on tiles predictions is needed due overlapping tiles. Suppression is
-    # class-aware so a high-confidence prediction cannot hide another class.
-    if boxes_tiles.numel() > 0:
-        keep = batched_nms(boxes_tiles, scores_tiles, labels_tiles, nms_iou_threshold)
-        labels_tiles = labels_tiles[keep]
-        boxes_tiles = boxes_tiles[keep]
-        scores_tiles = scores_tiles[keep]
-
-    # Drop tile boxes that overlap global boxes of same class
-    if boxes_global.numel() > 0 and boxes_tiles.numel() > 0:
-        # Compute overlap between tiles and global predictions.
-        ious = box_iou(boxes_tiles, boxes_global)
-
-        # Only keep tiles predictions that do not overlap above the threshold with
-        # any global prediction of the same class. The same-label check must be
-        # applied before reducing over global predictions: reducing first (e.g.
-        # via the single max-IoU global box) would miss a same-label overlap that
-        # is not the strongest one.
-        same_label = labels_tiles[:, None] == labels_global[None, :]
-        overlaps_same_label = (same_label & (ious > global_local_iou_threshold)).any(
-            dim=1
-        )
-        keep = ~overlaps_same_label
-        labels_tiles = labels_tiles[keep]
-        boxes_tiles = boxes_tiles[keep]
-        scores_tiles = scores_tiles[keep]
-
-    # Concatenate the global and tiles predictions
-    labels = torch.cat([labels_global, labels_tiles], dim=0)
-    boxes = torch.cat([boxes_global, boxes_tiles], dim=0)
-    scores = torch.cat([scores_global, scores_tiles], dim=0)
-
-    return labels, boxes, scores
-
-
-def combine_sahi_object_detection_predictions(
-    *,
-    batch_prediction: ObjectDetectionBatchPrediction,
-    tile_coordinates: Tensor,
-    threshold: float,
-    nms_iou_threshold: float,
-    global_local_iou_threshold: float,
-) -> ObjectDetectionPrediction:
-    """Offset, filter, and merge the decoded rows of one tiled image.
-
-    Args:
-        batch_prediction:
-            The decoded rows belonging to a single image: the global image first,
-            followed by one row per tile.
-        tile_coordinates: Shape ``(num_tiles, 2)``. Top-left ``(x, y)`` of each tile.
-        threshold: Detections with a score <= threshold are discarded.
-        nms_iou_threshold: IoU used in NMS of the tile predictions.
-        global_local_iou_threshold:
-            IoU above which a tile box is removed if it matches a global box of the
-            same label.
-    """
-    global_prediction = ObjectDetectionPrediction(
-        labels=batch_prediction.labels[0],
-        bboxes=batch_prediction.bboxes[0],
-        scores=batch_prediction.scores[0],
-    )
-    # Tile boxes are in tile coordinates, so shift them by the tile's top-left corner
-    # to bring them into original-image coordinates. The offset is per tile, hence the
-    # query dimension is broadcast over.
-    offsets = tile_coordinates.to(batch_prediction.bboxes.device).repeat(1, 2)
-    tile_prediction = ObjectDetectionPrediction(
-        labels=batch_prediction.labels[1:].flatten(),
-        bboxes=(batch_prediction.bboxes[1:] + offsets.unsqueeze(1)).flatten(0, 1),
-        scores=batch_prediction.scores[1:].flatten(),
-    )
-    global_prediction = global_prediction[global_prediction.scores > threshold]
-    tile_prediction = tile_prediction[tile_prediction.scores > threshold]
-
-    labels, bboxes, scores = combine_object_detection_tiles(
-        pred_global=global_prediction,
-        pred_tiles=tile_prediction,
-        nms_iou_threshold=nms_iou_threshold,
-        global_local_iou_threshold=global_local_iou_threshold,
-    )
-    return ObjectDetectionPrediction(labels=labels, bboxes=bboxes, scores=scores)
-
-
 class ObjectDetectionPreprocessor(Module):
     """Host image preparation plus dense, batch-friendly preprocessing.
 
@@ -469,7 +543,9 @@ class ObjectDetectionPreprocessor(Module):
             sahi_config:
                 If ``None``, the image is resized to ``image_size``. Otherwise the
                 image is tiled and the resized global image is prepended to the tiles,
-                with the tile coordinates set on the metadata.
+                with an :class:`ObjectDetectionTiling` recorded on the metadata. The
+                config is not needed again afterwards: everything the postprocessor
+                needs to merge the tiles is on that record.
 
         Returns:
             A ``(num_rows, C, H, W)`` stack and the image's metadata. Without
@@ -489,17 +565,23 @@ class ObjectDetectionPreprocessor(Module):
 
         if sahi_config is None:
             rows = global_image
-            tile_coordinates = None
+            image_tiling = None
         else:
-            tiles, tile_coordinates = tiling.tile_image(
+            tiles, coordinates = tile_image(
                 image=image_tensor,
                 overlap=sahi_config.overlap,
                 tile_size=self.image_size,
             )
             rows = torch.cat([global_image, tiles])
+            image_tiling = ObjectDetectionTiling(
+                coordinates=coordinates,
+                tile_size=self.image_size,
+                nms_iou_threshold=sahi_config.nms_iou_threshold,
+                global_local_iou_threshold=sahi_config.global_local_iou_threshold,
+            )
 
         return rows, ObjectDetectionMetadata(
-            orig_h=orig_h, orig_w=orig_w, tile_coordinates=tile_coordinates
+            orig_h=orig_h, orig_w=orig_w, tiling=image_tiling
         )
 
     def _to_expected_channels(self, image: Tensor) -> Tensor:
@@ -591,15 +673,11 @@ class ObjectDetectionPostprocessor(Module):
     def __init__(
         self,
         *,
-        num_classes: int,
         num_top_queries: int,
         internal_class_to_class: Tensor,
-        image_size: tuple[int, int],
     ) -> None:
         super().__init__()
-        self.num_classes = num_classes
         self.num_top_queries = num_top_queries
-        self.image_size = image_size
         self.register_buffer(
             "internal_class_to_class", internal_class_to_class, persistent=False
         )
@@ -623,7 +701,7 @@ class ObjectDetectionPostprocessor(Module):
             raw: Raw model output for all rows in the batch.
             metadata: Per-image metadata as returned by the preprocessor.
         """
-        target_sizes = self._target_sizes(metadata, device=raw.boxes.device)
+        target_sizes = _target_sizes(metadata, device=raw.boxes.device)
         return decode_object_detection_output(
             raw=raw,
             target_sizes=target_sizes,
@@ -635,10 +713,11 @@ class ObjectDetectionPostprocessor(Module):
         batch_prediction: ObjectDetectionBatchPrediction,
         metadata: ObjectDetectionMetadata,
         threshold: float,
-        *,
-        sahi_config: ObjectDetectionSAHIConfig | None = None,
     ) -> ObjectDetectionPrediction:
         """Turn the decoded rows of one image into its final prediction.
+
+        The metadata alone says whether the image was tiled and, if so, how to merge
+        the tiles again, so no separate SAHI config is needed here.
 
         Args:
             batch_prediction:
@@ -646,31 +725,12 @@ class ObjectDetectionPostprocessor(Module):
                 returned by :meth:`ObjectDetectionBatchPrediction.split`.
             metadata: The image's metadata as returned by the preprocessor.
             threshold: Detections with a score <= threshold are discarded.
-            sahi_config:
-                Merge settings, required when the image was tiled.
-
-        Raises:
-            ValueError: If the image was tiled but no ``sahi_config`` is given.
         """
-        if metadata.tile_coordinates is None:
-            prediction = ObjectDetectionPrediction(
-                labels=batch_prediction.labels[0],
-                bboxes=batch_prediction.bboxes[0],
-                scores=batch_prediction.scores[0],
-            )
-            prediction = prediction[prediction.scores > threshold]
+        if metadata.tiling is None:
+            prediction = batch_prediction.row(0).filter_by_score(threshold)
         else:
-            if sahi_config is None:
-                raise ValueError(
-                    "Metadata contains tile coordinates but no sahi_config was given "
-                    "to merge the tile predictions."
-                )
-            prediction = combine_sahi_object_detection_predictions(
-                batch_prediction=batch_prediction,
-                tile_coordinates=metadata.tile_coordinates,
-                threshold=threshold,
-                nms_iou_threshold=sahi_config.nms_iou_threshold,
-                global_local_iou_threshold=sahi_config.global_local_iou_threshold,
+            prediction = batch_prediction.merge_tiles(
+                metadata.tiling, threshold=threshold
             )
 
         # This is the only place internal class ids are mapped to user-facing class
@@ -678,19 +738,13 @@ class ObjectDetectionPostprocessor(Module):
         # keeps the dense batch stage and the tile-merging same-label comparisons
         # (which only need consistency, not any particular id space) working in the
         # cheaper internal-id space.
-        return ObjectDetectionPrediction(
-            labels=self.internal_class_to_class[prediction.labels],
-            bboxes=prediction.bboxes,
-            scores=prediction.scores,
-        )
+        return prediction.map_labels(self.internal_class_to_class)
 
     def postprocess(
         self,
         raw: ObjectDetectionBatchOutput,
         metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
-        *,
-        sahi_config: ObjectDetectionSAHIConfig | None = None,
     ) -> list[ObjectDetectionPrediction]:
         """Decode raw outputs into one prediction per image.
 
@@ -701,34 +755,10 @@ class ObjectDetectionPostprocessor(Module):
             raw: Raw model output for all rows in the batch.
             metadata: Per-image metadata as returned by the preprocessor.
             threshold: Detections with a score <= threshold are discarded.
-            sahi_config:
-                Merge settings, required when any image in ``metadata`` was tiled.
         """
         batch_prediction = self.postprocess_batch(raw, metadata)
+        num_rows = [item.num_rows for item in metadata]
         return [
-            self.postprocess_image(
-                item_prediction, item, threshold, sahi_config=sahi_config
-            )
-            for item_prediction, item in zip(batch_prediction.split(metadata), metadata)
+            self.postprocess_image(item_prediction, item, threshold)
+            for item_prediction, item in zip(batch_prediction.split(num_rows), metadata)
         ]
-
-    def _target_sizes(
-        self,
-        metadata: Sequence[ObjectDetectionMetadata],
-        *,
-        device: torch.device,
-    ) -> Tensor:
-        """Return the ``(width, height)`` each row's boxes are scaled to.
-
-        The row for the image itself is scaled back to the original image, while tile
-        rows stay in tile coordinates and are offset when the tiles are merged.
-        """
-        tile_h, tile_w = self.image_size
-        sizes: list[list[int]] = []
-        for item in metadata:
-            sizes.append([item.orig_w, item.orig_h])
-            if item.tile_coordinates is not None:
-                sizes.extend(
-                    [tile_w, tile_h] for _ in range(len(item.tile_coordinates))
-                )
-        return torch.tensor(sizes, dtype=torch.int64, device=device)
