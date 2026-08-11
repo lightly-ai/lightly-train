@@ -228,14 +228,6 @@ class TestObjectDetectionPrediction:
         assert converted["boxes"] is prediction.bboxes
         torch.testing.assert_close(converted["labels"], torch.tensor([17, 17]))
 
-    def test_filter_by_score__drops_detections_at_or_below_threshold(self) -> None:
-        # The threshold is exclusive: a detection scoring exactly the threshold goes.
-        prediction = _pred([1, 2, 3], [[0, 0, 1, 1]] * 3, [0.9, 0.5, 0.4])
-
-        kept = prediction.filter_by_score(0.5)
-
-        torch.testing.assert_close(kept.labels, torch.tensor([1]))
-
     def test_offset__shifts_every_corner(self) -> None:
         prediction = _pred([1], [[0, 0, 10, 10]], [0.9])
 

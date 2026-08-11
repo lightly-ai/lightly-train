@@ -124,10 +124,6 @@ class ObjectDetectionPrediction(RowIndexableOutput):
             "labels": self.labels,
         }
 
-    def filter_by_score(self, threshold: float) -> Self:
-        """Return only the detections with a score strictly above ``threshold``."""
-        return self[self.scores > threshold]
-
     def offset(self, xy: Tensor) -> Self:
         """Return a prediction with the boxes shifted by ``xy``.
 
@@ -276,13 +272,10 @@ class ObjectDetectionBatchPrediction(RowIndexableOutput):
             tiling: The tiling record from the image's metadata.
             threshold: Detections with a score <= threshold are discarded.
         """
-        global_prediction = self.row(0).filter_by_score(threshold)
-        tile_prediction = (
-            self[1:]
-            .offset_rows(tiling.coordinates)
-            .flatten()
-            .filter_by_score(threshold)
-        )
+        global_row = self.row(0)
+        global_prediction = global_row[global_row.scores > threshold]
+        tile_flat = self[1:].offset_rows(tiling.coordinates).flatten()
+        tile_prediction = tile_flat[tile_flat.scores > threshold]
         tile_prediction = tile_prediction.nms(
             tiling.nms_iou_threshold
         ).drop_overlapping(global_prediction, tiling.global_local_iou_threshold)
@@ -727,7 +720,8 @@ class ObjectDetectionPostprocessor(Module):
             threshold: Detections with a score <= threshold are discarded.
         """
         if metadata.tiling is None:
-            prediction = batch_prediction.row(0).filter_by_score(threshold)
+            row = batch_prediction.row(0)
+            prediction = row[row.scores > threshold]
         else:
             prediction = batch_prediction.merge_tiles(
                 metadata.tiling, threshold=threshold
