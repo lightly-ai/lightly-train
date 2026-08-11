@@ -294,7 +294,9 @@ class ObjectDetectionBatchPrediction(RowIndexableOutput):
         tile_prediction = tile_flat[tile_flat.scores > threshold]
         tile_prediction = tile_prediction.apply_nms(
             tiling.nms_iou_threshold
-        ).drop_overlapping_predictions(global_prediction, tiling.global_local_iou_threshold)
+        ).drop_overlapping_predictions(
+            global_prediction, tiling.global_local_iou_threshold
+        )
         return ObjectDetectionPrediction.concat([global_prediction, tile_prediction])
 
     def to_predictions(self) -> list[ObjectDetectionPrediction]:
