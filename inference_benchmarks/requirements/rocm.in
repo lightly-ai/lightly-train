@@ -1,0 +1,17 @@
+# ROCm environment for the torch SAHI benchmark. Locked with `make lock-rocm`.
+#
+# lightly-train is installed editable from the local checkout instead of from the git URL
+# like requirements/tensorrt.in, so that the benchmark measures the working tree. The path
+# is relative to the working directory of `uv pip compile`, which the Makefile always sets
+# to inference_benchmarks/, so `..` is the repository root.
+-e ..
+
+# The +rocm7.2 local versions only exist on the PyTorch index. Pinned to match the
+# pinned-rocm-torch dependency group in ../pyproject.toml.
+--extra-index-url https://download.pytorch.org/whl/rocm7.2
+torch==2.13.0+rocm7.2
+torchvision==0.28.0+rocm7.2
+
+# No extras and no tensorrt: there is no TensorRT for ROCm, and the torch backend,
+# torch.compile, bf16-mixed autocast, SAHI and the latency/mAP plot are all covered by
+# lightly-train's base dependencies. onnxruntime in particular has no ROCm wheels.

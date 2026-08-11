@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 """Benchmark the ltdetrv2 detection checkpoints with the compiled torch backend in
-bf16-mixed precision on CUDA, under three amounts of SAHI tiling.
+fp32 precision on CUDA, under three amounts of SAHI tiling.
 
 Produces a latency vs. mAP@0.5:0.95 plot with one curve per SAHI setting, each curve
 running through the small, medium, and large model.
@@ -170,7 +170,7 @@ def write_plot(*, path: Path, points: Sequence[BenchmarkPoint], dpi: int) -> Non
 
     ax.set_xlabel("Latency (ms/img)")
     ax.set_ylabel("Val mAP@0.5:0.95")
-    ax.set_title("torch.compile, bf16-mixed, CUDA")
+    ax.set_title("torch.compile, fp32, CUDA")
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
     fig.tight_layout()
@@ -188,7 +188,7 @@ def main() -> None:
         for setting_name, sahi_args in SAHI_SETTINGS:
             out_dir = out_root / sanitize(model_name) / setting_name
             print(
-                f"\n=== Benchmarking {model_name} (torch, bf16-mixed, {setting_name}) ==="
+                f"\n=== Benchmarking {model_name} (torch, fp32, {setting_name}) ==="
             )
             try:
                 result = lightly_train.benchmark_object_detection(
@@ -205,7 +205,7 @@ def main() -> None:
                     backend_args={
                         "format": "torch",
                         "compile": True,
-                        "precision": "bf16-mixed",
+                        "precision": "fp32",
                     },
                     sahi_args=sahi_args,
                 )
@@ -228,7 +228,7 @@ def main() -> None:
     summary_lines = [
         "# Torch SAHI Object Detection Benchmark Summary",
         "",
-        f"Backend: torch, compiled, bf16-mixed, CUDA. Score threshold: {THRESHOLD}.",
+        f"Backend: torch, compiled, fp32, CUDA. Score threshold: {THRESHOLD}.",
         "",
         "| Model | SAHI | Val mAP@0.5:0.95 | Latency (ms/img) | Throughput (img/s) |",
         "| --- | --- | ---: | ---: | ---: |",

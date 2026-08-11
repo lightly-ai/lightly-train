@@ -81,18 +81,48 @@ settings.
 - The class ids in the data config must line up with the class ids of the
   COCO-pretrained checkpoints. The benchmark matches ground truth against predictions by
   class id and does not remap them by name, so a mismatched class list silently yields a
-  meaningless mAP.
+  meaningless mAP. For VisDrone, use `remap_visdrone_to_coco.py`, see
+  [COCO class id remapping](#coco-class-id-remapping).
 - [uv](https://docs.astral.sh/uv/) for dependency management.
+
+### COCO class id remapping
+
+The original VisDrone2019-DET dataset has its own label space (`0 pedestrian`, ...,
+`9 motor`), which means something entirely different to a COCO-pretrained checkpoint:
+VisDrone's `4 van`, for example, is scored against COCO's `4 airplane`. On the same 32
+images, `ltdetrv2-l-coco` reports mAP `0.018` on the original data config and `0.211` on
+the remapped one.
+
+`remap_visdrone_to_coco.py` writes a remapped copy of the dataset. The `images`
+directories are symlinked to the originals, the `labels` files are rewritten with COCO
+class ids, and a `*_coco_remapped.yaml` data config is generated:
+
+```bash
+make remap-visdrone VISDRONE_ROOT=/path/to/visdrone \
+    VISDRONE_COCO_ROOT=/path/to/visdrone_coco_remapped
+```
+
+VisDrone classes with no COCO counterpart (`tricycle`, `awning-tricycle`) are dropped,
+`pedestrian` and `people` both become `person`, and `van` becomes `car`. The mapping is
+a single constant at the top of the script.
+
+The generated config lists all 80 COCO classes even though only six of them occur in the
+labels. This is load-bearing: the yolo dataset maps the keys of `names` to internal
+class ids by enumerating them in insertion order, so a sparse subset such as
+`{0, 1, 2, 3, 5, 7}` would be compacted to `0..5` and stop lining up with the ids the
+checkpoints predict. Classes without ground truth are excluded from the mAP, so the 74
+unused names cost nothing.
 
 ### Running
 
 ```bash
-make benchmark-torch-sahi VISDRONE_DATA=/path/to/visdrone/data.yaml
+make benchmark-torch-sahi VISDRONE_DATA=/path/to/visdrone_coco_remapped/visdrone_coco_remapped.yaml
 ```
 
 This runs `run_torch_sahi_benchmark.py` with the pinned dependencies from
-`requirements/tensorrt.txt`. `VISDRONE_DATA` defaults to `/datasets/visdrone/data.yaml`
-(see [Makefile](./Makefile)). This benchmark does not use TensorRT, but it shares that
+`requirements/tensorrt.txt`. `VISDRONE_DATA` defaults to
+`/datasets/visdrone_coco_remapped/visdrone_coco_remapped.yaml` (see
+[Makefile](./Makefile)). This benchmark does not use TensorRT, but it shares that
 environment rather than pinning a second one: it is a superset of what the torch backend
 needs.
 
@@ -100,7 +130,7 @@ To run the script directly with more control over its options:
 
 ```bash
 uv run --frozen --with-requirements requirements/tensorrt.txt run_torch_sahi_benchmark.py \
-    --data /path/to/visdrone/data.yaml \
+    --data /path/to/visdrone_coco_remapped/visdrone_coco_remapped.yaml \
     --dataset-name "VisDrone2019-DET val" \
     --out out/torch_sahi_benchmark \
     --batch-size 1 \
@@ -125,7 +155,31 @@ Aggregated over all runs, at `out/torch_sahi_benchmark/`:
 - `latency_vs_map.png` — latency vs. mAP@0.5:0.95, with one curve per SAHI setting
   running through the small, medium, and large model.
 
+### Running on ROCm
+
+The torch SAHI benchmark also runs on AMD GPUs, using a second environment pinned in
+`requirements/rocm.txt`:
+
+```bash
+make benchmark-torch-sahi-rocm
+```
+
+Results go to `out/torch_sahi_benchmark_rocm/` so that they do not overwrite the CUDA
+ones. Note that the reports and the plot title still say CUDA: ROCm builds of torch
+expose the GPU as the `cuda` device, and the benchmark takes the label from there.
+
+Differences to `requirements/tensorrt.txt`:
+
+- `lightly-train` is installed **editable from the local checkout** rather than from the
+  git URL, so the benchmark measures the working tree.
+- No TensorRT, since there is no ROCm build of it. Only the torch backend is available.
+- `torch` and `torchvision` are pinned to the `+rocm7.2` builds from the PyTorch index,
+  matching the `pinned-rocm-torch` dependency group in the repository's
+  `pyproject.toml`. These wheels are newer than the `--exclude-newer` date used for the
+  TensorRT lock, so the ROCm lock has its own `EXCLUDE_NEWER_ROCM` date.
+
 ## Managing dependencies
 
 Never edit the `.txt` files in `requirements/` directly. Instead, edit the corresponding
-`.in` file and run `make lock` to regenerate the pinned `.txt` file.
+`.in` file and run `make lock` to regenerate the pinned `.txt` files (or
+`make lock-tensorrt` / `make lock-rocm` for one of them).
