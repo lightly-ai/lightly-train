@@ -29,7 +29,9 @@ def _get_labels_masks_scores(
     mask_scores = (
         mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
     ).sum(2) / pixels
-    mask_scores = torch.where(pixels > 0, mask_scores, torch.zeros_like(mask_scores))
+    mask_scores = torch.where(
+        pixels > 0, mask_scores, torch.zeros_like(mask_scores)
+    )
     return labels, masks, (scores * mask_scores).type_as(mask_logits)
 
 
@@ -67,6 +69,16 @@ def test_chunked_prediction_matches_single_chunk() -> None:
         **kwargs,
         memory_budget_bytes=10**9,
     )
+
+    chunk_sizes: list[int] = []
+
+    def tracked_get_labels_masks_scores(
+        mask_logits: Tensor, class_logits: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        chunk_sizes.append(mask_logits.shape[1])
+        return _get_labels_masks_scores(mask_logits, class_logits)
+
+    kwargs["get_labels_masks_scores"] = tracked_get_labels_masks_scores
     bytes_per_query = (
         9
         * 11
@@ -78,6 +90,7 @@ def test_chunked_prediction_matches_single_chunk() -> None:
         memory_budget_bytes=2 * bytes_per_query,
     )
 
+    assert chunk_sizes == [2, 2, 2, 1]
     torch.testing.assert_close(chunked["labels"], unchunked["labels"])
     torch.testing.assert_close(chunked["masks"], unchunked["masks"])
     torch.testing.assert_close(chunked["scores"], unchunked["scores"])
