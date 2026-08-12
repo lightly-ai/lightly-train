@@ -26,12 +26,10 @@ def _get_labels_masks_scores(
     masks_fp32 = masks.float()
     mask_logits_fp32 = mask_logits.float()
     pixels = masks_fp32.flatten(2).sum(2)
-    mask_scores = (
-        mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
-    ).sum(2) / pixels
-    mask_scores = torch.where(
-        pixels > 0, mask_scores, torch.zeros_like(mask_scores)
-    )
+    mask_scores = (mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)).sum(
+        2
+    ) / pixels
+    mask_scores = torch.where(pixels > 0, mask_scores, torch.zeros_like(mask_scores))
     return labels, masks, (scores * mask_scores).type_as(mask_logits)
 
 
@@ -44,12 +42,18 @@ def test_query_chunk_size_uses_byte_budget() -> None:
         * _FP32_WORKING_BUFFERS_PER_PIXEL
     )
 
-    assert _query_chunk_size(
-        image_size=image_size, memory_budget_bytes=2 * bytes_per_query
-    ) == 2
-    assert _query_chunk_size(
-        image_size=image_size, memory_budget_bytes=bytes_per_query - 1
-    ) == 1
+    assert (
+        _query_chunk_size(
+            image_size=image_size, memory_budget_bytes=2 * bytes_per_query
+        )
+        == 2
+    )
+    assert (
+        _query_chunk_size(
+            image_size=image_size, memory_budget_bytes=bytes_per_query - 1
+        )
+        == 1
+    )
 
 
 def test_chunked_prediction_matches_single_chunk() -> None:
