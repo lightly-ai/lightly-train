@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
@@ -22,6 +21,10 @@ from torchvision.transforms import functional as torchvision_functional
 import lightly_train._plot as methods_helpers
 from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
+from lightly_train._methods.batch_timing import (
+    BatchTimingTracker,
+    create_batch_timing_tracker,
+)
 from lightly_train._methods.method_args import MethodArgs
 from lightly_train._models.embedding_model import EmbeddingModel
 from lightly_train._optim import optimizer_helpers
@@ -41,12 +44,6 @@ class TrainingStepResult:
     log_dict: Mapping[str, Any] | None = None
 
 
-@dataclass
-class BatchStartEndTime:
-    batch_start_s: float | None = None
-    batch_end_s: float | None = None
-
-
 class Method(LightningModule):
     def __init__(
         self,
@@ -60,7 +57,9 @@ class Method(LightningModule):
         self.optimizer_args: OptimizerArgs = optimizer_args
         self.global_batch_size = global_batch_size
         self.num_input_channels = num_input_channels
-        self.batch_start_end_time = BatchStartEndTime()
+        # Initialized lazily because Lightning moves the module to its runtime
+        # device only after __init__ has completed.
+        self._batch_timing_tracker: BatchTimingTracker | None = None
 
     @staticmethod
     def method_args_cls() -> type[MethodArgs]:
@@ -191,27 +190,25 @@ class Method(LightningModule):
                 )
 
     def _log_time_batch_start(self) -> None:
-        self.batch_start_end_time.batch_start_s = time.perf_counter()
-        if self.batch_start_end_time.batch_end_s is not None:
-            assert (
-                self.batch_start_end_time.batch_start_s
-                > self.batch_start_end_time.batch_end_s
-            )
-            self.log(
-                "profiling/data_time",
-                self.batch_start_end_time.batch_start_s
-                - self.batch_start_end_time.batch_end_s,
-            )
+        tracker = self._get_batch_timing_tracker()
+        self._log_timing_metrics(tracker.on_batch_start())
 
     def _log_time_batch_end(self) -> None:
-        self.batch_start_end_time.batch_end_s = time.perf_counter()
-        if self.batch_start_end_time.batch_start_s is not None:
-            assert (
-                self.batch_start_end_time.batch_end_s
-                > self.batch_start_end_time.batch_start_s
-            )
-            self.log(
-                "profiling/batch_time",
-                self.batch_start_end_time.batch_end_s
-                - self.batch_start_end_time.batch_start_s,
-            )
+        tracker = self._get_batch_timing_tracker()
+        self._log_timing_metrics(tracker.on_batch_end())
+
+    def _get_batch_timing_tracker(self) -> BatchTimingTracker:
+        """Return a tracker selected after Lightning has placed the module."""
+        if self._batch_timing_tracker is None:
+            self._batch_timing_tracker = create_batch_timing_tracker(self.device.type)
+        return self._batch_timing_tracker
+
+    def _log_timing_metrics(self, metrics: Mapping[str, float]) -> None:
+        """Log timing samples emitted by the active device-specific tracker."""
+        if not metrics:
+            return
+        self.log_dict(
+            {f"profiling/{name}": value for name, value in metrics.items()},
+            on_step=True,
+            on_epoch=False,
+        )
