@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import time
 import warnings
+from typing import cast
 
 import pytest
 import torch
+from torch.cuda import Event
 
 from lightly_train._methods.batch_timing import (
     CpuBatchTimingTracker,
@@ -98,8 +100,8 @@ def test_cuda_batch_timing_tracker_resolves_ready_samples_averages_multiple() ->
         _PendingCudaSample(
             wall_start_s=0.0,
             next_wall_start_s=0.3,
-            start_event=_FakeCudaEvent(elapsed_ms=100.0),
-            end_event=_FakeCudaEvent(),
+            start_event=cast(Event, _FakeCudaEvent(elapsed_ms=100.0)),
+            end_event=cast(Event, _FakeCudaEvent()),
         )
     )
     # Sample 2: batch_time = 0.9s, cycle = 1.0s -> data_time = 0.1s.
@@ -107,8 +109,8 @@ def test_cuda_batch_timing_tracker_resolves_ready_samples_averages_multiple() ->
         _PendingCudaSample(
             wall_start_s=0.3,
             next_wall_start_s=1.3,
-            start_event=_FakeCudaEvent(elapsed_ms=900.0),
-            end_event=_FakeCudaEvent(),
+            start_event=cast(Event, _FakeCudaEvent(elapsed_ms=900.0)),
+            end_event=cast(Event, _FakeCudaEvent()),
         )
     )
 
