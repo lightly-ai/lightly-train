@@ -13,12 +13,10 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, Protocol, Tuple
+from typing import Protocol
 
+from lightning_fabric.utilities.rank_zero import rank_zero_warn
 from torch.cuda import Event
-
-TimingMetricName = Literal["batch_time", "data_time"]
-TimingMetric = Tuple[TimingMetricName, float]
 
 
 class BatchTimingTracker(Protocol):
@@ -30,11 +28,11 @@ class BatchTimingTracker(Protocol):
     until the corresponding stream events have completed.
     """
 
-    def on_batch_start(self) -> list[TimingMetric]:
+    def on_batch_start(self) -> dict[str, float]:
         """Record a batch-start boundary and return metrics ready for logging."""
         ...
 
-    def on_batch_end(self) -> list[TimingMetric]:
+    def on_batch_end(self) -> dict[str, float]:
         """Record a batch-end boundary and return metrics ready for logging."""
         ...
 
@@ -52,21 +50,21 @@ class CpuBatchTimingTracker(BatchTimingTracker):
         self._batch_started_at_s: float | None = None
         self._previous_batch_ended_at_s: float | None = None
 
-    def on_batch_start(self) -> list[TimingMetric]:
+    def on_batch_start(self) -> dict[str, float]:
         """Measure the gap since the previous end and start the new batch."""
         now_s = self._clock()
-        metrics: list[TimingMetric] = []
+        metrics: dict[str, float] = {}
         if self._previous_batch_ended_at_s is not None:
-            metrics.append(("data_time", now_s - self._previous_batch_ended_at_s))
+            metrics["data_time"] = now_s - self._previous_batch_ended_at_s
         self._batch_started_at_s = now_s
         return metrics
 
-    def on_batch_end(self) -> list[TimingMetric]:
+    def on_batch_end(self) -> dict[str, float]:
         """Measure the active batch and begin the next data-loading gap."""
         now_s = self._clock()
-        metrics: list[TimingMetric] = []
+        metrics: dict[str, float] = {}
         if self._batch_started_at_s is not None:
-            metrics.append(("batch_time", now_s - self._batch_started_at_s))
+            metrics["batch_time"] = now_s - self._batch_started_at_s
         self._previous_batch_ended_at_s = now_s
         return metrics
 
@@ -132,8 +130,10 @@ class CudaBatchTimingTracker(BatchTimingTracker):
         self._clock = clock
         self._active_sample: _ActiveCudaSample | None = None
         self._pending_samples: deque[_PendingCudaSample] = deque()
+        self._warned_start_before_end = False
+        self._warned_end_before_start = False
 
-    def on_batch_start(self) -> list[TimingMetric]:
+    def on_batch_start(self) -> dict[str, float]:
         """Close the previous cycle, enqueue a start marker, and poll results.
 
         The wall-clock start-to-start interval covers one training cycle. Once
@@ -143,19 +143,27 @@ class CudaBatchTimingTracker(BatchTimingTracker):
         now_s = self._clock()
         if self._active_sample is not None:
             if self._active_sample.end_event is None:
-                raise RuntimeError(
-                    "CUDA batch started before the previous batch ended."
+                # Profiling must never abort training. Drop the stale sample
+                # (its end event was never recorded, so no duration can be
+                # computed) and keep going.
+                if not self._warned_start_before_end:
+                    rank_zero_warn(
+                        "CUDA batch started before the previous batch ended; "
+                        "dropping the stale timing sample. This message is "
+                        "only shown once but may be recurring."
+                    )
+                    self._warned_start_before_end = True
+            else:
+                # Promote the previous active sample: its events are already
+                # queued on the stream, so it now only waits to be resolved.
+                self._pending_samples.append(
+                    _PendingCudaSample(
+                        wall_start_s=self._active_sample.wall_start_s,
+                        next_wall_start_s=now_s,
+                        start_event=self._active_sample.start_event,
+                        end_event=self._active_sample.end_event,
+                    )
                 )
-            # Promote the previous active sample: its events are already
-            # queued on the stream, so it now only waits to be resolved.
-            self._pending_samples.append(
-                _PendingCudaSample(
-                    wall_start_s=self._active_sample.wall_start_s,
-                    next_wall_start_s=now_s,
-                    start_event=self._active_sample.start_event,
-                    end_event=self._active_sample.end_event,
-                )
-            )
 
         # Enqueue this marker before polling old events so bookkeeping does not
         # move the GPU boundary. It is timestamped when the stream reaches it.
@@ -166,16 +174,24 @@ class CudaBatchTimingTracker(BatchTimingTracker):
         )
         return self._resolve_ready_samples()
 
-    def on_batch_end(self) -> list[TimingMetric]:
+    def on_batch_end(self) -> dict[str, float]:
         """Enqueue an end marker after the batch's previously queued GPU work."""
         if self._active_sample is None:
-            raise RuntimeError("CUDA batch ended before it started.")
+            # Profiling must never abort training: ignore this sample.
+            if not self._warned_end_before_start:
+                rank_zero_warn(
+                    "CUDA batch ended before it started; ignoring this "
+                    "timing sample. This message is only shown once but may "
+                    "be recurring."
+                )
+                self._warned_end_before_start = True
+            return {}
         end_event = Event(enable_timing=True)  # type: ignore[no-untyped-call]
         end_event.record()  # type: ignore[no-untyped-call]
         self._active_sample.end_event = end_event
-        return []
+        return {}
 
-    def _resolve_ready_samples(self) -> list[TimingMetric]:
+    def _resolve_ready_samples(self) -> dict[str, float]:
         """Pop samples from the front of the deque while their events are ready.
 
         Only the front of the deque is ever checked: CUDA events on the same
@@ -183,8 +199,15 @@ class CudaBatchTimingTracker(BatchTimingTracker):
         pending sample is not yet ready, none of the newer ones are either.
         This keeps the poll non-blocking and preserves stream order without
         needing to inspect every pending sample on each call.
+
+        Multiple samples can drain in a single call whenever the CPU has
+        raced ahead of the GPU (e.g. at startup or after a stall). Averaging
+        them here ensures at most one value per metric name is ever returned,
+        since Lightning's per-step logging overwrites rather than accumulates
+        repeated calls with the same key within one hook.
         """
-        metrics: list[TimingMetric] = []
+        batch_times_s: list[float] = []
+        data_times_s: list[float] = []
         while (
             self._pending_samples and self._pending_samples[0].end_event.query()  # type: ignore[no-untyped-call]
         ):
@@ -196,13 +219,15 @@ class CudaBatchTimingTracker(BatchTimingTracker):
                 / 1_000
             )
             cycle_time_s = sample.next_wall_start_s - sample.wall_start_s
-            metrics.extend(
-                [
-                    ("batch_time", batch_time_s),
-                    ("data_time", max(0.0, cycle_time_s - batch_time_s)),
-                ]
-            )
-        return metrics
+            batch_times_s.append(batch_time_s)
+            data_times_s.append(max(0.0, cycle_time_s - batch_time_s))
+
+        if not batch_times_s:
+            return {}
+        return {
+            "batch_time": sum(batch_times_s) / len(batch_times_s),
+            "data_time": sum(data_times_s) / len(data_times_s),
+        }
 
 
 def create_batch_timing_tracker(device_type: str) -> BatchTimingTracker:

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import time
+import warnings
 
 import pytest
 import torch
@@ -15,13 +16,26 @@ import torch
 from lightly_train._methods.batch_timing import (
     CpuBatchTimingTracker,
     CudaBatchTimingTracker,
-    TimingMetric,
+    _PendingCudaSample,
     create_batch_timing_tracker,
 )
 
 requires_cuda = pytest.mark.skipif(
     not torch.cuda.is_available(), reason="CUDA not available"
 )
+
+
+class _FakeCudaEvent:
+    """Stand-in for ``torch.cuda.Event`` usable without a GPU."""
+
+    def __init__(self, elapsed_ms: float = 0.0) -> None:
+        self._elapsed_ms = elapsed_ms
+
+    def query(self) -> bool:
+        return True
+
+    def elapsed_time(self, end_event: "_FakeCudaEvent") -> float:
+        return self._elapsed_ms
 
 
 def _run_gpu_work(iters: int = 20, size: int = 2048) -> None:
@@ -36,32 +50,77 @@ def test_cpu_batch_timing_tracker() -> None:
     times = iter([1.0, 1.4, 1.5, 2.1])
     tracker = CpuBatchTimingTracker(clock=times.__next__)
 
-    assert tracker.on_batch_start() == []
-    batch_name, batch_time_s = tracker.on_batch_end()[0]
-    assert batch_name == "batch_time"
-    assert batch_time_s == pytest.approx(0.4)
-
-    data_name, data_time_s = tracker.on_batch_start()[0]
-    assert data_name == "data_time"
-    assert data_time_s == pytest.approx(0.1)
-
-    batch_name, batch_time_s = tracker.on_batch_end()[0]
-    assert batch_name == "batch_time"
-    assert batch_time_s == pytest.approx(0.6)
+    assert tracker.on_batch_start() == {}
+    assert tracker.on_batch_end() == pytest.approx({"batch_time": 0.4})
+    assert tracker.on_batch_start() == pytest.approx({"data_time": 0.1})
+    assert tracker.on_batch_end() == pytest.approx({"batch_time": 0.6})
 
 
-def test_cuda_batch_timing_tracker_on_batch_end_without_start_raises() -> None:
+def test_cuda_batch_timing_tracker_on_batch_end_without_start_warns() -> None:
     tracker = CudaBatchTimingTracker()
-    with pytest.raises(RuntimeError, match="ended before it started"):
-        tracker.on_batch_end()
+
+    with pytest.warns(UserWarning, match="ended before it started"):
+        metrics = tracker.on_batch_end()
+    assert metrics == {}
+
+    # The warning is only shown once even if the inconsistency recurs.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        metrics = tracker.on_batch_end()
+    assert metrics == {}
 
 
 @requires_cuda
-def test_cuda_batch_timing_tracker_on_batch_start_without_end_raises() -> None:
+def test_cuda_batch_timing_tracker_on_batch_start_without_end_warns() -> None:
     tracker = CudaBatchTimingTracker()
     tracker.on_batch_start()
-    with pytest.raises(RuntimeError, match="started before the previous batch ended"):
+
+    with pytest.warns(UserWarning, match="started before the previous batch ended"):
         tracker.on_batch_start()
+
+    # The warning is only shown once even if the inconsistency recurs.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        tracker.on_batch_start()
+
+    # The tracker keeps working normally afterwards.
+    tracker.on_batch_end()
+    torch.cuda.synchronize()
+    tracker.on_batch_end()  # closes the sample started right above
+    torch.cuda.synchronize()
+
+
+def test_cuda_batch_timing_tracker_resolves_ready_samples_averages_multiple() -> None:
+    tracker = CudaBatchTimingTracker()
+
+    # Sample 1: batch_time = 0.1s, cycle = 0.3s -> data_time = 0.2s.
+    tracker._pending_samples.append(
+        _PendingCudaSample(
+            wall_start_s=0.0,
+            next_wall_start_s=0.3,
+            start_event=_FakeCudaEvent(elapsed_ms=100.0),
+            end_event=_FakeCudaEvent(),
+        )
+    )
+    # Sample 2: batch_time = 0.9s, cycle = 1.0s -> data_time = 0.1s.
+    tracker._pending_samples.append(
+        _PendingCudaSample(
+            wall_start_s=0.3,
+            next_wall_start_s=1.3,
+            start_event=_FakeCudaEvent(elapsed_ms=900.0),
+            end_event=_FakeCudaEvent(),
+        )
+    )
+
+    # Draining several samples at once must average, not overwrite: only one
+    # value per metric name is ever returned.
+    metrics = tracker._resolve_ready_samples()
+
+    assert metrics == pytest.approx({"batch_time": 0.5, "data_time": 0.15})
+    assert len(tracker._pending_samples) == 0
+
+    # Nothing left to drain.
+    assert tracker._resolve_ready_samples() == {}
 
 
 @requires_cuda
@@ -77,16 +136,11 @@ def test_cuda_batch_timing_tracker_resolves_metrics_in_order() -> None:
     # Force all queued GPU work to complete, then promote and drain the last
     # active sample by starting one more (unfinished) cycle.
     torch.cuda.synchronize()
-    metrics: list[TimingMetric] = tracker.on_batch_start()
+    metrics = tracker.on_batch_start()
 
-    assert len(metrics) == num_cycles * 2
-    names = [name for name, _ in metrics]
-    assert names == ["batch_time", "data_time"] * num_cycles
-    for name, value_s in metrics:
-        if name == "batch_time":
-            assert value_s > 0.0
-        else:
-            assert value_s >= 0.0
+    assert set(metrics) == {"batch_time", "data_time"}
+    assert metrics["batch_time"] > 0.0
+    assert metrics["data_time"] >= 0.0
 
     tracker.on_batch_end()
     torch.cuda.synchronize()

@@ -23,7 +23,6 @@ from lightly_train._loggers.mlflow import MLFlowLogger
 from lightly_train._loggers.tensorboard import TensorBoardLogger
 from lightly_train._methods.batch_timing import (
     BatchTimingTracker,
-    TimingMetric,
     create_batch_timing_tracker,
 )
 from lightly_train._methods.method_args import MethodArgs
@@ -204,7 +203,12 @@ class Method(LightningModule):
             self._batch_timing_tracker = create_batch_timing_tracker(self.device.type)
         return self._batch_timing_tracker
 
-    def _log_timing_metrics(self, metrics: list[TimingMetric]) -> None:
+    def _log_timing_metrics(self, metrics: Mapping[str, float]) -> None:
         """Log timing samples emitted by the active device-specific tracker."""
-        for name, value_s in metrics:
-            self.log(f"profiling/{name}", value_s)
+        if not metrics:
+            return
+        self.log_dict(
+            {f"profiling/{name}": value for name, value in metrics.items()},
+            on_step=True,
+            on_epoch=False,
+        )
