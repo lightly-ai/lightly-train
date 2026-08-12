@@ -42,9 +42,7 @@ def get_instance_segmentation_prediction(
     model_image_size: tuple[int, int],
     crop_size: tuple[int, int],
     image_size: tuple[int, int],
-    get_labels_masks_scores: Callable[
-        [Tensor, Tensor], tuple[Tensor, Tensor, Tensor]
-    ],
+    get_labels_masks_scores: Callable[[Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
     memory_budget_bytes: int = _INSTANCE_PREDICTION_MEMORY_BUDGET_BYTES,
 ) -> dict[str, Tensor]:
     """Build one prediction while bounding resized-mask working memory.
@@ -77,9 +75,7 @@ def get_instance_segmentation_prediction(
         logits_chunk = mask_logits[start:end].unsqueeze(0)
         class_logits_chunk = class_logits[start:end].unsqueeze(0)
 
-        logits_chunk = F.interpolate(
-            logits_chunk, model_image_size, mode="bilinear"
-        )
+        logits_chunk = F.interpolate(logits_chunk, model_image_size, mode="bilinear")
         logits_chunk = logits_chunk[..., :crop_h, :crop_w]
         logits_chunk = F.interpolate(logits_chunk, image_size, mode="bilinear")
 
