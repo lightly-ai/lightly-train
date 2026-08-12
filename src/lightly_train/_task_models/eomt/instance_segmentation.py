@@ -58,8 +58,14 @@ def get_instance_segmentation_prediction(
         raise ValueError("mask_logits must contain at least one query")
 
     crop_h, crop_w = crop_size
+    # The first resize can be larger than the final image resize. Size chunks
+    # from the largest materialized mask surface so the intermediate logits stay
+    # within the same working-set budget.
+    peak_image_size = max(
+        (model_image_size, image_size), key=lambda size: size[0] * size[1]
+    )
     chunk_size = _query_chunk_size(
-        image_size=image_size,
+        image_size=peak_image_size,
         memory_budget_bytes=memory_budget_bytes,
     )
     labels_chunks: list[Tensor] = []

@@ -95,3 +95,36 @@ def test_chunked_prediction_matches_single_chunk() -> None:
     torch.testing.assert_close(chunked["masks"], unchunked["masks"])
     torch.testing.assert_close(chunked["scores"], unchunked["scores"])
     assert chunked["masks"].device.type == "cpu"
+
+
+def test_chunk_size_uses_larger_intermediate_model_resolution() -> None:
+    generator = torch.Generator().manual_seed(1)
+    mask_logits = torch.randn((5, 2, 3), generator=generator)
+    class_logits = torch.randn((5, 4), generator=generator)
+    model_image_size = (8, 10)
+    final_image_size = (4, 5)
+    model_bytes_per_query = (
+        model_image_size[0]
+        * model_image_size[1]
+        * torch.tensor([], dtype=torch.float32).element_size()
+        * _FP32_WORKING_BUFFERS_PER_PIXEL
+    )
+    chunk_sizes: list[int] = []
+
+    def tracked_get_labels_masks_scores(
+        mask_logits: Tensor, class_logits: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        chunk_sizes.append(mask_logits.shape[1])
+        return _get_labels_masks_scores(mask_logits, class_logits)
+
+    get_instance_segmentation_prediction(
+        mask_logits=mask_logits,
+        class_logits=class_logits,
+        model_image_size=model_image_size,
+        crop_size=(7, 9),
+        image_size=final_image_size,
+        get_labels_masks_scores=tracked_get_labels_masks_scores,
+        memory_budget_bytes=2 * model_bytes_per_query,
+    )
+
+    assert chunk_sizes == [2, 2, 1]
