@@ -16,6 +16,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   AMD GPUs.
 - Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
   available from PyPI.
+- Add multi-scale feature support for TIMM models. Models that expose intermediate
+  features are wrapped in a model wrapper that returns the feature maps of the requested
+  layers or stages in NCHW format, together with their feature dimensions and patch size
+  or feature strides.
 
 ### Changed
 

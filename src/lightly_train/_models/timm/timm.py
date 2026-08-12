@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from typing import Any, Callable, Sequence
 
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Module
@@ -19,6 +19,8 @@ from lightly_train._models.model_wrapper import (
     ForwardFeaturesOutput,
     ForwardPoolOutput,
     ModelWrapper,
+    MultiScaleFeatureCNN,
+    MultiScaleFeatureViT,
 )
 
 logger = logging.getLogger(__name__)
@@ -249,6 +251,110 @@ class TIMMModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
         return {"model_type": "transformer", "norm_type": "layernorm"}
 
 
+class TIMMMultiScaleViTModelWrapper(TIMMModelWrapper, MultiScaleFeatureViT):
+    """Wrapper for timm models where all layers have the same feature resolution.
+
+    For example vit and mixer models. The layer indices accepted by
+    ``forward_multiscale_features`` are the indices of the transformer blocks, from 0
+    to ``len(multiscale_feature_dims()) - 1``.
+    """
+
+    def __init__(self, model: Module) -> None:
+        super().__init__(model=model)
+        self._feature_info = _get_multiscale_feature_info(model=model)
+        if not _has_constant_feature_geometry(feature_info=self._feature_info):
+            raise ValueError(
+                f"Model of type {type(model)} does not have the same feature dimension "
+                "and stride in all layers. Use get_multiscale_model_wrapper to get the "
+                "model wrapper matching the model."
+            )
+        self._patch_size = _get_patch_size(model=model, feature_info=self._feature_info)
+
+    def patch_size(self) -> int:
+        return self._patch_size
+
+    def multiscale_feature_dims(self) -> list[int]:
+        return [entry["num_chs"] for entry in self._feature_info]
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        return _forward_multiscale_features(
+            model=self._model,
+            x=x,
+            layer_indices=layer_indices,
+            num_layers=len(self._feature_info),
+            norm=True,  # Apply normalization to be consistent with forward_features.
+        )
+
+
+class TIMMMultiScaleCNNModelWrapper(TIMMModelWrapper, MultiScaleFeatureCNN):
+    """Wrapper for timm models where the feature resolution decreases per stage.
+
+    For example resnet, convnext and swin models. The layer indices accepted by
+    ``forward_multiscale_features`` are the indices of the stages, from 0 to
+    ``len(multiscale_feature_dims()) - 1``.
+    """
+
+    def __init__(self, model: Module) -> None:
+        super().__init__(model=model)
+        self._feature_info = _get_multiscale_feature_info(model=model)
+        if not _has_increasing_feature_strides(feature_info=self._feature_info):
+            raise ValueError(
+                f"Model of type {type(model)} does not have increasing feature strides "
+                "from stage to stage. Use get_multiscale_model_wrapper to get the "
+                "model wrapper matching the model."
+            )
+
+    def multiscale_feature_dims(self) -> list[int]:
+        return [entry["num_chs"] for entry in self._feature_info]
+
+    def multiscale_feature_strides(self) -> list[int]:
+        return [entry["reduction"] for entry in self._feature_info]
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        return _forward_multiscale_features(
+            model=self._model,
+            x=x,
+            layer_indices=layer_indices,
+            num_layers=len(self._feature_info),
+            # Stages have no normalization equivalent to the one applied by
+            # forward_features, so they are returned as produced by the model.
+            norm=False,
+        )
+
+
+def get_multiscale_model_wrapper(
+    model: Module,
+) -> TIMMMultiScaleViTModelWrapper | TIMMMultiScaleCNNModelWrapper:
+    """Wraps the model with a model wrapper that supports multi-scale features.
+
+    The wrapper is chosen based on the feature geometry reported by timm in
+    model.feature_info instead of the architecture name, because architectures with a
+    transformer backbone can have either geometry. For example swin models are
+    transformers but have one feature resolution per stage like a CNN.
+
+    Raises:
+        ValueError: If the model cannot expose multi-scale features.
+    """
+    feature_info = _get_multiscale_feature_info(model=model)
+    if _has_constant_feature_geometry(feature_info=feature_info):
+        return TIMMMultiScaleViTModelWrapper(model=model)
+    elif _has_increasing_feature_strides(feature_info=feature_info):
+        return TIMMMultiScaleCNNModelWrapper(model=model)
+    else:
+        dims = [entry["num_chs"] for entry in feature_info]
+        strides = [entry["reduction"] for entry in feature_info]
+        raise ValueError(
+            f"Model of type {type(model)} has feature dimensions {dims} and feature "
+            f"strides {strides}, which are neither constant across all layers "
+            "(transformer) nor increasing from stage to stage (convolutional). "
+            "Multi-scale features are not supported for this model."
+        )
+
+
 def _get_forward_features_fn(model: Module) -> Callable[[Module, Tensor], Tensor]:
     """Get the forward_features function for the model.
 
@@ -298,6 +404,92 @@ def _forward_intermediates(model: Module, x: Tensor) -> Tensor:
         norm=True,  # Apply normalization to be consistent with forward_features.
     )
     return intermediates[0]
+
+
+def _forward_multiscale_features(
+    model: Module,
+    x: Tensor,
+    layer_indices: Sequence[int],
+    num_layers: int,
+    norm: bool,
+) -> list[ForwardFeaturesOutput]:
+    """Get the features of the given layers/stages in NCHW format."""
+    if not layer_indices:
+        # Timm fails with an unrelated error if no indices are requested.
+        return []
+    for layer_index in layer_indices:
+        if not 0 <= layer_index < num_layers:
+            raise ValueError(
+                f"Layer index {layer_index} is out of range, it must be in "
+                f"[0, {num_layers - 1}]."
+            )
+    # Timm returns the intermediates in the order in which they are produced by the
+    # model and ignores duplicate indices. We therefore request the sorted indices and
+    # restore the requested order afterwards.
+    sorted_indices = sorted(set(layer_indices))
+    intermediates: list[Tensor] = model.forward_intermediates(  # type: ignore[operator]
+        x,
+        indices=sorted_indices,
+        output_fmt="NCHW",
+        intermediates_only=True,
+        norm=norm,
+    )
+    index_to_features = dict(zip(sorted_indices, intermediates))
+    return [{"features": index_to_features[index]} for index in layer_indices]
+
+
+def _get_multiscale_feature_info(model: Module) -> list[dict[str, Any]]:
+    """Get the feature info of every layer/stage from which timm can extract features.
+
+    Each entry has a "num_chs" and a "reduction" key with the feature dimension and the
+    feature stride of the layer/stage.
+    """
+    if not hasattr(model, "forward_intermediates"):
+        # Multi-scale features are only supported for models with a
+        # forward_intermediates method. See _get_forward_features_fn for the other
+        # methods that timm models use to expose features.
+        raise ValueError(
+            f"Model of type {type(model)} has no 'forward_intermediates' method and "
+            "therefore does not support multi-scale features."
+        )
+    feature_info = getattr(model, "feature_info", None)
+    if not feature_info:
+        raise ValueError(
+            f"Model of type {type(model)} has no 'feature_info' and therefore does not "
+            "support multi-scale features."
+        )
+    # For models that are not created with features_only=True, feature_info is a plain
+    # list of dicts without the accessors of timm's FeatureInfo class.
+    return [dict(entry) for entry in feature_info]
+
+
+def _has_constant_feature_geometry(feature_info: list[dict[str, Any]]) -> bool:
+    """Whether all layers have the same feature dimension and stride."""
+    dims = {entry["num_chs"] for entry in feature_info}
+    strides = {entry["reduction"] for entry in feature_info}
+    return len(dims) == 1 and len(strides) == 1
+
+
+def _has_increasing_feature_strides(feature_info: list[dict[str, Any]]) -> bool:
+    """Whether the feature stride increases from stage to stage."""
+    strides = [entry["reduction"] for entry in feature_info]
+    return all(
+        stride < next_stride for stride, next_stride in zip(strides, strides[1:])
+    )
+
+
+def _get_patch_size(model: Module, feature_info: list[dict[str, Any]]) -> int:
+    """Get the patch size of a model where all layers have the same feature stride."""
+    # Timm stores the patch size either as an int or as a (height, width) tuple.
+    patch_embed = getattr(model, "patch_embed", None)
+    patch_size = getattr(patch_embed, "patch_size", None)
+    if isinstance(patch_size, (tuple, list)) and len(set(patch_size)) != 1:
+        raise ValueError(
+            f"Model of type {type(model)} has a non-square patch size "
+            f"{tuple(patch_size)}, which is not supported for multi-scale features."
+        )
+    patch_size_int: int = feature_info[0]["reduction"]
+    return patch_size_int
 
 
 def _get_pool_layer(model: Module) -> Module:
