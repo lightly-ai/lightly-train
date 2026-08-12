@@ -410,7 +410,9 @@ class DINOv2EoMTInstanceSegmentationTrain(TrainModel):
                 get_instance_segmentation_prediction(
                     mask_logits=logits,
                     class_logits=class_logits,
-                    model_image_size=resized_images.shape[-2:],
+                    model_image_size=(
+                        resized_images.shape[-2], resized_images.shape[-1]
+                    ),
                     crop_size=(crop_h, crop_w),
                     image_size=(image_h, image_w),
                     get_labels_masks_scores=self.model.get_labels_masks_scores,
