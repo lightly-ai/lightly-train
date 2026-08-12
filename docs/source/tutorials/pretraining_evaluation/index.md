@@ -155,8 +155,12 @@ Which images may enter the unlabeled pretraining pool?
 - **Your held-out images: never.** Including them leads to data leakage: the evaluation
   is no longer measuring generalization. Treat the pretraining pool like a training
   split — any image in it must not be used for evaluation.
-- **Additional unlabeled images: yes.** The more the better, as long as they come from
-  the same domain.
+- **Additional unlabeled images: yes** — but composition matters as much as volume. More
+  data generally helps, though if one visual mode dominates the pool the learned
+  features skew toward it, and rare modes can disappear entirely once you subsample. It
+  is worth looking at how your unlabeled set is distributed before simply scaling it up;
+  [LightlyStudio](https://github.com/lightly-ai/lightly-studio) is one way to inspect
+  and curate it.
 
 The layout from the prerequisites enforces this by construction: point pretraining at
 `my_dataset/` and it sees the unlabeled images plus the fine-tuning training images,
@@ -239,11 +243,18 @@ later — can interpret the comparison. A minimal results table:
 | pretrained_from_scratch | LightlyTrain (from random) | my_dataset / 100          | 800 images / 50           | 0    | …        |
 | pretrained_on_coco      | LightlyTrain (on COCO)     | my_dataset / 100          | 800 images / 50           | 0    | …        |
 
-For Ultralytics fine-tuning the metric comes from the `results.csv` of each run, as
-shown in the {ref}`YOLOv26 tutorial <tutorials-yolo>`. If you fine-tune with
-LightlyTrain's `train_object_detection` instead, the
-{ref}`benchmark command <quick-start-object-detection>` (in beta) evaluates a checkpoint
-on a validation split and writes a report with the run configuration included.
+Every number in that table already exists by the time training finishes — there is no
+need to re-run inference to collect it. For Ultralytics fine-tuning the metric comes
+from the `results.csv` of each run, as shown in the
+{ref}`YOLOv26 tutorial <tutorials-yolo>`. If you fine-tune with LightlyTrain's
+`train_object_detection` instead, read it from the logs in the output directory or from
+TensorBoard, which is enabled by default:
+
+```bash
+tensorboard --logdir out
+```
+
+See {ref}`Logging <train-settings-logging>` for the other supported loggers.
 
 ## Interpret the Result
 
