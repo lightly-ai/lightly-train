@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, List, cast
 
 import torch
 import torch.distributed as dist
@@ -265,10 +265,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
         img_h, img_w = images.shape[-2:]
 
         outputs = self.model._forward_train(images)
-        cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
-        bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
-        o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
-        o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
+        cls_scores_list = cast(List[Tensor], outputs["cls_scores"])
+        bbox_preds_list = cast(List[Tensor], outputs["bbox_preds"])
+        o2o_cls_scores = cast(List[Tensor], outputs["o2o_cls_scores"])
+        o2o_bbox_preds = cast(List[Tensor], outputs["o2o_bbox_preds"])
 
         # Convert GT from YOLO format to pixel xyxy
         gt_boxes_xyxy_norm = yolo_to_xyxy(gt_bboxes_yolo)
@@ -377,10 +377,10 @@ class PicoDetObjectDetectionTrain(TrainModel):
         with torch.no_grad():
             outputs = ema_model._forward_train(images)
 
-        cls_scores_list = cast(list[Tensor], outputs["cls_scores"])
-        bbox_preds_list = cast(list[Tensor], outputs["bbox_preds"])
-        o2o_cls_scores = cast(list[Tensor], outputs["o2o_cls_scores"])
-        o2o_bbox_preds = cast(list[Tensor], outputs["o2o_bbox_preds"])
+        cls_scores_list = cast(List[Tensor], outputs["cls_scores"])
+        bbox_preds_list = cast(List[Tensor], outputs["bbox_preds"])
+        o2o_cls_scores = cast(List[Tensor], outputs["o2o_cls_scores"])
+        o2o_bbox_preds = cast(List[Tensor], outputs["o2o_bbox_preds"])
 
         gt_boxes_xyxy_norm = yolo_to_xyxy(gt_bboxes_yolo)
         img_h, img_w = images.shape[-2:]

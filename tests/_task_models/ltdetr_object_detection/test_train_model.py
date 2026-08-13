@@ -7,10 +7,17 @@
 #
 from __future__ import annotations
 
-from typing import cast
+from typing import Dict, List, cast
 
+import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
+
+if RequirementCache("torchmetrics<1.5"):
+    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
+    # is installed which requires torchmetrics==0.8
+    pytest.skip("Old torchmetrics version", allow_module_level=True)
 
 from lightly_train._data import label_helpers
 from lightly_train._metrics.mean_average_precision import MeanAveragePrecision
@@ -81,7 +88,7 @@ def test_decode_predictions_for_metrics__non_contiguous_class_ids() -> None:
     metric = MeanAveragePrecision(
         prefix="val", class_names=list(classes.values()), class_metrics=True
     )
-    metric.update(cast(list[dict[str, Tensor]], results), targets)
+    metric.update(cast(List[Dict[str, Tensor]], results), targets)
     computed = metric.compute()
 
     # A perfect prediction must score a perfect mAP. If predictions were remapped to
