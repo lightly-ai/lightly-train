@@ -72,13 +72,18 @@ The `data_wait` percentage is calculated as out of the `batch_time` and the `dat
 as\
 `data_time / (batch_time + data_time)`.
 
-The `batch_time` is the time in seconds taken by the main process for the forward,
-backward, and optimizer step. It uses the accelerator(s) like GPUs if available.
+The `batch_time` is the time in seconds taken by the forward, backward, and optimizer
+step. On CPU it is measured at the training batch hooks. On CUDA it is measured using
+events recorded on the CUDA stream, so asynchronous GPU execution is included.
 
-The `data_time` is the time in seconds the main process waits while fetching the next
-batch from the dataloading workers. As the dataloading workers run in parallel and
-already prepare the next batch while the current batch is processed, the `data_time`
-should be close to zero.
+The `data_time` is the part of the training cycle not spent executing the batch. On CPU
+this is the time between the previous batch ending and the next batch starting. On CUDA
+it is estimated by subtracting the GPU batch time from the wall-clock time between two
+batch starts. It therefore also includes small amounts of framework overhead. CUDA
+metrics are logged only after their events have completed and can appear a few batches
+after they were measured. As the dataloading workers run in parallel and already prepare
+the next batch while the current batch is processed, the `data_time` should be close to
+zero.
 
 Both the `batch_time` and the `data_time` are visible in the MLflow, TensorBoard, and
 Weights & Biases logs.

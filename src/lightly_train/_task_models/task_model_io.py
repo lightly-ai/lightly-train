@@ -280,6 +280,18 @@ class RowIndexableOutput(BaseModelOutput, ABC):
         ``len(output)`` and iterating over an output keep their ``Mapping`` meaning:
         the number of fields and the field names, NOT the number of rows. Use
         :attr:`num_rows` to count rows.
+
+    Note:
+        Indexing with a single ``int`` intentionally keeps the row dimension (e.g.
+        ``output[0].scores`` has shape ``(1,)``, not ``()``), so the result stays a
+        valid instance of ``type(self)`` with every field sharing a leading row
+        dimension, per :meth:`__post_init__`. This differs from plain list/tensor
+        int-indexing, which squeezes the dimension, and from methods like
+        :meth:`ObjectDetectionBatchPrediction.row`, which deliberately convert to a
+        different, flat type (e.g. batch prediction -> single-image prediction) and
+        squeeze as part of that conversion. The two are not comparable: ``select``/
+        ``__getitem__`` preserve type and shape contract, ``row``-style methods
+        change type on purpose.
     """
 
     def __post_init__(self) -> None:

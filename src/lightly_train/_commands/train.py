@@ -85,7 +85,7 @@ def pretrain(
 ) -> None:
     """Pretrain a self-supervised model.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/index.html
 
     The pretraining process can be monitored with TensorBoard:
 

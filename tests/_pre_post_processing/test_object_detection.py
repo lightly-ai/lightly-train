@@ -1254,3 +1254,38 @@ def test_preprocess_and_postprocess_sahi__merged_boxes_stay_inside_the_image() -
     assert prediction.bboxes[:, 2].max() <= metadata.orig_w
     assert prediction.bboxes[:, 3].max() <= metadata.orig_h
     assert torch.all(prediction.bboxes[:, 2:] > prediction.bboxes[:, :2])
+
+
+def test_targets_to_torchmetrics__clips_boxes_to_image() -> None:
+    # cxcywh -> xyxy [70, 40, 110, 60] in a 100x100 image: sticks out past x=100.
+    bboxes = [torch.tensor([[0.9, 0.5, 0.4, 0.2]])]
+    classes = [torch.tensor([3])]
+
+    targets = targets_to_torchmetrics(
+        bboxes=bboxes, classes=classes, original_sizes=[(100, 100)]
+    )
+
+    torch.testing.assert_close(
+        targets[0]["boxes"], torch.tensor([[70.0, 40.0, 100.0, 60.0]])
+    )
+    torch.testing.assert_close(targets[0]["labels"], torch.tensor([3]))
+
+
+def test_targets_to_torchmetrics__filters_degenerate_boxes() -> None:
+    # First box is zero-width (degenerate), second is a normal box.
+    bboxes = torch.tensor(
+        [
+            [0.5, 0.5, 0.0, 0.2],
+            [0.5, 0.5, 0.4, 0.2],
+        ]
+    )
+    classes = torch.tensor([9, 3])
+
+    targets = targets_to_torchmetrics(
+        bboxes=[bboxes], classes=[classes], original_sizes=[(100, 100)]
+    )
+
+    torch.testing.assert_close(
+        targets[0]["boxes"], torch.tensor([[30.0, 40.0, 70.0, 60.0]])
+    )
+    torch.testing.assert_close(targets[0]["labels"], torch.tensor([3]))

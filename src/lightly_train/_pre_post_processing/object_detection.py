@@ -16,7 +16,13 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
-from torchvision.ops import batched_nms, box_convert, box_iou
+from torchvision.ops import (
+    batched_nms,
+    box_convert,
+    box_iou,
+    clip_boxes_to_image,
+    remove_small_boxes,
+)
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import Self
 
@@ -628,7 +634,10 @@ def targets_to_torchmetrics(
 
     This is the ground truth counterpart to
     :meth:`ObjectDetectionPrediction.to_torchmetrics`: it brings targets into the
-    same ``xyxy`` original-image pixel coordinates the predictions use.
+    same ``xyxy`` original-image pixel coordinates the predictions use. Boxes are
+    also clipped to the image canvas and degenerate (zero-area) boxes are dropped,
+    matching the ``BboxParams(clip=True, filter_invalid_bboxes=True)`` behavior of
+    the training/val transforms.
 
     Args:
         bboxes:
@@ -642,10 +651,15 @@ def targets_to_torchmetrics(
     """
     boxes_xyxy = yolo_to_xyxy(bboxes)
     boxes_denormalized = denormalize_xyxy_boxes(boxes_xyxy, original_sizes)
-    return [
-        {"boxes": boxes, "labels": labels}
-        for boxes, labels in zip(boxes_denormalized, classes)
-    ]
+
+    targets = []
+    for boxes, labels, (width, height) in zip(
+        boxes_denormalized, classes, original_sizes
+    ):
+        boxes = clip_boxes_to_image(boxes, size=(height, width))
+        keep = remove_small_boxes(boxes, min_size=1e-6)
+        targets.append({"boxes": boxes[keep], "labels": labels[keep]})
+    return targets
 
 
 class ObjectDetectionPreprocessor(Module):
