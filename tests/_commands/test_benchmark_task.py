@@ -139,6 +139,90 @@ class _FakeObjectDetectionModel(TaskModel):
         )
 
 
+class _NonContiguousFakeObjectDetectionPostprocessor(ObjectDetectionPostprocessor):
+    """Like _FakeObjectDetectionPostprocessor, but with a non-identity, non-contiguous
+    internal_class_to_class mapping, and predictions matching the ground truth boxes
+    of _create_non_contiguous_coco_data_dict exactly.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            num_top_queries=1, internal_class_to_class=torch.tensor([5, 12])
+        )
+
+    def postprocess(  # type: ignore[override]
+        self,
+        raw: Any,
+        metadata: Sequence[ObjectDetectionMetadata],
+        threshold: float,
+    ) -> list[ObjectDetectionPrediction]:
+        return [
+            ObjectDetectionPrediction(
+                labels=torch.tensor([5]),
+                bboxes=torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
+                scores=torch.tensor([0.9]),
+            )
+            for _ in metadata
+        ]
+
+
+class _NonContiguousFakeObjectDetectionModel(TaskModel):
+    """Minimal TaskModel subclass whose ground-truth-matching predictions are only
+    correct if targets are mapped from internal to user-facing class ids.
+    """
+
+    model_suffix = ".pt"
+
+    def __init__(self) -> None:
+        super().__init__(
+            init_args={
+                "self": self,
+                "__class__": type(self),
+                "image_size": (64, 64),
+            },
+        )
+        self.preprocessor = ObjectDetectionPreprocessor(
+            image_size=(64, 64),
+            image_normalize=None,
+            expected_input_channels=3,
+        )
+        self.postprocessor = _NonContiguousFakeObjectDetectionPostprocessor()
+
+    def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
+        num_rows = images.shape[0]
+        return ObjectDetectionBatchOutput(
+            logits=torch.zeros(num_rows, 1, 2), boxes=torch.zeros(num_rows, 1, 4)
+        )
+
+
+def _create_non_contiguous_coco_data_dict(tmp_path: Path) -> dict[str, Any]:
+    """Like _create_coco_data_dict, but with non-contiguous category ids so that
+    internal class ids (0, 1, ...) differ from user-facing category ids (5, 12).
+    """
+    helpers.create_coco_object_detection_dataset(
+        tmp_path / "dataset",
+        num_files=2,
+        height=128,
+        width=128,
+        classes={5: "cat", 12: "dog"},
+        annotations_per_image=[
+            [{"category_id": 5, "bbox": [10, 10, 30, 40]}],
+            [{"category_id": 5, "bbox": [10, 10, 30, 40]}],
+        ],
+    )
+    return {
+        "format": "coco",
+        "train": {
+            "annotations": str(tmp_path / "dataset" / "train.json"),
+            "images": "train",
+        },
+        "val": {
+            "annotations": str(tmp_path / "dataset" / "val.json"),
+            "images": "val",
+        },
+    }
+
+
 def _preprocessor() -> ObjectDetectionPreprocessor:
     return ObjectDetectionPreprocessor(
         image_size=(64, 64), image_normalize=None, expected_input_channels=3
@@ -429,6 +513,25 @@ class TestBenchmarkObjectDetectionE2E:
         summary = summary_path.read_text()
         assert "# Benchmark Report" in summary
         assert "mAP" in summary
+
+    def test_benchmark_with_non_contiguous_class_ids(self, tmp_path: Path) -> None:
+        # Predictions use user-facing class ids (5, 12), mapped from internal ids by
+        # the postprocessor. Targets must be mapped into the same space, otherwise
+        # they never match the predictions and mAP is always 0, even for a model that
+        # predicts the ground truth boxes/classes exactly.
+        data_dict = _create_non_contiguous_coco_data_dict(tmp_path)
+        model = _NonContiguousFakeObjectDetectionModel()
+
+        result = benchmark_object_detection(
+            out=str(tmp_path / "out"),
+            dataset_name="test-coco-non-contiguous",
+            data=data_dict,
+            model=model,
+            batch_size=2,
+            overwrite=True,
+        )
+
+        assert result.metric_values["val_metric/map"] > 0.5
 
     def test_benchmark_with_yaml_resolves_paths_relative_to_yaml(
         self, tmp_path: Path

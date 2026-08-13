@@ -274,9 +274,14 @@ def _benchmark_object_detection_from_config(
                 prediction.to(device="cpu").to_torchmetrics()
                 for prediction in predictions
             ]
+            # batch["classes"] holds internal, contiguous class ids (see
+            # COCOObjectDetectionDatasetArgs.list_image_info), while predictions are
+            # already mapped to user-facing class ids by the postprocessor. Map targets
+            # into the same space so update_with_predictions compares like with like.
+            internal_class_to_class = postprocessor.internal_class_to_class.cpu()
             targets = targets_to_torchmetrics(
                 bboxes=batch["bboxes"],
-                classes=batch["classes"],
+                classes=[internal_class_to_class[c] for c in batch["classes"]],
                 original_sizes=batch["original_size"],
             )
             metric.update_with_predictions(metric_preds, targets)
@@ -420,7 +425,8 @@ class _BenchmarkTransform(TaskTransform):
     Ground truth boxes are passed through in normalized YOLO coordinates. They are
     independent of the model input size and are denormalized to the original image
     size by :func:`targets_to_torchmetrics` right before the metric update, so no
-    box transform is needed here.
+    rescale is needed here. Clipping to the image canvas and dropping degenerate
+    boxes also happens there, not here.
     """
 
     transform_args_cls = _BenchmarkTransformArgs
