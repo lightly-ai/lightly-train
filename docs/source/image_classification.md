@@ -23,6 +23,63 @@ how to prepare your dataset.
 In multiclass classification, each image is assigned to exactly one class. This is the
 default mode and does not need to be specified explicitly.
 
+If you don't have a dataset at hand, [FashionMNIST](https://github.com/zalandoresearch/fashion-mnist)
+(MIT licensed) is a small, permissively licensed example dataset. It ships via
+`torchvision`, not as class-subfolders, so export a small subset to disk once:
+
+```python
+from pathlib import Path
+
+from torchvision.datasets import FashionMNIST
+
+FASHION_MNIST_CLASSES = {
+    0: "tshirt_top",
+    1: "trouser",
+    2: "pullover",
+    3: "dress",
+    4: "coat",
+    5: "sandal",
+    6: "shirt",
+    7: "sneaker",
+    8: "bag",
+    9: "ankle_boot",
+}
+
+
+def export_subset(split: str, train: bool, num_samples: int) -> None:
+    dataset = FashionMNIST(root="fashion_mnist_raw", train=train, download=True)
+    for i, (image, label) in enumerate(dataset):
+        if i >= num_samples:
+            break
+        # Subfolder names must match the "classes" names below, not the ids.
+        class_dir = Path("fashion_mnist") / split / FASHION_MNIST_CLASSES[label]
+        class_dir.mkdir(parents=True, exist_ok=True)
+        image.save(class_dir / f"{i}.png")
+
+
+export_subset("train", train=True, num_samples=2000)
+export_subset("val", train=False, num_samples=500)
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_image_classification(
+        out="out/my_experiment",
+        model="dinov3/vitt16",
+        data={
+            "train": "fashion_mnist/train",
+            "val": "fashion_mnist/val",
+            "classes": FASHION_MNIST_CLASSES,
+        },
+    )
+```
+
+`data` also accepts a path to a YAML file with the same keys, which reads quicker for
+larger class dictionaries. With your own dataset organized as class-subfolders, the
+minimal example looks like this:
+
 ```python
 import lightly_train
 

@@ -54,6 +54,26 @@ requires a few lines of code using the
 {py:func}`train_object_detection <lightly_train.train_object_detection>` function. See
 [data](#object-detection-data) for details on how to prepare your dataset.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+
+```bash
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.1.0/object_detection.zip && unzip -q object_detection.zip
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_object_detection(
+        out="out/my_experiment",
+        model="ltdetrv2-s-coco",
+        data="object_detection/config.yaml",
+    )
+```
+
+`data` also accepts a dictionary with the same keys as the yaml file, which is useful
+if you want to set them programmatically:
+
 ```python
 import lightly_train
 

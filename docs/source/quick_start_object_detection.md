@@ -97,13 +97,14 @@ First download a dataset. The dataset must be in YOLO format, see the
 YOLO format:
 
 ```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.1/coco128_yolo.zip && unzip -q coco128_yolo.zip
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.1.0/object_detection.zip && unzip -q object_detection.zip
 ```
 
 The dataset looks like this after the download completes:
 
 ```text
-coco128_yolo
+object_detection
+├── config.yaml
 ├── images
 │   ├── train2017
 │   │   ├── 000000000009.jpg
@@ -128,6 +129,20 @@ coco128_yolo
         └── 000000013201.txt
 ```
 
+`config.yaml` already has everything `train_object_detection` needs — the dataset
+paths and the 80 COCO class names:
+
+```yaml
+path: .
+train: images/train2017
+val: images/val2017
+
+names:
+  0: person
+  1: bicycle
+  # ... 78 more classes
+```
+
 ### Start training
 
 Next, start the training with the
@@ -144,93 +159,7 @@ lightly_train.train_object_detection(
     model="ltdetrv2-s-coco",
     steps=100,  # Small number of steps for demonstration, default is 266_112.
     batch_size=4,  # Small batch size for demonstration, default is 32.
-    data={
-        "path": "coco128_yolo",
-        "train": "images/train2017",
-        "val": "images/val2017",
-        "names": {
-            0: "person",
-            1: "bicycle",
-            2: "car",
-            3: "motorcycle",
-            4: "airplane",
-            5: "bus",
-            6: "train",
-            7: "truck",
-            8: "boat",
-            9: "traffic light",
-            10: "fire hydrant",
-            11: "stop sign",
-            12: "parking meter",
-            13: "bench",
-            14: "bird",
-            15: "cat",
-            16: "dog",
-            17: "horse",
-            18: "sheep",
-            19: "cow",
-            20: "elephant",
-            21: "bear",
-            22: "zebra",
-            23: "giraffe",
-            24: "backpack",
-            25: "umbrella",
-            26: "handbag",
-            27: "tie",
-            28: "suitcase",
-            29: "frisbee",
-            30: "skis",
-            31: "snowboard",
-            32: "sports ball",
-            33: "kite",
-            34: "baseball bat",
-            35: "baseball glove",
-            36: "skateboard",
-            37: "surfboard",
-            38: "tennis racket",
-            39: "bottle",
-            40: "wine glass",
-            41: "cup",
-            42: "fork",
-            43: "knife",
-            44: "spoon",
-            45: "bowl",
-            46: "banana",
-            47: "apple",
-            48: "sandwich",
-            49: "orange",
-            50: "broccoli",
-            51: "carrot",
-            52: "hot dog",
-            53: "pizza",
-            54: "donut",
-            55: "cake",
-            56: "chair",
-            57: "couch",
-            58: "potted plant",
-            59: "bed",
-            60: "dining table",
-            61: "toilet",
-            62: "tv",
-            63: "laptop",
-            64: "mouse",
-            65: "remote",
-            66: "keyboard",
-            67: "cell phone",
-            68: "microwave",
-            69: "oven",
-            70: "toaster",
-            71: "sink",
-            72: "refrigerator",
-            73: "book",
-            74: "clock",
-            75: "vase",
-            76: "scissors",
-            77: "teddy bear",
-            78: "hair drier",
-            79: "toothbrush",
-        },
-    },
+    data="object_detection/config.yaml",
 )
 ```
 
@@ -298,93 +227,7 @@ result = lightly_train.benchmark_object_detection(
     out="out/my_benchmark",
     dataset_name="coco128",  # Human-readable name shown in the report.
     model="out/my_experiment/exported_models/exported_best.pt",
-    data={
-        "path": "coco128_yolo",
-        "train": "images/train2017",
-        "val": "images/val2017",
-        "names": {
-            0: "person",
-            1: "bicycle",
-            2: "car",
-            3: "motorcycle",
-            4: "airplane",
-            5: "bus",
-            6: "train",
-            7: "truck",
-            8: "boat",
-            9: "traffic light",
-            10: "fire hydrant",
-            11: "stop sign",
-            12: "parking meter",
-            13: "bench",
-            14: "bird",
-            15: "cat",
-            16: "dog",
-            17: "horse",
-            18: "sheep",
-            19: "cow",
-            20: "elephant",
-            21: "bear",
-            22: "zebra",
-            23: "giraffe",
-            24: "backpack",
-            25: "umbrella",
-            26: "handbag",
-            27: "tie",
-            28: "suitcase",
-            29: "frisbee",
-            30: "skis",
-            31: "snowboard",
-            32: "sports ball",
-            33: "kite",
-            34: "baseball bat",
-            35: "baseball glove",
-            36: "skateboard",
-            37: "surfboard",
-            38: "tennis racket",
-            39: "bottle",
-            40: "wine glass",
-            41: "cup",
-            42: "fork",
-            43: "knife",
-            44: "spoon",
-            45: "bowl",
-            46: "banana",
-            47: "apple",
-            48: "sandwich",
-            49: "orange",
-            50: "broccoli",
-            51: "carrot",
-            52: "hot dog",
-            53: "pizza",
-            54: "donut",
-            55: "cake",
-            56: "chair",
-            57: "couch",
-            58: "potted plant",
-            59: "bed",
-            60: "dining table",
-            61: "toilet",
-            62: "tv",
-            63: "laptop",
-            64: "mouse",
-            65: "remote",
-            66: "keyboard",
-            67: "cell phone",
-            68: "microwave",
-            69: "oven",
-            70: "toaster",
-            71: "sink",
-            72: "refrigerator",
-            73: "book",
-            74: "clock",
-            75: "vase",
-            76: "scissors",
-            77: "teddy bear",
-            78: "hair drier",
-            79: "toothbrush",
-        },
-    },
+    data="object_detection/config.yaml",
 )
 
 result.print()
