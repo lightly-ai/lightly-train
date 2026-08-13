@@ -99,11 +99,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   additional boxes for overlapping objects of different classes.
 - Fix `benchmark_object_detection()` comparing predictions and ground-truth targets in
   different class-id spaces for datasets with non-contiguous category ids or
-  `ignore_classes` configured, which silently produced near-zero or otherwise wrong
-  mAP.
+  `ignore_classes` configured, which silently produced near-zero or otherwise wrong mAP.
 - Fix `benchmark_object_detection()` no longer clipping ground-truth boxes to the image
-  canvas or dropping degenerate ones before computing metrics, which could raise or
-  skew the reported mAP relative to prior releases.
+  canvas or dropping degenerate ones before computing metrics, which could raise or skew
+  the reported mAP relative to prior releases.
 
 ### Security
 
