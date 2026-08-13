@@ -996,7 +996,7 @@ Two things to keep in mind:
   filtered out first.
 - Latency is still reported per input image, but an image now costs one forward pass row
   per tile plus one for the global view, so it is not comparable to an untiled run.
-  `tile_size` dominates that cost: halving it roughly quadruples the number of tiles. The
-  ONNX and TensorRT backends need a dynamic export batch size because the number of
+  `tile_size` dominates that cost: halving it roughly quadruples the number of tiles.
+  The ONNX and TensorRT backends need a dynamic export batch size because the number of
   tiles depends on the image size; for TensorRT, also set
   `export_args={"max_batchsize": ...}` high enough to cover the largest batch.

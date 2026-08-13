@@ -123,12 +123,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   detection came back stretched about the top-left corner and could land outside the
   image. Images are now zero padded instead, which also bounds the number of tiles:
   fitting a 1x1000 image to a 640x640 tile used to produce 1250 tiles, one model input
-  row each. Tile predictions are additionally clipped to the image and dropped if nothing
-  is left of them.
-- Fix the tile/global merge in `predict_sahi()` and `predict_sahi_batch()` discarding the
-  accurate tile predictions it exists to add. The global (full-image) view sees small
-  objects at a heavily reduced resolution and returns coarse but confident boxes for
-  them, and those boxes were suppressing the precise tile predictions of the same
+  row each. Tile predictions are additionally clipped to the image and dropped if
+  nothing is left of them.
+- Fix the tile/global merge in `predict_sahi()` and `predict_sahi_batch()` discarding
+  the accurate tile predictions it exists to add. The global (full-image) view sees
+  small objects at a heavily reduced resolution and returns coarse but confident boxes
+  for them, and those boxes were suppressing the precise tile predictions of the same
   objects. The two views now divide the work by object size: the tiles are responsible
   for every object that fits inside a single tile, the global view only for objects too
   large for one tile, and `global_local_iou_threshold` now only suppresses tile
@@ -139,11 +139,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   noticeably different — and many more — boxes than before.
 - Fix `benchmark_object_detection()` comparing predictions and ground-truth targets in
   different class-id spaces for datasets with non-contiguous category ids or
-  `ignore_classes` configured, which silently produced near-zero or otherwise wrong
-  mAP.
+  `ignore_classes` configured, which silently produced near-zero or otherwise wrong mAP.
 - Fix `benchmark_object_detection()` no longer clipping ground-truth boxes to the image
-  canvas or dropping degenerate ones before computing metrics, which could raise or
-  skew the reported mAP relative to prior releases.
+  canvas or dropping degenerate ones before computing metrics, which could raise or skew
+  the reported mAP relative to prior releases.
 
 ### Security
 

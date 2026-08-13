@@ -72,8 +72,8 @@ SAHI tiling. The settings are named `sahi-<tile_size>-<overlap>`:
   the gain on small objects comes from, at roughly three times the tiles of the 640
   setting at the same overlap.
 
-`tile_size` is the region of the original image a tile covers, and the tile is resized to
-the model's input before the forward pass — so a smaller `tile_size` means more
+`tile_size` is the region of the original image a tile covers, and the tile is resized
+to the model's input before the forward pass — so a smaller `tile_size` means more
 magnification *and* more tiles. `overlap` controls how densely the tiles are laid down.
 Both drive latency, which is why the sweep varies them separately.
 
@@ -84,9 +84,9 @@ settings.
 
 - A CUDA GPU.
 - A detection dataset in yolo or coco format, provided as a data YAML file. **The images
-  should be considerably larger than a tile**: an image that fits inside a single tile is
-  not tiled at all and collapses onto the untiled baseline, so on a dataset with small
-  images the curves become indistinguishable. VisDrone2019-DET is a good fit.
+  should be considerably larger than a tile**: an image that fits inside a single tile
+  is not tiled at all and collapses onto the untiled baseline, so on a dataset with
+  small images the curves become indistinguishable. VisDrone2019-DET is a good fit.
 - The class ids in the data config must line up with the class ids of the
   COCO-pretrained checkpoints. The benchmark matches ground truth against predictions by
   class id and does not remap them by name, so a mismatched class list silently yields a
