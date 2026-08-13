@@ -515,7 +515,7 @@ def targets_to_torchmetrics(
     boxes_xyxy = yolo_to_xyxy(bboxes)
     boxes_denormalized = denormalize_xyxy_boxes(boxes_xyxy, original_sizes)
 
-    targets = []
+    targets: list[ObjectDetectionTorchmetricsTarget] = []
     for boxes, labels, (width, height) in zip(
         boxes_denormalized, classes, original_sizes
     ):
