@@ -164,27 +164,6 @@ def bbox2distance(
     return torch.stack([left, top, right, bottom], dim=-1)
 
 
-def generate_grid_points(
-    height: int, width: int, stride: int, device: torch.device, offset: float = 0.5
-) -> Tensor:
-    """Generate grid center points for a feature map.
-
-    Args:
-        height: Feature map height.
-        width: Feature map width.
-        stride: Stride (downsampling factor) of the feature map.
-        device: Device to create tensors on.
-        offset: Offset for center points (0.5 means center of cell).
-
-    Returns:
-        Grid points of shape (H*W, 2) as [x, y] in pixel coordinates.
-    """
-    y = (torch.arange(height, device=device, dtype=torch.float32) + offset) * stride
-    x = (torch.arange(width, device=device, dtype=torch.float32) + offset) * stride
-    yy, xx = torch.meshgrid(y, x, indexing="ij")
-    return torch.stack([xx.flatten(), yy.flatten()], dim=-1)
-
-
 class PicoHead(nn.Module):
     """Anchor-free detection head for PicoDet.
 
@@ -368,63 +347,6 @@ class PicoHead(nn.Module):
             bbox_preds.append(bbox_pred)
 
         return cls_scores, bbox_preds
-
-    def decode_predictions(
-        self,
-        cls_scores: list[Tensor],
-        bbox_preds: list[Tensor],
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        """Decode predictions to boxes in pixel coordinates.
-
-        Args:
-            cls_scores: List of classification scores per level.
-            bbox_preds: List of bbox distribution predictions per level.
-
-        Returns:
-            Tuple of:
-            - all_points: (sum(H*W), 4) [cx, cy, stride_w, stride_h]
-            - all_cls_scores: (B, sum(H*W), num_classes)
-            - all_decoded_bboxes: (B, sum(H*W), 4) in xyxy pixel coords
-        """
-        device = cls_scores[0].device
-        batch_size = cls_scores[0].shape[0]
-
-        points_list: list[Tensor] = []
-        cls_scores_list: list[Tensor] = []
-        decoded_bboxes_list: list[Tensor] = []
-
-        for level_idx, (cls_score, bbox_pred) in enumerate(zip(cls_scores, bbox_preds)):
-            stride = self.strides[level_idx]
-            _, _, h, w = cls_score.shape
-
-            points = generate_grid_points(h, w, stride, device)
-            num_points = h * w
-
-            points_with_stride = torch.cat(
-                [points, torch.full((num_points, 2), stride, device=device)], dim=-1
-            )
-            points_list.append(points_with_stride)
-
-            cls_score_reshaped = cls_score.permute(0, 2, 3, 1).reshape(
-                batch_size, num_points, self.num_classes
-            )
-            cls_scores_list.append(cls_score_reshaped)
-
-            bbox_pred_reshaped = bbox_pred.permute(0, 2, 3, 1).reshape(
-                batch_size, num_points, 4 * (self.reg_max + 1)
-            )
-            distances = self.integral(bbox_pred_reshaped)
-            distances = distances * stride
-
-            points_expanded = points.unsqueeze(0).expand(batch_size, -1, -1)
-            decoded_bboxes = distance2bbox(points_expanded, distances)
-            decoded_bboxes_list.append(decoded_bboxes)
-
-        all_points = torch.cat(points_list, dim=0)
-        all_cls_scores = torch.cat(cls_scores_list, dim=1)
-        all_decoded_bboxes = torch.cat(decoded_bboxes_list, dim=1)
-
-        return all_points, all_cls_scores, all_decoded_bboxes
 
 
 def picodet_gfl_cls_reuse_or_reinit_hook(

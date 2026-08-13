@@ -36,7 +36,11 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
+    decode_object_detection_output,
+    targets_to_torchmetrics,
+)
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
 )
@@ -78,10 +82,6 @@ from lightly_train._task_models.object_detection_components.matcher import (
 from lightly_train._task_models.object_detection_components.rtdetrv2_criterion import (
     RTDETRCriterionv2,
 )
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
-)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -107,23 +107,6 @@ _DFINE_LOSS_NAMES: list[str] = [*_RTDETRV2_LOSS_NAMES, *_DFINE_EXTRA_LOSS_WEIGHT
 logger = logging.getLogger(__name__)
 
 _DINOV2_PREFIX = "dinov2/"
-
-
-def _decode_predictions_for_metrics(
-    model: LTDETRObjectDetection,
-    outputs: dict[str, Tensor],
-    orig_target_sizes: Tensor,
-) -> list[dict[str, Tensor]]:
-    labels, boxes, scores = model.postprocessor.decode(
-        ObjectDetectionOutput(
-            logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
-        ),
-        orig_target_sizes,
-    )
-    return [
-        {"labels": labels_i, "boxes": boxes_i, "scores": scores_i}
-        for labels_i, boxes_i, scores_i in zip(labels, boxes, scores)
-    ]
 
 
 class BaseLTDETRObjectDetectionTrainArgs(TrainModelArgs):
@@ -648,21 +631,23 @@ class LTDETRObjectDetectionTrain(TrainModel):
         )
         if self.metric_args.train:
             orig_target_sizes = batch["original_size"]
-            # Convert to xyxy format and de-normalize the boxes.
-            boxes = _yolo_to_xyxy(boxes)
-            boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
-            for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
-                target["boxes"] = sample_denormalized_boxes
+            # The criterion consumed the normalized cxcywh targets above. Metrics
+            # need xyxy boxes in original-image pixels instead.
+            metric_targets = targets_to_torchmetrics(
+                bboxes=boxes, classes=classes, original_sizes=orig_target_sizes
+            )
 
             orig_target_sizes_tensor = torch.tensor(
                 orig_target_sizes, device=samples.device
             )
-            results = _decode_predictions_for_metrics(
-                model=self.model,
-                outputs=outputs,
-                orig_target_sizes=orig_target_sizes_tensor,
-            )
-            self.train_metrics.update_with_predictions(results, targets)
+            results = decode_object_detection_output(
+                raw=ObjectDetectionBatchOutput(
+                    logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
+                ),
+                target_sizes=orig_target_sizes_tensor,
+                num_top_queries=self.model.num_top_queries,
+            ).to_torchmetrics_list()
+            self.train_metrics.update_with_predictions(results, metric_targets)
 
         return TaskStepResult(
             loss=total_loss,
@@ -721,20 +706,22 @@ class LTDETRObjectDetectionTrain(TrainModel):
         # Average loss dict across devices.
         loss_dict = reduce_dict(loss_dict)
 
-        # Convert to xyxy format and de-normalize the boxes.
-        boxes = _yolo_to_xyxy(boxes)
-        boxes_denormalized = _denormalize_xyxy_boxes(boxes, orig_target_sizes)
-        for target, sample_denormalized_boxes in zip(targets, boxes_denormalized):
-            target["boxes"] = sample_denormalized_boxes
+        # The criterion consumed the normalized cxcywh targets above. Metrics need
+        # xyxy boxes in original-image pixels instead.
+        metric_targets = targets_to_torchmetrics(
+            bboxes=boxes, classes=classes, original_sizes=orig_target_sizes
+        )
 
         orig_target_sizes_tensor = torch.tensor(
             orig_target_sizes, device=samples.device
         )
-        results = _decode_predictions_for_metrics(
-            model=self.model,
-            outputs=outputs,
-            orig_target_sizes=orig_target_sizes_tensor,
-        )
+        results = decode_object_detection_output(
+            raw=ObjectDetectionBatchOutput(
+                logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
+            ),
+            target_sizes=orig_target_sizes_tensor,
+            num_top_queries=self.model.num_top_queries,
+        ).to_torchmetrics_list()
 
         # Metrics
         self.val_metrics.update_with_losses(
@@ -745,7 +732,7 @@ class LTDETRObjectDetectionTrain(TrainModel):
             ),
             weight=samples.shape[0],
         )
-        self.val_metrics.update_with_predictions(results, targets)
+        self.val_metrics.update_with_predictions(results, metric_targets)
 
         return TaskStepResult(
             loss=total_loss,

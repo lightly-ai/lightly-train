@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, Literal, TypedDict, Union
+from typing import Any, Literal, Union
 
 from pydantic import ConfigDict, Field, field_validator
 from rich.console import Console
 from rich.markdown import Markdown
-from torch import Tensor
 from typing_extensions import Annotated
 
 from lightly_train._commands import data_helpers
@@ -25,16 +24,45 @@ from lightly_train._data.coco_object_detection_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionMetadata,
+    ObjectDetectionSAHIConfig,
+)
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train.types import PathLike
+from lightly_train.types import ObjectDetectionBatch, PathLike
 
 
-class ObjectDetectionPrediction(TypedDict):
-    """Per-image object detection prediction."""
+class BenchmarkObjectDetectionBatch(ObjectDetectionBatch):
+    """An object detection batch that carries its own preprocessing metadata.
 
-    bboxes: Tensor
-    scores: Tensor
-    labels: Tensor
+    The benchmark dataloader runs the model's own ``ObjectDetectionPreprocessor`` in
+    its collate function, so the metadata describing what was done to each image
+    already exists by the time the batch is assembled. Carrying it lets the backends
+    hand it straight to the postprocessor instead of re-deriving it, and is what makes
+    tiling work at all: with SAHI an image occupies several rows of ``image``, and only
+    the metadata says how many.
+
+    Attributes:
+        metadata: One entry per image, in the same order as the other fields.
+    """
+
+    metadata: list[ObjectDetectionMetadata]
+
+
+class BenchmarkSAHIArgs(PydanticConfig):
+    """Tiling (SAHI) settings for the benchmark.
+
+    The defaults match ``predict_sahi()`` so that a tiled benchmark measures the same
+    pipeline a user gets from the model.
+    """
+
+    overlap: float = 0.2
+    nms_iou_threshold: float = 0.3
+    global_local_iou_threshold: float = 0.1
+
+    def to_sahi_config(self) -> ObjectDetectionSAHIConfig:
+        """Return the config the preprocessor consumes."""
+        return ObjectDetectionSAHIConfig(**self.model_dump())
 
 
 class CpuDeviceInfo(PydanticConfig):
@@ -105,6 +133,7 @@ class BenchmarkResult(PydanticConfig):
     batch_size: int
     warmup_steps: int
     steps: int | None
+    sahi_args: BenchmarkSAHIArgs | None = None
     metric_values: dict[str, float]
     timing: BenchmarkTimingResult
 
@@ -141,6 +170,16 @@ class BenchmarkResult(PydanticConfig):
         lines.append(f"- **Warmup Steps**: {self.warmup_steps}")
         steps_str = str(self.steps) if self.steps is not None else "all"
         lines.append(f"- **Steps**: {steps_str}")
+        # Tiled and untiled runs measure different pipelines, so the report has to say
+        # which one it is.
+        if self.sahi_args is None:
+            lines.append("- **SAHI**: disabled")
+        else:
+            lines.append(
+                f"- **SAHI**: overlap {self.sahi_args.overlap}, "
+                f"NMS IoU {self.sahi_args.nms_iou_threshold}, "
+                f"global/local IoU {self.sahi_args.global_local_iou_threshold}"
+            )
         lines.append("")
 
         # Device Info.
@@ -282,6 +321,7 @@ class BenchmarkObjectDetectionConfig(PydanticConfig):
         BenchmarkBackendArgs,
         Field(discriminator="format"),
     ]
+    sahi_args: BenchmarkSAHIArgs | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

@@ -7,7 +7,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Dict, cast
 
 import cv2
 import torch
@@ -221,7 +221,7 @@ class ViewTransform:
         transformed = self.transform(**input)
         # Albumentations adds an "applied_transforms" list (not part of the
         # TypedDict) when save_applied_params=True.
-        applied = cast(dict[str, Any], transformed).pop("applied_transforms")
+        applied = cast(Dict[str, Any], transformed).pop("applied_transforms")
 
         crop_coords: tuple[int, int, int, int] | None = None
         hflip = False

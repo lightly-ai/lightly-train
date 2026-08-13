@@ -16,14 +16,93 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   AMD GPUs.
 - Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
   available from PyPI.
+- Add `predict_batch()`, `predict_sahi()`, and `predict_sahi_batch()` to
+  `PicoDetObjectDetection`, matching `LTDETRObjectDetection`.
+- Add a `sahi_args` argument to `benchmark_object_detection()` to benchmark Slicing
+  Aided Hyper Inference. It accepts `overlap`, `nms_iou_threshold`, and
+  `global_local_iou_threshold`, defaulting to the values `predict_sahi()` uses. A
+  non-zero `threshold` is recommended with it, and the ONNX and TensorRT backends
+  require a dynamic export batch size because tiling makes the number of model input
+  rows differ from batch to batch.
 
 ### Changed
+
+- `LTDETRObjectDetection.predict()`, `predict_batch()`, `predict_sahi()`,
+  `predict_sahi_batch()`, and `PicoDetObjectDetection.predict()` now return an
+  `ObjectDetectionPrediction` object (access via `results.bboxes`, `results.labels`,
+  `results.scores`) instead of a plain `dict`. Dict-style *reads* keep working
+  (`results["bboxes"]`, `"bboxes" in results`,
+  `results.keys()`/`.items()`/`.values()`/`.get(...)`, `dict(results)`, `**results`),
+  but `isinstance(results, dict)` no longer holds — use
+  `isinstance(results, collections.abc.Mapping)` if a type check is needed. Mutating
+  dict methods are no longer available: `results["bboxes"] = ...`,
+  `results.update(...)`, `results.pop(...)`, and `results.copy()` now raise
+  `AttributeError`. Use `results[results.scores > 0.5]` to filter, or `dict(results)`
+  for a mutable copy.
+- Object detection predictions now support row filtering, which always returns a new
+  prediction: `results[results.scores > 0.5]`, `results[results.labels == 17]`,
+  `results[[0, 2]]`. Note that `len(results)` still returns the number of fields and
+  iterating still yields field names, because predictions also behave like a `Mapping`.
+  Use `results.num_detections` to count detections.
+- **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` now use
+  the same graph contract as LT-DETR. The outputs change from
+  `["labels", "boxes", "scores"]` to `["logits", "boxes"]`, where `logits` are raw
+  pre-sigmoid class scores of shape `(batch_size, num_anchors, num_classes)` and `boxes`
+  are normalized `cxcywh` boxes of shape `(batch_size, num_anchors, 4)` relative to the
+  model input — previously boxes were `xyxy` in model-input pixels. The dynamic batch
+  dimension is renamed from `"N"` to `"batch_size"`. Class-id remapping, argmax/top-k
+  selection, score thresholding, and rescaling to original image coordinates are no
+  longer part of the graph; use `model.postprocess(...)` or replicate
+  `decode_object_detection_output` in your deployment code. The NMS-free o2o peak filter
+  remains inside the graph. Existing exported PicoDet ONNX/TensorRT artifacts must be
+  re-exported and their postprocessing updated. The export now goes through the shared
+  TorchDynamo pipeline, which requires `torch>=2.6`.
+- **Breaking:** `PicoDetObjectDetection.export_onnx()` and `export_tensorrt()` no longer
+  accept `precision="auto"`. Use `"fp32"` (the new default) or `"fp16"`.
+- Exported PicoDet ONNX models now carry the same metadata as other task models
+  (`lightly_train_version`, `license_info`, `image_normalize`, `classes`, `model_name`)
+  instead of only `classes`.
+- `PicoDetObjectDetection.predict()` now returns at most `max_detections` (default
+  `100`) detections instead of one per anchor (3598 for `picodet-s-coco`), keeps
+  detections with `score > threshold` instead of `score >= threshold`, and can return
+  several classes for the same anchor because the top-k runs over `(anchor, class)`
+  pairs. It is now implemented via `predict_batch()` and shares the postprocessor with
+  LT-DETR.
+- PicoDet training and validation detection metrics are now computed in original-image
+  pixel coordinates instead of model-input pixels, matching LT-DETR and the coordinates
+  `predict()` returns. Absolute-area metrics (`map_small`, `map_medium`, `map_large`)
+  therefore change for an otherwise identical model.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Fix `PicoDetObjectDetection.export_tensorrt(precision="fp16")` exporting the
+  intermediate ONNX model in FP32. The FP16 engine was built from an FP32 graph.
+- Fix PicoDet models not being switched to eval mode by the Torch backend of
+  `benchmark_object_detection()`, which left batch norm in training mode and made the
+  reported PicoDet numbers wrong.
+- Fix the Torch backend of `benchmark_object_detection()` stopping its timer before the
+  GPU had finished. CUDA kernels are queued asynchronously, so the reported latency was
+  far too low and the throughput far too high on CUDA devices; the ONNX and TensorRT
+  backends were unaffected. CUDA timings from earlier releases are not comparable to the
+  ones reported now.
+- The Torch backend of `benchmark_object_detection()` now decodes raw model outputs in
+  FP32, like the ONNX and TensorRT backends already did. This can slightly change the
+  metrics reported for `precision="fp16-mixed"` and `"bf16-mixed"` runs, which are now
+  comparable to the other backends.
+- Use class-aware non-maximum suppression when merging tile predictions in
+  `predict_sahi()` and `predict_sahi_batch()`. Previously a high-confidence detection
+  could suppress an overlapping detection of a different class, so SAHI may now return
+  additional boxes for overlapping objects of different classes.
+- Fix `benchmark_object_detection()` comparing predictions and ground-truth targets in
+  different class-id spaces for datasets with non-contiguous category ids or
+  `ignore_classes` configured, which silently produced near-zero or otherwise wrong mAP.
+- Fix `benchmark_object_detection()` no longer clipping ground-truth boxes to the image
+  canvas or dropping degenerate ones before computing metrics, which could raise or skew
+  the reported mAP relative to prior releases.
 
 ### Security
 

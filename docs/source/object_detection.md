@@ -127,14 +127,22 @@ import lightly_train
 
 model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict("image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                 # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 Any other LTDETR model name (e.g. a `dinov3/...` model from the same family) works the
 same way.
+
+Predictions can be filtered by indexing them with a boolean mask.
+
+```python skip_ruff
+confident = results[results.scores > 0.8]   # Keep only high-confidence detections
+people = results[results.labels == 0]       # Keep only one class
+confident.num_detections                    # Number of remaining detections
+```
 
 ### Visualize the Result
 
@@ -153,8 +161,8 @@ results = model.predict("image.jpg")
 # Visualize predictions.
 image_with_boxes = utils.draw_bounding_boxes(
     image=io.read_image("image.jpg"),
-    boxes=results["bboxes"],
-    labels=[model.classes[i.item()] for i in results["labels"]],
+    boxes=results.bboxes,
+    labels=[model.classes[i.item()] for i in results.labels],
 )
 
 fig, ax = plt.subplots(figsize=(30, 30))
@@ -165,6 +173,8 @@ fig.savefig("predictions.png")
 The predicted boxes are in the absolute `(x_min, y_min, x_max, y_max)` format, i.e.
 represent the size of the dimension of the bounding boxes in pixels of the original
 image.
+
+(object-detection-sahi)=
 
 ### Improving Small Objects Detection
 
@@ -181,10 +191,10 @@ import lightly_train
 
 model = lightly_train.load_model("ltdetrv2-s-coco")
 results = model.predict_sahi(image="image.jpg")
-results["labels"]   # Class labels, tensor of shape (num_boxes,)
-results["bboxes"]   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
-                    # coordinates of the original image. Tensor of shape (num_boxes, 4).
-results["scores"]   # Confidence scores, tensor of shape (num_boxes,)
+results.labels   # Class labels, tensor of shape (num_boxes,)
+results.bboxes   # Bounding boxes in (xmin, ymin, xmax, ymax) absolute pixel
+                 # coordinates of the original image. Tensor of shape (num_boxes, 4).
+results.scores   # Confidence scores, tensor of shape (num_boxes,)
 ```
 
 You can customize the behavior of {py:meth}`~.LTDETRObjectDetection.predict_sahi` via
@@ -217,8 +227,8 @@ urllib.request.urlretrieve(img, "/tmp/image.jpg")
 image = decode_image("/tmp/image.jpg")
 image_with_boxes = draw_bounding_boxes(
     image,
-    boxes=results["bboxes"],
-    labels=[model.classes[label.item()] for label in results["labels"]],
+    boxes=results.bboxes,
+    labels=[model.classes[label.item()] for label in results.labels],
 )
 fig, ax = plt.subplots(1, 1, figsize=(12, 8))
 ax.imshow(image_with_boxes.permute(1, 2, 0))
@@ -732,6 +742,12 @@ preprocess an image and interpret the outputs straight from the file with `onnx`
 `onnxruntime`, and run inference without installing LightlyTrain. The Colab notebook
 below demonstrates this.
 
+Object detection graphs return two outputs: `logits`, the raw pre-sigmoid class scores
+of shape `(batch_size, num_predictions, num_classes)`, and `boxes`, normalized `cxcywh`
+boxes of shape `(batch_size, num_predictions, 4)` relative to the model input. Top-k
+selection, score thresholding, and rescaling to original image coordinates run outside
+the graph.
+
 The following notebook shows how to export a model to ONNX in Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/lightly-ai/lightly-train/blob/main/examples/notebooks/object_detection_export.ipynb)
 
@@ -863,6 +879,8 @@ full list):
 - `steps`: Maximum number of batches to process. `None` (default) processes the whole
   validation split.
 - `threshold`: Score threshold below which detections are discarded. Default `0.0`.
+- `sahi_args`: Benchmark tiled inference instead of plain inference. `None` (default)
+  disables tiling. See [SAHI](object-detection-benchmark-sahi).
 - `num_workers`: Number of data loading workers. Default `"auto"`.
 - `device`: Device to run on, e.g. `"cpu"` or `"cuda"`. If `None` (default), the device
   is auto-detected based on the backend.
@@ -927,3 +945,38 @@ result = lightly_train.benchmark_object_detection(
 
 The ONNX and TensorRT backends require their respective optional dependencies to be
 installed (see the export sections above).
+
+(object-detection-benchmark-sahi)=
+
+### SAHI
+
+Passing `sahi_args` benchmarks [Slicing Aided Hyper Inference](object-detection-sahi)
+instead of plain inference: every image is tiled and the tile predictions are merged
+back exactly the way `predict_sahi()` does, so the reported mAP and timings describe the
+tiled pipeline.
+
+```python
+result = lightly_train.benchmark_object_detection(
+    ...,
+    threshold=0.5,
+    sahi_args={
+        "overlap": 0.2,                     # Fractional overlap between tiles.
+        "nms_iou_threshold": 0.3,           # IoU used for NMS of tile predictions.
+        "global_local_iou_threshold": 0.1,  # IoU above which a tile box is dropped.
+    },
+)
+```
+
+The defaults match `predict_sahi()`, so `sahi_args={}` enables tiling with the same
+settings a user gets from the model.
+
+Two things to keep in mind:
+
+- A non-zero `threshold` is strongly recommended. Merging tiles runs non-maximum
+  suppression over the surviving detections of every tile, which is slow when nothing is
+  filtered out first.
+- Latency is still reported per input image, but an image now costs one forward pass row
+  per tile plus one for the global view, so it is not comparable to an untiled run. The
+  ONNX and TensorRT backends need a dynamic export batch size because the number of
+  tiles depends on the image size; for TensorRT, also set
+  `export_args={"max_batchsize": ...}` high enough to cover the largest batch.

@@ -11,12 +11,10 @@ import gc
 import statistics
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
+import numpy as np
 import torch
-from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
-from pydantic import Field
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -29,15 +27,16 @@ from lightly_train._commands.benchmark_backends import (
 )
 from lightly_train._commands.benchmark_types import (
     BenchmarkBackendArgs,
+    BenchmarkObjectDetectionBatch,
     BenchmarkObjectDetectionConfig,
     BenchmarkResult,
+    BenchmarkSAHIArgs,
     BenchmarkStatistics,
     BenchmarkTimingResult,
     CpuDeviceInfo,
     CudaDeviceInfo,
     DescriptiveStatistics,
     DeviceInfo,
-    ObjectDetectionPrediction,
     ONNXBackendArgs,
     TensorRTBackendArgs,
     TorchBackendArgs,
@@ -54,25 +53,22 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
 )
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPostprocessor,
+    ObjectDetectionPreprocessor,
+    ObjectDetectionSAHIConfig,
+    targets_to_torchmetrics,
+)
 from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
-)
 from lightly_train._task_models.task_model import TaskModel
-from lightly_train._transforms.ltdetr_transforms.object_detection import (
-    LTDETRObjectDetectionCollateFunction,
-    LTDETRObjectDetectionTransform,
-    LTDETRObjectDetectionTransformArgs,
+from lightly_train._transforms.task_transform import (
+    TaskTransform,
+    TaskTransformArgs,
 )
-from lightly_train._transforms.transform import NormalizeArgs, ResizeArgs
 from lightly_train.types import (
     ObjectDetectionDatasetItem,
     PathLike,
 )
-
-_ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
-_ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 def benchmark_object_detection(
@@ -89,6 +85,7 @@ def benchmark_object_detection(
     overwrite: bool = False,
     device: str | None = None,
     backend_args: dict[str, Any] | BenchmarkBackendArgs | None = None,
+    sahi_args: dict[str, Any] | None = None,
 ) -> BenchmarkResult:
     """Benchmark an object detection model on a validation dataset.
 
@@ -111,7 +108,10 @@ def benchmark_object_detection(
             Number of images to process at once.
         threshold:
             Score threshold for filtering detections. Predictions with scores
-            at or below this value are discarded.
+            at or below this value are discarded. With ``sahi_args`` a non-zero threshold
+            is strongly recommended: merging tiles runs non-maximum suppression over
+            the surviving detections of every tile, which is slow when nothing is
+            filtered out first.
         warmup_steps:
             Number of warmup batches to run before the benchmark. Warmup
             results are discarded. The dataloader restarts from the beginning
@@ -132,6 +132,13 @@ def benchmark_object_detection(
             ``"torch"`` (default), ``"onnx"``, or ``"tensorrt"``. ONNX and
             TensorRT backends accept an optional ``export_args`` dict
             forwarded to ``model.export_onnx()``.
+        sahi_args:
+            If given, benchmark Slicing Aided Hyper Inference instead of plain
+            inference: every image is tiled and the tile predictions are merged back
+            the same way ``model.predict_sahi()`` does. Accepts ``overlap``,
+            ``nms_iou_threshold``, and ``global_local_iou_threshold``, defaulting to
+            the values ``predict_sahi()`` uses, so ``{}`` enables tiling with those
+            defaults. ``None`` (default) disables tiling.
 
     Returns:
         BenchmarkResult containing metric values and timing statistics.
@@ -156,9 +163,14 @@ def _benchmark_object_detection_from_config(
         model = task_model_helpers.load_model(model=config.model)
 
     backend_args = config.backend_args
+    _validate_sahi_backend(sahi_args=config.sahi_args, backend_args=backend_args)
 
-    # Build val transform args from the model.
-    transform_args = _build_val_transform_args(model=model)
+    # Benchmark through the model's own pre- and postprocessing so that the reported
+    # metrics describe the pipeline that runs at deployment.
+    preprocessor, postprocessor = _get_pre_post_processors(model)
+    sahi_config = (
+        None if config.sahi_args is None else config.sahi_args.to_sahi_config()
+    )
 
     # Set up validation data.
     data_arg_helpers.resolve_data_paths(config.data)
@@ -170,7 +182,8 @@ def _benchmark_object_detection_from_config(
         data_args=data_args,
         batch_size=config.batch_size,
         num_workers=num_workers,
-        transform_args=transform_args,
+        preprocessor=preprocessor,
+        sahi_config=sahi_config,
     )
     num_batches = len(val_dataloader)
     if num_batches == 0:
@@ -194,6 +207,8 @@ def _benchmark_object_detection_from_config(
             batch_size=config.batch_size,
             out_dir=out_dir,
             device=str(device),
+            preprocessor=preprocessor,
+            postprocessor=postprocessor,
             threshold=config.threshold,
         )
     elif isinstance(backend_args, TensorRTBackendArgs):
@@ -203,6 +218,8 @@ def _benchmark_object_detection_from_config(
             batch_size=config.batch_size,
             out_dir=out_dir,
             device=str(device),
+            preprocessor=preprocessor,
+            postprocessor=postprocessor,
             threshold=config.threshold,
         )
     elif isinstance(backend_args, TorchBackendArgs):
@@ -210,6 +227,8 @@ def _benchmark_object_detection_from_config(
             model=model,
             backend_args=backend_args,
             device=device,
+            preprocessor=preprocessor,
+            postprocessor=postprocessor,
             threshold=config.threshold,
         )
     else:
@@ -250,24 +269,21 @@ def _benchmark_object_detection_from_config(
 
             predictions, t_infer = backend.run_batch(batch=batch)
             batch_times.append(t_infer)
-            predictions_cpu = _to_cpu(predictions)
 
-            # Convert predictions from "bboxes" to "boxes" for torchmetrics.
-            metric_preds: list[dict[str, Tensor]] = [
-                {
-                    "boxes": p["bboxes"],
-                    "scores": p["scores"],
-                    "labels": p["labels"],
-                }
-                for p in predictions_cpu
+            metric_preds = [
+                prediction.to(device="cpu").to_torchmetrics()
+                for prediction in predictions
             ]
-            # Convert ground truth boxes from YOLO format to denormalized xyxy.
-            boxes_xyxy = _yolo_to_xyxy(batch["bboxes"])
-            boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, batch["original_size"])
-            targets = [
-                {"boxes": boxes, "labels": classes}
-                for boxes, classes in zip(boxes_denorm, batch["classes"])
-            ]
+            # batch["classes"] holds internal, contiguous class ids (see
+            # COCOObjectDetectionDatasetArgs.list_image_info), while predictions are
+            # already mapped to user-facing class ids by the postprocessor. Map targets
+            # into the same space so update_with_predictions compares like with like.
+            internal_class_to_class = postprocessor.internal_class_to_class.cpu()
+            targets = targets_to_torchmetrics(
+                bboxes=batch["bboxes"],
+                classes=[internal_class_to_class[c] for c in batch["classes"]],
+                original_sizes=batch["original_size"],
+            )
             metric.update_with_predictions(metric_preds, targets)
 
             if step % print_every == 0 or step == total_batches - 1:
@@ -313,6 +329,7 @@ def _benchmark_object_detection_from_config(
         batch_size=config.batch_size,
         warmup_steps=config.warmup_steps,
         steps=config.steps,
+        sahi_args=config.sahi_args,
         metric_values=metric_values,
         timing=timing,
     )
@@ -331,101 +348,166 @@ def _benchmark_object_detection_from_config(
     return result
 
 
-def _make_val_bbox_params() -> BboxParams:
-    """Create standard YOLO bbox params matching training val transforms."""
-    return BboxParams(
-        format="yolo",
-        label_fields=["class_labels"],
-        min_width=0.0,
-        min_height=0.0,
-        **(dict(filter_invalid_bboxes=True) if _ALBUMENTATIONS_GE_2_0_1 else {}),
-        **(dict(clip=True) if _ALBUMENTATIONS_GE_1_4_5 else {}),
-    )
+def _get_pre_post_processors(
+    model: TaskModel,
+) -> tuple[ObjectDetectionPreprocessor, ObjectDetectionPostprocessor]:
+    """Return the pre- and postprocessor the model uses for inference.
 
-
-class _BenchmarkValTransformArgs(LTDETRObjectDetectionTransformArgs):
-    """Val transform args that mirror the training validation pipeline.
-
-    All augmentations are disabled. Only resize and normalize (plus bbox params)
-    are applied so that the collate function produces images at the model's
-    expected size with the correct normalization.
+    Benchmarking through the model's own pair is what makes the reported metrics
+    describe the deployed pipeline rather than a re-derived approximation of it: the
+    dataloader prepares images exactly as ``predict()`` does, and every backend decodes
+    its raw outputs exactly as ``predict()`` does.
     """
-
-    channel_drop: None = None
-    num_channels: int = 3
-    photometric_distort: None = None
-    random_zoom_out: None = None
-    random_iou_crop: None = None
-    random_flip: None = None
-    random_rotate_90: None = None
-    random_rotate: None = None
-    image_size: tuple[int, int] = (640, 640)
-    resize: ResizeArgs = Field(
-        default_factory=lambda: ResizeArgs(height=640, width=640)
-    )
-    normalize: NormalizeArgs | None = None
-    bbox_params: BboxParams = Field(default_factory=_make_val_bbox_params)
-
-
-def _build_val_transform_args(model: TaskModel) -> _BenchmarkValTransformArgs:
-    """Build val transform args from the model's ``init_args``.
-
-    Uses ``image_size`` and ``image_normalize`` stored in the model to
-    construct a transform that matches the training validation pipeline.
-
-    Args:
-        model: A loaded task model instance.
-
-    Returns:
-        Transform args configured for the model.
-    """
-    init_args = model.init_args
-    if "image_size" not in init_args:
+    preprocessor = getattr(model, "preprocessor", None)
+    postprocessor = getattr(model, "postprocessor", None)
+    if not isinstance(preprocessor, ObjectDetectionPreprocessor) or not isinstance(
+        postprocessor, ObjectDetectionPostprocessor
+    ):
         raise ValueError(
-            "Model does not specify 'image_size' in init_args. Cannot build "
-            "validation transforms without a known image size."
+            f"Model '{type(model).__name__}' does not expose an "
+            "ObjectDetectionPreprocessor and an ObjectDetectionPostprocessor and "
+            "cannot be benchmarked."
         )
-    image_size: tuple[int, int] = tuple(init_args["image_size"])  # type: ignore[assignment]
-    height, width = image_size
+    return preprocessor, postprocessor
 
-    # Resolve normalize the same way training val transforms do.
-    normalize: NormalizeArgs | None
-    raw_normalize = init_args.get("image_normalize", "none")
-    if raw_normalize is None:
-        normalize = None
-    elif raw_normalize == "none":
-        normalize = NormalizeArgs()
-    else:
-        if not isinstance(raw_normalize, dict):
+
+def _validate_sahi_backend(
+    *, sahi_args: BenchmarkSAHIArgs | None, backend_args: BenchmarkBackendArgs
+) -> None:
+    """Reject SAHI on backends exported with a fixed batch size.
+
+    With tiling an image occupies ``1 + num_tiles`` model input rows and the tile count
+    depends on the image size, so the number of rows per batch varies from batch to
+    batch. Only a graph with a dynamic batch dimension, and for TensorRT a profile whose
+    upper bound covers the largest batch, can run that.
+
+    Raises:
+        ValueError: If the backend cannot run a varying number of input rows.
+    """
+    if sahi_args is None:
+        return
+
+    export_args = getattr(backend_args, "export_args", None) or {}
+
+    if isinstance(backend_args, ONNXBackendArgs):
+        if not export_args.get("dynamic_batch_size", True):
             raise ValueError(
-                f"Expected 'image_normalize' to be a dict, got {type(raw_normalize).__name__}."
+                "sahi_args requires the ONNX backend to keep a dynamic batch "
+                "dimension, but export_args sets dynamic_batch_size=False. Tiling "
+                "makes the number of model input rows differ from batch to batch."
             )
-        normalize = NormalizeArgs.from_dict(raw_normalize)
+    elif isinstance(backend_args, TensorRTBackendArgs):
+        onnx_args = export_args.get("onnx_args") or {}
+        if not onnx_args.get("dynamic_batch_size", True):
+            raise ValueError(
+                "sahi_args requires the TensorRT backend to keep a dynamic batch "
+                "dimension, but export_args['onnx_args'] sets "
+                "dynamic_batch_size=False. Tiling makes the number of model input "
+                "rows differ from batch to batch."
+            )
+        if "max_batchsize" not in export_args:
+            raise ValueError(
+                "sahi_args requires an explicit export_args['max_batchsize'] for the "
+                "TensorRT backend. It otherwise defaults to batch_size, which is an "
+                "upper bound only without tiling: with tiling each image contributes "
+                "one row plus one row per tile. Set it to at least "
+                "batch_size * (1 + the largest tile count in the dataset)."
+            )
 
-    num_channels = 3 if normalize is None else len(normalize.mean)
 
-    return _BenchmarkValTransformArgs(
-        image_size=image_size,
-        resize=ResizeArgs(height=height, width=width),
-        normalize=normalize,
-        num_channels=num_channels,
-    )
+class _BenchmarkTransformArgs(TaskTransformArgs):
+    pass
+
+
+class _BenchmarkTransform(TaskTransform):
+    """Decode-only transform. All model preprocessing happens in the collate function.
+
+    Ground truth boxes are passed through in normalized YOLO coordinates. They are
+    independent of the model input size and are denormalized to the original image
+    size by :func:`targets_to_torchmetrics` right before the metric update, so no
+    rescale is needed here. Clipping to the image canvas and dropping degenerate
+    boxes also happens there, not here.
+    """
+
+    transform_args_cls = _BenchmarkTransformArgs
+
+    def __init__(self) -> None:
+        super().__init__(transform_args=_BenchmarkTransformArgs())
+
+    def __call__(self, input: dict[str, Any]) -> dict[str, Any]:
+        image = torch.from_numpy(np.ascontiguousarray(input["image"]))
+        if image.ndim == 2:
+            image = image.unsqueeze(-1)
+        return {
+            "image": image.permute(2, 0, 1),
+            "bboxes": input["bboxes"],
+            "class_labels": input["class_labels"],
+        }
+
+
+class _BenchmarkCollateFunction:
+    """Run the model's per-image preprocessing and stack the batch.
+
+    Mirrors the host-side/device-side split of ``TaskModel.predict_batch``:
+    ``preprocess_image`` runs here (in the dataloader workers), while
+    ``preprocess_batch`` runs on the device in the backend.
+
+    The metadata ``preprocess_image`` returns is kept on the batch instead of being
+    discarded: it is what the backends hand to the postprocessor, and with tiling it is
+    the only record of how many rows of ``image`` belong to which input image.
+    """
+
+    def __init__(
+        self,
+        preprocessor: ObjectDetectionPreprocessor,
+        sahi_config: ObjectDetectionSAHIConfig | None = None,
+    ) -> None:
+        self.preprocessor = preprocessor
+        self.sahi_config = sahi_config
+
+    def __call__(
+        self, batch: list[ObjectDetectionDatasetItem]
+    ) -> BenchmarkObjectDetectionBatch:
+        prepared = [
+            self.preprocessor.preprocess_image(
+                # ObjectDetectionDatasetItem declares "image" as a numpy array, but
+                # it holds whatever the transform returned, here a (C, H, W) tensor.
+                cast(Tensor, item["image"]),
+                device=torch.device("cpu"),
+                dtype=torch.float32,
+                sahi_config=self.sahi_config,
+            )
+            for item in batch
+        ]
+        return BenchmarkObjectDetectionBatch(
+            image_path=[item["image_path"] for item in batch],
+            # preprocess_image returns a (metadata.num_rows, C, H, W) stack per image:
+            # a single row without tiling, one global row plus one row per tile with.
+            image=torch.cat([rows for rows, _ in prepared]),
+            metadata=[metadata for _, metadata in prepared],
+            bboxes=[
+                torch.from_numpy(item["bboxes"]).float().reshape(-1, 4)
+                for item in batch
+            ],
+            classes=[torch.from_numpy(item["classes"]).long() for item in batch],
+            original_size=[item["original_size"] for item in batch],
+        )
 
 
 def _create_val_dataloader(
     data_args: COCOObjectDetectionDataArgs | YOLOObjectDetectionDataArgs,
     batch_size: int,
     num_workers: int,
-    transform_args: _BenchmarkValTransformArgs,
+    preprocessor: ObjectDetectionPreprocessor,
+    sahi_config: ObjectDetectionSAHIConfig | None = None,
 ) -> DataLoader[ObjectDetectionDatasetItem]:
     val_dataset_args = data_args.get_val_args()
     dataset_cls = val_dataset_args.get_dataset_cls()
     image_info = list(val_dataset_args.list_image_info())
-    transform = LTDETRObjectDetectionTransform(transform_args=transform_args)
     dataset = dataset_cls(
         dataset_args=val_dataset_args,
         image_info=image_info,
-        transform=transform,
+        transform=_BenchmarkTransform(),
     )
 
     return DataLoader(
@@ -437,17 +519,10 @@ def _create_val_dataloader(
         shuffle=False,
         num_workers=num_workers,
         drop_last=True,
-        collate_fn=LTDETRObjectDetectionCollateFunction(
-            split="val",
-            transform_args=transform_args,
+        collate_fn=_BenchmarkCollateFunction(
+            preprocessor=preprocessor, sahi_config=sahi_config
         ),
     )
-
-
-def _to_cpu(
-    predictions: list[ObjectDetectionPrediction],
-) -> list[ObjectDetectionPrediction]:
-    return [{k: v.detach().cpu() for k, v in p.items()} for p in predictions]  # type: ignore[attr-defined,misc]
 
 
 def _create_metric(

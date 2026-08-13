@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
@@ -36,10 +36,12 @@ from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
-    ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
+    ObjectDetectionPrediction,
     ObjectDetectionPreprocessor,
+    ObjectDetectionSAHIConfig,
 )
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
@@ -185,10 +187,13 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         config.resolve_auto(patch_size=patch_size)
 
         # Internally, the model processes classes as contiguous integers starting at 0.
-        # The postprocessor owns the mapping back to user-facing class ids.
-        internal_class_to_class = torch.tensor(
-            list(self.classes.keys()), dtype=torch.long
+        self.internal_class_to_class: Tensor
+        self.register_buffer(
+            "internal_class_to_class",
+            torch.tensor(list(self.classes.keys()), dtype=torch.long),
+            persistent=False,
         )
+        self.num_top_queries = config.rtdetr_postprocessor.num_top_queries
         self.included_classes: dict[int, str] = {
             internal_class_id: class_name
             for internal_class_id, class_name in enumerate(self.classes.values())
@@ -288,9 +293,8 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
             expected_input_channels=self._expected_input_channels,
         )
         self.postprocessor = ObjectDetectionPostprocessor(
-            num_classes=len(self.classes),
-            num_top_queries=config.rtdetr_postprocessor.num_top_queries,
-            internal_class_to_class=internal_class_to_class,
+            num_top_queries=self.num_top_queries,
+            internal_class_to_class=self.internal_class_to_class,
         )
         self._deployed = False
 
@@ -344,12 +348,12 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         torch_outputs: BaseModelOutput,
         onnx_outputs: BaseModelOutput,
     ) -> None:
-        if not isinstance(torch_outputs, ObjectDetectionOutput) or not isinstance(
-            onnx_outputs, ObjectDetectionOutput
+        if not isinstance(torch_outputs, ObjectDetectionBatchOutput) or not isinstance(
+            onnx_outputs, ObjectDetectionBatchOutput
         ):
             raise TypeError(
                 "LTDETRObjectDetection ONNX verification expects "
-                "ObjectDetectionOutput instances."
+                "ObjectDetectionBatchOutput instances."
             )
         for output_name in ("logits", "boxes"):
             output_model = getattr(torch_outputs, output_name).sum(dim=1)
@@ -371,14 +375,13 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
                 rtol=1e-1,
             )
 
-    def forward_backend(self, x: Tensor) -> Any:
-        x = self.backbone(x)
+    def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
+        x = self.backbone(images)
         x = self.encoder(x)
-        return self.decoder(x)
-
-    def forward(self, images: Tensor) -> ObjectDetectionOutput:
-        raw = self.forward_backend(images)
-        return ObjectDetectionOutput(logits=raw["pred_logits"], boxes=raw["pred_boxes"])
+        raw = self.decoder(x)
+        return ObjectDetectionBatchOutput(
+            logits=raw["pred_logits"], boxes=raw["pred_boxes"]
+        )
 
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
@@ -388,18 +391,19 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
 
     def postprocess(  # type: ignore[override]
         self,
-        raw_outputs: Any | dict[str, Tensor],
-        metadata: Sequence[dict[str, Any]],
+        raw_outputs: ObjectDetectionBatchOutput | Mapping[str, Tensor],
+        metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
-    ) -> list[dict[str, Tensor]]:
-        if isinstance(raw_outputs, dict):
-            raw = ObjectDetectionOutput(
+    ) -> list[ObjectDetectionPrediction]:
+        if isinstance(raw_outputs, ObjectDetectionBatchOutput):
+            raw = raw_outputs
+        else:
+            raw = ObjectDetectionBatchOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
-        else:
-            raw = cast(ObjectDetectionOutput, raw_outputs)
-        typed_metadata = cast(Sequence[ObjectDetectionMetadata], metadata)
-        return self.postprocessor.postprocess(raw, typed_metadata, threshold)
+        return self.postprocessor.postprocess(
+            raw=raw, metadata=metadata, threshold=threshold
+        )
 
     def freeze_backbone(self) -> None:
         self.backbone.eval()
@@ -461,7 +465,7 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         self,
         images: Sequence[PathLike | PILImage | Tensor],
         threshold: float = 0.6,
-    ) -> list[dict[str, Tensor]]:
+    ) -> list[ObjectDetectionPrediction]:
         """Run inference on a batch of images and return per-image predictions.
 
         Args:
@@ -473,27 +477,23 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
                 with scores <= threshold are discarded.
 
         Returns:
-            A list with one prediction dict per input image.
+            A list with one :class:`ObjectDetectionPrediction` per input image.
         """
+        first_param = next(self.parameters())
+        batch, metadata = self.preprocessor.preprocess(
+            images, device=first_param.device, dtype=first_param.dtype
+        )
         self._track_inference()
         if self.training or not self.is_deploy_mode:
             self.deploy()
-        first_param = next(self.parameters())
-        tensors: list[Tensor] = []
-        metadata: list[ObjectDetectionMetadata] = []
-        for image in images:
-            x, meta = self.preprocessor.preprocess_image(
-                image, device=first_param.device, dtype=first_param.dtype
-            )
-            tensors.append(x)
-            metadata.append(meta)
-        batch = self.preprocessor.preprocess_batch(torch.stack(tensors, dim=0))
-        return self.postprocessor.postprocess(self(batch), metadata, threshold)
+        return self.postprocessor.postprocess(
+            raw=self(batch), metadata=metadata, threshold=threshold
+        )
 
     @torch.no_grad()
     def predict(
         self, image: PathLike | PILImage | Tensor, threshold: float = 0.6
-    ) -> dict[str, Tensor]:
+    ) -> ObjectDetectionPrediction:
         """Run inference on a single image and return task-specific predictions.
 
         Args:
@@ -504,17 +504,9 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
                 scores <= threshold are discarded.
 
         Returns:
-            A task-specific prediction dictionary.
+            An :class:`ObjectDetectionPrediction`.
         """
-        self._track_inference()
-        if self.training or not self.is_deploy_mode:
-            self.deploy()
-        first_param = next(self.parameters())
-        x, metadata = self.preprocessor.preprocess_image(
-            image, device=first_param.device, dtype=first_param.dtype
-        )
-        batch = self.preprocessor.preprocess_batch(x.unsqueeze(0))
-        return self.postprocessor.postprocess(self(batch), [metadata], threshold)[0]
+        return self.predict_batch([image], threshold=threshold)[0]
 
     @torch.no_grad()
     def predict_sahi(
@@ -524,7 +516,7 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         overlap: float = 0.2,
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
-    ) -> dict[str, Tensor]:
+    ) -> ObjectDetectionPrediction:
         """Run Slicing Aided Hyper Inference (SAHI) inference on the input image.
 
         The image is first converted to a tensor, then:
@@ -554,31 +546,16 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
                 global_local_iou_threshold yields less predictions.
 
         Returns:
-            A dictionary with:
-                - "labels": Tensor of shape (N,) with predicted class indices.
-                - "bboxes": Tensor of shape (N, 4) with bounding boxes in (x_min, y_min, x_max, y_max)
-                  in the coordinates of the original image.
-                - "scores": Tensor of shape (N,) with confidence scores for each prediction.
+            An :class:`ObjectDetectionPrediction` in original-image coordinates.
         """
 
-        if self.training or not self.is_deploy_mode:
-            self.deploy()
-        first_param = next(self.parameters())
-        batch, metadata = self.preprocessor.preprocess_sahi_image(
-            image,
-            device=first_param.device,
-            dtype=first_param.dtype,
-            overlap=overlap,
-        )
-        raw = self(self.preprocessor.preprocess_sahi_batch(batch))
-        return self.postprocessor.postprocess_sahi(
-            raw,
-            metadata,
+        return self.predict_sahi_batch(
+            [image],
             threshold=threshold,
+            overlap=overlap,
             nms_iou_threshold=nms_iou_threshold,
             global_local_iou_threshold=global_local_iou_threshold,
-            tile_size=self.image_size,
-        )
+        )[0]
 
     @torch.no_grad()
     def predict_sahi_batch(
@@ -588,47 +565,30 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         overlap: float = 0.2,
         nms_iou_threshold: float = 0.3,
         global_local_iou_threshold: float = 0.1,
-    ) -> list[dict[str, Tensor]]:
-        """Run Slicing Aided Hyper Inference on a batch of images."""
+    ) -> list[ObjectDetectionPrediction]:
+        """Run Slicing Aided Hyper Inference on a batch of images.
+
+        All tiles of all images go through the model in a single forward pass. The
+        postprocessor maps each image back to its own slice of the raw output.
+        """
+        sahi_config = ObjectDetectionSAHIConfig(
+            overlap=overlap,
+            nms_iou_threshold=nms_iou_threshold,
+            global_local_iou_threshold=global_local_iou_threshold,
+        )
+        first_param = next(self.parameters())
+        batch, metadata = self.preprocessor.preprocess(
+            images,
+            device=first_param.device,
+            dtype=first_param.dtype,
+            sahi_config=sahi_config,
+        )
         self._track_inference()
-        if not images:
-            raise ValueError("images must contain at least one image.")
         if self.training or not self.is_deploy_mode:
             self.deploy()
-        first_param = next(self.parameters())
-        batches: list[Tensor] = []
-        metadata: list[ObjectDetectionMetadata] = []
-        batch_sizes: list[int] = []
-        for image in images:
-            image_batch, image_metadata = self.preprocessor.preprocess_sahi_image(
-                image,
-                device=first_param.device,
-                dtype=first_param.dtype,
-                overlap=overlap,
-            )
-            batches.append(image_batch)
-            metadata.append(image_metadata)
-            batch_sizes.append(len(image_batch))
-        raw = self(self.preprocessor.preprocess_sahi_batch(torch.cat(batches, dim=0)))
-        out: list[dict[str, Tensor]] = []
-        start = 0
-        for image_metadata, batch_size in zip(metadata, batch_sizes):
-            end = start + batch_size
-            raw_image = ObjectDetectionOutput(
-                logits=raw.logits[start:end], boxes=raw.boxes[start:end]
-            )
-            out.append(
-                self.postprocessor.postprocess_sahi(
-                    raw_image,
-                    image_metadata,
-                    threshold=threshold,
-                    nms_iou_threshold=nms_iou_threshold,
-                    global_local_iou_threshold=global_local_iou_threshold,
-                    tile_size=self.image_size,
-                )
-            )
-            start = end
-        return out
+        return self.postprocessor.postprocess(
+            raw=self(batch), metadata=metadata, threshold=threshold
+        )
 
     @torch.no_grad()
     def export_onnx(

@@ -22,9 +22,9 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
-from lightly_train._task_models.dinov3_ltdetr.task_model import (
-    _RTDETRTransformerv2Config,
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
+    ObjectDetectionMetadata,
 )
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
@@ -677,7 +677,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
 def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     patch_size: int, feat_strides: list[int], num_levels: int
 ) -> None:
-    config = _RTDETRTransformerv2Config(
+    config = RTDETRTransformerv2Config(
         num_levels=num_levels, feat_channels=[-1] * num_levels
     )
 
@@ -694,13 +694,14 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
 
     preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
     preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
-    forward_backend_spy = mocker.spy(model, "forward_backend")
+    forward_spy = mocker.spy(model, "forward")
+    postprocess_batch_spy = mocker.spy(model.postprocessor, "postprocess_batch")
+    postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
     postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
 
     images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
     result = model.predict_batch(images=images)
 
-    # Each input image goes through preprocess_image once.
     assert preprocess_image_spy.call_count == 2
 
     # The stacked batch is preprocessed in a single call with shape (B, C, H, W).
@@ -708,20 +709,62 @@ def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
     (batch_in,) = preprocess_batch_spy.call_args.args
     assert batch_in.shape == (2, 3, 256, 256)
 
-    # forward_backend receives the output of preprocess_batch.
-    assert forward_backend_spy.call_count == 1
-    (forward_in,) = forward_backend_spy.call_args.args
-    assert forward_in is preprocess_batch_spy.spy_return
+    # forward receives the dense preprocessed batch.
+    assert forward_spy.call_count == 1
+    (forward_in,) = forward_spy.call_args.args
+    assert forward_in.shape == (2, 3, 256, 256)
 
-    # postprocess receives forward_backend's output and per-image metadata.
+    # postprocess receives forward's output and one metadata entry per image.
     assert postprocess_spy.call_count == 1
-    raw_in, metadata, _ = postprocess_spy.call_args.args
-    assert raw_in.logits is forward_backend_spy.spy_return["pred_logits"]
-    assert raw_in.boxes is forward_backend_spy.spy_return["pred_boxes"]
-    assert len(metadata) == 2
+    call = postprocess_spy.call_args.kwargs
+    assert call["raw"] is forward_spy.spy_return
+    assert call["metadata"] == [
+        ObjectDetectionMetadata(orig_h=480, orig_w=640),
+        ObjectDetectionMetadata(orig_h=720, orig_w=1280),
+    ]
+
+    # Postprocessing mirrors preprocessing: one dense pass over the batch, then one
+    # host-side pass per image.
+    assert postprocess_batch_spy.call_count == 1
+    assert postprocess_image_spy.call_count == 2
 
     # predict_batch returns whatever the standalone postprocessor produced.
     assert result is postprocess_spy.spy_return
+
+
+def test_postprocess__accepts_typed_and_mapping_outputs(
+    mocker: MockerFixture,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0"},
+        image_size=(256, 256),
+        load_weights=False,
+    )
+    postprocess = mocker.patch.object(
+        model.postprocessor, "postprocess", return_value=[]
+    )
+    logits = torch.rand(1, 2, 1)
+    boxes = torch.rand(1, 2, 4)
+    metadata = [ObjectDetectionMetadata(orig_h=480, orig_w=640)]
+
+    typed_raw = ObjectDetectionBatchOutput(logits=logits, boxes=boxes)
+    model.postprocess(typed_raw, metadata, threshold=0.5)
+    call = postprocess.call_args.kwargs
+    assert call["raw"] is typed_raw
+    assert call["metadata"] is metadata
+    assert call["threshold"] == 0.5
+
+    model.postprocess(
+        {"pred_logits": logits, "pred_boxes": boxes}, metadata, threshold=0.25
+    )
+    call = postprocess.call_args.kwargs
+    raw = call["raw"]
+    assert isinstance(raw, ObjectDetectionBatchOutput)
+    assert raw.logits is logits
+    assert raw.boxes is boxes
+    assert call["metadata"] is metadata
+    assert call["threshold"] == 0.25
 
 
 def test_predict_sahi_batch__splits_raw_outputs_per_image(
@@ -729,63 +772,119 @@ def test_predict_sahi_batch__splits_raw_outputs_per_image(
 ) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={3: "class_3", 5: "class_5"},
+        image_size=(64, 64),
+        load_weights=False,
+    )
+    model._deployed = True
+    num_queries = model.num_top_queries
+
+    # With overlap=0.0 the 64x64 image yields one tile (2 rows: global + tile) and the
+    # 64x128 image yields two tiles (3 rows). Every row carries exactly one
+    # high-confidence detection, made distinguishable by class column, score, and box
+    # location, so a wrong start/end slice lands a box in the wrong image.
+    rows = [
+        (0, 10.0, [0.25, 0.25, 0.25, 0.25]),  # image 0, global
+        (1, 9.0, [0.75, 0.75, 0.25, 0.25]),  # image 0, tile (0, 0)
+        (1, 8.0, [0.25, 0.25, 0.25, 0.25]),  # image 1, global
+        (0, 7.0, [0.75, 0.75, 0.25, 0.25]),  # image 1, tile (0, 0)
+        (1, 6.0, [0.25, 0.25, 0.25, 0.25]),  # image 1, tile (64, 0)
+    ]
+    logits = torch.full((len(rows), num_queries, 2), -10.0)
+    boxes = torch.zeros(len(rows), num_queries, 4)
+    for row, (class_index, logit, box) in enumerate(rows):
+        logits[row, 0, class_index] = logit
+        boxes[row, 0] = torch.tensor(box)
+
+    forward = mocker.patch.object(
+        model,
+        "forward",
+        return_value=ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
+    )
+    postprocess_batch_spy = mocker.spy(model.postprocessor, "postprocess_batch")
+    postprocess_image_spy = mocker.spy(model.postprocessor, "postprocess_image")
+
+    output = model.predict_sahi_batch(
+        [torch.zeros(3, 64, 64), torch.zeros(3, 64, 128)],
+        threshold=0.6,
+        overlap=0.0,
+    )
+
+    # All tiles of all images go through the model in a single forward pass.
+    assert forward.call_args.args[0].shape == (5, 3, 64, 64)
+
+    # The rows of all images are decoded together, then each image is finalized from
+    # exactly its own rows.
+    assert postprocess_batch_spy.call_count == 1
+    decoded = postprocess_batch_spy.spy_return
+    assert postprocess_image_spy.call_count == 2
+    for index, (start, end) in enumerate([(0, 2), (2, 5)]):
+        rows_in = postprocess_image_spy.call_args_list[index].args[0]
+        torch.testing.assert_close(rows_in.bboxes, decoded.bboxes[start:end])
+        torch.testing.assert_close(rows_in.scores, decoded.scores[start:end])
+
+    # Boxes are in original-image coordinates: global boxes scale by the original
+    # size, tile boxes by the tile size plus the tile offset.
+    assert len(output) == 2
+    torch.testing.assert_close(output[0].labels, torch.tensor([3, 5]))
+    torch.testing.assert_close(
+        output[0].bboxes,
+        torch.tensor([[8.0, 8.0, 24.0, 24.0], [40.0, 40.0, 56.0, 56.0]]),
+    )
+    torch.testing.assert_close(output[0].scores, torch.tensor([10.0, 9.0]).sigmoid())
+    torch.testing.assert_close(output[1].labels, torch.tensor([5, 3, 5]))
+    torch.testing.assert_close(
+        output[1].bboxes,
+        torch.tensor(
+            [
+                [16.0, 8.0, 48.0, 24.0],
+                [40.0, 40.0, 56.0, 56.0],
+                [72.0, 8.0, 88.0, 24.0],
+            ]
+        ),
+    )
+    torch.testing.assert_close(
+        output[1].scores, torch.tensor([8.0, 7.0, 6.0]).sigmoid()
+    )
+
+
+def test_predict__matches_predict_batch(mocker: MockerFixture) -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
         image_size=(64, 64),
         load_weights=False,
     )
     model._deployed = True
-    metadata = [
-        {
-            "orig_h": 20,
-            "orig_w": 20,
-            "tiles_coordinates": torch.zeros(1, 2, dtype=torch.int64),
-        },
-        {
-            "orig_h": 40,
-            "orig_w": 40,
-            "tiles_coordinates": torch.zeros(2, 2, dtype=torch.int64),
-        },
-    ]
-    mocker.patch.object(
-        model.preprocessor,
-        "preprocess_sahi_image",
-        side_effect=[
-            (torch.zeros(2, 3, 16, 16), metadata[0]),
-            (torch.zeros(3, 3, 16, 16), metadata[1]),
-        ],
-    )
-    mocker.patch.object(
-        model.preprocessor, "preprocess_sahi_batch", side_effect=lambda batch: batch
-    )
+    num_queries = model.num_top_queries
+    logits = torch.full((1, num_queries, 2), -10.0)
+    logits[0, 0, 1] = 10.0
+    boxes = torch.zeros(1, num_queries, 4)
+    boxes[0, 0] = torch.tensor([0.5, 0.5, 0.25, 0.25])
     mocker.patch.object(
         model,
         "forward",
-        return_value=ObjectDetectionOutput(
-            logits=torch.zeros(5, 4, 2), boxes=torch.zeros(5, 4, 4)
-        ),
+        return_value=ObjectDetectionBatchOutput(logits=logits, boxes=boxes),
     )
-    postprocess_sahi = mocker.patch.object(
-        model.postprocessor,
-        "postprocess_sahi",
-        side_effect=[
-            {
-                "labels": torch.tensor([1]),
-                "bboxes": torch.zeros(1, 4),
-                "scores": torch.ones(1),
-            },
-            {
-                "labels": torch.tensor([2]),
-                "bboxes": torch.zeros(1, 4),
-                "scores": torch.ones(1),
-            },
-        ],
+    image = torch.zeros(3, 64, 128)
+
+    single = model.predict(image)
+    batched = model.predict_batch([image])[0]
+
+    torch.testing.assert_close(single.labels, batched.labels)
+    torch.testing.assert_close(single.bboxes, batched.bboxes)
+    torch.testing.assert_close(single.scores, batched.scores)
+
+
+def test_predict_batch__rejects_empty_input() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov3/vitt16-notpretrained-ltdetr",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(64, 64),
+        load_weights=False,
     )
-
-    output = model.predict_sahi_batch([torch.zeros(3, 20, 20), torch.zeros(3, 40, 40)])
-
-    assert [int(item["labels"].item()) for item in output] == [1, 2]
-    assert postprocess_sahi.call_args_list[0].args[0].logits.shape[0] == 2
-    assert postprocess_sahi.call_args_list[1].args[0].logits.shape[0] == 3
+    with pytest.raises(ValueError, match="at least one image"):
+        model.predict_batch([])
 
 
 def test_predict_sahi_batch__rejects_empty_input() -> None:

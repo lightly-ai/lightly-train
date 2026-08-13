@@ -38,7 +38,7 @@ Documentation of the public API of the `lightly_train` package.
     :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.picodet_object_detection.task_model.PicoDetObjectDetection
-    :members: export_onnx, export_tensorrt, predict
+    :members: export_onnx, export_tensorrt, predict, predict_batch, predict_sahi, predict_sahi_batch
     :exclude-members: __init__, __new__
 
 .. autoclass:: lightly_train._task_models.dinov2_eomt_panoptic_segmentation.task_model.DINOv2EoMTPanopticSegmentation
