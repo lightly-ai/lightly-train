@@ -59,6 +59,41 @@ might contain performance improvements.
   they were built with support for your CUDA version.
 - Install newer versions of Python.
 
+(speeding-up-validation-metrics)=
+
+## Speeding Up Validation Metrics
+
+For object detection and instance segmentation, mAP is computed in a single blocking
+call at the end of every validation run. On large validation sets this can take a
+noticeable amount of time during which no training happens.
+
+The mAP computation is done by [pycocotools](https://github.com/ppwwyyxx/cocoapi) by
+default. Installing [faster-coco-eval](https://github.com/MiXaiLL76/faster_coco_eval), a
+C++ reimplementation of the same algorithm, makes it roughly **5x faster**:
+
+```bash
+pip install "lightly-train[faster-coco-eval]"
+```
+
+Both backends return identical values, so this does not change your metrics or which
+checkpoint is selected as the best one. Once installed, it is used automatically for
+object detection; no configuration is needed.
+
+```{note}
+For instance segmentation, Lightly**Train** keeps using pycocotools even when
+faster-coco-eval is installed. Instance segmentation spends most of its metric time
+encoding masks rather than computing mAP, and faster-coco-eval's mask encoding is
+slower, which would make the overall validation slower rather than faster.
+
+You can always select a backend explicitly via
+[`metric_args`](#metric_args):
+
+    metric_args={"map": {"backend": "faster_coco_eval"}}
+```
+
+This does not affect semantic segmentation, panoptic segmentation, or classification,
+which use metrics that do not depend on pycocotools.
+
 (finding-the-performance-bottleneck)=
 
 ## Finding the Performance Bottleneck

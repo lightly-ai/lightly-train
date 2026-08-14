@@ -16,6 +16,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   AMD GPUs.
 - Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
   available from PyPI.
+- Add an optional `faster-coco-eval` dependency that speeds up the mAP computation at
+  the end of every validation run by ~5x for object detection. Install it with
+  `pip install "lightly-train[faster-coco-eval]"`; it is then used automatically. Both
+  backends return identical metric values. The backend can be selected explicitly with
+  `metric_args={"map": {"backend": ...}}`.
 
 ### Changed
 
@@ -24,6 +29,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+- Fail with a clear error message instead of an unrelated `TypeError` when fine-tuning
+  is started with a torchmetrics version that is too old for the task metrics. This
+  happens when SuperGradients is installed, as it requires `torchmetrics==0.8`.
 
 ### Security
 
