@@ -24,15 +24,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Fine-tuning now requires `torchmetrics>=1.5` and fails with a clear error message if
+  an older version is installed. This happens for example when SuperGradients is
+  installed, as it requires `torchmetrics==0.8`. Classification, segmentation, and
+  panoptic fine-tuning already failed on such versions because the metrics they use
+  don't exist yet. Object detection fine-tuning previously ran, but silently ignored the
+  `average` and `backend` metric arguments and reported mAP from an outdated
+  implementation that does not match COCO eval.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-
-- Fail with a clear error message instead of an unrelated `TypeError` when fine-tuning
-  is started with a torchmetrics version that is too old for the task metrics. This
-  happens when SuperGradients is installed, as it requires `torchmetrics==0.8`.
 
 ### Security
 
