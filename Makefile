@@ -286,11 +286,14 @@ EXTRAS_PY38 := [dicom,mlflow,onnx,tensorboard,timm,ultralytics,wandb]
 # bitsandbytes is added so CI exercises the optional 8-bit AdamW optimizer
 # (optim_type="adamw8bit"); it has no Python 3.8 wheel, so it is deliberately
 # absent from EXTRAS_PY38 above.
-EXTRAS_PY313 := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+# faster-coco-eval is added so CI exercises the faster mAP backend; it requires
+# Python>=3.9, so it is deliberately absent from EXTRAS_PY38 above.
+EXTRAS_PY313 := [bitsandbytes,dicom,faster-coco-eval,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # SuperGradients is excluded as it is not compatible with Python>=3.10.
 # bitsandbytes: see EXTRAS_PY313 above (exercised in dev/CI; no Python 3.8 wheel).
-EXTRAS_DEV := [bitsandbytes,dicom,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
+# faster-coco-eval: see EXTRAS_PY313 above (exercised in dev/CI; requires Python>=3.9).
+EXTRAS_DEV := [bitsandbytes,dicom,faster-coco-eval,mlflow,notebook,onnx,onnxruntime,onnxslim,rfdetr,tensorboard,timm,ultralytics,wandb]
 
 # Exclude ultralytics from docker extras as it has an AGPL license and we should not
 # distribute it with the docker image.

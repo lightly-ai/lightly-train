@@ -16,6 +16,7 @@ from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 from typing_extensions import Annotated, override
@@ -72,9 +73,17 @@ from lightly_train._train_task_state import (
     TrainTaskState,
 )
 from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
+from lightly_train.errors import LightlyTrainError
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
+
+# Minimum torchmetrics version required by the task metrics. The package as a whole
+# allows torchmetrics>=0.8 because SuperGradients pins torchmetrics==0.8, but the task
+# metrics use arguments (e.g. `backend`, `average`) that were only added in later
+# versions. 1.5 is the version the metrics are tested against.
+TORCHMETRICS_MIN_VERSION = "1.5"
+TORCHMETRICS_SUPPORTED = RequirementCache(f"torchmetrics>={TORCHMETRICS_MIN_VERSION}")
 
 
 def train_image_classification(
@@ -1266,7 +1275,33 @@ def _train_task(
     _train_task_from_config(config=config)
 
 
+def _raise_if_torchmetrics_unsupported() -> None:
+    """Fails early if the installed torchmetrics version is too old for task metrics.
+
+    Without this check, training fails much later with a confusing TypeError about
+    unexpected keyword arguments once the metrics are instantiated.
+    """
+    if TORCHMETRICS_SUPPORTED:
+        return
+
+    try:
+        from torchmetrics import __version__ as torchmetrics_version
+
+        found = f"Found torchmetrics {torchmetrics_version}."
+    except ImportError:
+        found = "torchmetrics is not installed."
+
+    raise LightlyTrainError(
+        f"Fine-tuning requires torchmetrics>={TORCHMETRICS_MIN_VERSION}. {found} This "
+        "usually happens when SuperGradients is installed, as it requires "
+        "torchmetrics==0.8. Install a newer version with "
+        f"`pip install 'torchmetrics>={TORCHMETRICS_MIN_VERSION}'` or uninstall "
+        "SuperGradients."
+    )
+
+
 def _train_task_from_config(config: TrainTaskConfig) -> None:
+    _raise_if_torchmetrics_unsupported()
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't

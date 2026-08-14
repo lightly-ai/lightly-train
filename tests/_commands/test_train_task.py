@@ -54,6 +54,7 @@ import torch
 import yaml
 
 import lightly_train
+from lightly_train._commands import train_task
 from lightly_train._commands.train_task import (
     ImageClassificationMulticlassTrainTaskConfig,
     ImageClassificationMultiheadMulticlassTrainTaskConfig,
@@ -66,6 +67,7 @@ from lightly_train._commands.train_task import (
     SemanticSegmentationTrainTaskConfig,
 )
 from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train.errors import LightlyTrainError
 
 from .. import helpers
 
@@ -1446,3 +1448,14 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
     assert config.data.path == (tmp_path / "dataset").resolve()
     assert config.data.train == Path("images/train")
     assert config.data.val == Path("images/val")
+
+
+class TestRaiseIfTorchmetricsUnsupported:
+    def test_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", True, raising=True)
+        train_task._raise_if_torchmetrics_unsupported()
+
+    def test_unsupported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", False, raising=True)
+        with pytest.raises(LightlyTrainError, match="requires torchmetrics>="):
+            train_task._raise_if_torchmetrics_unsupported()
