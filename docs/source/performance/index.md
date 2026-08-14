@@ -86,7 +86,7 @@ encoding masks rather than computing mAP, and faster-coco-eval's mask encoding i
 slower, which would make the overall validation slower rather than faster.
 
 You can always select a backend explicitly via
-[`metric_args`](#metric_args):
+[`metric_args`](../settings/train_settings.md#metric_args):
 
     metric_args={"map": {"backend": "faster_coco_eval"}}
 ```
