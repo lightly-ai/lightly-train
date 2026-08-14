@@ -23,48 +23,40 @@ how to prepare your dataset.
 In multiclass classification, each image is assigned to exactly one class. This is the
 default mode and does not need to be specified explicitly.
 
-If you don't have a dataset at hand,
-[FashionMNIST](https://github.com/zalandoresearch/fashion-mnist) (MIT licensed) is a
-small, permissively licensed example dataset. It ships via `torchvision`, not as
-class-subfolders, so export a small subset to disk once:
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+[clothing-dataset-small](https://github.com/alexeygrigorev/clothing-dataset-small) (CC0
+licensed, 10 classes, already organized as class-subfolders):
 
-```python
-from pathlib import Path
-
-from torchvision.datasets import FashionMNIST
-
-FASHION_MNIST_CLASSES = {
-    0: "tshirt_top",
-    1: "trouser",
-    2: "pullover",
-    3: "dress",
-    4: "coat",
-    5: "sandal",
-    6: "shirt",
-    7: "sneaker",
-    8: "bag",
-    9: "ankle_boot",
-}
-
-
-def export_subset(split: str, train: bool, num_samples: int) -> None:
-    dataset = FashionMNIST(root="fashion_mnist_raw", train=train, download=True)
-    for i, (image, label) in enumerate(dataset):
-        if i >= num_samples:
-            break
-        # Subfolder names must match the "classes" names below, not the ids.
-        class_dir = Path("fashion_mnist") / split / FASHION_MNIST_CLASSES[label]
-        class_dir.mkdir(parents=True, exist_ok=True)
-        image.save(class_dir / f"{i}.png")
-
-
-export_subset("train", train=True, num_samples=2000)
-export_subset("val", train=False, num_samples=500)
+```bash
+git clone https://github.com/alexeygrigorev/clothing-dataset-small
 ```
 
-Then train on the exported subset:
+The dataset looks like this after cloning:
 
-```python skip_ruff
+```text
+clothing-dataset-small/
+├── train
+│   ├── dress
+│   │   ├── 009b3c31-fb62-45c0-be9a-37a5c238cb88.jpg
+│   │   ├── 041c6bde-e737-46fd-9586-984c1503941f.jpg
+│   │   └── ...
+│   ├── hat
+│   │   ├── 00d94e21-5891-492e-be0e-792e7338c077.jpg
+│   │   └── ...
+│   └── ...
+├── validation
+│   ├── dress
+│   │   ├── 07cddef1-1fc8-47e4-a28a-613e60912590.jpg
+│   │   └── ...
+│   └── ...
+└── test
+    ├── dress
+    │   ├── 06a00c0f-5f9a-410d-a7da-3881a9df3a71.jpg
+    │   └── ...
+    └── ...
+```
+
+```python
 import lightly_train
 
 if __name__ == "__main__":
@@ -72,10 +64,20 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vitt16",
         data={
-            "train": "fashion_mnist/train",
-            "val": "fashion_mnist/val",
-            # The same class dictionary used to name the subfolders above.
-            "classes": FASHION_MNIST_CLASSES,
+            "train": "clothing-dataset-small/train",
+            "val": "clothing-dataset-small/validation",
+            "classes": {
+                0: "dress",
+                1: "hat",
+                2: "longsleeve",
+                3: "outwear",
+                4: "pants",
+                5: "shirt",
+                6: "shoes",
+                7: "shorts",
+                8: "skirt",
+                9: "t-shirt",
+            },
         },
     )
 ```
