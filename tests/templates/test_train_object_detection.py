@@ -11,9 +11,17 @@ from pathlib import Path
 import pytest
 from jinja2 import Environment, FileSystemLoader
 
+from lightly_train._commands.train_task import TORCHMETRICS_SUPPORTED
+
 from .. import helpers
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+
+# Fine-tuning requires a recent torchmetrics version. An old version can be installed
+# if SuperGradients is present, as it requires torchmetrics==0.8.
+skip_if_old_torchmetrics = pytest.mark.skipif(
+    not TORCHMETRICS_SUPPORTED, reason="Old torchmetrics version"
+)
 
 
 def _render(**kwargs: object) -> str:
@@ -152,6 +160,7 @@ class TestTrainObjectDetectionTemplate:
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
+@skip_if_old_torchmetrics
 def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
     """Integration test: render with default parameters (except model) and run."""
     data = tmp_path / "data"
@@ -187,6 +196,7 @@ def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
+@skip_if_old_torchmetrics
 def test_rendered_template_runs_training_with_all_params(tmp_path: Path) -> None:
     """Integration test: render with all parameters set explicitly and run."""
     data = tmp_path / "data"
