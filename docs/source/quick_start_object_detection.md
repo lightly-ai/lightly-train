@@ -136,8 +136,8 @@ shared `images` directory that every task in the dataset reuses, while
             └── 000000013201.txt
 ```
 
-`config.yaml` already has everything `train_object_detection` needs — the dataset
-paths and the 80 COCO class names:
+`config.yaml` already has everything `train_object_detection` needs — the dataset paths
+and the 80 COCO class names:
 
 ```yaml
 path: .

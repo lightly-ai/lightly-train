@@ -69,8 +69,8 @@ if __name__ == "__main__":
     )
 ```
 
-`data` also accepts a dictionary with the same keys as the yaml file, which is useful
-if you want to set them programmatically:
+`data` also accepts a dictionary with the same keys as the yaml file, which is useful if
+you want to set them programmatically:
 
 ```python
 import lightly_train

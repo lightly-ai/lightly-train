@@ -23,9 +23,10 @@ how to prepare your dataset.
 In multiclass classification, each image is assigned to exactly one class. This is the
 default mode and does not need to be specified explicitly.
 
-If you don't have a dataset at hand, [FashionMNIST](https://github.com/zalandoresearch/fashion-mnist)
-(MIT licensed) is a small, permissively licensed example dataset. It ships via
-`torchvision`, not as class-subfolders, so export a small subset to disk once:
+If you don't have a dataset at hand,
+[FashionMNIST](https://github.com/zalandoresearch/fashion-mnist) (MIT licensed) is a
+small, permissively licensed example dataset. It ships via `torchvision`, not as
+class-subfolders, so export a small subset to disk once:
 
 ```python
 from pathlib import Path
@@ -63,7 +64,7 @@ export_subset("val", train=False, num_samples=500)
 
 Then train on the exported subset:
 
-```python
+```python skip_ruff
 import lightly_train
 
 if __name__ == "__main__":
