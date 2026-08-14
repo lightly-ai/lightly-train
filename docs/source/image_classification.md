@@ -61,6 +61,8 @@ export_subset("train", train=True, num_samples=2000)
 export_subset("val", train=False, num_samples=500)
 ```
 
+Then train on the exported subset:
+
 ```python
 import lightly_train
 
@@ -71,6 +73,7 @@ if __name__ == "__main__":
         data={
             "train": "fashion_mnist/train",
             "val": "fashion_mnist/val",
+            # The same class dictionary used to name the subfolders above.
             "classes": FASHION_MNIST_CLASSES,
         },
     )

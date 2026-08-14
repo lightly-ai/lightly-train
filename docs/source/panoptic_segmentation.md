@@ -56,7 +56,10 @@ your dataset.
 If you don't have a dataset at hand, download a small ready-to-use example dataset:
 
 ```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.1.0/panoptic_segmentation.zip && unzip -q panoptic_segmentation.zip
+# The shared image pool, used by all tasks.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
+# The annotations and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/panoptic_segmentation.zip && unzip -q panoptic_segmentation.zip
 ```
 
 ```python

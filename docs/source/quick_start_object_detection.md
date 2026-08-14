@@ -97,15 +97,19 @@ First download a dataset. The dataset must be in YOLO format, see the
 YOLO format:
 
 ```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.1.0/object_detection.zip && unzip -q object_detection.zip
+# The shared image pool, used by all tasks.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
+# The labels and the config file for object detection.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/object_detection.zip && unzip -q object_detection.zip
 ```
 
-The dataset looks like this after the download completes:
+Both archives unzip into the current directory as siblings. The images live once in a
+shared `images` directory that every task in the dataset reuses, while
+`object_detection` holds only the labels and the config file:
 
 ```text
-object_detection
-├── config.yaml
-├── images
+.
+├── images                          # Shared image pool.
 │   ├── train2017
 │   │   ├── 000000000009.jpg
 │   │   ├── 000000000025.jpg
@@ -116,17 +120,20 @@ object_detection
 │       ├── 000000000285.jpg
 │       ├── ...
 │       └── 000000013201.jpg
-└── labels
-    ├── train2017
-    │   ├── 000000000009.txt
-    │   ├── 000000000025.txt
-    │   ├── ...
-    │   └── 000000000659.txt
-    └── val2017
-        ├── 000000000139.txt
-        ├── 000000000285.txt
-        ├── ...
-        └── 000000013201.txt
+└── object_detection
+    ├── config.yaml
+    ├── images -> ../images         # Symlink into the shared image pool.
+    └── labels
+        ├── train2017
+        │   ├── 000000000009.txt
+        │   ├── 000000000025.txt
+        │   ├── ...
+        │   └── 000000000659.txt
+        └── val2017
+            ├── 000000000139.txt
+            ├── 000000000285.txt
+            ├── ...
+            └── 000000013201.txt
 ```
 
 `config.yaml` already has everything `train_object_detection` needs — the dataset
@@ -142,6 +149,10 @@ names:
   1: bicycle
   # ... 78 more classes
 ```
+
+Paths in the config file are resolved relative to the config file itself, so `path: .`
+points at the `object_detection` directory and `images/train2017` reaches the shared
+pool through the symlink.
 
 ### Start training
 

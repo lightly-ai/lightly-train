@@ -57,7 +57,10 @@ requires a few lines of code using the
 If you don't have a dataset at hand, download a small ready-to-use example dataset:
 
 ```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.1.0/object_detection.zip && unzip -q object_detection.zip
+# The shared image pool, used by all tasks.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
+# The labels and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/object_detection.zip && unzip -q object_detection.zip
 ```
 
 ```python
