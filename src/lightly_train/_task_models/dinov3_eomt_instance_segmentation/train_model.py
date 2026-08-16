@@ -44,6 +44,9 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.transforms imp
     DINOv3EoMTInstanceSegmentationValTransformArgs,
 )
 from lightly_train._task_models.eomt import hooks
+from lightly_train._task_models.eomt.instance_segmentation import (
+    get_instance_segmentation_prediction,
+)
 from lightly_train._task_models.train_model import (
     TaskStepResult,
     TrainModel,
@@ -407,25 +410,17 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
             crop_sizes,
             image_sizes,
         ):
-            logits = logits.unsqueeze(0)  # (1, Q, H', W')
-            class_logits = class_logits.unsqueeze(0)  # (1, Q, num_classes)
-            # Resize to same size as before passing through the model. This is usually
-            # (1, Q, 640, 640) and depends on self.model.image_size.
-            logits = F.interpolate(logits, resized_images.shape[-2:], mode="bilinear")
-            # Revert resize and pad from self.model.resize_and_pad
-            logits = logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
-            # (1, Q, H, W)
-            logits = F.interpolate(logits, (image_h, image_w), mode="bilinear")
-            # (1, Q), (1, Q, H, W), (1, Q)
-            labels, masks, scores = self.model.get_labels_masks_scores(
-                mask_logits=logits, class_logits=class_logits
-            )
             predictions.append(
-                {
-                    "labels": labels[0],
-                    "masks": masks[0],
-                    "scores": scores[0],
-                }
+                get_instance_segmentation_prediction(
+                    mask_logits=logits,
+                    class_logits=class_logits,
+                    model_image_size=(
+                        resized_images.shape[-2], resized_images.shape[-1]
+                    ),
+                    crop_size=(crop_h, crop_w),
+                    image_size=(image_h, image_w),
+                    get_labels_masks_scores=self.model.get_labels_masks_scores,
+                )
             )
 
         self.val_metrics.update_with_predictions(
