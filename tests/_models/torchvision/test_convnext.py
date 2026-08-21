@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import pytest
 import torch
 from torchvision import models
 
@@ -44,3 +45,57 @@ class TestConvNeXtModelWrapper:
         wrapped_model = ConvNeXtModelWrapper(model=model)
         wrapped_model.to("meta")
         wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
+
+    def test_multiscale_feature_dims(self) -> None:
+        model = models.convnext_tiny()
+        feature_extractor = ConvNeXtModelWrapper(model=model)
+        assert feature_extractor.multiscale_feature_dims() == [96, 192, 384, 768]
+
+    def test_multiscale_feature_strides(self) -> None:
+        model = models.convnext_tiny()
+        feature_extractor = ConvNeXtModelWrapper(model=model)
+        assert feature_extractor.multiscale_feature_strides() == [4, 8, 16, 32]
+
+    def test_forward_multiscale_features(self) -> None:
+        model = models.convnext_tiny()
+        feature_extractor = ConvNeXtModelWrapper(model=model)
+        x = torch.rand(1, 3, 224, 224)
+        features = feature_extractor.forward_multiscale_features(
+            x, layer_indices=[0, 1, 2, 3]
+        )
+        shapes = [feature["features"].shape for feature in features]
+        assert shapes == [
+            (1, 96, 56, 56),
+            (1, 192, 28, 28),
+            (1, 384, 14, 14),
+            (1, 768, 7, 7),
+        ]
+
+    def test_forward_multiscale_features__order(self) -> None:
+        # Features are returned in the same order as the requested indices.
+        model = models.convnext_tiny()
+        feature_extractor = ConvNeXtModelWrapper(model=model)
+        x = torch.rand(1, 3, 224, 224)
+        features = feature_extractor.forward_multiscale_features(
+            x, layer_indices=[3, 1]
+        )
+        shapes = [feature["features"].shape for feature in features]
+        assert shapes == [(1, 768, 7, 7), (1, 192, 28, 28)]
+
+    def test_forward_multiscale_features__invalid_index(self) -> None:
+        model = models.convnext_tiny()
+        feature_extractor = ConvNeXtModelWrapper(model=model)
+        x = torch.rand(1, 3, 224, 224)
+        with pytest.raises(ValueError):
+            feature_extractor.forward_multiscale_features(x, layer_indices=[4])
+
+    def test_forward_multiscale_features__matches_forward_features(self) -> None:
+        # The last stage matches forward_features. Eval mode disables stochastic layers
+        # so that the two forward passes are deterministic.
+        model = models.convnext_tiny()
+        feature_extractor = ConvNeXtModelWrapper(model=model).eval()
+        x = torch.rand(1, 3, 224, 224)
+        last = feature_extractor.forward_multiscale_features(x, layer_indices=[3])[0]
+        assert torch.equal(
+            last["features"], feature_extractor.forward_features(x)["features"]
+        )

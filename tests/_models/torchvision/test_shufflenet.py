@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import pytest
 import torch
 from torchvision import models
 
@@ -44,3 +45,18 @@ class TestShuffleNetV2ModelWrapper:
         wrapped_model = ShuffleNetV2ModelWrapper(model=model)
         wrapped_model.to("meta")
         wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
+
+    def test_multiscale_feature_dims__not_supported(self) -> None:
+        # Multi-scale feature extraction is not supported for ShuffleNetV2.
+        model = models.shufflenet_v2_x0_5()
+        wrapped_model = ShuffleNetV2ModelWrapper(model=model)
+        with pytest.raises(NotImplementedError):
+            wrapped_model.multiscale_feature_dims()
+
+    def test_forward_multiscale_features__not_supported(self) -> None:
+        model = models.shufflenet_v2_x0_5()
+        wrapped_model = ShuffleNetV2ModelWrapper(model=model)
+        with pytest.raises(NotImplementedError):
+            wrapped_model.forward_multiscale_features(
+                torch.rand(1, 3, 224, 224), layer_indices=[0]
+            )

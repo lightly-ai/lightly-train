@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from torch import Tensor
 from torchvision.models import ConvNeXt
 
@@ -15,6 +17,10 @@ from lightly_train._models.model_wrapper import (
     ForwardPoolOutput,
 )
 from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
+
+# Indices of the stage outputs in `model.features`. Each stage is preceded by a
+# downsampling block, so the four stage outputs are at the odd indices 1, 3, 5, 7.
+_STAGE_INDICES = (1, 3, 5, 7)
 
 
 class ConvNeXtModelWrapper(TorchvisionModelWrapper, ArchitectureInfoGettable):
@@ -45,3 +51,12 @@ class ConvNeXtModelWrapper(TorchvisionModelWrapper, ArchitectureInfoGettable):
 
     def architecture_info(self) -> ArchitectureInfo:
         return {"model_type": "convolutional", "norm_type": "layernorm"}
+
+    def _extract_multiscale_stages(self, x: Tensor) -> list[Tensor]:
+        stages: list[Tensor] = []
+        out = x
+        for index, module in enumerate(self._features):
+            out = module(out)
+            if index in _STAGE_INDICES:
+                stages.append(out)
+        return stages

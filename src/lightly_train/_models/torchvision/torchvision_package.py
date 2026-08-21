@@ -18,7 +18,7 @@ from torchvision import models as torchvision_models
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
 from lightly_train._models.torchvision.resnet import ResNetModelWrapper
 from lightly_train._models.torchvision.shufflenet import ShuffleNetV2ModelWrapper
@@ -28,7 +28,7 @@ from lightly_train.errors import UnknownModelError
 logger = logging.getLogger(__name__)
 
 
-class TorchvisionPackage(Package):
+class TorchvisionPackage(MultiScaleFeaturePackage):
     name = "torchvision"
 
     _FEATURE_EXTRACTORS = [
