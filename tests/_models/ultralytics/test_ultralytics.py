@@ -128,6 +128,69 @@ class TestUltralyticsModelWrapper:
         wrapped_model.to("meta")
         wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))
 
+    def test_multiscale_feature_dims(self) -> None:
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        assert feature_extractor.multiscale_feature_dims() == [128, 256, 512]
+
+    def test_multiscale_feature_strides(self) -> None:
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        assert feature_extractor.multiscale_feature_strides() == [8, 16, 32]
+
+    def test_forward_multiscale_features(self) -> None:
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        x = torch.rand(1, 3, 224, 224)
+        features = feature_extractor.forward_multiscale_features(
+            x, layer_indices=[0, 1, 2]
+        )
+        shapes = [feature["features"].shape for feature in features]
+        assert shapes == [(1, 128, 28, 28), (1, 256, 14, 14), (1, 512, 7, 7)]
+
+    def test_forward_multiscale_features__order(self) -> None:
+        # Features are returned in the same order as the requested indices.
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        x = torch.rand(1, 3, 224, 224)
+        features = feature_extractor.forward_multiscale_features(
+            x, layer_indices=[2, 0]
+        )
+        shapes = [feature["features"].shape for feature in features]
+        assert shapes == [(1, 512, 7, 7), (1, 128, 28, 28)]
+
+    def test_forward_multiscale_features__invalid_index(self) -> None:
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        x = torch.rand(1, 3, 224, 224)
+        with pytest.raises(ValueError):
+            feature_extractor.forward_multiscale_features(x, layer_indices=[3])
+
+    def test_forward_multiscale_features__matches_forward_features(self) -> None:
+        # The last stage matches forward_features. Eval mode makes the two forward
+        # passes deterministic.
+        model = YOLO("yolov8s.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model).eval()
+        x = torch.rand(1, 3, 224, 224)
+        last = feature_extractor.forward_multiscale_features(x, layer_indices=[2])[0]
+        assert torch.equal(
+            last["features"], feature_extractor.forward_features(x)["features"]
+        )
+
+    def test_multiscale_feature_dims__classification_not_supported(self) -> None:
+        # Classification models do not expose a multi-scale pyramid.
+        model = YOLO("yolov8s-cls.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        with pytest.raises(ValueError):
+            feature_extractor.multiscale_feature_dims()
+
+    @pytest.mark.skipif(not YOLO26_AVAILABLE, reason="YOLO26 is not available")
+    def test_multiscale_feature_strides__p6(self) -> None:
+        # p6 models add a stride-64 level, so the pyramid has four levels.
+        model = YOLO("yolo26s-p6.yaml")
+        feature_extractor = UltralyticsModelWrapper(model=model)
+        assert feature_extractor.multiscale_feature_strides() == [8, 16, 32, 64]
+
 
 def test__sppf_skip_cv2_bn_act() -> None:
     sppf = SPPF(128, 5)
