@@ -249,5 +249,22 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNextBaseEupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-base-eupe"
 
+    # --- EdgeCrafter ECViT variants ---
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvitt-linear")
+    class EdgeCrafterECViTT(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvitt"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvittplus-linear")
+    class EdgeCrafterECViTTPlus(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvittplus"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvits-linear")
+    class EdgeCrafterECViTS(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvits"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-linear")
+    class EdgeCrafterECViTSPlus(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvitsplus"
+
     class Fallback(LinearSemanticSegmentationConfig):
         pass  # backbone_name stays "", parsed from model_name at runtime
