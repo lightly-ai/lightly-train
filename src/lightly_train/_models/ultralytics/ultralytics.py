@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
+import torch
 from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Identity, Module, Sequential, Upsample
@@ -20,7 +21,7 @@ from lightly_train._models.model_wrapper import (
     ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
 )
 
 if TYPE_CHECKING:
@@ -29,6 +30,11 @@ if TYPE_CHECKING:
     from ultralytics.nn.modules.conv import Conv
 
 logger = logging.getLogger(__name__)
+
+# Spatial size of the dummy input used to locate the pyramid stages and read their
+# feature dimensions. It is a multiple of the largest supported detection stride (64
+# for p6 models) so that the strides divide evenly.
+_MULTI_SCALE_DUMMY_INPUT_SIZE = 256
 
 
 def _get_direct_url() -> str | None:
@@ -53,7 +59,11 @@ YOLO26_AVAILABLE = RequirementCache("ultralytics>=8.4.0")
 RTDETR_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
 
 
-class UltralyticsModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
+class UltralyticsModelWrapper(Module, MultiScaleFeatureCNN, ArchitectureInfoGettable):
+    # Cache for the multi-scale pyramid (layer indices, feature dims, strides). Filled
+    # on first use.
+    _multiscale_cache: tuple[list[int], list[int], list[int]] | None = None
+
     def __init__(self, model: YOLO | RTDETR) -> None:
         super().__init__()
         _enable_gradients(model=model)
@@ -78,6 +88,121 @@ class UltralyticsModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
 
     def architecture_info(self) -> ArchitectureInfo:
         return {"model_type": "convolutional", "norm_type": "batchnorm"}
+
+    def multiscale_feature_dims(self) -> list[int]:
+        _, dims, _ = self._multiscale_pyramid()
+        return list(dims)
+
+    def multiscale_feature_strides(self) -> list[int]:
+        _, _, strides = self._multiscale_pyramid()
+        return list(strides)
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        indices, _, _ = self._multiscale_pyramid()
+        _validate_layer_indices(layer_indices=layer_indices, num_stages=len(indices))
+        stages = self._extract_multiscale_stages(x)
+        return [{"features": stages[index]} for index in layer_indices]
+
+    def _extract_multiscale_stages(self, x: Tensor) -> list[Tensor]:
+        indices, _, _ = self._multiscale_pyramid()
+        wanted = set(indices)
+        stages: list[Tensor] = []
+        out = x
+        for index, layer in enumerate(self._backbone):
+            out = layer(out)
+            if index in wanted:
+                stages.append(out)
+        return stages
+
+    def _multiscale_pyramid(self) -> tuple[list[int], list[int], list[int]]:
+        """Returns the cached pyramid (layer indices, dims, strides), read on first use."""
+        if self._multiscale_cache is None:
+            self._multiscale_cache = _compute_multiscale_pyramid(
+                model=self.get_model(), backbone=self._backbone
+            )
+        return self._multiscale_cache
+
+
+def _compute_multiscale_pyramid(
+    model: YOLO | RTDETR, backbone: Sequential
+) -> tuple[list[int], list[int], list[int]]:
+    """Locates the multi-scale pyramid stages of the backbone.
+
+    Uses the model's detection strides as the target feature levels and finds the last
+    backbone layer that produces each stride via a single dummy forward pass. The
+    channel dimension of each level is read from the same forward pass. The backbone is
+    set to eval mode during the forward pass so that batch norm statistics are not
+    updated, and the original mode is restored afterwards.
+
+    Args:
+        model:
+            Ultralytics model providing the detection strides.
+        backbone:
+            The backbone layers, as returned by ``_get_backbone``.
+
+    Returns:
+        A tuple with the backbone layer indices, feature dimensions, and strides of the
+        pyramid levels, one entry per level, ordered by increasing stride.
+
+    Raises:
+        ValueError:
+            If the model does not expose a multi-scale pyramid with at least two feature
+            levels (for example classification models or RT-DETR), or if the backbone
+            does not produce a feature map for one of the target strides.
+    """
+    target_strides = [int(stride) for stride in model.model.stride]  # type: ignore
+    if len(target_strides) < 2:
+        raise ValueError(
+            "Multi-scale feature extraction requires a detection model with at least "
+            f"two feature levels, but the model exposes strides {target_strides}. "
+            "Classification models and RT-DETR are not supported."
+        )
+
+    size = _MULTI_SCALE_DUMMY_INPUT_SIZE
+    device = next(backbone.parameters()).device
+    was_training = backbone.training
+    backbone.eval()
+    try:
+        with torch.no_grad():
+            out = torch.zeros(1, 3, size, size, device=device)
+            last_at_stride: dict[int, tuple[int, int]] = {}
+            for index, layer in enumerate(backbone):
+                out = layer(out)
+                last_at_stride[size // out.shape[-1]] = (index, out.shape[1])
+    finally:
+        backbone.train(was_training)
+
+    missing = [stride for stride in target_strides if stride not in last_at_stride]
+    if missing:
+        raise ValueError(
+            f"The backbone does not produce feature maps at strides {missing}."
+        )
+    indices = [last_at_stride[stride][0] for stride in target_strides]
+    dims = [last_at_stride[stride][1] for stride in target_strides]
+    return indices, dims, target_strides
+
+
+def _validate_layer_indices(layer_indices: Sequence[int], num_stages: int) -> None:
+    """Makes sure that all layer indices are within the valid range.
+
+    Args:
+        layer_indices:
+            Indices of the stages to extract features from.
+        num_stages:
+            Total number of multi-scale stages in the model.
+
+    Raises:
+        ValueError:
+            If any index is not in the range ``[0, num_stages)``.
+    """
+    for index in layer_indices:
+        if not 0 <= index < num_stages:
+            raise ValueError(
+                f"Layer index '{index}' is out of range for a model with "
+                f"'{num_stages}' multi-scale stages."
+            )
 
 
 def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
