@@ -23,6 +23,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `metric_args={"map": {"backend": ...}}`.
 - Add multi-scale feature support to the `edgecrafter` model package, exposing the
   ECViT feature pyramid (strides 8, 16, 32) through the multi-scale feature interface.
+- Add multi-channel image input support to the `edgecrafter` (ECViT) model package,
+  like DINOv2, DINOv3, and TIMM. Pretrained RGB weights are adapted to the requested
+  number of channels on load.
 
 ### Changed
 

@@ -382,6 +382,109 @@ class TestECViTModelWrapper:
             expected = model.forward_features(image)
         assert torch.equal(last["features"], expected["features"])
 
+    @pytest.mark.parametrize("num_input_channels", [1, 4, 6])
+    def test_forward__multi_channel_input(self, num_input_channels: int) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=num_input_channels,
+        )
+        model.eval()
+
+        with torch.no_grad():
+            outputs = model(torch.randn(2, num_input_channels, 32, 32))
+
+        assert [output.shape for output in outputs] == [
+            torch.Size([2, 16, 4, 4]),
+            torch.Size([2, 16, 2, 2]),
+            torch.Size([2, 16, 1, 1]),
+        ]
+
+    def test_init__multi_channel_first_conv(self) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=4,
+        )
+        first_conv = model.backbone.patch_embed.convs[0].conv
+        assert first_conv.in_channels == 4
+        assert first_conv.weight.shape[1] == 4
+
+    def test_load_weights_path__adapts_input_channels_by_repeat(
+        self, tmp_path: Path
+    ) -> None:
+        # A 3-channel checkpoint loads into a 4-channel model by repeating the first
+        # convolution's input channels.
+        source = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        state_dict = source.backbone.state_dict()
+        weights_path = tmp_path / "ecvitt_rgb.pth"
+        torch.save(state_dict, weights_path)
+
+        target = ECViTModelWrapper(
+            name="ecvitt",
+            weights_path=weights_path,
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=4,
+        )
+
+        source_weight = state_dict["patch_embed.convs.0.conv.weight"]
+        target_weight = target.backbone.state_dict()["patch_embed.convs.0.conv.weight"]
+        expected = torch.cat([source_weight, source_weight[:, :1, :, :]], dim=1)
+        assert target_weight.shape[1] == 4
+        assert torch.equal(target_weight, expected)
+
+    def test_load_weights_path__adapts_input_channels_by_slice(
+        self, tmp_path: Path
+    ) -> None:
+        # A 3-channel checkpoint loads into a 1-channel model by keeping the first
+        # input channel of the first convolution.
+        source = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        state_dict = source.backbone.state_dict()
+        weights_path = tmp_path / "ecvitt_rgb.pth"
+        torch.save(state_dict, weights_path)
+
+        target = ECViTModelWrapper(
+            name="ecvitt",
+            weights_path=weights_path,
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=1,
+        )
+
+        source_weight = state_dict["patch_embed.convs.0.conv.weight"]
+        target_weight = target.backbone.state_dict()["patch_embed.convs.0.conv.weight"]
+        assert target_weight.shape[1] == 1
+        assert torch.equal(target_weight, source_weight[:, :1, :, :])
+
     @pytest.mark.skipif(
         os.environ.get("ECVIT_CHECKPOINT_DIR") is None,
         reason=(
