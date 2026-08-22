@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from functools import partial
 from pathlib import Path
 from typing import Any, cast
@@ -55,7 +55,7 @@ from lightly_train._models.model_wrapper import (
     ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
     SupportsActivationCheckpointing,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
@@ -439,7 +439,7 @@ class VisionTransformer(nn.Module):
 
 class ECViTModelWrapper(
     nn.Module,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
     ArchitectureInfoGettable,
     SupportsActivationCheckpointing,
 ):
@@ -448,6 +448,8 @@ class ECViTModelWrapper(
     The forward path intentionally follows EdgeCrafter's ECViT adapter:
     selected ECViT token outputs are averaged, reshaped to a spatial map,
     interpolated to three levels, projected, and returned as ``(P3, P4, P5)``.
+    The same pyramid is exposed through the multi-scale feature interface via
+    ``forward_multiscale_features``.
     """
 
     def __init__(
@@ -610,6 +612,25 @@ class ECViTModelWrapper(
 
     def architecture_info(self) -> ArchitectureInfo:
         return {"model_type": "transformer", "norm_type": "layernorm"}
+
+    def multiscale_feature_strides(self) -> list[int]:
+        # Strides of the three pyramid levels relative to the input (see forward).
+        return [self.patch_size // 2, self.patch_size, self.patch_size * 2]
+
+    def multiscale_feature_dims(self) -> list[int]:
+        # All pyramid levels share the same channel dimension.
+        return [self.feature_dim()] * self.num_levels
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        if any(index < 0 or index >= self.num_levels for index in layer_indices):
+            raise ValueError(
+                f"layer_indices must be in the range [0, {self.num_levels}), but "
+                f"got {list(layer_indices)}."
+            )
+        features = self.forward(x)
+        return [{"features": features[index]} for index in layer_indices]
 
 
 def _load_torch_checkpoint(path: Path) -> object:

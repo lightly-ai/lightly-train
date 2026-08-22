@@ -21,6 +21,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `pip install "lightly-train[faster-coco-eval]"`; it is then used automatically. Both
   backends return identical metric values. The backend can be selected explicitly with
   `metric_args={"map": {"backend": ...}}`.
+- Add multi-scale feature support to the `edgecrafter` model package, exposing the
+  ECViT feature pyramid (strides 8, 16, 32) through the multi-scale feature interface.
 
 ### Changed
 

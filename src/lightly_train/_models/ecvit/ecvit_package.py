@@ -19,7 +19,7 @@ from lightly_train._models.ecvit.ecvit import (
     ECViTModelWrapper,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ MODEL_NAME_TO_INFO: dict[str, _ECViTModelInfo] = {
 }
 
 
-class EdgeCrafterPackage(Package):
+class EdgeCrafterPackage(MultiScaleFeaturePackage):
     """Package for EdgeCrafter ECViT backbones.
 
     The public package name exposed in model strings is ``"edgecrafter"``
