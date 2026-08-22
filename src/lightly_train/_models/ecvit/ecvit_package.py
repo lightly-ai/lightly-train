@@ -19,7 +19,7 @@ from lightly_train._models.ecvit.ecvit import (
     ECViTModelWrapper,
 )
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ MODEL_NAME_TO_INFO: dict[str, _ECViTModelInfo] = {
 }
 
 
-class EdgeCrafterPackage(Package):
+class EdgeCrafterPackage(MultiScaleFeaturePackage):
     """Package for EdgeCrafter ECViT backbones.
 
     The public package name exposed in model strings is ``"edgecrafter"``
@@ -108,15 +108,10 @@ class EdgeCrafterPackage(Package):
     ) -> ECViTModelWrapper:
         """Build an :class:`ECViTModelWrapper` for the given preset.
 
-        Multi-channel input is intentionally not supported: ``num_input_channels``
-        must be 3. ECViT also does not accept ``model_args`` overrides.
+        Multi-channel input is supported through ``num_input_channels``: the input
+        convolution is built for that many channels, and pretrained RGB weights are
+        adapted to it on load.
         """
-        if num_input_channels != 3:
-            raise ValueError(
-                "ECViT backbones only support 3 input channels, got "
-                f"num_input_channels={num_input_channels}."
-            )
-
         model_name = cls.parse_model_name(model_name=model_name)
         model_info = MODEL_NAME_TO_INFO[model_name]
         preset_name = model_info["preset_name"]
@@ -128,7 +123,10 @@ class EdgeCrafterPackage(Package):
             )
 
         return ECViTModelWrapper(
-            name=preset_name, weights_path=weights_path, **(model_args or {})
+            name=preset_name,
+            weights_path=weights_path,
+            num_input_channels=num_input_channels,
+            **(model_args or {}),
         )
 
     @classmethod

@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from functools import partial
 from pathlib import Path
 from typing import Any, cast
@@ -45,7 +45,9 @@ import torch.nn.functional as F
 from torch import Tensor
 from typing_extensions import Self
 
+from lightly_train import _torch_helpers
 from lightly_train._activation_checkpointing import maybe_checkpoint
+from lightly_train._models import _model_helpers
 from lightly_train._models.dinov3.dinov3_src.layers.ffn_layers import Mlp
 from lightly_train._models.dinov3.dinov3_src.layers.rope_position_encoding import (
     RopePositionEmbedding,
@@ -55,7 +57,7 @@ from lightly_train._models.model_wrapper import (
     ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
     SupportsActivationCheckpointing,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
@@ -113,13 +115,20 @@ def apply_rope(x: Tensor, sin: Tensor, cos: Tensor) -> Tensor:
 
 
 class ConvPyramidPatchEmbed(nn.Module):
-    def __init__(self, embed_dim: int = 192, patch_size: int = 16, act: str = "relu"):
+    def __init__(
+        self,
+        embed_dim: int = 192,
+        patch_size: int = 16,
+        in_chans: int = 3,
+        act: str = "relu",
+    ):
         super().__init__()
 
         if patch_size != 16:
             raise NotImplementedError(
                 "Only support patch_size=16 for ConvPyramidPatchEmbed."
             )
+        self.in_chans = in_chans
         num_stages = int(math.log2(patch_size)) - 1
         ratios = [2**i for i in range(num_stages, 0, -1)]
         channels = [embed_dim // r for r in ratios]
@@ -129,12 +138,15 @@ class ConvPyramidPatchEmbed(nn.Module):
                 ConvNormLayer(  # type: ignore[no-untyped-call]
                     in_ch, out_ch, 3, 2, act=act
                 )
-                for in_ch, out_ch in zip([3] + channels[:-1], channels)
+                for in_ch, out_ch in zip([in_chans] + channels[:-1], channels)
             ]
         )
 
         self.proj = nn.Conv2d(
             channels[-1], embed_dim, kernel_size=3, stride=2, padding=1
+        )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, _model_helpers.conv_pyramid_patch_embed_adjust_input_channels_hook
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -159,8 +171,12 @@ class PatchEmbed(nn.Module):
         )
         self.grid_size = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
         self.num_patches = self.grid_size[0] * self.grid_size[1]
+        self.in_chans = in_chans
         self.proj = nn.Conv2d(
             in_chans, embed_dim, kernel_size=patch_size, stride=patch_size
+        )
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, _model_helpers.patch_embed_adjust_input_channels_hook
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -349,7 +365,9 @@ class VisionTransformer(nn.Module):
                 embed_dim=embed_dim,
             )
         else:
-            patch_embed = embed_layer(embed_dim=embed_dim, patch_size=patch_size)
+            patch_embed = embed_layer(
+                embed_dim=embed_dim, patch_size=patch_size, in_chans=in_chans
+            )
         self.patch_embed: nn.Module = patch_embed
         self.patch_size = patch_size
 
@@ -439,7 +457,7 @@ class VisionTransformer(nn.Module):
 
 class ECViTModelWrapper(
     nn.Module,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
     ArchitectureInfoGettable,
     SupportsActivationCheckpointing,
 ):
@@ -448,6 +466,8 @@ class ECViTModelWrapper(
     The forward path intentionally follows EdgeCrafter's ECViT adapter:
     selected ECViT token outputs are averaged, reshaped to a spatial map,
     interpolated to three levels, projected, and returned as ``(P3, P4, P5)``.
+    The same pyramid is exposed through the multi-scale feature interface via
+    ``forward_multiscale_features``.
     """
 
     def __init__(
@@ -458,6 +478,7 @@ class ECViTModelWrapper(
         embed_dim: int | object = _DEFAULT,
         num_heads: int | object = _DEFAULT,
         patch_size: int = 16,
+        num_input_channels: int = 3,
         proj_dim: int | None | object = _DEFAULT,
         num_levels: int = 3,
         embed_layer: str = "ConvPyramidPatchEmbed",
@@ -509,6 +530,7 @@ class ECViTModelWrapper(
         self.name = name
         self.interaction_indexes = resolved_interaction_indexes
         self.patch_size = patch_size
+        self.num_input_channels = num_input_channels
         self.num_levels = num_levels
         self.embed_dim = resolved_embed_dim
         self.num_heads = resolved_num_heads
@@ -523,6 +545,7 @@ class ECViTModelWrapper(
             num_heads=resolved_num_heads,
             return_layers=resolved_interaction_indexes,
             patch_size=patch_size,
+            in_chans=num_input_channels,
             embed_layer=EMBED_LAYER_REGISTRY[embed_layer],
             ffn_layer=FFN_LAYER_REGISTRY[ffn_layer],
             ffn_ratio=resolved_ffn_ratio,
@@ -610,6 +633,25 @@ class ECViTModelWrapper(
 
     def architecture_info(self) -> ArchitectureInfo:
         return {"model_type": "transformer", "norm_type": "layernorm"}
+
+    def multiscale_feature_strides(self) -> list[int]:
+        # Strides of the three pyramid levels relative to the input (see forward).
+        return [self.patch_size // 2, self.patch_size, self.patch_size * 2]
+
+    def multiscale_feature_dims(self) -> list[int]:
+        # All pyramid levels share the same channel dimension.
+        return [self.feature_dim()] * self.num_levels
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        if any(index < 0 or index >= self.num_levels for index in layer_indices):
+            raise ValueError(
+                f"layer_indices must be in the range [0, {self.num_levels}), but "
+                f"got {list(layer_indices)}."
+            )
+        features = self.forward(x)
+        return [{"features": features[index]} for index in layer_indices]
 
 
 def _load_torch_checkpoint(path: Path) -> object:
