@@ -1,12 +1,9 @@
-# Locations that need a human review from one of the maintainers below.
+# A GitHub App cannot be a code owner, so the Auto Approve bot can satisfy the required
+# approval count but never a code-owner review. This keeps CI behind a human.
 #
-# A GitHub App cannot be a code owner, so the Auto Approve bot's approval can satisfy the
-# required-approval count but never the code-owner requirement on these paths. GitHub also
-# reads this file from the base branch, so a pull request cannot remove its own protection
-# by editing it here -- and /.github/ covers this file itself.
+# The whole directory, not just auto_approve.yml: otherwise a pull request could add a
+# new workflow that approves itself. GitHub reads this file from the base branch, so a
+# pull request cannot edit away its own protection.
 #
-# The whole directory rather than just auto_approve.yml: otherwise a pull request could
-# add a new workflow that approves itself.
-#
-# Keep this list in sync with the allowlist in .github/workflows/auto_approve.yml.
+# Keep in sync with the allowlist in .github/workflows/auto_approve.yml.
 /.github/   @IgorSusmelj @mrpositron @gabrielfruet @liopeer

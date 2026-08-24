@@ -113,28 +113,6 @@ minor version instead of the major version.
 Entries in [CHANGELOG.md](./CHANGELOG.md) are still written by hand. See
 [RELEASING.md](./RELEASING.md) for the full release process.
 
-#### Automatic Approval
-
-Pull requests opened by a maintainer on the allowlist in
-[`.github/workflows/auto_approve.yml`](./.github/workflows/auto_approve.yml) are
-approved automatically by a bot. This exists so those authors can use GitHub's "Enable
-auto-merge" and have the pull request merge on its own once CI is green, instead of
-waiting for a review they were not going to receive anyway.
-
-It only satisfies the *approval* requirement: the bot approval cannot merge anything on
-its own, and **all required status checks still have to pass**. The bot cannot bypass a
-check, and it never re-approves a pull request whose approval a human has dismissed.
-
-Individual jobs are still skipped by their path filters when a change provably cannot
-affect them — a change under `.github/` does not run the test suites, for example — and
-a skipped job counts as successful. That is why
-[`.github/CODEOWNERS`](./.github/CODEOWNERS) puts all of `.github/` behind a human
-review. Changes to CI, to the allowlist itself, or to `CODEOWNERS` need an approving
-review from one of the maintainers listed there, which a bot can never give: GitHub apps
-cannot be code owners. Keep that owner list and the allowlist in sync.
-
-Everyone else's pull requests need a human approval.
-
 ### Documentation
 
 Documentation is in the [docs](./docs) folder. To build the documentation, install dev

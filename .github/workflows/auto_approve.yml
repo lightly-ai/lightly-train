@@ -1,20 +1,14 @@
 name: Auto Approve
 
-# Approve pull requests opened by an allowlisted maintainer, so they can use GitHub's
-# "Enable auto-merge" instead of waiting for a review. Only the approval requirement is
-# satisfied, all required status checks still have to pass. See CONTRIBUTING.md.
-#
-# The allowlist keys on the pull request author, not on paths. CODEOWNERS cannot do this:
-# it requires approval *from* an owner, who cannot approve their own pull request. It is
-# used for the opposite job in .github/CODEOWNERS, which keeps this workflow and the rest
-# of .github/ behind a human review.
+# Approve pull requests from allowlisted maintainers so they can use "Enable auto-merge".
+# This satisfies the approval requirement only, all required checks still have to pass.
+# .github/CODEOWNERS keeps this workflow and the rest of .github/ behind a human review.
 
 on:
   pull_request_target:
-    # No `synchronize`: the branch ruleset sets `dismiss_stale_reviews_on_push: false` and
-    # `require_last_push_approval: false`, so an approval stays valid across pushes and
-    # re-running on every push would only risk re-approving one a human dismissed. Revisit
-    # this if either of those settings is ever enabled.
+    # No `synchronize`: the branch ruleset keeps approvals valid across pushes, so
+    # re-running would only risk re-approving one a human dismissed. Revisit if
+    # `dismiss_stale_reviews_on_push` or `require_last_push_approval` is ever enabled.
     types:
       - opened
       - reopened
@@ -30,10 +24,10 @@ concurrency:
 jobs:
   auto-approve:
     name: Auto Approve
-    # This workflow runs on `pull_request_target` and therefore has access to secrets.
-    # Do NOT check out or execute pull request code here.
+    # Runs on `pull_request_target` and therefore has access to secrets. Do NOT check
+    # out or execute pull request code here.
     #
-    # Keep the continuation lines indented exactly as they are: a more-indented line in a
+    # Keep the continuation line indented exactly as it is: a more-indented line in a
     # `>-` block keeps its newline and breaks the expression.
     if: >-
       github.event.pull_request.draft == false &&
@@ -54,10 +48,7 @@ jobs:
       - name: Approve Pull Request
         uses: actions/github-script@v9
         env:
-          # The App's own slug, never attacker-controlled. Passed via env anyway, so that
-          # no `${{ }}` interpolation appears inside `script:` at all. Everything else the
-          # script needs comes from `context.payload`, where pull request values are plain
-          # JavaScript strings that are never re-parsed as code.
+          # Passed via env so that no `${{ }}` interpolation appears inside `script:`.
           BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
         with:
           github-token: ${{ steps.app-token.outputs.token }}
@@ -71,9 +62,8 @@ jobs:
             });
             const mine = reviews.filter((r) => r.user?.login === botLogin);
 
-            // Branch protection does not dismiss reviews on push here, so DISMISSED means
-            // a human revoked the approval to force a real review. Re-approving would
-            // undo that.
+            // Reviews are not dismissed on push here, so DISMISSED means a human
+            // revoked the approval to force a real review.
             if (mine.some((r) => r.state === "DISMISSED")) {
               core.info(`An approval by ${botLogin} was dismissed; leaving this pull request to a human.`);
               return;
