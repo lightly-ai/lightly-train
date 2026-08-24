@@ -218,11 +218,18 @@ def test_train_image_classification_multihead(
     assert model is not None
 
 
-@pytest.mark.long_running_test
-def test_train_object_detection_yolo(tmp_path: Path) -> None:
-    """Kept with real DataLoader workers (num_workers=2) so the suite retains
-    coverage of the multi-worker code path; excluded from fast CI because worker
-    process spawn dominates its runtime, especially on Windows."""
+@pytest.mark.parametrize(
+    "num_workers",
+    [
+        0,
+        # num_workers=2 exercises the real multi-worker DataLoader code path,
+        # but worker process spawn dominates its runtime (especially on
+        # Windows), so it's excluded from fast CI via long_running_test.
+        pytest.param(2, marks=pytest.mark.long_running_test),
+    ],
+    ids=["fast", "multi_worker_dataloader"],
+)
+def test_train_object_detection_yolo(tmp_path: Path, num_workers: int) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Create dataset with 4 files, including one without a label file (index 2) and
@@ -253,7 +260,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=num_workers,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
