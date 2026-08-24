@@ -39,7 +39,7 @@ import warnings
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, List, cast
 
 import torch
 import torch.nn as nn
@@ -522,7 +522,7 @@ class ECViTModelWrapper(
             int, preset.get("depth", 12) if depth is _DEFAULT else depth
         )
         resolved_interaction_indexes = interaction_indexes or cast(
-            list[int], preset.get("interaction_indexes", [10, 11])
+            List[int], preset.get("interaction_indexes", [10, 11])
         )
 
         self.name = name
