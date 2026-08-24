@@ -48,16 +48,9 @@ jobs:
               - '!.github/**'
             this-workflow:
               - '.github/workflows/test_unit_minimal_dependencies.yml'
-  # The two jobs below do not use a matrix. This is deliberate.
-  #
-  # GitHub does not expand a matrix for a job that it skips. Such a job reports one check
-  # with the plain job name, 'Test Unit Minimal Dependencies'. The branch ruleset requires
-  # the names with the matrix value, 'Test Unit Minimal Dependencies (minimal)' and
-  # 'Test Unit Minimal Dependencies (minimal-extras)'. Those names only exist when the job
-  # runs. As a result, a pull request that skips the tests waits forever for a check that
-  # never arrives.
-  #
-  # A job without a matrix always reports the same name. Keep these jobs separate.
+  # Do not use a matrix here. GitHub does not expand a matrix for a job that it skips.
+  # A skipped job then reports 'Test Unit Minimal Dependencies', not the two names below
+  # that the branch ruleset requires.
   test-unit-minimal-dependencies-minimal:
     name: Test Unit Minimal Dependencies (minimal)
     needs: detect-code-changes

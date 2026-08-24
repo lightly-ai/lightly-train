@@ -48,15 +48,9 @@ jobs:
               - '!.github/**'
             this-workflow:
               - '.github/workflows/test_unit.yml'
-  # The two jobs below do not use a matrix. This is deliberate.
-  #
-  # GitHub does not expand a matrix for a job that it skips. Such a job reports one check
-  # with the plain job name, 'Test Unit'. The branch ruleset requires the names with the
-  # matrix value, 'Test Unit (ubuntu-latest)' and 'Test Unit (windows-latest)'. Those
-  # names only exist when the job runs. As a result, a pull request that skips the tests
-  # waits forever for a check that never arrives.
-  #
-  # A job without a matrix always reports the same name. Keep these jobs separate.
+  # Do not use a matrix here. GitHub does not expand a matrix for a job that it skips.
+  # A skipped job then reports 'Test Unit', not the two names below that the branch
+  # ruleset requires.
   test-unit-ubuntu:
     name: Test Unit (ubuntu-latest)
     needs: detect-code-changes
