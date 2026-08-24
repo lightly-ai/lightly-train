@@ -113,6 +113,20 @@ minor version instead of the major version.
 Entries in [CHANGELOG.md](./CHANGELOG.md) are still written by hand. See
 [RELEASING.md](./RELEASING.md) for the full release process.
 
+#### Automatic Approval
+
+Pull requests opened by a maintainer on the allowlist in
+[`.github/workflows/auto_approve.yml`](./.github/workflows/auto_approve.yml) are
+approved automatically by a bot. This exists so those authors can use GitHub's "Enable
+auto-merge" and have the pull request merge on its own once CI is green, instead of
+waiting for a review they were not going to receive anyway.
+
+It only satisfies the *approval* requirement. **All required status checks still have to
+pass** — the bot approval cannot merge anything on its own, and there is no way to skip
+CI.
+
+Everyone else's pull requests need a human approval.
+
 ### Documentation
 
 Documentation is in the [docs](./docs) folder. To build the documentation, install dev

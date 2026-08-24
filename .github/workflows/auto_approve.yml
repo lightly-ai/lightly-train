@@ -1,0 +1,112 @@
+name: Auto Approve
+
+# Approve pull requests opened by an allowlisted maintainer, so they can use GitHub's
+# "Enable auto-merge" instead of waiting for a review.
+#
+# Why a bot at all: GitHub has no native "required approvals, except for these people"
+# rule, and auto-merge never consumes a ruleset bypass -- a bypass is only spent on an
+# interactive "merge without waiting for requirements" click, which also skips the
+# required status checks. Supplying the approval is the only way to keep CI mandatory
+# while removing the wait.
+#
+# This is deliberately NOT a CODEOWNERS mechanism. CODEOWNERS keys on paths and
+# requires approval *from* an owner (who cannot approve their own pull request), so
+# `* @maintainers` would demand a human on every pull request and a bot approval would
+# never satisfy it -- the opposite of the goal. The allowlist below keys on the pull
+# request *author* instead. Do not add a CODEOWNERS file expecting this to keep working.
+#
+# See CONTRIBUTING.md for what this means for reviews.
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - synchronize
+
+# The App token minted below carries the only permission this workflow needs, so the
+# default token is stripped of all of them.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-approve:
+    name: Auto Approve
+    # Runs on `pull_request_target` so the App credentials are available. This is safe
+    # only because the workflow never checks out or executes pull request code -- its
+    # single input is the author login from the trusted event payload. The same pattern
+    # and reasoning is used in lint_pr_title.yml. Do NOT add a checkout of
+    # `github.event.pull_request.head.sha` to this workflow.
+    #
+    # The allowlist lives here. Continuation lines stay at this exact indentation so
+    # `>-` folds them into one line; a more-indented line would keep its newline and
+    # break the expression.
+    if: >-
+      github.event.pull_request.draft == false &&
+      contains(fromJSON('["IgorSusmelj", "mrpositron", "gabrielfruet", "liopeer"]'), github.event.pull_request.user.login)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mint App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          # Organization-level secrets shared with lightly-studio, which uses the same
+          # `lightly-fast-track-bot` App. The names say FAST_TRACK rather than
+          # AUTO_APPROVE because they are the org secrets' existing names -- an org
+          # secret cannot be renamed per repository.
+          app-id: ${{ secrets.FAST_TRACK_APP_ID }}
+          private-key: ${{ secrets.FAST_TRACK_APP_PRIVATE_KEY }}
+          # The only permission an approval needs.
+          permission-pull-requests: write
+
+      - name: Approve Pull Request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+          # Passed via env rather than inline `${{ }}` so the value is never
+          # interpolated into the script text. The job's `if` already restricts it to
+          # the allowlist, but keep the safe pattern.
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+
+          # `synchronize` fires on every push, so skip when this App already has an
+          # active approval rather than stacking duplicate reviews.
+          #
+          # The full id list is captured before taking the first line: piping `gh`
+          # straight into `head -1` would close the pipe early on a pull request with
+          # many reviews, killing gh with SIGPIPE and failing the step under
+          # `pipefail`. `--jq` runs per page and output is concatenated, so this is
+          # pagination-safe.
+          approvals=$(
+            gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
+              --jq ".[] | select(.user.login == \"${BOT_LOGIN}\" and .state == \"APPROVED\") | .id"
+          )
+          if [ -n "${approvals}" ]; then
+            echo "Already approved by ${BOT_LOGIN} (review $(printf '%s\n' "${approvals}" | head -1)); nothing to do."
+            exit 0
+          fi
+
+          # Built as a variable to keep the API call readable. The text deliberately
+          # contains no backticks or `$` other than the author, so an expanding heredoc
+          # is safe here -- keep it that way if you edit the message.
+          body=$(cat <<EOF
+          Approved automatically: @${PR_AUTHOR} is on the auto-approve allowlist in .github/workflows/auto_approve.yml
+
+          This satisfies the approval requirement only. All required status checks still have to pass before this pull request can merge.
+          EOF
+          )
+
+          gh api --method POST "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
+            -f "commit_id=${HEAD_SHA}" \
+            -f "event=APPROVE" \
+            -f "body=${body}"
+          echo "Approved #${PR_NUMBER} at ${HEAD_SHA} as ${BOT_LOGIN}."
