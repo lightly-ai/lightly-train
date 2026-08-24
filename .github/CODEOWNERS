@@ -1,6 +1,9 @@
 # A GitHub App cannot be a code owner, so the Auto Approve bot can satisfy the required
 # approval count but never a code-owner review. This keeps CI behind a human.
 #
+# CI alone cannot vet a change here: the test workflows exclude '.github/**' from their
+# path filters, and a job skipped that way reports to the ruleset as successful.
+#
 # The whole directory, not just auto_approve.yml: otherwise a pull request could add a
 # new workflow that approves itself. GitHub reads this file from the base branch, so a
 # pull request cannot edit away its own protection.
