@@ -48,14 +48,43 @@ jobs:
               - '!.github/**'
             this-workflow:
               - '.github/workflows/test_unit.yml'
-  test-unit:
-    name: Test Unit
+  # The two jobs below do not use a matrix. This is deliberate.
+  #
+  # GitHub does not expand a matrix for a job that it skips. Such a job reports one check
+  # with the plain job name, 'Test Unit'. The branch ruleset requires the names with the
+  # matrix value, 'Test Unit (ubuntu-latest)' and 'Test Unit (windows-latest)'. Those
+  # names only exist when the job runs. As a result, a pull request that skips the tests
+  # waits forever for a check that never arrives.
+  #
+  # A job without a matrix always reports the same name. Keep these jobs separate.
+  test-unit-ubuntu:
+    name: Test Unit (ubuntu-latest)
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
-    strategy:
-      matrix:
-        runners: ["ubuntu-latest", "windows-latest"]
-    runs-on: ${{ matrix.runners }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v7
+        id: setup-uv
+        with:
+          version: 0.11.15
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Set Up Environment
+        run: |
+          make install-pinned-3.13
+      - name: Run Pytest
+        run: |
+          make test-ci-maximal
+  test-unit-windows:
+    name: Test Unit (windows-latest)
+    needs: detect-code-changes
+    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: windows-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
