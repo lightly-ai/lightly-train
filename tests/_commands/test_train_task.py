@@ -245,7 +245,7 @@ def test_train_object_detection_yolo(tmp_path: Path, num_workers: int) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="_ltdetrv2-s-notpretrained",
+        model="dinov2/_vittest14-ltdetrv2",
         data={
             "path": data,
             "train": Path("train", "images"),
@@ -319,7 +319,7 @@ def test_train_instance_segmentation(
             "train": {"annotations": str(data / "train.json"), "images": "train"},
             "val": {"annotations": str(data / "val.json"), "images": "val"},
         },
-        model="_ltdetrv2-seg-s-notpretrained",
+        model="edgecrafter/_ecvittest-ltdetr-seg",
         model_args={"scheduler_name": "linear"},
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,

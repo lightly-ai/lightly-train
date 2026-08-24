@@ -74,7 +74,7 @@ ECVIT_PRETRAINED_URLS: dict[str, str] = {
 }
 
 
-ECVIT_PRESETS: dict[str, dict[str, int | None | float]] = {
+ECVIT_PRESETS: dict[str, dict[str, int | None | float | list[int]]] = {
     "ecvitt": {
         "embed_dim": 192,
         "num_heads": 3,
@@ -98,6 +98,17 @@ ECVIT_PRESETS: dict[str, dict[str, int | None | float]] = {
         "num_heads": 6,
         "proj_dim": 256,
         "ffn_ratio": 6.0,
+    },
+    # Genuinely tiny preset for fast tests: small width and depth, unlike the
+    # "-notpretrained" variants of the presets above, which only skip weight
+    # loading and keep the full production-sized architecture.
+    "ecvittest": {
+        "embed_dim": 8,
+        "num_heads": 1,
+        "proj_dim": None,
+        "ffn_ratio": 1.0,
+        "depth": 2,
+        "interaction_indexes": [0, 1],
     },
 }
 
@@ -463,6 +474,7 @@ class ECViTModelWrapper(
         embed_layer: str = "ConvPyramidPatchEmbed",
         ffn_layer: str = "mlp",
         ffn_ratio: float | object = _DEFAULT,
+        depth: int | object = _DEFAULT,
         skip_load_backbone: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -504,7 +516,12 @@ class ECViTModelWrapper(
         resolved_ffn_ratio = cast(
             float, preset["ffn_ratio"] if ffn_ratio is _DEFAULT else ffn_ratio
         )
-        resolved_interaction_indexes = interaction_indexes or [10, 11]
+        resolved_depth = cast(
+            int, preset.get("depth", 12) if depth is _DEFAULT else depth
+        )
+        resolved_interaction_indexes = interaction_indexes or cast(
+            list[int], preset.get("interaction_indexes", [10, 11])
+        )
 
         self.name = name
         self.interaction_indexes = resolved_interaction_indexes
@@ -521,6 +538,7 @@ class ECViTModelWrapper(
         self.backbone = VisionTransformer(
             embed_dim=resolved_embed_dim,
             num_heads=resolved_num_heads,
+            depth=resolved_depth,
             return_layers=resolved_interaction_indexes,
             patch_size=patch_size,
             embed_layer=EMBED_LAYER_REGISTRY[embed_layer],
