@@ -28,6 +28,8 @@ Modified from https://huggingface.co/spaces/Hila/RobustViT/blob/main/ViT/ViT_new
 - Ported the ECViT backbone adapter to Lightly.
 - Removed EdgeCrafter registry/distributed dependencies.
 - Added typed LTDETR-compatible tuple output.
+- Added opt-in activation checkpointing for the transformer blocks.
+- Added a configurable `depth` and a tiny "ecvittest" preset for fast tests.
 """
 
 from __future__ import annotations
