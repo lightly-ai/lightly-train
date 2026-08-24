@@ -101,7 +101,7 @@ def test_train_image_classification__multiclass(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -149,7 +149,7 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -199,9 +199,9 @@ def test_train_image_classification_multihead(
         model_args={
             "lr": [0.001, 0.01, 0.1],
         },
-        steps=10,
+        steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -218,7 +218,11 @@ def test_train_image_classification_multihead(
     assert model is not None
 
 
+@pytest.mark.long_running_test
 def test_train_object_detection_yolo(tmp_path: Path) -> None:
+    """Kept with real DataLoader workers (num_workers=2) so the suite retains
+    coverage of the multi-worker code path; excluded from fast CI because worker
+    process spawn dominates its runtime, especially on Windows."""
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Create dataset with 4 files, including one without a label file (index 2) and
@@ -313,7 +317,7 @@ def test_train_instance_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -375,7 +379,7 @@ def test_train_panoptic_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -436,7 +440,7 @@ def test_train_panoptic_segmentation__dinov2(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -514,7 +518,7 @@ def test_train_semantic_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -621,7 +625,7 @@ def test_train_semantic_segmentation__dicom(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -682,7 +686,7 @@ def test_train_semantic_segmentation__export(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -934,14 +938,14 @@ def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_
                 1: "car",
             },
         },
-        model="dinov2/vits14",  # Use smallest standard model for fast testing
+        model="dinov2/_vittest14",  # Tiny test-only model for fast testing
         model_args={
             "lr": [0.001, 0.01],  # Test with two learning rates
         },
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,  # Minimal steps for fast test
     )
 

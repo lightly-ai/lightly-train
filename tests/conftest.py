@@ -53,18 +53,11 @@ def lightly_train_cache_dir(
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
-        "long_running_test: marks tests as long running (skipped on GitHub CI)",
+        "long_running_test: marks tests as long running. Excluded from "
+        "test-ci-minimal/test-ci-maximal via '-m \"not long_running_test\"', but "
+        "still run by 'make test' and by the unfiltered nightly CI in "
+        "lightly-train-private.",
     )
-
-
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
-    if os.environ.get("GITHUB_ACTIONS"):
-        skip_long = pytest.mark.skip(reason="long running test, skipped on Github CI")
-        for item in items:
-            if "long_running_test" in item.keywords:
-                item.add_marker(skip_long)
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests
