@@ -1,12 +1,13 @@
-# A GitHub App cannot be a code owner, so the Auto Approve bot can never approve a change
-# in here. Everything under .github/ needs a review from a real person.
+# A GitHub App cannot be a code owner. As a result, the Auto Approve bot cannot approve a
+# change in this directory. Each change here needs a review from a person.
 #
-# CI cannot catch a bad change here either: the test workflows ignore '.github/**', and a
-# job that is skipped for that reason still reports as successful.
+# CI cannot find a bad change here. The test workflows do not run for '.github/**'. A job
+# that GitHub skips reports a success to the branch ruleset.
 #
-# The whole directory is listed, not just auto_approve.yml, because otherwise a pull
-# request could add a new workflow that approves itself. GitHub reads this file from the
-# base branch, so a pull request cannot turn off its own protection.
+# The rule is for the full directory, not only for auto_approve.yml. A rule for one file
+# is not sufficient, because a pull request can add a different workflow that approves
+# itself. GitHub reads this file from the base branch. As a result, a pull request cannot
+# remove its own protection.
 #
-# Keep in sync with the allowlist in .github/workflows/auto_approve.yml.
+# Keep this list equal to the allowlist in .github/workflows/auto_approve.yml.
 /.github/   @IgorSusmelj @mrpositron @gabrielfruet @liopeer

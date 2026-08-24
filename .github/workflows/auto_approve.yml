@@ -1,22 +1,27 @@
 name: Auto Approve
 
-# Approve pull requests from the maintainers listed below, so they can use
-# "Enable auto-merge". This only ticks off the approval requirement, all required checks
-# still have to pass. Changes to this workflow itself always need a human review, see
-# .github/CODEOWNERS.
+# This workflow approves pull requests from the maintainers in the list below. Then these
+# maintainers can use "Enable auto-merge".
+#
+# The approval is the only requirement that this workflow satisfies. All required checks
+# must pass before a merge.
+#
+# A change to this workflow always needs a review from a person. See .github/CODEOWNERS.
 
 on:
   pull_request_target:
-    # `synchronize` (new commits pushed) is missing on purpose: approvals stay valid
-    # when someone pushes, so running again would only risk re-approving a pull request
-    # after a human removed the approval. Add it if the branch ruleset ever turns on
-    # `dismiss_stale_reviews_on_push` or `require_last_push_approval`.
+    # The list does not contain `synchronize`, the event for a new push. An approval
+    # stays valid after a push. A second run can only approve a pull request again after
+    # a person removed the approval.
+    #
+    # Add `synchronize` if the branch ruleset gets `dismiss_stale_reviews_on_push` or
+    # `require_last_push_approval`.
     types:
       - opened
       - reopened
       - ready_for_review
 
-# No permissions for the default token. Everything uses the App token created below.
+# The default token gets no permissions. All steps use the App token from the first step.
 permissions: {}
 
 concurrency:
@@ -26,11 +31,11 @@ concurrency:
 jobs:
   auto-approve:
     name: Auto Approve
-    # This runs on `pull_request_target`, which means it can read secrets. Never check
-    # out or run code from the pull request here.
+    # This job runs on `pull_request_target` and can read the repository secrets. Do not
+    # check out the code of the pull request. Do not run the code of the pull request.
     #
-    # Don't indent the second line of the `if` any further: in a `>-` block an extra
-    # indented line keeps its line break, which breaks the expression.
+    # Do not add more indentation to the second line of the `if`. In a `>-` block, a line
+    # with more indentation keeps its line break and breaks the expression.
     if: >-
       github.event.pull_request.draft == false &&
       contains(fromJSON('["IgorSusmelj", "mrpositron", "gabrielfruet", "liopeer"]'), github.event.pull_request.user.login)
@@ -41,8 +46,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          # Org-level secrets of the `lightly-fast-track-bot` App. Also used by
-          # lightly-studio.
+          # Organization secrets of the `lightly-fast-track-bot` App. The lightly-studio
+          # repository uses the same App.
           app-id: ${{ secrets.FAST_TRACK_APP_ID }}
           private-key: ${{ secrets.FAST_TRACK_APP_PRIVATE_KEY }}
           permission-pull-requests: write
@@ -50,8 +55,8 @@ jobs:
       - name: Approve Pull Request
         uses: actions/github-script@v9
         env:
-          # Passed as an env variable. Never write `${{ }}` inside `script:`, GitHub
-          # pastes the value straight into the code.
+          # The value comes from an environment variable. Do not write `${{ }}` in
+          # `script:`. GitHub puts the value directly into the code.
           BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
         with:
           github-token: ${{ steps.app-token.outputs.token }}
@@ -65,14 +70,14 @@ jobs:
             });
             const mine = reviews.filter((r) => r.user?.login === botLogin);
 
-            // Nothing dismisses reviews automatically, so a dismissed review means a
-            // human removed our approval on purpose. Don't approve again.
+            // No rule dismisses a review automatically. As a result, a dismissed review
+            // means that a person removed the approval. Do not approve a second time.
             if (mine.some((r) => r.state === "DISMISSED")) {
               core.info(`An approval by ${botLogin} was dismissed; leaving this pull request to a human.`);
               return;
             }
-            // `reopened` and `ready_for_review` can happen more than once per pull
-            // request, so we might have approved already.
+            // The events `reopened` and `ready_for_review` can occur more than one time
+            // for a pull request. An approval from an earlier run can exist.
             if (mine.some((r) => r.state === "APPROVED")) {
               core.info(`Already approved by ${botLogin}; nothing to do.`);
               return;
