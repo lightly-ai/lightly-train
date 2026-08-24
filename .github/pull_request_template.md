@@ -1,3 +1,9 @@
+<!--
+The pull request title must follow Conventional Commits, e.g. `feat(ltdetr): ...`.
+It becomes the commit message on main when the pull request is squash merged and is
+checked by the `Lint PR Title` CI job. See CONTRIBUTING.md#pull-requests.
+-->
+
 ## What has changed and why?
 
 (Delete this: Please include a summary of the change and which issue is fixed. Please
