@@ -12,6 +12,10 @@ env:
   # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
   UV_SYSTEM_PYTHON: 1
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-code-changes:
     name: Detect Code Changes
@@ -23,12 +27,20 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          list-files: shell
+          # NOTE: The patterns below are OR-ed together, the filter matches if ANY
+          # pattern matches a changed file. Therefore only list positive patterns.
+          # A list of negated patterns (e.g. '!docs/**' plus '!docker/**') always
+          # matches, because a file excluded by one pattern is matched by the others.
+          #
+          # README.md is included because pyproject.toml references it as the package
+          # readme and it ships with the package metadata.
           filters: |
             run-tests:
-              - '!docs/**'
-              - '!docker/**'
-              - '!.github/**'
+              - 'src/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Makefile'
+              - 'README.md'
               - '.github/workflows/test_build.yml'
   test-build:
     name: Test Build
@@ -44,7 +56,9 @@ jobs:
         with:
           version: 0.11.15
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
       - name: Set Up Environment
         run: |
           make install-dist

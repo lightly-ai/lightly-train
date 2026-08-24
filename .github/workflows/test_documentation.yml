@@ -12,6 +12,10 @@ env:
   # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
   UV_SYSTEM_PYTHON: 1
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-code-changes:
     name: Detect Code Changes
@@ -23,11 +27,23 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          list-files: shell
+          # NOTE: The patterns below are OR-ed together, the filter matches if ANY
+          # pattern matches a changed file. Therefore only list positive patterns.
+          # A list of negated patterns (e.g. '!docs/**' plus '!docker/**') always
+          # matches, because a file excluded by one pattern is matched by the others.
+          #
+          # src/** is included because docs/source/conf.py imports lightly_train and
+          # the API docs are generated from the source code with autodoc.
+          # examples/** is included because docs/prebuild.py symlinks the notebooks
+          # from examples/notebooks/ into docs/source/tutorials/.
           filters: |
             run-tests:
-              - '!docker/**'
-              - '!.github/**'
+              - 'docs/**'
+              - 'src/**'
+              - 'examples/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Makefile'
               - '.github/workflows/test_documentation.yml'
   test-documentation:
     name: Test Documentation
@@ -43,7 +59,9 @@ jobs:
         with:
           version: 0.11.15
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
       - name: Set Up Environment
         run: |
           make install-docs

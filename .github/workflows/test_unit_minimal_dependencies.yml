@@ -27,12 +27,21 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          list-files: shell
+          # NOTE: The patterns below are OR-ed together, the filter matches if ANY
+          # pattern matches a changed file. Therefore only list positive patterns.
+          # A list of negated patterns (e.g. '!docs/**' plus '!docker/**') always
+          # matches, because a file excluded by one pattern is matched by the others.
+          #
+          # templates/** is included because tests/templates/ reads the templates from
+          # the repository root.
           filters: |
             run-tests:
-              - '!docs/**'
-              - '!docker/**'
-              - '!.github/**'
+              - 'src/**'
+              - 'tests/**'
+              - 'templates/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Makefile'
               - '.github/workflows/test_unit_minimal_dependencies.yml'
   test-unit-minimal-dependencies:
     name: Test Unit Minimal Dependencies
@@ -51,7 +60,9 @@ jobs:
         with:
           version: 0.11.15
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
       - name: Set Up Environment
         run: |
           make install-${{ matrix.dependencies }}
