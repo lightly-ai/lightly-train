@@ -21,27 +21,32 @@ jobs:
     name: Detect Code Changes
     runs-on: ubuntu-latest
     outputs:
-      run-tests: ${{ steps.filter.outputs.run-tests }}
+      run-tests: ${{ steps.filter.outputs.run-tests == 'true' || steps.filter.outputs.this-workflow == 'true' }}
     steps:
       - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
-          # NOTE: The patterns below are OR-ed together, the filter matches if ANY
-          # pattern matches a changed file. Therefore only list positive patterns.
-          # A list of negated patterns (e.g. '!docs/**' plus '!docker/**') always
-          # matches, because a file excluded by one pattern is matched by the others.
+          # Run unless the change provably cannot affect this job.
           #
-          # templates/** is included because tests/templates/ reads the templates from
-          # the repository root.
+          # 'some-with-excludes' (dorny/paths-filter >= v4.0.3): a file counts if it
+          # matches at least one positive pattern AND no negated pattern. At least one
+          # positive pattern is required, hence the leading '**'.
+          #
+          # Exclusions are final: a file excluded by '!.github/**' cannot be included
+          # back by a later pattern. Edits to this workflow are therefore picked up by
+          # the separate 'this-workflow' filter, OR-ed into the job output above.
+          #
+          # Denylist rather than allowlist on purpose: a new top-level directory should
+          # run CI by default instead of silently skipping it.
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             run-tests:
-              - 'src/**'
-              - 'tests/**'
-              - 'templates/**'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - 'Makefile'
+              - '**'
+              - '!docs/**'
+              - '!docker/**'
+              - '!.github/**'
+            this-workflow:
               - '.github/workflows/test_unit_minimal_dependencies.yml'
   test-unit-minimal-dependencies:
     name: Test Unit Minimal Dependencies
