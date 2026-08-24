@@ -5,15 +5,20 @@ name: Auto Approve
 # satisfied, all required status checks still have to pass. See CONTRIBUTING.md.
 #
 # The allowlist keys on the pull request author, not on paths. CODEOWNERS cannot do this:
-# it requires approval *from* an owner, who cannot approve their own pull request.
+# it requires approval *from* an owner, who cannot approve their own pull request. It is
+# used for the opposite job in .github/CODEOWNERS, which keeps this workflow and the rest
+# of .github/ behind a human review.
 
 on:
   pull_request_target:
+    # No `synchronize`: the branch ruleset sets `dismiss_stale_reviews_on_push: false` and
+    # `require_last_push_approval: false`, so an approval stays valid across pushes and
+    # re-running on every push would only risk re-approving one a human dismissed. Revisit
+    # this if either of those settings is ever enabled.
     types:
       - opened
       - reopened
       - ready_for_review
-      - synchronize
 
 # All permissions come from the App token minted below.
 permissions: {}
@@ -27,6 +32,9 @@ jobs:
     name: Auto Approve
     # This workflow runs on `pull_request_target` and therefore has access to secrets.
     # Do NOT check out or execute pull request code here.
+    #
+    # Keep the continuation lines indented exactly as they are: a more-indented line in a
+    # `>-` block keeps its newline and breaks the expression.
     if: >-
       github.event.pull_request.draft == false &&
       contains(fromJSON('["IgorSusmelj", "mrpositron", "gabrielfruet", "liopeer"]'), github.event.pull_request.user.login)
@@ -44,41 +52,47 @@ jobs:
           permission-pull-requests: write
 
       - name: Approve Pull Request
+        uses: actions/github-script@v9
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # The App's own slug, never attacker-controlled. Passed via env anyway, so that
+          # no `${{ }}` interpolation appears inside `script:` at all. Everything else the
+          # script needs comes from `context.payload`, where pull request values are plain
+          # JavaScript strings that are never re-parsed as code.
           BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
-          # Passed via env rather than inline `${{ }}` to avoid script injection.
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          set -euo pipefail
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const pr = context.payload.pull_request;
+            const botLogin = process.env.BOT_LOGIN;
 
-          # `synchronize` fires on every push, so skip when this App already has an
-          # active approval rather than stacking duplicate reviews. The full id list is
-          # captured before taking the first line, piping `gh` into `head -1` would kill
-          # it with SIGPIPE and fail the step under `pipefail`.
-          approvals=$(
-            gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
-              --jq ".[] | select(.user.login == \"${BOT_LOGIN}\" and .state == \"APPROVED\") | .id"
-          )
-          if [ -n "${approvals}" ]; then
-            echo "Already approved by ${BOT_LOGIN} (review $(printf '%s\n' "${approvals}" | head -1)); nothing to do."
-            exit 0
-          fi
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              ...context.repo,
+              pull_number: pr.number,
+            });
+            const mine = reviews.filter((r) => r.user?.login === botLogin);
 
-          # Expanding heredoc: the message must not contain backticks or `$` other
-          # than the author.
-          body=$(cat <<EOF
-          Approved automatically: @${PR_AUTHOR} is on the auto-approve allowlist in .github/workflows/auto_approve.yml
+            // Branch protection does not dismiss reviews on push here, so DISMISSED means
+            // a human revoked the approval to force a real review. Re-approving would
+            // undo that.
+            if (mine.some((r) => r.state === "DISMISSED")) {
+              core.info(`An approval by ${botLogin} was dismissed; leaving this pull request to a human.`);
+              return;
+            }
+            // `reopened` and `ready_for_review` can fire more than once.
+            if (mine.some((r) => r.state === "APPROVED")) {
+              core.info(`Already approved by ${botLogin}; nothing to do.`);
+              return;
+            }
 
-          This satisfies the approval requirement only. All required status checks still have to pass before this pull request can merge.
-          EOF
-          )
-
-          gh api --method POST "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
-            -f "commit_id=${HEAD_SHA}" \
-            -f "event=APPROVE" \
-            -f "body=${body}"
-          echo "Approved #${PR_NUMBER} at ${HEAD_SHA} as ${BOT_LOGIN}."
+            await github.rest.pulls.createReview({
+              ...context.repo,
+              pull_number: pr.number,
+              commit_id: pr.head.sha,
+              event: "APPROVE",
+              body: [
+                `Approved automatically: @${pr.user.login} is on the auto-approve allowlist in .github/workflows/auto_approve.yml`,
+                "",
+                "This satisfies the approval requirement only. All required status checks still have to pass before this pull request can merge.",
+              ].join("\n"),
+            });
+            core.info(`Approved #${pr.number} at ${pr.head.sha} as ${botLogin}.`);
