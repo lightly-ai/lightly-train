@@ -65,6 +65,54 @@ To run a specific test file, use:
 uv run --frozen pytest path/to/test_file.py
 ```
 
+### Pull Requests
+
+Pull request titles must follow the
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+This is checked by the `Lint PR Title` CI job:
+
+```
+<type>[optional scope][!]: <description>
+```
+
+Only the pull request title is checked. Pull requests are merged with GitHub's "Squash
+and merge", so the title becomes the commit message on `main`. The individual commits on
+your branch are squashed away and can be named freely.
+
+Allowed types:
+
+| Type       | Use for                                                      |
+| ---------- | ------------------------------------------------------------ |
+| `feat`     | A new user-facing feature.                                   |
+| `fix`      | A bug fix.                                                   |
+| `docs`     | Documentation only.                                          |
+| `refactor` | A change that neither fixes a bug nor adds a feature.        |
+| `perf`     | A change that improves performance.                          |
+| `test`     | Adding or fixing tests.                                      |
+| `build`    | Build system, packaging, or dependency changes.              |
+| `ci`       | CI configuration and workflows.                              |
+| `chore`    | Anything else that affects neither the source nor the tests. |
+| `revert`   | Reverting a previous change.                                 |
+
+The scope is optional and unrestricted. Everything after the colon is free-form, so
+ticket references are fine:
+
+```
+feat(ltdetr): enforce 4 px min bbox guard in train transforms (TRN-2312)
+fix: skip degenerate predicted boxes in val visualization instead of crashing
+docs(settings): document nancapture debug utility
+```
+
+Mark breaking changes with a `!` before the colon, for example `feat(train)!: ...`.
+
+The type determines how the version is bumped: `feat` bumps the minor version (0.18.0 →
+0.19.0), `fix` and `perf` bump the patch version, and the remaining types don't trigger
+a release on their own. While the version is below 1.0.0, breaking changes bump the
+minor version instead of the major version.
+
+Entries in [CHANGELOG.md](./CHANGELOG.md) are still written by hand. See
+[RELEASING.md](./RELEASING.md) for the full release process.
+
 ### Documentation
 
 Documentation is in the [docs](./docs) folder. To build the documentation, install dev

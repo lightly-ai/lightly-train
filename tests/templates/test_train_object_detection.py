@@ -5,15 +5,13 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-import sys
 from pathlib import Path
 
 import pytest
 from jinja2 import Environment, FileSystemLoader
+from pytest_mock import MockerFixture
 
 from lightly_train._commands.train_task import TORCHMETRICS_SUPPORTED
-
-from .. import helpers
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
@@ -159,21 +157,33 @@ class TestTrainObjectDetectionTemplate:
         compile(result, "<template>", "exec")
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @skip_if_old_torchmetrics
-def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
-    """Integration test: render with default parameters (except model) and run."""
+def test_rendered_template_runs_training_with_defaults(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Verify the rendered-and-exec'd template calls train_object_detection with
+    the exact resolved arguments.
+
+    This mocks train_object_detection instead of running real training: the
+    string-based render tests above already cover that the template renders
+    correctly, and tests/_commands/test_train_task.py already covers that
+    training itself works. What's unique here is verifying the generated
+    *code*, once exec'd, actually wires arguments through to the real API
+    correctly -- which this checks more strongly than the previous
+    file-existence assertions did.
+    """
     data = tmp_path / "data"
     out = tmp_path / "out"
-    helpers.create_coco_object_detection_dataset(data, num_files=4)
 
-    template_args = dict(
+    result = _render(
         out=str(out),
         train_annotations=str(data / "train.json"),
         train_images=str(data / "train"),
         val_annotations=str(data / "val.json"),
         val_images=str(data / "val"),
-        # Override model, steps, batch_size, num_workers, and devices to keep the test fast.
+        # Override model, steps, batch_size, num_workers, and devices to verify
+        # they are threaded through; everything else should fall back to the
+        # template's defaults.
         model="dinov3/vitt16-notpretrained-ltdetr",
         model_args={
             "scheduler_name": "linear",
@@ -183,25 +193,57 @@ def test_rendered_template_runs_training_with_defaults(tmp_path: Path) -> None:
         num_workers=2,
         devices=1,
     )
-    if sys.platform.startswith("darwin"):
-        template_args["accelerator"] = "cpu"
 
-    result = _render(**template_args)
-
+    mock_train = mocker.patch("lightly_train.train_object_detection")
     exec(compile(result, "<template>", "exec"))
 
-    assert out.exists()
-    assert (out / "train.log").exists()
-    assert (out / "exported_models" / "exported_last.pt").exists()
+    mock_train.assert_called_once_with(
+        out=str(out),
+        overwrite=False,
+        data={
+            "format": "coco",
+            "train": {
+                "annotations": str(data / "train.json"),
+                "images": str(data / "train"),
+            },
+            "val": {
+                "annotations": str(data / "val.json"),
+                "images": str(data / "val"),
+            },
+            "skip_if_annotations_missing": True,
+        },
+        batch_size=2,
+        num_workers=2,
+        model="dinov3/vitt16-notpretrained-ltdetr",
+        model_args={"scheduler_name": "linear"},
+        steps=2,
+        precision="bf16-mixed",
+        seed=0,
+        devices=1,
+        accelerator="auto",
+        num_nodes=1,
+        strategy="auto",
+        resume_interrupted=False,
+        save_checkpoint_args=None,
+        logger_args=None,
+        transform_args=None,
+        metric_args=None,
+        torch_compile_args=None,
+    )
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 @skip_if_old_torchmetrics
-def test_rendered_template_runs_training_with_all_params(tmp_path: Path) -> None:
-    """Integration test: render with all parameters set explicitly and run."""
+def test_rendered_template_runs_training_with_all_params(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Verify the rendered-and-exec'd template calls train_object_detection with
+    the exact resolved arguments when every parameter is set explicitly.
+
+    See test_rendered_template_runs_training_with_defaults for why this mocks
+    train_object_detection instead of running real training.
+    """
     data = tmp_path / "data"
     out = tmp_path / "out"
-    helpers.create_coco_object_detection_dataset(data, num_files=4)
 
     result = _render(
         out=str(out),
@@ -232,8 +274,39 @@ def test_rendered_template_runs_training_with_all_params(tmp_path: Path) -> None
         torch_compile_args={"disable": True},
     )
 
+    mock_train = mocker.patch("lightly_train.train_object_detection")
     exec(compile(result, "<template>", "exec"))
 
-    assert out.exists()
-    assert (out / "train.log").exists()
-    assert (out / "exported_models" / "exported_last.pt").exists()
+    mock_train.assert_called_once_with(
+        out=str(out),
+        overwrite=False,
+        data={
+            "format": "coco",
+            "train": {
+                "annotations": str(data / "train.json"),
+                "images": str(data / "train"),
+            },
+            "val": {
+                "annotations": str(data / "val.json"),
+                "images": str(data / "val"),
+            },
+            "skip_if_annotations_missing": True,
+        },
+        batch_size=2,
+        num_workers=2,
+        model="dinov3/vitt16-notpretrained-ltdetr",
+        model_args={"scheduler_name": "linear"},
+        steps=2,
+        precision="32",
+        seed=42,
+        devices=1,
+        accelerator="cpu",
+        num_nodes=1,
+        strategy="auto",
+        resume_interrupted=False,
+        save_checkpoint_args={"save_last": True},
+        logger_args={"log_every_num_steps": 1},
+        transform_args={"image_size": "auto"},
+        metric_args={"classwise": False},
+        torch_compile_args={"disable": True},
+    )

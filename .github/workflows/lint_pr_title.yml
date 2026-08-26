@@ -1,0 +1,44 @@
+name: Lint PR Title
+
+# Pull requests are merged with GitHub's "Squash and merge", which uses the pull request
+# title as the commit message on main. Enforcing Conventional Commits on the title
+# therefore enforces them on the history of main. Commits on the branch itself are
+# squashed away and are not checked.
+#
+# See CONTRIBUTING.md for the convention and RELEASING.md for what it enables.
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint-pr-title:
+    name: Lint PR Title
+    runs-on: ubuntu-latest
+    steps:
+      # Runs on `pull_request_target` so that the check also works for pull requests from
+      # forks. This is safe because the workflow never checks out the pull request code.
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          # Scopes are optional and unrestricted, e.g. `feat(ltdetr): ...`.
+          requireScope: false

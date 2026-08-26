@@ -1099,6 +1099,20 @@ class LTDETRConfigRegistry(ConfigsNamespace):
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
+    @LTDETR_MODEL_REGISTRY.register("dinov2/_vittest14-ltdetrv2")
+    class ViTTestV2(LTDETRBaseConfig.ViTTest):
+        version: Literal["v2"] = "v2"
+        backbone_name: str = "dinov2/_vittest14"
+        transformer: RTDETRTransformerv2Config | DFINETransformerConfig = Field(
+            default_factory=LTDETRDFINETransformerConfig.ViTTest
+        )
+        backbone_wrapper: RTDETRBackboneWrapperConfig = Field(
+            default_factory=LTDETRRTDETRNoSTABackboneWrapperConfig.ViTTest
+        )
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
+        )
+
     @LTDETR_MODEL_REGISTRY.register(
         "edgecrafter/ecvitt-ltdetr",
         ModelAlias(
