@@ -412,12 +412,14 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
         ):
             logits = logits.unsqueeze(0)  # (1, Q, H', W')
             class_logits = class_logits.unsqueeze(0)  # (1, Q, num_classes)
-            # Revert resize and pad from self.model.resize_and_pad
-            logits = logits[..., :crop_h, :crop_w]  # (1, Q, crop_h, crop_w)
             # Chunk queries to keep the resized mask logits footprint bounded.
+            # The helper resizes the logits to the padded model input size,
+            # removes the padded region, and resizes to the original image size.
             labels, masks, scores = get_chunked_labels_masks_scores(
                 mask_logits=logits,
                 class_logits=class_logits,
+                resize_size=resized_images.shape[-2:],
+                crop_size=(crop_h, crop_w),
                 output_size=(image_h, image_w),
                 get_labels_masks_scores=self.model.get_labels_masks_scores,
             )
