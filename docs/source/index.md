@@ -305,6 +305,7 @@ data/index
 performance/index
 Debugging <debugging/model_instability>
 docker
+NVIDIA GPU Inference <deploy/nvidia_gpu>
 tutorials/index
 python_api/index
 faq
