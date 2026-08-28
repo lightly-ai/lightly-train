@@ -66,12 +66,14 @@ def _get_RandomResizedCrop(args: RandomResizedCropArgs) -> RandomResizedCrop:
         return RandomResizedCrop(
             size=(args.size[0], args.size[1]),
             scale=args.scale.as_tuple(),
+            ratio=args.scale.ratio,
             interpolation=cv2.INTER_AREA,
         )
     return RandomResizedCrop(
         height=args.size[0],
         width=args.size[1],
         scale=args.scale.as_tuple(),
+        ratio=args.scale.ratio,
         interpolation=cv2.INTER_AREA,
     )
 

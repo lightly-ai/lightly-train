@@ -27,7 +27,11 @@ from lightly_train._transforms.transform import (
     RandomRotationArgs,
     SolarizeArgs,
 )
-from lightly_train._transforms.view_transform import ViewTransform, ViewTransformArgs
+from lightly_train._transforms.view_transform import (
+    ViewTransform,
+    ViewTransformArgs,
+    _get_RandomResizedCrop,
+)
 from lightly_train.types import TransformInput
 
 ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
@@ -49,6 +53,22 @@ def _get_random_resized_crop_args() -> RandomResizedCropArgs:
         size=(64, 64),
         scale=RandomResizeArgs(min_scale=0.2, max_scale=1.0),
     )
+
+
+def test_random_resized_crop_exposes_ratio() -> None:
+    args = RandomResizedCropArgs(
+        size=(64, 64),
+        scale=RandomResizeArgs(min_scale=0.2, max_scale=1.0, ratio=(1.0, 1.0)),
+    )
+    transform = _get_RandomResizedCrop(args)
+    assert transform.ratio == (1.0, 1.0)
+
+
+def test_random_resized_crop_rejects_invalid_ratio() -> None:
+    with pytest.raises(ValueError, match="ratio"):
+        RandomResizeArgs(ratio=(0.0, 1.0))
+    with pytest.raises(ValueError, match="ratio"):
+        RandomResizeArgs(ratio=(2.0, 1.0))
 
 
 def _get_random_flip_args() -> RandomFlipArgs:

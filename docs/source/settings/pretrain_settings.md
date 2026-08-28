@@ -623,10 +623,14 @@ lightly_train.pretrain(
 		"random_resize": {
 			"min_scale": 0.2,
 			"max_scale": 1.0,
+			"ratio": [0.75, 1.3333333333333333],
 		},
 	},
 )
 ```
+
+`ratio` controls the minimum and maximum aspect ratio sampled by the random resized
+crop. It defaults to `(0.75, 4 / 3)`.
 
 #### `random_flip`
 

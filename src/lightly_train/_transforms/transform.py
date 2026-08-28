@@ -47,6 +47,15 @@ class ResizeArgs(PydanticConfig):
 class RandomResizeArgs(PydanticConfig):
     min_scale: float = 0.08
     max_scale: float = 1.0
+    # Minimum and maximum aspect ratio sampled by RandomResizedCrop.
+    ratio: tuple[float, float] = Field(default=(0.75, 4.0 / 3.0), strict=False)
+
+    @field_validator("ratio")
+    @classmethod
+    def validate_ratio(cls, value: tuple[float, float]) -> tuple[float, float]:
+        if value[0] <= 0 or value[0] > value[1]:
+            raise ValueError("ratio must contain two positive values in ascending order.")
+        return value
 
     def as_tuple(self) -> tuple[float, float]:
         return self.min_scale, self.max_scale
