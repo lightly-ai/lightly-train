@@ -628,6 +628,25 @@ lightly_train.pretrain(
 )
 ```
 
+The aspect ratio range of the crops can be configured with `min_ratio` and
+`max_ratio` and defaults to `(3 / 4, 4 / 3)`.
+
+```python
+import lightly_train
+
+lightly_train.pretrain(
+	...,
+	transform_args={
+		"random_resize": {
+			"min_scale": 0.2,
+			"max_scale": 1.0,
+			"min_ratio": 0.75,
+			"max_ratio": 1.33,
+		},
+	},
+)
+```
+
 #### `random_flip`
 
 Dictionary to configure random flipping augmentation. By default, horizontal flipping is

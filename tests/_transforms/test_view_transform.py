@@ -27,7 +27,11 @@ from lightly_train._transforms.transform import (
     RandomRotationArgs,
     SolarizeArgs,
 )
-from lightly_train._transforms.view_transform import ViewTransform, ViewTransformArgs
+from lightly_train._transforms.view_transform import (
+    ViewTransform,
+    ViewTransformArgs,
+    _get_RandomResizedCrop,
+)
 from lightly_train.types import TransformInput
 
 ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
@@ -251,3 +255,28 @@ class TestViewTransform:
         img = tr_output["image"]
         assert img.shape == (3, 64, 64)
         assert img.dtype == torch.float32
+
+
+class TestGetRandomResizedCrop:
+    def test_ratio_defaults(self) -> None:
+        args = _get_random_resized_crop_args()
+        assert args.scale is not None
+        assert args.scale.ratio_as_tuple() == (3 / 4, 4 / 3)
+
+    def test_ratio_is_passed_through(self) -> None:
+        args = RandomResizedCropArgs(
+            size=(64, 64),
+            scale=RandomResizeArgs(
+                min_scale=0.2, max_scale=1.0, min_ratio=0.5, max_ratio=2.0
+            ),
+        )
+        rrc = _get_RandomResizedCrop(args=args)
+        assert rrc.ratio == (0.5, 2.0)
+
+    def test_scale_is_passed_through(self) -> None:
+        args = RandomResizedCropArgs(
+            size=(64, 64),
+            scale=RandomResizeArgs(min_scale=0.2, max_scale=1.0),
+        )
+        rrc = _get_RandomResizedCrop(args=args)
+        assert rrc.scale == (0.2, 1.0)

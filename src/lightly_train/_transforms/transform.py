@@ -47,9 +47,14 @@ class ResizeArgs(PydanticConfig):
 class RandomResizeArgs(PydanticConfig):
     min_scale: float = 0.08
     max_scale: float = 1.0
+    min_ratio: float = 3 / 4
+    max_ratio: float = 4 / 3
 
     def as_tuple(self) -> tuple[float, float]:
         return self.min_scale, self.max_scale
+
+    def ratio_as_tuple(self) -> tuple[float, float]:
+        return self.min_ratio, self.max_ratio
 
 
 class RandomResizedCropArgs(PydanticConfig):
