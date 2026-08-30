@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Callable, Tuple
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-GetLabelsMasksScoresFn = Callable[[Tensor, Tensor], tuple[Tensor, Tensor, Tensor]]
+# Module-level aliases are evaluated at import time, so they must not use
+# builtin-generic subscription (tuple[...]) that Python 3.8 evaluates eagerly —
+# unlike the function annotations in this file, which are strings under
+# `from __future__ import annotations`. typing.Callable/Tuple are 3.8-safe.
+GetLabelsMasksScoresFn = Callable[[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]]
 
 
 def get_chunked_labels_masks_scores(
@@ -50,7 +54,9 @@ def get_chunked_labels_masks_scores(
             Soft byte budget for the resized mask logits of a single chunk.
     """
     if mask_logits.ndim != 4:
-        raise ValueError(f"Expected mask_logits with 4 dimensions, got {mask_logits.ndim}.")
+        raise ValueError(
+            f"Expected mask_logits with 4 dimensions, got {mask_logits.ndim}."
+        )
     if class_logits.ndim != 3:
         raise ValueError(
             f"Expected class_logits with 3 dimensions, got {class_logits.ndim}."
@@ -70,7 +76,9 @@ def get_chunked_labels_masks_scores(
     resize_w = max(resize_w, output_size[1])
 
     num_queries = mask_logits.shape[1]
-    bytes_per_query = mask_logits.element_size() * mask_logits.shape[0] * resize_h * resize_w
+    bytes_per_query = (
+        mask_logits.element_size() * mask_logits.shape[0] * resize_h * resize_w
+    )
     chunk_size = max(1, max_chunk_bytes // bytes_per_query)
 
     labels_chunks: list[Tensor] = []
