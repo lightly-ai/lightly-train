@@ -272,6 +272,219 @@ class TestECViTModelWrapper:
         assert features["features"].shape == torch.Size([2, 16, 1, 1])
         assert pooled["pooled_features"].shape == torch.Size([2, 16, 1, 1])
 
+    def test_multiscale_feature_dims(self) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        assert model.multiscale_feature_dims() == [16, 16, 16]
+
+    def test_multiscale_feature_dims__proj_dim_none(self) -> None:
+        # With proj_dim=None only the last level is projected, but all levels keep
+        # the same embed_dim channels.
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=None,
+        )
+        assert model.feature_dim() == 16
+        assert model.multiscale_feature_dims() == [16, 16, 16]
+
+    def test_multiscale_feature_strides(self) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        assert model.multiscale_feature_strides() == [8, 16, 32]
+
+    def test_forward_multiscale_features(self) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        model.eval()
+        with torch.no_grad():
+            features = model.forward_multiscale_features(
+                torch.randn(2, 3, 32, 32), layer_indices=[0, 1, 2]
+            )
+        shapes = [feature["features"].shape for feature in features]
+        assert shapes == [
+            torch.Size([2, 16, 4, 4]),
+            torch.Size([2, 16, 2, 2]),
+            torch.Size([2, 16, 1, 1]),
+        ]
+
+    def test_forward_multiscale_features__order(self) -> None:
+        # Features are returned in the same order as the requested indices.
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        model.eval()
+        with torch.no_grad():
+            features = model.forward_multiscale_features(
+                torch.randn(2, 3, 32, 32), layer_indices=[2, 0]
+            )
+        shapes = [feature["features"].shape for feature in features]
+        assert shapes == [torch.Size([2, 16, 1, 1]), torch.Size([2, 16, 4, 4])]
+
+    @pytest.mark.parametrize("layer_indices", [[-1], [3]])
+    def test_forward_multiscale_features__invalid_index(
+        self, layer_indices: list[int]
+    ) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        with pytest.raises(ValueError, match="layer_indices must be in the range"):
+            model.forward_multiscale_features(
+                torch.randn(2, 3, 32, 32), layer_indices=layer_indices
+            )
+
+    def test_forward_multiscale_features__matches_forward_features(self) -> None:
+        # The last level matches forward_features. Eval mode makes the two forward
+        # passes deterministic.
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        model.eval()
+        image = torch.randn(2, 3, 32, 32)
+        with torch.no_grad():
+            last = model.forward_multiscale_features(image, layer_indices=[2])[0]
+            expected = model.forward_features(image)
+        assert torch.equal(last["features"], expected["features"])
+
+    @pytest.mark.parametrize("num_input_channels", [1, 4, 6])
+    def test_forward__multi_channel_input(self, num_input_channels: int) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=num_input_channels,
+        )
+        model.eval()
+
+        with torch.no_grad():
+            outputs = model(torch.randn(2, num_input_channels, 32, 32))
+
+        assert [output.shape for output in outputs] == [
+            torch.Size([2, 16, 4, 4]),
+            torch.Size([2, 16, 2, 2]),
+            torch.Size([2, 16, 1, 1]),
+        ]
+
+    def test_init__multi_channel_first_conv(self) -> None:
+        model = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=4,
+        )
+        first_conv = model.backbone.patch_embed.convs[0].conv
+        assert first_conv.in_channels == 4
+        assert first_conv.weight.shape[1] == 4
+
+    def test_load_weights_path__adapts_input_channels_by_repeat(
+        self, tmp_path: Path
+    ) -> None:
+        # A 3-channel checkpoint loads into a 4-channel model by repeating the first
+        # convolution's input channels.
+        source = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        state_dict = source.backbone.state_dict()
+        weights_path = tmp_path / "ecvitt_rgb.pth"
+        torch.save(state_dict, weights_path)
+
+        target = ECViTModelWrapper(
+            name="ecvitt",
+            weights_path=weights_path,
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=4,
+        )
+
+        source_weight = state_dict["patch_embed.convs.0.conv.weight"]
+        target_weight = target.backbone.state_dict()["patch_embed.convs.0.conv.weight"]
+        expected = torch.cat([source_weight, source_weight[:, :1, :, :]], dim=1)
+        assert target_weight.shape[1] == 4
+        assert torch.equal(target_weight, expected)
+
+    def test_load_weights_path__adapts_input_channels_by_slice(
+        self, tmp_path: Path
+    ) -> None:
+        # A 3-channel checkpoint loads into a 1-channel model by keeping the first
+        # input channel of the first convolution.
+        source = ECViTModelWrapper(
+            name="ecvitt",
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+        )
+        state_dict = source.backbone.state_dict()
+        weights_path = tmp_path / "ecvitt_rgb.pth"
+        torch.save(state_dict, weights_path)
+
+        target = ECViTModelWrapper(
+            name="ecvitt",
+            weights_path=weights_path,
+            embed_dim=16,
+            num_heads=1,
+            depth=1,
+            interaction_indexes=[0],
+            proj_dim=16,
+            num_input_channels=1,
+        )
+
+        source_weight = state_dict["patch_embed.convs.0.conv.weight"]
+        target_weight = target.backbone.state_dict()["patch_embed.convs.0.conv.weight"]
+        assert target_weight.shape[1] == 1
+        assert torch.equal(target_weight, source_weight[:, :1, :, :])
+
     @pytest.mark.skipif(
         os.environ.get("ECVIT_CHECKPOINT_DIR") is None,
         reason=(

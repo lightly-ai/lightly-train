@@ -73,3 +73,69 @@ class TestInterpolatePosEmbedHook:
         module = _module(torch.zeros(1, 1370, 384))
         _model_helpers.interpolate_pos_embed_hook(module, state_dict, "")
         assert state_dict["blocks.0.attn.qkv.weight"] is weight
+
+
+class _InChansModule(Module):
+    """Minimal stand-in whose only attribute the input-channel hooks read."""
+
+    def __init__(self, in_chans: int) -> None:
+        super().__init__()
+        self.in_chans = in_chans
+
+
+class TestAdjustConvInputChannels:
+    def test__noop_same_channels(self) -> None:
+        weight = torch.randn(8, 3, 3, 3)
+        out = _model_helpers.adjust_conv_input_channels(weight, 3)
+        assert torch.equal(out, weight)
+
+    def test__slice_fewer_channels(self) -> None:
+        weight = torch.randn(8, 3, 3, 3)
+        out = _model_helpers.adjust_conv_input_channels(weight, 1)
+        assert out.shape == (8, 1, 3, 3)
+        assert torch.equal(out, weight[:, :1])
+
+    def test__repeat_more_channels_with_remainder(self) -> None:
+        weight = torch.randn(8, 3, 3, 3)
+        out = _model_helpers.adjust_conv_input_channels(weight, 4)
+        assert out.shape == (8, 4, 3, 3)
+        assert torch.equal(out, torch.cat([weight, weight[:, :1]], dim=1))
+
+    def test__repeat_more_channels_exact_multiple(self) -> None:
+        weight = torch.randn(8, 3, 3, 3)
+        out = _model_helpers.adjust_conv_input_channels(weight, 6)
+        assert out.shape == (8, 6, 3, 3)
+        assert torch.equal(out, weight.repeat(1, 2, 1, 1))
+
+
+class TestPatchEmbedAdjustInputChannelsHook:
+    def test__adjusts_proj_weight(self) -> None:
+        weight = torch.randn(8, 3, 16, 16)
+        state_dict = {"patch_embed.proj.weight": weight}
+        module = _InChansModule(in_chans=5)
+        _model_helpers.patch_embed_adjust_input_channels_hook(
+            module, state_dict, "patch_embed."
+        )
+        assert state_dict["patch_embed.proj.weight"].shape == (8, 5, 16, 16)
+
+    def test__ignores_missing_key(self) -> None:
+        weight = torch.randn(2, 2)
+        state_dict = {"other.weight": weight}
+        module = _InChansModule(in_chans=5)
+        _model_helpers.patch_embed_adjust_input_channels_hook(
+            module, state_dict, "patch_embed."
+        )
+        assert state_dict["other.weight"] is weight
+
+
+class TestConvPyramidPatchEmbedAdjustInputChannelsHook:
+    def test__adjusts_first_conv_weight(self) -> None:
+        weight = torch.randn(8, 3, 3, 3)
+        state_dict = {"patch_embed.convs.0.conv.weight": weight}
+        module = _InChansModule(in_chans=2)
+        _model_helpers.conv_pyramid_patch_embed_adjust_input_channels_hook(
+            module, state_dict, "patch_embed."
+        )
+        adjusted = state_dict["patch_embed.convs.0.conv.weight"]
+        assert adjusted.shape == (8, 2, 3, 3)
+        assert torch.equal(adjusted, weight[:, :2])
