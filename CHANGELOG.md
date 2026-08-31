@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add multi-scale feature support to the `ultralytics` model package for YOLO detection
+  backbones (`yolov5`, `yolov6`, `yolov8`, `yolo11`, `yolo12`, `yolo26`, including their
+  p2 and p6 variants). The model wrapper exposes the backbone feature pyramid for dense
+  prediction tasks. Classification models and RT-DETR are not supported.
 - Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
   covering ONNX Runtime's CUDA execution provider and TensorRT directly, both with
   zero-copy GPU input/output allocation.
