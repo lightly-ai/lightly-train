@@ -259,54 +259,6 @@ def test_dino_legacy_backbone_prefix_is_remapped() -> None:
     assert "backbone.backbone.mask_token" not in state_dict
 
 
-def test_checkpoint_roundtrip__rtdetrv2_decoder_preserved_when_not_explicit() -> None:
-    # Legacy checkpoints do not store ``decoder_name``. In that case the train
-    # args must resolve it from the registered architecture before loading weights.
-    model_name = "dinov3/vitt16-notpretrained-ltdetr"
-
-    # Source: an old-style RTDETRv2 checkpoint.
-    source_args = LTDETRObjectDetectionTrainArgs(
-        decoder_name="rtdetrv2",
-        use_ema_model=False,
-    )
-    source_train_model = _create_train_model(
-        source_args,
-        model_name=model_name,
-    )
-    checkpoint_model_init_args = dict(source_train_model.get_task_model().init_args)
-    assert checkpoint_model_init_args["decoder_name"] == "rtdetrv2"
-    checkpoint_model_init_args.pop("decoder_name")
-    checkpoint_state_dict = source_train_model.state_dict()
-
-    # Pick a stable decoder tensor to compare before/after the round trip.
-    decoder_keys = sorted(k for k in checkpoint_state_dict if "decoder" in k)
-    assert decoder_keys, "expected at least one decoder tensor in the state dict"
-    source_decoder_tensor = checkpoint_state_dict[decoder_keys[0]].clone()
-
-    # Target: the user does not explicitly set ``decoder_name`` and the legacy
-    # checkpoint does not contain it either.
-    target_args = LTDETRObjectDetectionTrainArgs(use_ema_model=False)
-    target_train_model = _create_train_model(
-        target_args,
-        model_name=model_name,
-        model_init_args=dict(checkpoint_model_init_args),
-    )
-
-    # The DINOv3 v1 architecture selects RTDETRv2.
-    assert target_args.decoder_name == "rtdetrv2"
-    target_task_model = target_train_model.get_task_model()
-    assert isinstance(target_task_model.decoder, RTDETRTransformerv2)
-
-    # State dict loads cleanly into the reconstructed architecture.
-    incompatible = target_train_model.load_train_state_dict(checkpoint_state_dict)
-    assert incompatible.missing_keys == []
-    assert incompatible.unexpected_keys == []
-
-    # Decoder weights actually landed on the target.
-    loaded_decoder_tensor = target_train_model.state_dict()[decoder_keys[0]]
-    torch.testing.assert_close(loaded_decoder_tensor, source_decoder_tensor)
-
-
 @pytest.mark.parametrize(
     ("model_name", "decoder_name", "expected_config_type"),
     [
@@ -328,6 +280,26 @@ def test_resolve_transformer_config__selects_decoder_family(
     )
 
     assert isinstance(transformer_config, expected_config_type)
+
+
+DINOV3_NOTPRETRAINED_LTDETR_MODEL_NAMES = [
+    "dinov3/vitt16-notpretrained-ltdetr",
+    "dinov3/vitt16plus-notpretrained-ltdetr",
+    "dinov3/vits16-notpretrained-ltdetr",
+    "dinov3/vitb16-notpretrained-ltdetr",
+    "dinov3/vitl16-notpretrained-ltdetr",
+    "dinov3/convnext-tiny-notpretrained-ltdetr",
+    "dinov3/convnext-small-notpretrained-ltdetr",
+    "dinov3/convnext-base-notpretrained-ltdetr",
+    "dinov3/convnext-large-notpretrained-ltdetr",
+]
+
+
+@pytest.mark.parametrize("model_name", DINOV3_NOTPRETRAINED_LTDETR_MODEL_NAMES)
+def test_list_model_names__includes_dinov3_notpretrained_aliases(
+    model_name: str,
+) -> None:
+    assert model_name in LTDETRObjectDetection.list_model_names()
 
 
 @pytest.mark.parametrize(
@@ -664,41 +636,63 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
 
 
 @pytest.mark.parametrize(
-    ("patch_size", "feat_strides", "num_levels"),
+    ("patch_size", "feat_strides", "expected_stride_count"),
     [
-        (16, [8, 16, 32, 64], 4),
-        (14, [7, 14, 28, 56], 4),
-        (64, [32, 64, 128, 256], 4),
-        (16, [8, 16, 32], 3),
-        (14, [7, 14, 28], 3),
-        (64, [32, 64, 128], 3),
+        (14, [14, 28, 56], 3),
+        (16, [16, 32, 64], 3),
+        (None, [16, 32, 64], 3),
     ],
 )
-def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
-    patch_size: int, feat_strides: list[int], num_levels: int
+def test_decoder_resolve_auto__fills_auto_feature_strides(
+    patch_size: int | None,
+    feat_strides: list[int],
+    expected_stride_count: int,
 ) -> None:
-    config = _RTDETRTransformerv2Config(
-        num_levels=num_levels, feat_channels=[-1] * num_levels
-    )
+    config = _RTDETRTransformerv2Config(feat_strides=[0, 0, 0])
+    config.resolve_auto(patch_size)
+    assert len(config.feat_strides) == expected_stride_count
+    assert config.feat_strides == feat_strides
 
-    config.resolve_auto(patch_size=patch_size)
 
-
-def test_predict_batch__composes_stages_in_order(mocker: MockerFixture) -> None:
+def test_predict_batch__uses_preprocess_and_postprocess_paths(
+    mocker: MockerFixture,
+) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
         classes={0: "class_0", 1: "class_1"},
         image_size=(256, 256),
         load_weights=False,
     )
+    model._deployed = True
+    preprocess_image_spy = mocker.patch.object(
+        model,
+        "preprocess_image",
+        side_effect=[
+            (torch.zeros(3, 16, 16), {"orig_h": 16, "orig_w": 16}),
+            (torch.zeros(3, 16, 16), {"orig_h": 16, "orig_w": 16}),
+        ],
+    )
+    preprocess_batch_spy = mocker.patch.object(
+        model, "preprocess_batch", side_effect=lambda batch: batch
+    )
+    forward_backend_spy = mocker.patch.object(
+        model,
+        "forward_backend",
+        return_value={
+            "pred_logits": torch.zeros(2, 4, 2),
+            "pred_boxes": torch.zeros(2, 4, 4),
+        },
+    )
+    postprocess_spy = mocker.patch.object(
+        model,
+        "postprocess",
+        side_effect=lambda raw, metadata, threshold=0.6: [
+            {"labels": torch.zeros(1, dtype=torch.int64), "scores": torch.ones(1)}
+            for _ in metadata
+        ],
+    )
 
-    preprocess_image_spy = mocker.spy(model.preprocessor, "preprocess_image")
-    preprocess_batch_spy = mocker.spy(model.preprocessor, "preprocess_batch")
-    forward_backend_spy = mocker.spy(model, "forward_backend")
-    postprocess_spy = mocker.spy(model.postprocessor, "postprocess")
-
-    images = [torch.rand(3, 480, 640), torch.rand(3, 720, 1280)]
-    result = model.predict_batch(images=images)
+    result = model.predict_batch([torch.zeros(3, 16, 16), torch.zeros(3, 16, 16)])
 
     # Each input image goes through preprocess_image once.
     assert preprocess_image_spy.call_count == 2

@@ -78,6 +78,30 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path=None,
         list=True,
     ),
+    "vits16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vits16, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
+    "vits16plus-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vits16plus, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
+    "vitb16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitb16, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
+    "vitl16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitl16, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
     "vitt16": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitt16,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitt16_distillationv2.pth",
@@ -153,6 +177,30 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         list=True,
     ),
     # ConvNeXt LVD-1689M models
+    "convnext-tiny-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_tiny, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
+    "convnext-small-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_small, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
+    "convnext-base-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_base, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
+    "convnext-large-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_large, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
     "convnext-tiny": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_tiny,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_tiny_lvd1689m.pth",
