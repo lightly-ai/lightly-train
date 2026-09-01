@@ -109,6 +109,12 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_vits16_lvd1689m.pth",
         list=True,
     ),
+    "vits16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vits16, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
     "vits16plus": _DINOv3ModelInfo(
         builder=backbones.dinov3_vits16plus,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vits16plus_lvd1689m.pth",
@@ -121,10 +127,22 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_vitb16_lvd1689m.pth",
         list=True,
     ),
+    "vitb16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitb16, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
     "vitl16": _DINOv3ModelInfo(
         builder=backbones.dinov3_vitl16,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_vitl16_lvd1689m.pth",
         local_path="dinov3_vitl16_lvd1689m.pth",
+        list=True,
+    ),
+    "vitl16-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_vitl16, pretrained=False),
+        default_weights=None,
+        local_path=None,
         list=True,
     ),
     "vith16plus": _DINOv3ModelInfo(
@@ -159,10 +177,22 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_convnext_tiny_lvd1689m.pth",
         list=True,
     ),
+    "convnext-tiny-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_tiny, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
     "convnext-small": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_small,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_small_lvd1689m.pth",
         local_path="dinov3_convnext_small_lvd1689m.pth",
+        list=True,
+    ),
+    "convnext-small-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_small, pretrained=False),
+        default_weights=None,
+        local_path=None,
         list=True,
     ),
     "convnext-base": _DINOv3ModelInfo(
@@ -171,10 +201,22 @@ MODEL_NAME_TO_INFO: dict[str, _DINOv3ModelInfo] = {
         local_path="dinov3_convnext_base_lvd1689m.pth",
         list=True,
     ),
+    "convnext-base-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_base, pretrained=False),
+        default_weights=None,
+        local_path=None,
+        list=True,
+    ),
     "convnext-large": _DINOv3ModelInfo(
         builder=backbones.dinov3_convnext_large,
         default_weights="https://lightly-train-checkpoints.s3.us-east-1.amazonaws.com/dinov3/dinov3_convnext_large_lvd1689m.pth",
         local_path="dinov3_convnext_large_lvd1689m.pth",
+        list=True,
+    ),
+    "convnext-large-notpretrained": _DINOv3ModelInfo(
+        builder=functools.partial(backbones.dinov3_convnext_large, pretrained=False),
+        default_weights=None,
+        local_path=None,
         list=True,
     ),
     # EUPE models
