@@ -38,6 +38,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix DINOv3 LT-DETR object detection `-notpretrained` backbone aliases. Every DINOv3
+  backbone size (ConvNeXt-tiny/small/base/large, ViT-tiny/tiny+/small/base/large) now
+  has a working `dinov3/<size>-notpretrained-ltdetr` model name that builds a randomly
+  initialized backbone, matching how DINOv2 already works. Previously only
+  `dinov3/vitt16-notpretrained-ltdetr` existed, and it was broken: it silently loaded
+  pretrained weights because it pointed to the same config class as
+  `dinov3/vitt16-ltdetr`. Also add `dinov2/vits14-noreg-notpretrained-ltdetr` for the
+  legacy no-registers DINOv2 backbone.
+
 ### Security
 
 ## [0.17.0] - 2026-07-28
