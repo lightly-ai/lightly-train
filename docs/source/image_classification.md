@@ -389,6 +389,60 @@ LightlyTrain models are supported as backbones. For example:
 See [Models](pretrain_distill/models/index.md) for a full list of supported model
 backbones.
 
+(image-classification-class-weights)=
+
+## Class Weights
+
+Imbalanced datasets can make the model good at common classes and bad at rare ones. Use
+`model_args={"class_weights": ...}` to tell the loss that mistakes on rare classes count
+more. This works for both `train_image_classification` and
+`train_image_classification_multihead`, and for both `multiclass` and `multilabel`
+tasks.
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_image_classification(
+        out="out/my_experiment",
+        model="dinov3/vitt16",
+        data={...},
+        # Default: no class weighting, exactly like training without this argument.
+        model_args={"class_weights": None},
+        # Or: count the training split automatically.
+        # model_args={"class_weights": "auto"},
+        # Or: set weights manually by class name.
+        # model_args={"class_weights": {"cat": 1.0, "dog": 3.5}},
+    )
+```
+
+Behavior:
+
+- `None` (default) disables class weighting and preserves current behavior.
+- `"auto"` counts classes in the training split and gives rare classes a higher weight.
+  Validation data is never used for the counts.
+- A dictionary maps class names to weights for full control, for example
+  `{"cat": 1.0, "dog": 3.5}`. Keys are class names, not class IDs or positions. The
+  mapping must contain exactly the included class names: unknown names and missing
+  classes both raise a clear error.
+
+Formulas:
+
+- Multiclass uses `torch.nn.CrossEntropyLoss(weight=...)`. With `"auto"`, weights are
+  inverse class frequencies rescaled so their mean is `1.0`. A class with no training
+  examples gets a neutral weight of `1.0`.
+- Multilabel uses `torch.nn.BCEWithLogitsLoss(pos_weight=...)`. With `"auto"`, each
+  class is handled independently as
+  `pos_weight = num_images_without_class / num_images_with_class`, where an image with
+  several labels counts once for each of those classes. A class with no positive
+  training examples gets a neutral `pos_weight` of `1.0` so it is not suppressed if it
+  appears in validation.
+
+Classes dropped with `ignore_classes` are renumbered internally, but manual weights
+still use the original class names. Only included classes are expected in the
+dictionary, and weights follow the internal class order automatically. For multihead
+training, all heads share the same dataset and the same class-weight criterion.
+
 ## Training Settings
 
 See [](train-settings) on how to configure training settings.

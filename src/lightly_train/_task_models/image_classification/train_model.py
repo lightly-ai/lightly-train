@@ -28,6 +28,7 @@ from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models import image_classification_class_weights
 from lightly_train._task_models.image_classification.task_model import (
     ImageClassification,
 )
@@ -69,6 +70,7 @@ class ImageClassificationTrainArgs(TrainModelArgs):
 
     # Loss
     label_smoothing: float = 0.0
+    class_weights: dict[str, float] | Literal["auto"] | None = None
 
     def resolve_auto(
         self,
@@ -94,6 +96,12 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.gradient_clip_val = 0.0
             else:
                 self.gradient_clip_val = 3.0
+        if isinstance(data_args, ImageClassificationDataArgs):
+            self.class_weights = (
+                image_classification_class_weights.resolve_class_weights(
+                    self.class_weights, data_args
+                )
+            )
 
 
 class ImageClassificationTrain(TrainModel):
@@ -144,12 +152,19 @@ class ImageClassificationTrain(TrainModel):
         )
 
         self.criterion: Module
+        resolved_weights = image_classification_class_weights.resolve_class_weights(
+            model_args.class_weights, data_args
+        )
+        class_weight_tensor = image_classification_class_weights.resolved_to_tensor(
+            resolved_weights, data_args
+        )
         if self.model.classification_task == "multiclass":
             self.criterion = CrossEntropyLoss(
-                label_smoothing=model_args.label_smoothing
+                weight=class_weight_tensor,
+                label_smoothing=model_args.label_smoothing,
             )
         elif self.model.classification_task == "multilabel":
-            self.criterion = BCEWithLogitsLoss()
+            self.criterion = BCEWithLogitsLoss(pos_weight=class_weight_tensor)
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
