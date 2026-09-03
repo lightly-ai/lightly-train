@@ -48,14 +48,14 @@ jobs:
               - '!.github/**'
             this-workflow:
               - '.github/workflows/test_unit_minimal_dependencies.yml'
-  test-unit-minimal-dependencies:
-    name: Test Unit Minimal Dependencies
+  # Do not use a matrix here. GitHub does not expand a matrix for a job that it skips.
+  # A skipped job then reports 'Test Unit Minimal Dependencies', not the two names below
+  # that the branch ruleset requires.
+  test-unit-minimal-dependencies-minimal:
+    name: Test Unit Minimal Dependencies (minimal)
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     runs-on: "ubuntu-latest"
-    strategy:
-      matrix:
-        dependencies: ["minimal", "minimal-extras"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -70,7 +70,30 @@ jobs:
             **/uv.lock
       - name: Set Up Environment
         run: |
-          make install-${{ matrix.dependencies }}
+          make install-minimal
+      - name: Run Pytest
+        run: |
+          make test-ci-minimal
+  test-unit-minimal-dependencies-minimal-extras:
+    name: Test Unit Minimal Dependencies (minimal-extras)
+    needs: detect-code-changes
+    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v7
+        id: setup-uv
+        with:
+          version: 0.11.15
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Set Up Environment
+        run: |
+          make install-minimal-extras
       - name: Run Pytest
         run: |
           make test-ci-minimal
