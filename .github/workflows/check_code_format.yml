@@ -16,28 +16,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# NOTE: This workflow deliberately has no path filter. Its checks cover the whole
+# repository: mdformat runs on .github, docker, docs, src, tests,
+# inference_benchmarks and the root *.md files, ruff runs on ".", mypy runs on src,
+# tests, docs/format_code.py and inference_benchmarks, and pre-commit runs with
+# --all-files. Skipping it for "non-code" changes would stop catching formatting
+# errors in exactly those files.
 jobs:
-  detect-code-changes:
-    name: Detect Code Changes
-    runs-on: ubuntu-latest
-    outputs:
-      run-tests: ${{ steps.filter.outputs.run-tests }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          list-files: shell
-          filters: |
-            run-tests:
-              - '!docs/**'
-              - '!docker/**'
-              - '!.github/**'
-              - '.github/workflows/check_code_format.yml'
   check-code-format:
     name: Check Code Format
-    needs: detect-code-changes
-    if: needs.detect-code-changes.outputs.run-tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -48,7 +35,9 @@ jobs:
         with:
           version: 0.11.15
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
       - name: Set Up Environment
         run: |
           make install-pinned-3.13

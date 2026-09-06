@@ -20,7 +20,7 @@ from .. import helpers
 is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
 
 
-def create_dinov2_vits14_eomt_test_checkpoint(
+def create_dinov2_vittest14_eomt_test_checkpoint(
     directory: Path, num_channels: int = 3
 ) -> Path:
     out = directory / "out"
@@ -50,7 +50,8 @@ def create_dinov2_vits14_eomt_test_checkpoint(
                 1: "car",
             },
         },
-        model="dinov2/vits14-eomt",
+        model="dinov2/_vittest14-eomt",
+        model_args={"num_joint_blocks": 1},
         transform_args={"num_channels": num_channels},
         # The operator 'aten::upsample_bicubic2d.out' raises a NotImplementedError
         # on macOS with MPS backend.
@@ -67,17 +68,17 @@ def create_dinov2_vits14_eomt_test_checkpoint(
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def dinov2_vittest14_eomt_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp)
+    return create_dinov2_vittest14_eomt_test_checkpoint(directory=tmp)
 
 
 @pytest.fixture(scope="module")
-def dinov2_vits14_eomt_4_channels_checkpoint(
+def dinov2_vittest14_eomt_4_channels_checkpoint(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Path:
     tmp = tmp_path_factory.mktemp("tmp")
-    return create_dinov2_vits14_eomt_test_checkpoint(directory=tmp, num_channels=4)
+    return create_dinov2_vittest14_eomt_test_checkpoint(directory=tmp, num_channels=4)
 
 
 @pytest.mark.skipif(
@@ -92,8 +93,8 @@ def dinov2_vits14_eomt_4_channels_checkpoint(
 def test_predict_semantic_segmentation(
     tmp_path: Path,
     num_channels: int,
-    dinov2_vits14_eomt_checkpoint: Path,
-    dinov2_vits14_eomt_4_channels_checkpoint: Path,
+    dinov2_vittest14_eomt_checkpoint: Path,
+    dinov2_vittest14_eomt_4_channels_checkpoint: Path,
 ) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -103,8 +104,8 @@ def test_predict_semantic_segmentation(
     helpers.create_images(data, num_channels=num_channels, mode=mode, files=num_images)
 
     checkpoint_path = {
-        3: dinov2_vits14_eomt_checkpoint,
-        4: dinov2_vits14_eomt_4_channels_checkpoint,
+        3: dinov2_vittest14_eomt_checkpoint,
+        4: dinov2_vittest14_eomt_4_channels_checkpoint,
     }[num_channels]
 
     lightly_train.predict_semantic_segmentation(

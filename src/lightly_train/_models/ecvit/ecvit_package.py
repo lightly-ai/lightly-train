@@ -57,6 +57,12 @@ MODEL_NAME_TO_INFO: dict[str, _ECViTModelInfo] = {
         local_path="ecvits.pth",
         list=True,
     ),
+    "_ecvittest-notpretrained": _ECViTModelInfo(
+        preset_name="ecvittest",
+        default_weights=None,
+        local_path=None,
+        list=False,
+    ),
     "ecvitsplus": _ECViTModelInfo(
         preset_name="ecvitsplus",
         default_weights=ECVIT_PRETRAINED_URLS["ecvitsplus"],
