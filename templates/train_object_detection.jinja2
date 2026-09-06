@@ -6,7 +6,7 @@ lightly_train.train_object_detection(
 
     # Output
     ## Output directory where checkpoints, logs, and exported models are written.
-    out="{{ out }}",
+    out="{{ out|replace('\\', '\\\\') }}",
     ## Whether to overwrite the output directory if it already exists.
     overwrite={{ overwrite|default(False) }},
 
@@ -17,15 +17,15 @@ lightly_train.train_object_detection(
         "format": "coco",
         "train": {
             # Path to the training annotations file in COCO format.
-            "annotations": "{{ train_annotations }}",
+            "annotations": "{{ train_annotations|replace('\\', '\\\\') }}",
             # Path to the training images directory. Defaults to None (inferred from annotations).
-            "images": {% if train_images %}"{{ train_images }}"{% else %}None{% endif %}
+            "images": {% if train_images %}"{{ train_images|replace('\\', '\\\\') }}"{% else %}None{% endif %}
         },
         "val": {
             # Path to the validation annotations file in COCO format.
-            "annotations": "{{ val_annotations }}",
+            "annotations": "{{ val_annotations|replace('\\', '\\\\') }}",
             # Path to the validation images directory. Defaults to None (inferred from annotations).
-            "images": {% if val_images %}"{{ val_images }}"{% else %}None{% endif %}
+            "images": {% if val_images %}"{{ val_images|replace('\\', '\\\\') }}"{% else %}None{% endif %}
         },
         # Skip images that have no matching annotations instead of raising an error.
         "skip_if_annotations_missing": {{ skip_if_annotations_missing|default(True) }},

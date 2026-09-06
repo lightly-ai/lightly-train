@@ -96,11 +96,13 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     # Hybrid + BatchNorm (attention augmented conv networks)
     ("bat_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("botnet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
+    ("cpubone_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("eca_botnext", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("eca_halonext", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("halo", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("lambda_resnet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("lamhalobotnet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
+    ("lowformer_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("sebotnet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("sehalonet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     # Conv + LayerNorm
@@ -172,6 +174,7 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     ("hrnet_", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("inception_resnet_", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("inception_v", {"model_type": "convolutional", "norm_type": "batchnorm"}),
+    ("lcnetv2_", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("lcnet_", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("legacy_", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("mixnet_", {"model_type": "convolutional", "norm_type": "batchnorm"}),

@@ -54,6 +54,7 @@ import torch
 import yaml
 
 import lightly_train
+from lightly_train._commands import train_task
 from lightly_train._commands.train_task import (
     ImageClassificationMulticlassTrainTaskConfig,
     ImageClassificationMultiheadMulticlassTrainTaskConfig,
@@ -66,6 +67,7 @@ from lightly_train._commands.train_task import (
     SemanticSegmentationTrainTaskConfig,
 )
 from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train.errors import LightlyTrainError
 
 from .. import helpers
 
@@ -99,7 +101,7 @@ def test_train_image_classification__multiclass(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -147,7 +149,7 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -197,9 +199,9 @@ def test_train_image_classification_multihead(
         model_args={
             "lr": [0.001, 0.01, 0.1],
         },
-        steps=10,
+        steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -216,7 +218,18 @@ def test_train_image_classification_multihead(
     assert model is not None
 
 
-def test_train_object_detection_yolo(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "num_workers",
+    [
+        0,
+        # num_workers=2 exercises the real multi-worker DataLoader code path,
+        # but worker process spawn dominates its runtime (especially on
+        # Windows), so it's excluded from fast CI via long_running_test.
+        pytest.param(2, marks=pytest.mark.long_running_test),
+    ],
+    ids=["fast", "multi_worker_dataloader"],
+)
+def test_train_object_detection_yolo(tmp_path: Path, num_workers: int) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Create dataset with 4 files, including one without a label file (index 2) and
@@ -232,7 +245,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="_ltdetrv2-s-notpretrained",
+        model="dinov2/_vittest14-ltdetrv2",
         data={
             "path": data,
             "train": Path("train", "images"),
@@ -247,7 +260,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=num_workers,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -306,12 +319,12 @@ def test_train_instance_segmentation(
             "train": {"annotations": str(data / "train.json"), "images": "train"},
             "val": {"annotations": str(data / "val.json"), "images": "val"},
         },
-        model="_ltdetrv2-seg-s-notpretrained",
+        model="edgecrafter/_ecvittest-ltdetr-seg",
         model_args={"scheduler_name": "linear"},
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -373,7 +386,7 @@ def test_train_panoptic_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -434,7 +447,7 @@ def test_train_panoptic_segmentation__dinov2(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -512,7 +525,7 @@ def test_train_semantic_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -619,7 +632,7 @@ def test_train_semantic_segmentation__dicom(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -680,7 +693,7 @@ def test_train_semantic_segmentation__export(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -932,14 +945,14 @@ def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_
                 1: "car",
             },
         },
-        model="dinov2/vits14",  # Use smallest standard model for fast testing
+        model="dinov2/_vittest14",  # Tiny test-only model for fast testing
         model_args={
             "lr": [0.001, 0.01],  # Test with two learning rates
         },
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,  # Minimal steps for fast test
     )
 
@@ -1446,3 +1459,14 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
     assert config.data.path == (tmp_path / "dataset").resolve()
     assert config.data.train == Path("images/train")
     assert config.data.val == Path("images/val")
+
+
+class TestRaiseIfTorchmetricsUnsupported:
+    def test_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", True, raising=True)
+        train_task._raise_if_torchmetrics_unsupported()
+
+    def test_unsupported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", False, raising=True)
+        with pytest.raises(LightlyTrainError, match="requires torchmetrics>="):
+            train_task._raise_if_torchmetrics_unsupported()

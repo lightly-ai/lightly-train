@@ -122,6 +122,15 @@ bitsandbytes = [
 dicom = [
     "pydicom>=2.1.0",
 ]
+faster-coco-eval = [
+    # Faster C++ COCOeval used for the mAP metric. Selected automatically for object
+    # detection when installed, see _metrics/mean_average_precision.py.
+    # Requires torchmetrics>=1.2, which added the `backend` argument.
+    # 1.6.3 is the version torchmetrics itself tests against.
+    # No wheels are built for macOS x86_64 and musllinux, therefore this is an
+    # optional extra instead of a required dependency.
+    "faster-coco-eval>=1.6.3; python_version>='3.9'",
+]
 mlflow = [
     "mlflow>=2.8.0", # 2.8.0 added stepped image logging (key/step args to log_image)
     "pandas>=2.2.3; python_version>='3.12'",  # pandas<2.2.3 fails to build on Python>3.12 (no pkg_resources).

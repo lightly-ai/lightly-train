@@ -54,7 +54,7 @@ _train_cfg = CLITrainConfig(out="", data="", model="")
 _PRETRAIN_HELP_MSG = f"""
     Pretrain a model with self-supervised learning or distill from a teacher model.
 
-    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill.html
+    See the documentation for more information: https://docs.lightly.ai/train/stable/pretrain_distill/index.html
 
     The training process can be monitored with TensorBoard:
 

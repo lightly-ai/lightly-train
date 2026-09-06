@@ -156,3 +156,8 @@ Run tests with `pytest path/to/test_file.py`.
 ## Linting
 
 Format code with `make format`. Check formatting with `make format-check`.
+
+## Pull Requests
+
+Pull request titles must follow Conventional Commits, e.g. `feat(ltdetr): ...`. See
+[CONTRIBUTING.md](../CONTRIBUTING.md#pull-requests) for the allowed types.
