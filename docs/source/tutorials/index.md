@@ -11,6 +11,7 @@ maxdepth: 1
 ---
 resnet/index
 yolo/index
+pretraining_evaluation/index
 depth_estimation/index
 embedding/index
 debugging_tools/index

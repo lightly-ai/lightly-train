@@ -21,6 +21,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `pip install "lightly-train[faster-coco-eval]"`; it is then used automatically. Both
   backends return identical metric values. The backend can be selected explicitly with
   `metric_args={"map": {"backend": ...}}`.
+- Add a tutorial on evaluating pretraining on your own detection data, covering the
+  choice of compared configurations, data leakage, reproducible labeled subsets, matched
+  training budgets, and results reporting.
 
 ### Changed
 
