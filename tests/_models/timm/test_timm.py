@@ -342,6 +342,24 @@ def test_get_multiscale_model_wrapper__non_square_patch_size() -> None:
         get_multiscale_model_wrapper(model=model)
 
 
+def test_get_multiscale_model_wrapper__non_square_patch_size_stem() -> None:
+    # MLP-Mixer and ResMLP store the patch embedding as model.stem instead of
+    # model.patch_embed. Timm's factory does not accept a patch_size override for these
+    # models, so the non-square case is set directly on the stem.
+    model = timm.create_model("mixer_s16_224")
+    model.stem.patch_size = (16, 8)  # type: ignore[union-attr]
+    with pytest.raises(ValueError, match="has a non-square patch size"):
+        get_multiscale_model_wrapper(model=model)
+
+
+def test_get_multiscale_model_wrapper__stem_patch_embed() -> None:
+    # Square patch size on the stem is accepted and reported.
+    model = timm.create_model("mixer_s16_224")
+    wrapper = get_multiscale_model_wrapper(model=model)
+    assert isinstance(wrapper, TIMMMultiScaleViTModelWrapper)
+    assert wrapper.patch_size() == 16
+
+
 # TODO: Do not skip if timm <1.0
 @pytest.mark.skip(reason="Requires timm <1.0")
 def test_get_forward_features_fn__forward_features() -> None:

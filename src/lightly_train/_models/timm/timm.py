@@ -483,14 +483,17 @@ def _has_increasing_feature_strides(feature_info: list[dict[str, Any]]) -> bool:
 
 def _get_patch_size(model: Module, feature_info: list[dict[str, Any]]) -> int:
     """Get the patch size of a model where all layers have the same feature stride."""
-    # Timm stores the patch size either as an int or as a (height, width) tuple.
-    patch_embed = getattr(model, "patch_embed", None)
-    patch_size = getattr(patch_embed, "patch_size", None)
-    if isinstance(patch_size, (tuple, list)) and len(set(patch_size)) != 1:
-        raise ValueError(
-            f"Model of type {type(model)} has a non-square patch size "
-            f"{tuple(patch_size)}, which is not supported for multi-scale features."
-        )
+    # Timm stores the patch embedding either as model.patch_embed (vision transformers)
+    # or as model.stem (MLP-Mixer, ResMLP), and the patch size on it either as an int or
+    # as a (height, width) tuple.
+    for attr_name in ("patch_embed", "stem"):
+        patch_embed = getattr(model, attr_name, None)
+        patch_size = getattr(patch_embed, "patch_size", None)
+        if isinstance(patch_size, (tuple, list)) and len(set(patch_size)) != 1:
+            raise ValueError(
+                f"Model of type {type(model)} has a non-square patch size "
+                f"{tuple(patch_size)}, which is not supported for multi-scale features."
+            )
     patch_size_int: int = feature_info[0]["reduction"]
     return patch_size_int
 
