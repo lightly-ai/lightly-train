@@ -395,9 +395,7 @@ backbones.
 
 Imbalanced datasets can make the model good at common classes and bad at rare ones. Use
 `model_args={"class_weights": ...}` to tell the loss that mistakes on rare classes count
-more. This works for both `train_image_classification` and
-`train_image_classification_multihead`, and for both `multiclass` and `multilabel`
-tasks.
+more. It works for both `multiclass` and `multilabel` tasks.
 
 ```python
 import lightly_train
@@ -406,12 +404,17 @@ if __name__ == "__main__":
     lightly_train.train_image_classification(
         out="out/my_experiment",
         model="dinov3/vitt16",
-        data={...},
-        # Default: no class weighting, exactly like training without this argument.
-        model_args={"class_weights": None},
-        # Or: count the training split automatically.
-        # model_args={"class_weights": "auto"},
-        # Or: set weights manually by class name.
+        data={
+            "train": "my_data_dir/train/",
+            "val": "my_data_dir/val/",
+            "classes": {
+                0: "cat",
+                1: "dog",
+            },
+        },
+        # Count the training split and weight rare classes higher.
+        model_args={"class_weights": "auto"},
+        # Or set the weights yourself, by class name.
         # model_args={"class_weights": {"cat": 1.0, "dog": 3.5}},
     )
 ```
@@ -424,7 +427,7 @@ Behavior:
 - A dictionary maps class names to weights for full control, for example
   `{"cat": 1.0, "dog": 3.5}`. Keys are class names, not class IDs or positions. The
   mapping must contain exactly the included class names: unknown names and missing
-  classes both raise a clear error.
+  classes both raise a clear error. Class names must be unique.
 
 Formulas:
 
@@ -434,14 +437,41 @@ Formulas:
 - Multilabel uses `torch.nn.BCEWithLogitsLoss(pos_weight=...)`. With `"auto"`, each
   class is handled independently as
   `pos_weight = num_images_without_class / num_images_with_class`, where an image with
-  several labels counts once for each of those classes. A class with no positive
-  training examples gets a neutral `pos_weight` of `1.0` so it is not suppressed if it
-  appears in validation.
+  several labels counts once for each of those classes. A class gets a neutral
+  `pos_weight` of `1.0` if it has no positive training examples, or if it is in every
+  training image. Automatic `pos_weight` values are clamped to `100`, and a warning
+  lists the classes that were clamped. Manual weights are never clamped.
 
 Classes dropped with `ignore_classes` are renumbered internally, but manual weights
 still use the original class names. Only included classes are expected in the
-dictionary, and weights follow the internal class order automatically. For multihead
-training, all heads share the same dataset and the same class-weight criterion.
+dictionary, and weights follow the internal class order automatically.
+
+### Effect on the Reported Losses
+
+Only the training loss is weighted. Validation always uses the unweighted loss, so
+`val_loss` stays comparable between weighted and unweighted runs and best checkpoint
+selection is unaffected.
+
+```{note}
+With class weights enabled, `train_loss` and `val_loss` are computed with different
+losses and are no longer directly comparable to each other. Compare `train_loss` to
+`train_loss` and `val_loss` to `val_loss` across runs instead.
+```
+
+The two losses also rescale differently, because both run with PyTorch's default
+`reduction="mean"`:
+
+| Loss                                | What `reduction="mean"` divides by                      | Effect of the weights on the loss value                      |
+| ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| `CrossEntropyLoss(weight=...)`      | the sum of the per-sample weights                       | none, the value stays on the same scale as an unweighted run |
+| `BCEWithLogitsLoss(pos_weight=...)` | the number of elements, `pos_weight` is not divided out | the loss and its gradients grow roughly with `pos_weight`    |
+
+For multiclass this means the weights change what the model optimizes but not the size
+of the numbers you see. For multilabel the reported `train_loss` and the gradients grow
+with `pos_weight`, so they are not comparable to an unweighted run. Larger gradients
+also hit `gradient_clip_val` (`3.0` by default when the backbone is not frozen) more
+often, which effectively lowers the learning rate. If a weighted multilabel run becomes
+unstable, lower `lr` or raise `gradient_clip_val`.
 
 ## Training Settings
 

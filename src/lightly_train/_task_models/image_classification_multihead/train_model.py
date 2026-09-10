@@ -21,8 +21,12 @@ from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationDataArgs,
+    ImageClassificationDataset,
+)
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
@@ -95,11 +99,16 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         if isinstance(data_args, ImageClassificationDataArgs):
             self.class_weights = (
                 image_classification_class_weights.resolve_class_weights(
-                    self.class_weights, data_args
+                    self.class_weights,
+                    data_args,
+                    train_dataset=train_dataset
+                    if isinstance(train_dataset, ImageClassificationDataset)
+                    else None,
                 )
             )
 
@@ -154,22 +163,24 @@ class ImageClassificationMultiheadTrain(TrainModel):
             load_weights=load_weights,
         )
 
+        # All heads share the same dataset, so they share one criterion. Training
+        # uses the class weights, validation does not.
         self.criterion: Module
-        # All LR heads share the same dataset, so they share one class-weight
-        # criterion. Weights are computed once, not per head.
-        resolved_weights = image_classification_class_weights.resolve_class_weights(
-            model_args.class_weights, data_args
-        )
+        self.val_criterion: Module
         class_weight_tensor = image_classification_class_weights.resolved_to_tensor(
-            resolved_weights, data_args
+            model_args.class_weights, data_args
         )
         if self.classification_task == "multiclass":
             self.criterion = CrossEntropyLoss(
                 weight=class_weight_tensor,
                 label_smoothing=model_args.label_smoothing,
             )
+            self.val_criterion = CrossEntropyLoss(
+                label_smoothing=model_args.label_smoothing
+            )
         elif self.classification_task == "multilabel":
             self.criterion = BCEWithLogitsLoss(pos_weight=class_weight_tensor)
+            self.val_criterion = BCEWithLogitsLoss()
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.classification_task}"
@@ -327,7 +338,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
         losses: list[Tensor] = []
         for head_name, logits in logits_dict.items():
-            loss = self.criterion(logits, targets)
+            loss = self.val_criterion(logits, targets)
             losses.append(loss)
 
             head_metrics: ClassificationTaskMetric = self.val_metrics.head_metrics[  # type: ignore

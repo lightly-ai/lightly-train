@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +18,8 @@ import torch
 from lightly.transforms.utils import IMAGENET_NORMALIZE
 from torchvision.transforms import functional as F
 
+from lightly_train._data._serialize import memory_mapped_sequence
+from lightly_train._data._serialize.memory_mapped_sequence import MemoryMappedSequence
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationDataset,
     ImageClassificationMulticlassDataArgs,
@@ -333,3 +336,137 @@ class TestImageClassificationMmapHash:
         )
         assert args.train_data_mmap_hash() == args.train_data_mmap_hash()
         assert args.val_data_mmap_hash() == args.val_data_mmap_hash()
+
+
+def _write_csv(csv_path: Path, rows: list[tuple[str, str]]) -> None:
+    with csv_path.open("w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["image_path", "label"])
+        writer.writeheader()
+        for image_path, label in rows:
+            writer.writerow({"image_path": image_path, "label": label})
+
+
+class TestCountClassOccurrences:
+    def test__image_folder(self, tmp_path: Path) -> None:
+        classes = {0: "cat", 1: "dog"}
+        for class_name, num_files in [("cat", 3), ("dog", 1)]:
+            helpers.create_images(tmp_path / "train" / class_name, files=num_files)
+        args = ImageClassificationMulticlassDataArgs(
+            train=tmp_path / "train", val=tmp_path / "train", classes=classes
+        )
+        dataset = helpers.get_image_classification_train_dataset(args)
+
+        assert dataset.count_class_occurrences() == [3, 1]
+        assert len(dataset) == 4
+
+    def test__ignore_middle_class(self, tmp_path: Path) -> None:
+        # Original: 3->cat, 7->car, 12->dog. Ignoring car gives internal cat->0, dog->1.
+        classes = {3: "cat", 7: "car", 12: "dog"}
+        for class_name, num_files in [("cat", 2), ("car", 5), ("dog", 3)]:
+            helpers.create_images(tmp_path / "train" / class_name, files=num_files)
+        args = ImageClassificationMulticlassDataArgs(
+            train=tmp_path / "train",
+            val=tmp_path / "train",
+            classes=classes,
+            ignore_classes={7},
+        )
+        dataset = helpers.get_image_classification_train_dataset(args)
+
+        assert dataset.count_class_occurrences() == [2, 3]
+        # The ignored class is not part of the dataset at all.
+        assert len(dataset) == 5
+
+    def test__class_without_images(self, tmp_path: Path) -> None:
+        classes = {0: "cat", 1: "dog"}
+        helpers.create_images(tmp_path / "train" / "cat", files=2)
+        (tmp_path / "train" / "dog").mkdir(parents=True)
+        args = ImageClassificationMulticlassDataArgs(
+            train=tmp_path / "train", val=tmp_path / "train", classes=classes
+        )
+        dataset = helpers.get_image_classification_train_dataset(args)
+
+        assert dataset.count_class_occurrences() == [2, 0]
+
+    def test__multilabel(self, tmp_path: Path) -> None:
+        classes = {0: "cat", 1: "car", 2: "dog"}
+        image_dir = tmp_path / "images"
+        helpers.create_images(image_dir, files=[f"img{i}.png" for i in range(4)])
+        csv_path = tmp_path / "train.csv"
+        # cat in 3 images, car in 1, dog in 2.
+        _write_csv(
+            csv_path,
+            [
+                (str(image_dir / "img0.png"), "cat"),
+                (str(image_dir / "img1.png"), "cat,car"),
+                (str(image_dir / "img2.png"), "cat,dog"),
+                (str(image_dir / "img3.png"), "dog"),
+            ],
+        )
+        args = ImageClassificationMultilabelDataArgs(
+            train=csv_path, val=csv_path, classes=classes
+        )
+        dataset = helpers.get_image_classification_train_dataset(args)
+
+        # An image with several labels counts for every one of them.
+        assert dataset.count_class_occurrences() == [3, 1, 2]
+        assert len(dataset) == 4
+
+    def test__multilabel_repeated_label(self, tmp_path: Path) -> None:
+        classes = {0: "cat", 1: "dog"}
+        image_dir = tmp_path / "images"
+        helpers.create_images(image_dir, files=["img0.png", "img1.png"])
+        csv_path = tmp_path / "train.csv"
+        _write_csv(
+            csv_path,
+            [
+                (str(image_dir / "img0.png"), "cat,cat"),
+                (str(image_dir / "img1.png"), "dog"),
+            ],
+        )
+        args = ImageClassificationMultilabelDataArgs(
+            train=csv_path, val=csv_path, classes=classes
+        )
+        train_args = args.get_train_args()
+
+        # Listing deduplicates labels within an image, so counting occurrences is the
+        # same as counting images per class.
+        assert [info["class_id"] for info in train_args.list_image_info()] == ["0", "1"]
+        dataset = helpers.get_image_classification_train_dataset(args)
+        assert dataset.count_class_occurrences() == [1, 1]
+
+    def test__reads_image_info(self, tmp_path: Path) -> None:
+        classes = {0: "cat", 1: "dog"}
+        for class_name, num_files in [("cat", 3), ("dog", 1)]:
+            helpers.create_images(tmp_path / "train" / class_name, files=num_files)
+        args = ImageClassificationMulticlassDataArgs(
+            train=tmp_path / "train", val=tmp_path / "train", classes=classes
+        )
+        dataset = helpers.get_image_classification_train_dataset(args)
+
+        # Listing the dataset again would be wasted work, the rows are already there.
+        # Removing the images makes a second listing return nothing, so the counts
+        # below can only come from `image_info`.
+        shutil.rmtree(tmp_path / "train")
+
+        assert dataset.count_class_occurrences() == [3, 1]
+
+    def test__memory_mapped(self, tmp_path: Path) -> None:
+        classes = {0: "cat", 1: "dog"}
+        for class_name, num_files in [("cat", 3), ("dog", 1)]:
+            helpers.create_images(tmp_path / "train" / class_name, files=num_files)
+        args = ImageClassificationMulticlassDataArgs(
+            train=tmp_path / "train", val=tmp_path / "train", classes=classes
+        )
+        train_args = args.get_train_args()
+        mmap_filepath = tmp_path / "train.arrow"
+        memory_mapped_sequence.write_items_to_file(
+            items=train_args.list_image_info(), mmap_filepath=mmap_filepath
+        )
+        dataset = ImageClassificationDataset(
+            dataset_args=train_args,
+            transform=_get_transform(),
+            image_info=MemoryMappedSequence.from_file(mmap_filepath=mmap_filepath),
+        )
+
+        # Memory mapped rows give the same counts as an in-memory list.
+        assert dataset.count_class_occurrences() == [3, 1]

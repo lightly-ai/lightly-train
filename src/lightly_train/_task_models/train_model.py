@@ -19,6 +19,7 @@ from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._metrics.task_metric import TaskMetric, TaskMetricArgs
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._torch_compile import TorchCompileArgs
@@ -40,6 +41,7 @@ class TrainModelArgs(PydanticConfig):
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         pass
 
