@@ -216,6 +216,45 @@ class DINOSGDArgs(SGDArgs):
     weight_decay: float = 0.0001
 
 
+class _AccumulatingDINOLoss(DINOLoss):  # type: ignore[misc]  # Lightly does not expose a typed DINOLoss.
+    """Keep centering fixed until all microbatches in an optimizer step finish."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._teacher_sum: Tensor | None = None
+        self._teacher_count = 0
+        self._teacher_dtype = torch.float32
+
+    @torch.no_grad()
+    def update_center(self, teacher_out: Tensor) -> None:
+        accumulation_dtype = (
+            torch.float32
+            if teacher_out.dtype in (torch.float16, torch.bfloat16)
+            else teacher_out.dtype
+        )
+        teacher_sum = teacher_out.sum(
+            dim=(0, 1), keepdim=True, dtype=accumulation_dtype
+        )
+        if self._teacher_sum is None:
+            self._teacher_sum = teacher_sum
+            self._teacher_dtype = teacher_out.dtype
+        else:
+            self._teacher_sum.add_(teacher_sum)
+        self._teacher_count += teacher_out.shape[0] * teacher_out.shape[1]
+
+    @torch.no_grad()
+    def commit_center(self) -> None:
+        if self._teacher_sum is not None:
+            # Reuse Lightly's center reduction and momentum update with the
+            # mean of the whole local window, including a partial final window.
+            window_mean = (self._teacher_sum / self._teacher_count).to(
+                self._teacher_dtype
+            )
+            super().update_center(window_mean)
+            self._teacher_sum = None
+            self._teacher_count = 0
+
+
 class DINO(Method):
     def __init__(
         self,
@@ -254,13 +293,14 @@ class DINO(Method):
             norm_last_layer=method_args.norm_last_layer,
         )
         self.flatten = Flatten(start_dim=1)
-        self.criterion = DINOLoss(
+        self.criterion = _AccumulatingDINOLoss(
             output_dim=no_auto(method_args.output_dim),
             teacher_temp=no_auto(method_args.teacher_temp),
             warmup_teacher_temp=no_auto(method_args.warmup_teacher_temp),
             student_temp=method_args.student_temp,
             center_momentum=method_args.center_momentum,
         )
+        self._teacher_updated_in_window = False
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
         momentum = cosine_schedule(
@@ -269,12 +309,14 @@ class DINO(Method):
             start_value=no_auto(self.method_args.momentum_start),
             end_value=self.method_args.momentum_end,
         )
-        update_momentum(
-            self.student_embedding_model, self.teacher_embedding_model, m=momentum
-        )
-        update_momentum(
-            self.student_projection_head, self.teacher_projection_head, m=momentum
-        )
+        if not self._teacher_updated_in_window:
+            update_momentum(
+                self.student_embedding_model, self.teacher_embedding_model, m=momentum
+            )
+            update_momentum(
+                self.student_projection_head, self.teacher_projection_head, m=momentum
+            )
+            self._teacher_updated_in_window = True
 
         views = batch["views"]
         global_views = torch.cat(views[:2])
@@ -438,6 +480,8 @@ class DINO(Method):
         return [optim], [scheduler]  # type: ignore[return-value]
 
     def on_before_optimizer_step(self, optimizer: Optimizer, *args: Any) -> None:
+        self.criterion.commit_center()
+        self._teacher_updated_in_window = False
         weight_decay = cosine_schedule(
             step=self.trainer.global_step,
             max_steps=self.trainer.estimated_stepping_batches,
