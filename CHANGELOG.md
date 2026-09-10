@@ -38,6 +38,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Update the DINO teacher EMA and center once per optimizer step when using gradient
+  accumulation, keeping teacher targets fixed within each accumulation window.
+
 ### Security
 
 ## [0.17.0] - 2026-07-28
