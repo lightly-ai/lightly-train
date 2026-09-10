@@ -23,6 +23,7 @@ from typing import (
 )
 
 import pyarrow as pa  # type: ignore
+import pyarrow.compute as pc  # type: ignore
 from pyarrow import Table, ipc
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,64 @@ def write_items_to_file(
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
     )
+
+
+def as_table(items: Sequence[Mapping[str, Primitive]]) -> Table:
+    """Returns an Arrow table view of a sequence of rows.
+
+    The view is zero-copy for a memory mapped sequence. Other sequences are
+    materialized into an in-memory table so that callers only need a single,
+    vectorized code path.
+    """
+    if isinstance(items, MemoryMappedSequence):
+        return items.table()
+    return pa.Table.from_pylist(list(items))
+
+
+def value_counts(
+    items: Sequence[Mapping[str, Primitive]],
+    column: str,
+    delimiter: str | None = None,
+) -> dict[Primitive, int]:
+    """Counts how often every value occurs in a column.
+
+    Counting happens inside Arrow, in a single vectorized pass over the (memory mapped)
+    column instead of a Python loop over the rows.
+
+    Args:
+        items:
+            Sequence of rows, ideally a memory mapped sequence.
+        column:
+            Name of the column to count.
+        delimiter:
+            If given, values are split on this delimiter before counting. A row with
+            the value "3,7" then counts once for "3" and once for "7". Occurrences are
+            counted as they appear, so a row with "3,3" counts twice for "3".
+
+    Returns:
+        Mapping from value to number of occurrences. Empty values are not counted.
+    """
+    table = as_table(items)
+    if column not in table.column_names:
+        # An empty sequence is written without any columns.
+        return {}
+
+    # The pyarrow.compute functions are generated at runtime, mypy doesn't see them.
+    values = table.column(column)
+    if delimiter is not None:
+        values = pc.list_flatten(  # type: ignore[attr-defined]
+            pc.split_pattern(values, pattern=delimiter)  # type: ignore[attr-defined]
+        )
+    if pa.types.is_string(values.type):
+        values = pc.utf8_trim_whitespace(values)  # type: ignore[attr-defined]
+
+    # Null values are dropped by Arrow and don't show up in the result.
+    counts = pc.value_counts(values)  # type: ignore[attr-defined]
+    return {
+        value.as_py(): count.as_py()
+        for value, count in zip(counts.field("values"), counts.field("counts"))
+        if value.as_py() != ""
+    }
 
 
 class MemoryMappedSequence(Sequence[T[Primitive]], Generic[Primitive]):

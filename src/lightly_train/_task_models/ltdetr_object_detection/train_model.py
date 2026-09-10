@@ -27,6 +27,7 @@ from typing_extensions import override
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
@@ -240,6 +241,7 @@ class LTDETRObjectDetectionTrainArgs(BaseLTDETRObjectDetectionTrainArgs):
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         if self.patch_size == "auto":
             patch_size = model_init_args.get("patch_size", None)
@@ -363,6 +365,7 @@ class DINOv2LTDETRObjectDetectionTrainArgsV2(BaseLTDETRObjectDetectionTrainArgs)
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         self._resolve_decoder_name(
             model_name=model_name, model_init_args=model_init_args

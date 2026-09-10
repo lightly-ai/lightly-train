@@ -17,6 +17,7 @@ from pydantic import AliasChoices, Field, model_validator
 from torch import Tensor
 
 from lightly_train._data import data_helpers, file_helpers, label_helpers
+from lightly_train._data._serialize import memory_mapped_sequence
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.image_classification_transform import (
@@ -72,6 +73,32 @@ class ImageClassificationDataset(TaskDataset):
                 ]
                 internal_class_ids.append(internal_class_id)
         return torch.tensor(internal_class_ids, dtype=torch.long)
+
+    def count_class_occurrences(self) -> list[int]:
+        """Returns the number of images containing every class.
+
+        The counts are in internal class id order and come from `image_info`, which
+        the training command already built and shares between ranks. They therefore
+        match the examples that are actually trained on (missing/unsupported images,
+        ignored classes and empty remaining labels are already filtered) without
+        listing the dataset again.
+
+        The total number of images is `len(self)`.
+        """
+        counts = memory_mapped_sequence.value_counts(
+            self.image_info,
+            column="class_id",
+            delimiter=self.dataset_args.label_delimiter,
+        )
+        # Class ids are stored as strings. Values that are not a class id of the
+        # dataset are ignored.
+        return [
+            int(counts.get(str(class_id), 0))
+            for class_id in label_helpers.internal_ordered_class_ids(
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=self.dataset_args.ignore_classes,
+            )
+        ]
 
     def __getitem__(self, index: int) -> ImageClassificationDatasetItem:
         # Load the image.
