@@ -7,12 +7,12 @@
 #
 from __future__ import annotations
 
-import logging
 import math
 from typing import Literal
 
 import torch
 from torch import Tensor
+from torch.nn import BCEWithLogitsLoss
 
 from lightly_train._data import label_helpers
 from lightly_train._data.image_classification_dataset import (
@@ -20,19 +20,30 @@ from lightly_train._data.image_classification_dataset import (
     ImageClassificationDataset,
 )
 
-logger = logging.getLogger(__name__)
-
-# Largest pos_weight that "auto" can return. Very rare classes would otherwise get a
-# huge weight, which inflates the loss and its gradients. Manual weights are not
-# clamped.
-MAX_AUTO_POS_WEIGHT = 100.0
-
 
 def _ordered_class_ids(data_args: ImageClassificationDataArgs) -> list[int]:
     """Included class ids in internal class id order."""
     return label_helpers.internal_ordered_class_ids(
         class_ids=data_args.classes.keys(), ignore_classes=data_args.ignore_classes
     )
+
+
+class NormalizedBCEWithLogitsLoss(BCEWithLogitsLoss):
+    """BCE loss that normalizes ``pos_weight`` by its effective weight sum."""
+
+    def __init__(self, pos_weight: Tensor | None = None) -> None:
+        super().__init__(pos_weight=pos_weight, reduction="none")
+
+    def forward(self, input: Tensor, target: Tensor) -> Tensor:
+        raw_loss = super().forward(input, target)
+        if self.pos_weight is None:
+            return raw_loss.mean()
+
+        effective_weight = 1 + target * (self.pos_weight - 1)
+        effective_weight_sum = effective_weight.sum()
+        return raw_loss.sum() / effective_weight_sum.clamp_min(
+            torch.finfo(effective_weight_sum.dtype).tiny
+        )
 
 
 def validate_unique_class_names(data_args: ImageClassificationDataArgs) -> None:
@@ -73,43 +84,22 @@ def compute_auto_multiclass_weights(counts: list[int]) -> list[float]:
 def compute_auto_multilabel_pos_weights(
     counts: list[int],
     total: int,
-    class_names: list[str] | None = None,
 ) -> list[float]:
     """Per-class ``neg / pos`` weights for ``BCEWithLogitsLoss``.
 
     A class gets a neutral ``pos_weight`` of 1.0 if it has no positive training
     examples, or if it is in every training image. The second case would give
     ``neg / pos == 0.0``, which stops the class from getting any gradient.
-
-    Weights are clamped to ``MAX_AUTO_POS_WEIGHT``. Clamped classes are logged.
     """
     if total <= 0:
         return [1.0] * len(counts)
     weights: list[float] = []
-    clamped: list[str] = []
-    for index, positive in enumerate(counts):
+    for positive in counts:
         negative = total - positive
         if positive <= 0 or negative <= 0:
             weights.append(1.0)
             continue
-        weight = negative / positive
-        if weight > MAX_AUTO_POS_WEIGHT:
-            weight = MAX_AUTO_POS_WEIGHT
-            name = (
-                class_names[index]
-                if class_names is not None and index < len(class_names)
-                else str(index)
-            )
-            clamped.append(name)
-        weights.append(weight)
-
-    if clamped:
-        logger.warning(
-            f"Automatic `pos_weight` was clamped to {MAX_AUTO_POS_WEIGHT} for very "
-            f"rare class(es): {sorted(clamped)}. Larger weights inflate the loss and "
-            "its gradients and can make training unstable. Pass an explicit "
-            "`class_weights` dict if you want larger weights for these classes."
-        )
+        weights.append(negative / positive)
     return weights
 
 
@@ -196,7 +186,7 @@ def resolve_class_weights(
             weights = compute_auto_multiclass_weights(counts)
         elif data_args.classification_task == "multilabel":
             weights = compute_auto_multilabel_pos_weights(
-                counts, total=len(train_dataset), class_names=ordered_names
+                counts, total=len(train_dataset)
             )
         else:
             raise ValueError(

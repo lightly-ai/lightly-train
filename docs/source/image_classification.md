@@ -434,13 +434,12 @@ Formulas:
 - Multiclass uses `torch.nn.CrossEntropyLoss(weight=...)`. With `"auto"`, weights are
   inverse class frequencies rescaled so their mean is `1.0`. A class with no training
   examples gets a neutral weight of `1.0`.
-- Multilabel uses `torch.nn.BCEWithLogitsLoss(pos_weight=...)`. With `"auto"`, each
-  class is handled independently as
+- Multilabel uses `torch.nn.BCEWithLogitsLoss(pos_weight=...)` with a normalized
+  weighted mean. With `"auto"`, each class is handled independently as
   `pos_weight = num_images_without_class / num_images_with_class`, where an image with
   several labels counts once for each of those classes. A class gets a neutral
   `pos_weight` of `1.0` if it has no positive training examples, or if it is in every
-  training image. Automatic `pos_weight` values are clamped to `100`, and a warning
-  lists the classes that were clamped. Manual weights are never clamped.
+  training image. Manual weights are not changed.
 
 Classes dropped with `ignore_classes` are renumbered internally, but manual weights
 still use the original class names. Only included classes are expected in the
@@ -458,20 +457,17 @@ losses and are no longer directly comparable to each other. Compare `train_loss`
 `train_loss` and `val_loss` to `val_loss` across runs instead.
 ```
 
-The two losses also rescale differently, because both run with PyTorch's default
-`reduction="mean"`:
+Both weighted losses normalize by their effective sample weights:
 
-| Loss                                | What `reduction="mean"` divides by                      | Effect of the weights on the loss value                      |
-| ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
-| `CrossEntropyLoss(weight=...)`      | the sum of the per-sample weights                       | none, the value stays on the same scale as an unweighted run |
-| `BCEWithLogitsLoss(pos_weight=...)` | the number of elements, `pos_weight` is not divided out | the loss and its gradients grow roughly with `pos_weight`    |
+| Loss                                | What the weighted mean divides by                            | Effect of the weights on the loss value                           |
+| ----------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `CrossEntropyLoss(weight=...)`      | the sum of the per-sample weights                            | the value stays on the same overall scale as an unweighted run    |
+| `BCEWithLogitsLoss(pos_weight=...)` | the sum of `1 + target * (pos_weight - 1)` for every element | the value stays on the same overall scale; positives retain ratio |
 
-For multiclass this means the weights change what the model optimizes but not the size
-of the numbers you see. For multilabel the reported `train_loss` and the gradients grow
-with `pos_weight`, so they are not comparable to an unweighted run. Larger gradients
-also hit `gradient_clip_val` (`3.0` by default when the backbone is not frozen) more
-often, which effectively lowers the learning rate. If a weighted multilabel run becomes
-unstable, lower `lr` or raise `gradient_clip_val`.
+For both tasks this means the weights change what the model optimizes without
+intentionally scaling the loss simply because the weights are larger. In multilabel
+training, positive terms still receive their requested relative `pos_weight` compared
+with negative terms.
 
 ## Training Settings
 

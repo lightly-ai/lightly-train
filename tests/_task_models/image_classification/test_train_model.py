@@ -21,6 +21,7 @@ from lightly_train._metrics.classification.task_metric import (
     MulticlassClassificationTaskMetricArgs,
     MultilabelClassificationTaskMetricArgs,
 )
+from lightly_train._task_models import image_classification_class_weights as cw
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
     ImageClassificationTrainArgs,
@@ -154,7 +155,7 @@ def test_class_weights__manual_multilabel(tmp_path: Path) -> None:
     model = _make_train_model(
         data_args, ImageClassificationTrainArgs(class_weights={"cat": 1.0, "dog": 4.0})
     )
-    assert isinstance(model.criterion, torch.nn.BCEWithLogitsLoss)
+    assert isinstance(model.criterion, cw.NormalizedBCEWithLogitsLoss)
     assert model.criterion.pos_weight is not None
     assert torch.allclose(model.criterion.pos_weight.cpu(), torch.tensor([1.0, 4.0]))
 
@@ -237,13 +238,34 @@ def test_class_weights__weighted_cross_entropy_keeps_scale() -> None:
     assert weighted < 2 * unweighted
 
 
-def test_class_weights__pos_weight_inflates_bce_loss() -> None:
-    # BCEWithLogitsLoss does not divide pos_weight out, so the loss grows with it.
-    torch.manual_seed(0)
-    logits = torch.randn(8, 3)
-    targets = torch.zeros(8, 3)
-    targets[torch.arange(8), torch.tensor([0, 0, 0, 0, 0, 0, 1, 2])] = 1.0
-    pos_weight = torch.tensor([1.0, 50.0, 50.0])
-    unweighted = torch.nn.BCEWithLogitsLoss()(logits, targets)
-    weighted = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)(logits, targets)
-    assert weighted > 3 * unweighted
+def test_class_weights__normalized_multilabel_bce_keeps_scale_and_relative_weight() -> (
+    None
+):
+    # At zero logits, every unweighted BCE term is equal. Normalization should keep
+    # the overall loss on that same scale while retaining the positive-term ratio.
+    targets = torch.tensor([[0.0, 0.0], [1.0, 1.0]])
+    unweighted_logits = torch.zeros_like(targets)
+    unweighted = torch.nn.BCEWithLogitsLoss()(unweighted_logits, targets)
+    assert cw.NormalizedBCEWithLogitsLoss()(
+        unweighted_logits, targets
+    ) == pytest.approx(unweighted.item())
+    normalized = cw.NormalizedBCEWithLogitsLoss(pos_weight=torch.tensor([2.0, 4.0]))
+    assert normalized.reduction == "none"
+    assert normalized(unweighted_logits, targets) == pytest.approx(unweighted.item())
+
+    logits = torch.zeros_like(targets, requires_grad=True)
+    loss = normalized(logits, targets)
+    loss.backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert logits.grad[1, 0].abs() / logits.grad[0, 0].abs() == pytest.approx(2.0)
+    assert logits.grad[1, 1].abs() / logits.grad[0, 1].abs() == pytest.approx(4.0)
+
+    zero_weight_logits = torch.zeros_like(targets, requires_grad=True)
+    zero_weight_loss = cw.NormalizedBCEWithLogitsLoss(pos_weight=torch.zeros(2))(
+        zero_weight_logits, torch.ones_like(targets)
+    )
+    assert torch.isfinite(zero_weight_loss)
+    zero_weight_loss.backward()
+    assert zero_weight_logits.grad is not None
+    assert torch.isfinite(zero_weight_logits.grad).all()

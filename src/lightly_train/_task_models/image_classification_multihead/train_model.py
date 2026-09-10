@@ -56,6 +56,16 @@ from lightly_train.types import ImageClassificationBatch, PathLike
 
 
 class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
+    """Arguments for internal multihead classification benchmarking.
+
+    ``class_weights`` accepts ``None``, ``"auto"``, or a class-name mapping. All
+    heads share the same dataset and class-weight criterion. Multiclass weights
+    are passed to ``CrossEntropyLoss``; multilabel automatic weights use
+    ``num_images_without_class / num_images_with_class`` and preserve the relative
+    positive ``pos_weight`` while normalizing by effective element weights.
+    Validation always uses an unweighted criterion.
+    """
+
     default_batch_size: ClassVar[int] = 128
     default_steps: ClassVar[int] = 100_000
 
@@ -179,7 +189,11 @@ class ImageClassificationMultiheadTrain(TrainModel):
                 label_smoothing=model_args.label_smoothing
             )
         elif self.classification_task == "multilabel":
-            self.criterion = BCEWithLogitsLoss(pos_weight=class_weight_tensor)
+            self.criterion = (
+                image_classification_class_weights.NormalizedBCEWithLogitsLoss(
+                    pos_weight=class_weight_tensor
+                )
+            )
             self.val_criterion = BCEWithLogitsLoss()
         else:
             raise ValueError(

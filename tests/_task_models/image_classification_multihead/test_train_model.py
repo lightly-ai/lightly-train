@@ -20,6 +20,7 @@ from lightly_train._metrics.classification.task_metric import (
     MulticlassClassificationTaskMetricArgs,
     MultilabelClassificationTaskMetricArgs,
 )
+from lightly_train._task_models import image_classification_class_weights as cw
 from lightly_train._task_models.image_classification.train_model import (
     ImageClassificationTrain,
     ImageClassificationTrainArgs,
@@ -176,7 +177,7 @@ def test_class_weights__manual_multilabel(tmp_path: Path) -> None:
         data_args,
         ImageClassificationMultiheadTrainArgs(class_weights={"cat": 1.0, "dog": 2.0}),
     )
-    assert isinstance(model.criterion, torch.nn.BCEWithLogitsLoss)
+    assert isinstance(model.criterion, cw.NormalizedBCEWithLogitsLoss)
     assert model.criterion.pos_weight is not None
     assert torch.allclose(model.criterion.pos_weight.cpu(), torch.tensor([1.0, 2.0]))
 
@@ -195,6 +196,24 @@ def test_class_weights__validation_criterion_is_unweighted(tmp_path: Path) -> No
     )
     assert isinstance(model.val_criterion, torch.nn.CrossEntropyLoss)
     assert model.val_criterion.weight is None
+
+
+def test_class_weights__validation_multilabel_criterion_is_unweighted(
+    tmp_path: Path,
+) -> None:
+    classes = {0: "cat", 1: "dog"}
+    helpers.create_multilabel_image_classification_dataset(
+        tmp_path=tmp_path, classes=classes, num_files=2
+    )
+    data_args = ImageClassificationMultilabelDataArgs(
+        train=tmp_path / "train.csv", val=tmp_path / "val.csv", classes=classes
+    )
+    model = _make_multihead_model(
+        data_args,
+        ImageClassificationMultiheadTrainArgs(class_weights={"cat": 1.0, "dog": 3.5}),
+    )
+    assert isinstance(model.val_criterion, torch.nn.BCEWithLogitsLoss)
+    assert model.val_criterion.pos_weight is None
 
 
 def test_class_weights__auto_matches_single_head(tmp_path: Path) -> None:

@@ -176,7 +176,11 @@ class ImageClassificationTrain(TrainModel):
                 label_smoothing=model_args.label_smoothing
             )
         elif self.model.classification_task == "multilabel":
-            self.criterion = BCEWithLogitsLoss(pos_weight=class_weight_tensor)
+            self.criterion = (
+                image_classification_class_weights.NormalizedBCEWithLogitsLoss(
+                    pos_weight=class_weight_tensor
+                )
+            )
             self.val_criterion = BCEWithLogitsLoss()
         else:
             raise ValueError(

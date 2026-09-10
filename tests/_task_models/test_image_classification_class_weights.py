@@ -95,24 +95,9 @@ def test_compute_auto_multilabel_pos_weights__zero_pos_weight_disables_class() -
     assert torch.all(logits.grad[:, 1] != 0.0)
 
 
-def test_compute_auto_multilabel_pos_weights__clamped(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # "rare" has 1 positive in 100_000 images -> 99_999 without the clamp.
-    with caplog.at_level("WARNING"):
-        weights = cw.compute_auto_multilabel_pos_weights(
-            [1, 50_000], total=100_000, class_names=["rare", "common"]
-        )
-    assert weights[0] == pytest.approx(cw.MAX_AUTO_POS_WEIGHT)
-    assert weights[1] == pytest.approx(1.0)
-    assert "rare" in caplog.text
-    assert "common" not in caplog.text
-
-
-def test_compute_auto_multilabel_pos_weights__not_clamped_below_max() -> None:
-    weights = cw.compute_auto_multilabel_pos_weights([10, 50], total=100)
-    assert weights[0] == pytest.approx(9.0)
-    assert weights[1] == pytest.approx(1.0)
+def test_compute_auto_multilabel_pos_weights__exact_neg_over_pos() -> None:
+    weights = cw.compute_auto_multilabel_pos_weights([1, 50_000], total=100_000)
+    assert weights == pytest.approx([99_999.0, 1.0])
 
 
 def test_validate_manual_weights__internal_order() -> None:
