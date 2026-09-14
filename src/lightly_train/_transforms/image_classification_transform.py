@@ -18,20 +18,19 @@ from albumentations import (
     ColorJitter,
     Compose,
     HorizontalFlip,
-    RandomResizedCrop,
     RandomRotate90,
     Rotate,
     SmallestMaxSize,
     VerticalFlip,
 )
 from albumentations.pytorch.transforms import ToTensorV2
-from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
 from typing_extensions import Literal
 
 from lightly_train._configs.validate import no_auto
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
+from lightly_train._transforms.random_resized_crop import get_random_resized_crop
 from lightly_train._transforms.task_transform import (
     TaskCollateFunction,
     TaskTransform,
@@ -44,7 +43,7 @@ from lightly_train._transforms.transform import (
     ColorJitterArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
+    RandomResizedCropArgs,
     RandomRotate90Args,
     RandomRotationArgs,
 )
@@ -71,7 +70,7 @@ class ImageClassificationTransformArgs(TaskTransformArgs):
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
     normalize: NormalizeArgs | Literal["auto"]
-    random_crop: RandomResizeArgs | None
+    random_crop: RandomResizedCropArgs | None
     resize_scale: float | None
     random_flip: RandomFlipArgs | None
     random_rotate_90: RandomRotate90Args | None
@@ -144,10 +143,9 @@ class ImageClassificationTransform(TaskTransform):
 
         if transform_args.random_crop is not None:
             transform += [
-                _get_RandomResizedCrop(
-                    image_size=no_auto(transform_args.image_size),
-                    min_scale=transform_args.random_crop.min_scale,
-                    max_scale=transform_args.random_crop.max_scale,
+                get_random_resized_crop(
+                    size=no_auto(transform_args.image_size),
+                    args=transform_args.random_crop,
                 )
             ]
         else:
@@ -237,30 +235,6 @@ class ImageClassificationTransform(TaskTransform):
         return {
             "image": transformed["image"],
         }
-
-
-ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
-
-
-def _get_RandomResizedCrop(
-    image_size: ImageSizeTuple,
-    min_scale: float,
-    max_scale: float,
-) -> RandomResizedCrop:
-    # A lot of though went into the choice of interpolation method here.
-    # See details in https://github.com/lightly-ai/lightly-train-old/pull/284
-    if ALBUMENTATIONS_VERSION_2XX:
-        return RandomResizedCrop(
-            size=image_size,
-            scale=(min_scale, max_scale),
-            interpolation=cv2.INTER_AREA,
-        )
-    return RandomResizedCrop(
-        height=image_size[0],
-        width=image_size[1],
-        scale=(min_scale, max_scale),
-        interpolation=cv2.INTER_AREA,
-    )
 
 
 class ImageClassificationCollateFunction(TaskCollateFunction):

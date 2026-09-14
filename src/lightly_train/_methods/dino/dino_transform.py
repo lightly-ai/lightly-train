@@ -20,7 +20,6 @@ from lightly_train._transforms.transform import (
     MethodTransformArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
     RandomResizedCropArgs,
     RandomRotationArgs,
     SolarizeArgs,
@@ -36,11 +35,11 @@ from lightly_train.types import (
 )
 
 
-class DINORandomResizeArgs(RandomResizeArgs):
+class DINORandomResizedCropArgs(RandomResizedCropArgs):
     min_scale: float = 0.14
 
 
-class DINOLocalViewRandomResizeArgs(RandomResizeArgs):
+class DINOLocalViewRandomResizedCropArgs(RandomResizedCropArgs):
     min_scale: float = 0.05
     max_scale: float = 0.14
 
@@ -85,8 +84,8 @@ class DINOGlobalView1TransformArgs(PydanticConfig):
 class DINOLocalViewTransformArgs(PydanticConfig):
     num_views: int = 6
     view_size: ImageSizeTuple = (96, 96)
-    random_resize: DINOLocalViewRandomResizeArgs | None = Field(
-        default_factory=DINOLocalViewRandomResizeArgs
+    random_resize: DINOLocalViewRandomResizedCropArgs | None = Field(
+        default_factory=DINOLocalViewRandomResizedCropArgs
     )
     gaussian_blur: DINOLocalViewGaussianBlurArgs | None = Field(
         default_factory=DINOLocalViewGaussianBlurArgs
@@ -101,8 +100,8 @@ class DINOTransformArgs(MethodTransformArgs):
     image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    random_resize: DINORandomResizeArgs | None = Field(
-        default_factory=DINORandomResizeArgs
+    random_resize: DINORandomResizedCropArgs | None = Field(
+        default_factory=DINORandomResizedCropArgs
     )
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotation: RandomRotationArgs | None = None
@@ -138,11 +137,9 @@ class DINOTransform(MethodTransform):
 
         global_transform_0 = ViewTransform(
             ViewTransformArgs(
+                image_size=transform_args.image_size,
                 channel_drop=transform_args.channel_drop,
-                random_resized_crop=RandomResizedCropArgs(
-                    size=transform_args.image_size,
-                    scale=transform_args.random_resize,
-                ),
+                random_resized_crop=transform_args.random_resize,
                 random_flip=transform_args.random_flip,
                 random_rotation=transform_args.random_rotation,
                 color_jitter=transform_args.color_jitter,
@@ -156,11 +153,9 @@ class DINOTransform(MethodTransform):
 
         global_transform_1 = ViewTransform(
             ViewTransformArgs(
+                image_size=transform_args.image_size,
                 channel_drop=transform_args.channel_drop,
-                random_resized_crop=RandomResizedCropArgs(
-                    size=transform_args.image_size,
-                    scale=transform_args.random_resize,
-                ),
+                random_resized_crop=transform_args.random_resize,
                 random_flip=transform_args.random_flip,
                 random_rotation=transform_args.random_rotation,
                 color_jitter=transform_args.color_jitter,
@@ -178,11 +173,9 @@ class DINOTransform(MethodTransform):
         if transform_args.local_view is not None:
             local_transform = ViewTransform(
                 ViewTransformArgs(
+                    image_size=transform_args.local_view.view_size,
                     channel_drop=transform_args.channel_drop,
-                    random_resized_crop=RandomResizedCropArgs(
-                        size=transform_args.local_view.view_size,
-                        scale=transform_args.local_view.random_resize,
-                    ),
+                    random_resized_crop=transform_args.local_view.random_resize,
                     random_flip=transform_args.random_flip,
                     random_rotation=transform_args.random_rotation,
                     color_jitter=transform_args.color_jitter,

@@ -212,6 +212,8 @@ def pretrain(
                     "random_resize": {
                         "min_scale": float,
                         "max_scale": float,
+                        "min_ratio": float,
+                        "max_ratio": float,
                     },
                     "random_flip": {
                         "horizonal_prob": float,
