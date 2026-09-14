@@ -612,24 +612,10 @@ lightly_train.pretrain(
 
 #### `random_resize`
 
-Random cropping and resizing. Can be disabled by setting to `None`.
-
-```python
-import lightly_train
-
-lightly_train.pretrain(
-	...,
-	transform_args={
-		"random_resize": {
-			"min_scale": 0.2,
-			"max_scale": 1.0,
-		},
-	},
-)
-```
-
-The aspect ratio range of the crops can be configured with `min_ratio` and
-`max_ratio` and defaults to `(3 / 4, 4 / 3)`.
+Random cropping and resizing. A random area of the image is cropped and then resized to
+[`image_size`](#image_size). `min_scale` and `max_scale` control which fraction of the
+image area is cropped, `min_ratio` and `max_ratio` control the aspect ratio range of the
+crop and default to `(3 / 4, 4 / 3)`.
 
 ```python
 import lightly_train
@@ -646,6 +632,9 @@ lightly_train.pretrain(
 	},
 )
 ```
+
+Can be disabled by setting to `None`. Images are then only resized to
+[`image_size`](#image_size), without any cropping.
 
 #### `random_flip`
 

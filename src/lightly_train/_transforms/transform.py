@@ -44,24 +44,23 @@ class ResizeArgs(PydanticConfig):
             self.width = width
 
 
-class RandomResizeArgs(PydanticConfig):
+class RandomResizedCropArgs(PydanticConfig):
+    """Arguments for a random resized crop.
+
+    The crop size is not part of these arguments, it is always the image size the
+    surrounding transform is configured with.
+    """
+
     min_scale: float = 0.08
     max_scale: float = 1.0
     min_ratio: float = 3 / 4
     max_ratio: float = 4 / 3
 
-    def as_tuple(self) -> tuple[float, float]:
+    def scale_as_tuple(self) -> tuple[float, float]:
         return self.min_scale, self.max_scale
 
     def ratio_as_tuple(self) -> tuple[float, float]:
         return self.min_ratio, self.max_ratio
-
-
-class RandomResizedCropArgs(PydanticConfig):
-    # don't allow None for .size since it comes from MethodTransformArgs.image_size
-    # however .scale comes from MethodTransformArgs.random_resize which may be None
-    size: tuple[int, int]
-    scale: RandomResizeArgs | None
 
 
 class RandomFlipArgs(PydanticConfig):
@@ -312,7 +311,7 @@ class MethodTransformArgs(PydanticConfig):
     image_size: ImageSizeTuple
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
-    random_resize: RandomResizeArgs | None
+    random_resize: RandomResizedCropArgs | None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
     color_jitter: ColorJitterArgs | None
