@@ -53,8 +53,10 @@ class RandomResizedCropArgs(PydanticConfig):
 
     min_scale: float = 0.08
     max_scale: float = 1.0
-    min_ratio: float = 3 / 4
-    max_ratio: float = 4 / 3
+    # A ratio of 0 is rejected here because it only fails later, once sampling a crop
+    # takes the logarithm of the ratio.
+    min_ratio: float = Field(default=3 / 4, gt=0)
+    max_ratio: float = Field(default=4 / 3, gt=0)
 
     def scale_as_tuple(self) -> tuple[float, float]:
         return self.min_scale, self.max_scale

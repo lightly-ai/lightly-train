@@ -47,8 +47,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   images instead of also center cropping them to an aspect ratio between 3:4 and 4:3.
   Images that are not roughly square were previously cropped even though cropping was
   disabled.
-- `min_ratio` and `max_ratio` are no longer silently ignored during classification
-  fine-tuning.
 
 ### Security
 
