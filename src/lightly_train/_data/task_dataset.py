@@ -13,6 +13,7 @@ from typing import ClassVar
 from torch.utils.data import Dataset
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.item_store import ItemStore, as_item_store
 from lightly_train._transforms.task_transform import TaskCollateFunction, TaskTransform
 from lightly_train.types import TaskDatasetItem
 
@@ -32,11 +33,13 @@ class TaskDataset(Dataset[TaskDatasetItem]):
     def __init__(
         self,
         dataset_args: TaskDatasetArgs,
-        image_info: Sequence[dict[str, str]],
+        image_info: ItemStore | Sequence[dict[str, str]],
         transform: TaskTransform | None = None,
     ) -> None:
         self.dataset_args = dataset_args
-        self.image_info = image_info
+        # Datasets access the rows through the item store interface only. This keeps
+        # them independent of how the rows are stored.
+        self.image_info: ItemStore = as_item_store(image_info)
         self._transform = transform
 
     @property

@@ -207,74 +207,31 @@ def _write_and_read(
 
 class TestValueCounts:
     @pytest.mark.parametrize("chunk_size", [1, 2, 10_000])
-    def test_delimiter(self, chunk_size: int, tmp_path: Path) -> None:
-        items = [
-            {"image_path": "a.jpg", "class_id": "3,12"},
-            {"image_path": "b.jpg", "class_id": "3"},
-            {"image_path": "c.jpg", "class_id": "12"},
-            {"image_path": "d.jpg", "class_id": "12"},
-        ]
-        sequence = _write_and_read(items, tmp_path, chunk_size=chunk_size)
-        assert memory_mapped_sequence.value_counts(
-            sequence, column="class_id", delimiter=","
-        ) == {"3": 2, "12": 3}
-
-    def test_no_delimiter(self, tmp_path: Path) -> None:
+    def test_counts(self, chunk_size: int, tmp_path: Path) -> None:
         items = [
             {"image_path": "a.jpg", "class_id": "3,12"},
             {"image_path": "b.jpg", "class_id": "3,12"},
             {"image_path": "c.jpg", "class_id": "3"},
         ]
-        sequence = _write_and_read(items, tmp_path)
-        # Without a delimiter the full value is counted.
-        assert memory_mapped_sequence.value_counts(sequence, column="class_id") == {
-            "3,12": 2,
-            "3": 1,
-        }
+        sequence = _write_and_read(items, tmp_path, chunk_size=chunk_size)
+        # Values are counted as they are stored.
+        assert sequence.value_counts(column="class_id") == {"3,12": 2, "3": 1}
 
     def test_whitespace_and_empty_values(self, tmp_path: Path) -> None:
         items = [
-            {"image_path": "a.jpg", "class_id": " 3 , 12"},
-            {"image_path": "b.jpg", "class_id": ""},
-            {"image_path": "c.jpg", "class_id": "3,"},
+            {"image_path": "a.jpg", "class_id": " 3 "},
+            {"image_path": "b.jpg", "class_id": "3"},
+            {"image_path": "c.jpg", "class_id": ""},
         ]
         sequence = _write_and_read(items, tmp_path)
         # Whitespace is trimmed and empty values are not counted.
-        assert memory_mapped_sequence.value_counts(
-            sequence, column="class_id", delimiter=","
-        ) == {"3": 2, "12": 1}
-
-    def test_repeated_value_in_one_row(self, tmp_path: Path) -> None:
-        items = [{"image_path": "a.jpg", "class_id": "3,3"}]
-        sequence = _write_and_read(items, tmp_path)
-        # Occurrences are counted, they are not deduplicated per row.
-        assert memory_mapped_sequence.value_counts(
-            sequence, column="class_id", delimiter=","
-        ) == {"3": 2}
+        assert sequence.value_counts(column="class_id") == {"3": 2}
 
     def test_no_items(self, tmp_path: Path) -> None:
         # An empty sequence is written without any columns.
         sequence = _write_and_read([], tmp_path)
-        assert (
-            memory_mapped_sequence.value_counts(
-                sequence, column="class_id", delimiter=","
-            )
-            == {}
-        )
+        assert sequence.value_counts(column="class_id") == {}
 
     def test_unknown_column(self, tmp_path: Path) -> None:
         sequence = _write_and_read([{"image_path": "a.jpg"}], tmp_path)
-        assert memory_mapped_sequence.value_counts(sequence, column="class_id") == {}
-
-    def test_list_items(self, tmp_path: Path) -> None:
-        items = [
-            {"image_path": "a.jpg", "class_id": "3,12"},
-            {"image_path": "b.jpg", "class_id": "3"},
-        ]
-        sequence = _write_and_read(items, tmp_path)
-        # Sequences that are not memory mapped give the same result.
-        assert memory_mapped_sequence.value_counts(
-            items, column="class_id", delimiter=","
-        ) == memory_mapped_sequence.value_counts(
-            sequence, column="class_id", delimiter=","
-        )
+        assert sequence.value_counts(column="class_id") == {}

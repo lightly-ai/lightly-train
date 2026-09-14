@@ -61,40 +61,28 @@ def as_table(items: Sequence[Mapping[str, Primitive]]) -> Table:
     return pa.Table.from_pylist(list(items))
 
 
-def value_counts(
-    items: Sequence[Mapping[str, Primitive]],
-    column: str,
-    delimiter: str | None = None,
-) -> dict[Primitive, int]:
+def value_counts_from_table(table: Table, column: str) -> dict[Primitive, int]:
     """Counts how often every value occurs in a column.
 
     Counting happens inside Arrow, in a single vectorized pass over the (memory mapped)
-    column instead of a Python loop over the rows.
+    column instead of a Python loop over the rows. Values are counted as they are
+    stored; interpreting them is up to the caller.
 
     Args:
-        items:
-            Sequence of rows, ideally a memory mapped sequence.
+        table:
+            Arrow table holding the rows, see `as_table`.
         column:
             Name of the column to count.
-        delimiter:
-            If given, values are split on this delimiter before counting. A row with
-            the value "3,7" then counts once for "3" and once for "7". Occurrences are
-            counted as they appear, so a row with "3,3" counts twice for "3".
 
     Returns:
         Mapping from value to number of occurrences. Empty values are not counted.
     """
-    table = as_table(items)
     if column not in table.column_names:
         # An empty sequence is written without any columns.
         return {}
 
     # The pyarrow.compute functions are generated at runtime, mypy doesn't see them.
     values = table.column(column)
-    if delimiter is not None:
-        values = pc.list_flatten(  # type: ignore[attr-defined]
-            pc.split_pattern(values, pattern=delimiter)  # type: ignore[attr-defined]
-        )
     if pa.types.is_string(values.type):
         values = pc.utf8_trim_whitespace(values)  # type: ignore[attr-defined]
 
@@ -158,6 +146,13 @@ class MemoryMappedSequence(Sequence[T[Primitive]], Generic[Primitive]):
             self._pid = pid
             self._table = _mmap_table_from_file(mmap_filepath=self._path)
         return self._table
+
+    def value_counts(self, column: str) -> dict[Primitive, int]:
+        """Counts how often every value occurs in a column.
+
+        See `value_counts_from_table` for details.
+        """
+        return value_counts_from_table(table=self.table(), column=column)
 
     def __len__(self) -> int:
         num_rows: int = self.table().num_rows

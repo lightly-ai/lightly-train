@@ -434,6 +434,30 @@ class TestCountClassOccurrences:
         dataset = helpers.get_image_classification_train_dataset(args)
         assert dataset.count_class_occurrences() == [1, 1]
 
+    def test__multilabel_padded_class_ids(self, tmp_path: Path) -> None:
+        classes = {3: "cat", 7: "dog"}
+        image_dir = tmp_path / "images"
+        helpers.create_images(image_dir, files=["img0.png", "img1.png"])
+        csv_path = tmp_path / "train.csv"
+        _write_csv(csv_path, [(str(image_dir / "img0.png"), "cat")])
+        args = ImageClassificationMultilabelDataArgs(
+            train=csv_path, val=csv_path, classes=classes
+        )
+        # The stored values are counted as they are, so padding around the delimiter
+        # has to be handled when the counts are expanded to classes.
+        image_info = [
+            {"image_path": str(image_dir / "img0.png"), "class_id": " 3, 7 "},
+            {"image_path": str(image_dir / "img1.png"), "class_id": "7"},
+        ]
+        dataset = ImageClassificationDataset(
+            dataset_args=args.get_train_args(),
+            transform=_get_transform(),
+            image_info=image_info,
+        )
+
+        assert dataset.count_class_occurrences() == [1, 2]
+        assert dataset[0]["classes"].tolist() == [0, 1]
+
     def test__reads_image_info(self, tmp_path: Path) -> None:
         classes = {0: "cat", 1: "dog"}
         for class_name, num_files in [("cat", 3), ("dog", 1)]:
