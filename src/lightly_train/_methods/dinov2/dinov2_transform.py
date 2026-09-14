@@ -11,34 +11,34 @@ from __future__ import annotations
 from pydantic import Field
 
 from lightly_train._methods.dino.dino_transform import (
-    DINOLocalViewRandomResizeArgs,
+    DINOLocalViewRandomResizedCropArgs,
     DINOLocalViewTransformArgs,
-    DINORandomResizeArgs,
+    DINORandomResizedCropArgs,
     DINOTransform,
     DINOTransformArgs,
 )
 from lightly_train.types import ImageSizeTuple
 
 
-class DINOv2RandomResizeArgs(DINORandomResizeArgs):
+class DINOv2RandomResizedCropArgs(DINORandomResizedCropArgs):
     min_scale: float = 0.32
 
 
-class DINOv2LocalViewRandomResizeArgs(DINOLocalViewRandomResizeArgs):
+class DINOv2LocalViewRandomResizedCropArgs(DINOLocalViewRandomResizedCropArgs):
     max_scale: float = 0.32
 
 
 class DINOv2ViTLocalViewTransformArgs(DINOLocalViewTransformArgs):
     num_views: int = 8
     view_size: ImageSizeTuple = (98, 98)
-    random_resize: DINOv2LocalViewRandomResizeArgs | None = Field(
-        default_factory=DINOv2LocalViewRandomResizeArgs
+    random_resize: DINOv2LocalViewRandomResizedCropArgs | None = Field(
+        default_factory=DINOv2LocalViewRandomResizedCropArgs
     )
 
 
 class DINOv2ViTTransformArgs(DINOTransformArgs):
-    random_resize: DINOv2RandomResizeArgs | None = Field(
-        default_factory=DINOv2RandomResizeArgs
+    random_resize: DINOv2RandomResizedCropArgs | None = Field(
+        default_factory=DINOv2RandomResizedCropArgs
     )
     local_view: DINOv2ViTLocalViewTransformArgs | None = Field(
         default_factory=DINOv2ViTLocalViewTransformArgs
