@@ -22,7 +22,6 @@ from lightly_train._transforms.transform import (
     GaussianBlurArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
     RandomResizedCropArgs,
     RandomRotationArgs,
     SolarizeArgs,
@@ -45,10 +44,7 @@ def _get_channel_drop_args() -> ChannelDropArgs:
 
 
 def _get_random_resized_crop_args() -> RandomResizedCropArgs:
-    return RandomResizedCropArgs(
-        size=(64, 64),
-        scale=RandomResizeArgs(min_scale=0.2, max_scale=1.0),
-    )
+    return RandomResizedCropArgs(min_scale=0.2, max_scale=1.0)
 
 
 def _get_random_flip_args() -> RandomFlipArgs:
@@ -92,7 +88,7 @@ def _get_normalize_args() -> NormalizeArgs:
 
 PossibleArgsTuple = Tuple[
     Union[ChannelDropArgs, None],
-    RandomResizedCropArgs,
+    Union[RandomResizedCropArgs, None],
     Union[RandomFlipArgs, None],
     Union[RandomRotationArgs, None],
     Union[ColorJitterArgs, None],
@@ -105,7 +101,7 @@ PossibleArgsTuple = Tuple[
 
 def _get_possible_view_transform_args_combinations() -> list[PossibleArgsTuple]:
     channel_drop = [_get_channel_drop_args(), None]
-    random_resized_crop = [_get_random_resized_crop_args()] * 2
+    random_resized_crop = [_get_random_resized_crop_args(), None]
     random_flip = [_get_random_flip_args(), None]
     random_rotation = [_get_random_rotation_args(), None]
     color_jitter = [_get_color_jitter_args(), None]
@@ -138,6 +134,7 @@ class TestViewTransform:
         # as an 8-element tensor [x0, y0, x1, y1, image_w, image_h, hflip, vflip].
         view_transform = ViewTransform(
             ViewTransformArgs(
+                image_size=(64, 64),
                 channel_drop=None,
                 random_resized_crop=_get_random_resized_crop_args(),
                 random_flip=_get_random_flip_args(),
@@ -173,6 +170,7 @@ class TestViewTransform:
         # independently, with no applied_transforms key leaking into the output.
         view_transform = ViewTransform(
             ViewTransformArgs(
+                image_size=(64, 64),
                 channel_drop=None,
                 random_resized_crop=_get_random_resized_crop_args(),
                 random_flip=_get_random_flip_args(),
@@ -200,6 +198,7 @@ class TestViewTransform:
         with pytest.raises(ValueError, match="random_rotation"):
             ViewTransform(
                 ViewTransformArgs(
+                    image_size=(64, 64),
                     channel_drop=None,
                     random_resized_crop=_get_random_resized_crop_args(),
                     random_flip=_get_random_flip_args(),
@@ -220,7 +219,7 @@ class TestViewTransform:
     def test_view_transform_all_args_combinations(
         self,
         channel_drop: ChannelDropArgs | None,
-        random_resized_crop: RandomResizedCropArgs,
+        random_resized_crop: RandomResizedCropArgs | None,
         random_flip: RandomFlipArgs | None,
         random_rotation: RandomRotationArgs | None,
         color_jitter: ColorJitterArgs | None,
@@ -231,6 +230,7 @@ class TestViewTransform:
     ) -> None:
         view_transform = ViewTransform(
             ViewTransformArgs(
+                image_size=(64, 64),
                 channel_drop=channel_drop,
                 random_resized_crop=random_resized_crop,
                 random_flip=random_flip,
@@ -251,3 +251,69 @@ class TestViewTransform:
         img = tr_output["image"]
         assert img.shape == (3, 64, 64)
         assert img.dtype == torch.float32
+
+    def test_no_random_resized_crop__keeps_whole_image(self) -> None:
+        # Without a random resized crop the view is only resized, so nothing is cut
+        # off. A random resized crop with scale=(1.0, 1.0) would instead center crop
+        # non-square images down to the aspect ratio range first.
+        image_h, image_w = 100, 200
+        image = np.zeros((image_h, image_w, 3), dtype=np.float32)
+        # Mark the left and right edges, they are the first thing a center crop of a
+        # 2:1 image discards.
+        image[:, :10] = 1.0
+        image[:, -10:] = 1.0
+
+        view_transform = ViewTransform(
+            ViewTransformArgs(
+                image_size=(64, 64),
+                channel_drop=None,
+                random_resized_crop=None,
+                random_flip=None,
+                random_rotation=None,
+                color_jitter=None,
+                random_gray_scale=None,
+                gaussian_blur=None,
+                solarize=None,
+                normalize=_get_normalize_args(),
+            )
+        )
+        tr_input: TransformInput = {"image": image}
+        out = view_transform(tr_input)["image"]
+        assert out.shape == (3, 64, 64)
+        # The marked edges survive, the unmarked center stays dark.
+        center = out[0, :, 32].max()
+        assert out[0, :, 0].max() > center
+        assert out[0, :, -1].max() > center
+
+    @RECORD_GEOMETRY_SKIP
+    def test_record_geometry__no_random_resized_crop(self) -> None:
+        view_transform = ViewTransform(
+            ViewTransformArgs(
+                image_size=(64, 64),
+                channel_drop=None,
+                random_resized_crop=None,
+                random_flip=None,
+                random_rotation=None,
+                color_jitter=None,
+                random_gray_scale=None,
+                gaussian_blur=None,
+                solarize=None,
+                normalize=_get_normalize_args(),
+            ),
+            record_geometry=True,
+        )
+        image_h, image_w = 100, 200
+        tr_input: TransformInput = {
+            "image": np.random.rand(image_h, image_w, 3).astype(np.float32),
+        }
+        geometry = view_transform(tr_input)["geometry"]
+        assert geometry.tolist() == [
+            0.0,
+            0.0,
+            float(image_w),
+            float(image_h),
+            float(image_w),
+            float(image_h),
+            0.0,
+            0.0,
+        ]

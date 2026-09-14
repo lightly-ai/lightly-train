@@ -44,19 +44,25 @@ class ResizeArgs(PydanticConfig):
             self.width = width
 
 
-class RandomResizeArgs(PydanticConfig):
+class RandomResizedCropArgs(PydanticConfig):
+    """Arguments for a random resized crop.
+
+    The crop size is not part of these arguments, it is always the image size the
+    surrounding transform is configured with.
+    """
+
     min_scale: float = 0.08
     max_scale: float = 1.0
+    # A ratio of 0 is rejected here because it only fails later, once sampling a crop
+    # takes the logarithm of the ratio.
+    min_ratio: float = Field(default=3 / 4, gt=0)
+    max_ratio: float = Field(default=4 / 3, gt=0)
 
-    def as_tuple(self) -> tuple[float, float]:
+    def scale_as_tuple(self) -> tuple[float, float]:
         return self.min_scale, self.max_scale
 
-
-class RandomResizedCropArgs(PydanticConfig):
-    # don't allow None for .size since it comes from MethodTransformArgs.image_size
-    # however .scale comes from MethodTransformArgs.random_resize which may be None
-    size: tuple[int, int]
-    scale: RandomResizeArgs | None
+    def ratio_as_tuple(self) -> tuple[float, float]:
+        return self.min_ratio, self.max_ratio
 
 
 class RandomFlipArgs(PydanticConfig):
@@ -307,7 +313,7 @@ class MethodTransformArgs(PydanticConfig):
     image_size: ImageSizeTuple
     channel_drop: ChannelDropArgs | None
     num_channels: int | Literal["auto"]
-    random_resize: RandomResizeArgs | None
+    random_resize: RandomResizedCropArgs | None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
     color_jitter: ColorJitterArgs | None

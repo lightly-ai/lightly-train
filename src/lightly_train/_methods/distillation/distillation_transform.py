@@ -18,7 +18,6 @@ from lightly_train._transforms.transform import (
     MethodTransformArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
     RandomResizedCropArgs,
     RandomRotationArgs,
     SolarizeArgs,
@@ -34,7 +33,7 @@ from lightly_train.types import (
 )
 
 
-class DistillationRandomResizeArgs(RandomResizeArgs):
+class DistillationRandomResizedCropArgs(RandomResizedCropArgs):
     min_scale: float = 0.14
 
 
@@ -57,8 +56,8 @@ class DistillationTransformArgs(MethodTransformArgs):
     image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    random_resize: DistillationRandomResizeArgs | None = Field(
-        default_factory=DistillationRandomResizeArgs
+    random_resize: DistillationRandomResizedCropArgs | None = Field(
+        default_factory=DistillationRandomResizedCropArgs
     )
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotation: RandomRotationArgs | None = None
@@ -79,11 +78,9 @@ class DistillationTransform(MethodTransform):
 
         self.transform = ViewTransform(
             ViewTransformArgs(
+                image_size=transform_args.image_size,
                 channel_drop=transform_args.channel_drop,
-                random_resized_crop=RandomResizedCropArgs(
-                    size=transform_args.image_size,
-                    scale=transform_args.random_resize,
-                ),
+                random_resized_crop=transform_args.random_resize,
                 random_flip=transform_args.random_flip,
                 random_rotation=transform_args.random_rotation,
                 color_jitter=transform_args.color_jitter,

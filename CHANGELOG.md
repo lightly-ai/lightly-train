@@ -16,6 +16,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   AMD GPUs.
 - Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
   available from PyPI.
+- The aspect ratio range of the random resized crop can now be configured with
+  `min_ratio` and `max_ratio`, for pretraining via
+  `transform_args={"random_resize": {"min_ratio": ..., "max_ratio": ...}}` and for
+  classification fine-tuning via `transform_args={"random_crop": {...}}`. The defaults
+  are unchanged at `(3 / 4, 4 / 3)`.
 - Add an optional `faster-coco-eval` dependency that speeds up the mAP computation at
   the end of every validation run by ~5x for object detection. Install it with
   `pip install "lightly-train[faster-coco-eval]"`; it is then used automatically. Both
@@ -37,6 +42,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Removed
 
 ### Fixed
+
+- Setting `transform_args={"random_resize": None}` during pretraining now only resizes
+  images instead of also center cropping them to an aspect ratio between 3:4 and 4:3.
+  Images that are not roughly square were previously cropped even though cropping was
+  disabled.
 
 ### Security
 
