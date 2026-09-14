@@ -11,18 +11,16 @@ from lightly_train._transforms.random_resized_crop import get_random_resized_cro
 from lightly_train._transforms.transform import RandomResizedCropArgs
 
 
-class TestGetRandomResizedCrop:
-    def test_ratio_defaults(self) -> None:
-        assert RandomResizedCropArgs().ratio_as_tuple() == (3 / 4, 4 / 3)
+def test_get_random_resized_crop() -> None:
+    args = RandomResizedCropArgs(min_scale=0.2, max_scale=1.0)
+    crop = get_random_resized_crop(size=(64, 64), args=args)
+    assert crop.scale == (0.2, 1.0)
+    assert crop.ratio == (3 / 4, 4 / 3)
 
-    def test_ratio_is_passed_through(self) -> None:
-        args = RandomResizedCropArgs(
-            min_scale=0.2, max_scale=1.0, min_ratio=0.5, max_ratio=2.0
-        )
-        crop = get_random_resized_crop(size=(64, 64), args=args)
-        assert crop.ratio == (0.5, 2.0)
 
-    def test_scale_is_passed_through(self) -> None:
-        args = RandomResizedCropArgs(min_scale=0.2, max_scale=1.0)
-        crop = get_random_resized_crop(size=(64, 64), args=args)
-        assert crop.scale == (0.2, 1.0)
+def test_get_random_resized_crop__ratio() -> None:
+    args = RandomResizedCropArgs(
+        min_scale=0.2, max_scale=1.0, min_ratio=0.5, max_ratio=2.0
+    )
+    crop = get_random_resized_crop(size=(64, 64), args=args)
+    assert crop.ratio == (0.5, 2.0)

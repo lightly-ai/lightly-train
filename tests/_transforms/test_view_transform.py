@@ -252,9 +252,7 @@ class TestViewTransform:
         assert img.shape == (3, 64, 64)
         assert img.dtype == torch.float32
 
-
-class TestViewTransformWithoutRandomResizedCrop:
-    def test_keeps_the_whole_image(self) -> None:
+    def test_no_random_resized_crop__keeps_whole_image(self) -> None:
         # Without a random resized crop the view is only resized, so nothing is cut
         # off. A random resized crop with scale=(1.0, 1.0) would instead center crop
         # non-square images down to the aspect ratio range first.
@@ -288,7 +286,7 @@ class TestViewTransformWithoutRandomResizedCrop:
         assert out[0, :, -1].max() > center
 
     @RECORD_GEOMETRY_SKIP
-    def test_record_geometry_covers_the_whole_image(self) -> None:
+    def test_record_geometry__no_random_resized_crop(self) -> None:
         view_transform = ViewTransform(
             ViewTransformArgs(
                 image_size=(64, 64),
