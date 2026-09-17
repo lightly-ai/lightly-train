@@ -78,3 +78,26 @@ class MultiScaleFeaturePackage(Package):
     ) -> MultiScaleFeatureViT | MultiScaleFeatureCNN:
         """Wrap the underlying model with a ModelWrapper that supports multi-scale features."""
         ...
+
+    @classmethod
+    def supports_multiscale_model(cls, model_name: str) -> bool:
+        """True if the model supports multi-scale feature extraction.
+
+        Defaults to True for every model, including ones not listed by
+        ``list_model_names`` (e.g. internal test backbones). A package whose
+        models do not all support multi-scale features overrides only this.
+        """
+        return True
+
+    @classmethod
+    def list_multiscale_model_names(cls) -> list[str]:
+        """List the models that support multi-scale feature extraction.
+
+        Derived from ``supports_multiscale_model``, so a package with some
+        non-multi-scale models only overrides that method.
+        """
+        return [
+            name
+            for name in cls.list_model_names()
+            if cls.supports_multiscale_model(name)
+        ]

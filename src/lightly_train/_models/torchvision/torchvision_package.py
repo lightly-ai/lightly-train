@@ -51,6 +51,19 @@ class TorchvisionPackage(MultiScaleFeaturePackage):
         return sorted(model_names)
 
     @classmethod
+    def supports_multiscale_model(cls, model_name: str) -> bool:
+        # Map the model name to its feature-extractor wrapper and ask whether that
+        # wrapper implements multi-scale feature extraction. ShuffleNetV2 does not.
+        prefix = f"{cls.name}/"
+        name = (
+            model_name[len(prefix) :] if model_name.startswith(prefix) else model_name
+        )
+        for feature_extractor in cls._FEATURE_EXTRACTORS:
+            if re.match(feature_extractor._torchvision_model_name_pattern, name):
+                return feature_extractor.supports_multiscale_features()
+        return False
+
+    @classmethod
     def is_supported_model(cls, model: Module | ModelWrapper | Any) -> bool:
         if isinstance(model, ModelWrapper):
             model = model.get_model()

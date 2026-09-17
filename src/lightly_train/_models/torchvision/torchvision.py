@@ -58,6 +58,18 @@ class TorchvisionModelWrapper(Module, MultiScaleFeatureCNN):
             f"'{type(self).__name__}'."
         )
 
+    @classmethod
+    def supports_multiscale_features(cls) -> bool:
+        """True if the wrapper implements multi-scale feature extraction.
+
+        A wrapper supports multi-scale features when it overrides
+        ``_extract_multiscale_stages``; the base implementation raises.
+        """
+        return (
+            cls._extract_multiscale_stages
+            is not TorchvisionModelWrapper._extract_multiscale_stages
+        )
+
     def _get_multiscale_dims_and_strides(self) -> tuple[list[int], list[int]]:
         """Returns the cached feature dimensions and strides, reading them on first use."""
         if self._multiscale_cache is None:
