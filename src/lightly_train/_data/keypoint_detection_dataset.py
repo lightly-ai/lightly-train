@@ -39,13 +39,21 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     train: PathLike
     val: PathLike
     test: PathLike | None = None
-    """Accepted for compatibility with YOLO data configs. Task training consumes only
-    train and val."""
+    """Accepted for compatibility with YOLO data configs.
+
+    Task training consumes only train and val.
+    """
     names: dict[int, str]
     kpt_shape: tuple[int, int] = Field(strict=False)
-    """``[num_keypoints, num_dims]``. ``num_dims`` is 2 for (x, y) or 3 for
-    (x, y, visibility)."""
+    """The keypoint count and dimensionality.
+
+    ``num_dims`` is 2 for (x, y) or 3 for (x, y, visibility).
+    """
     flip_idx: list[int] | None = None
+    """Optional keypoint mapping for horizontal flips.
+
+    Horizontal flips must be disabled when this is omitted.
+    """
     kpt_names: dict[int, list[str]] | None = None
     kpt_oks_sigmas: list[float] | None = Field(default=None, strict=False)
     ignore_classes: set[int] | None = Field(default=None, strict=False)
