@@ -540,3 +540,168 @@ def test__open_image_numpy__with_pydicom(
     assert isinstance(result, np.ndarray)
     assert result.shape == expected_shape
     assert result.dtype == expected_dtype
+
+
+def test_open_yolo_keypoint_detection_label(tmp_path: Path) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write(
+            "0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.6 0.6 1 0 0 0\n"
+            "1 0.25 0.25 0.1 0.1 0.2 0.2 2 0.3 0.3 2 0.35 0.35 2\n"
+        )
+    bboxes, keypoints, visibility, classes = (
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=3
+        )
+    )
+    assert classes == [0, 1]
+    assert bboxes == [[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.1, 0.1]]
+    assert keypoints == [
+        [[0.4, 0.4], [0.6, 0.6], [0.0, 0.0]],
+        [[0.2, 0.2], [0.3, 0.3], [0.35, 0.35]],
+    ]
+    assert visibility == [[2, 1, 0], [2, 2, 2]]
+
+
+def test_open_yolo_keypoint_detection_label__num_dims_2(tmp_path: Path) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 0.6 0.6 0.5 0.7\n")
+    bboxes, keypoints, visibility, classes = (
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=2
+        )
+    )
+    assert classes == [0]
+    assert bboxes == [[0.5, 0.5, 0.2, 0.4]]
+    assert keypoints == [[[0.4, 0.4], [0.6, 0.6], [0.5, 0.7]]]
+    # The format carries no visibility, so every keypoint counts as visible.
+    assert visibility == [[2, 2, 2]]
+
+
+def test_open_yolo_keypoint_detection_label__empty(tmp_path: Path) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write("")
+    bboxes, keypoints, visibility, classes = (
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=3
+        )
+    )
+    assert bboxes == []
+    assert keypoints == []
+    assert visibility == []
+    assert classes == []
+
+
+def test_open_yolo_keypoint_detection_label__unlabeled_coords_zeroed(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    # An unlabeled keypoint that nevertheless carries a position in the file.
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.9 0.9 0 0.1 0.1 0\n")
+    _, keypoints, visibility, _ = file_helpers.open_yolo_keypoint_detection_label(
+        label_path=label_path, num_keypoints=3, num_dims=3
+    )
+    assert keypoints == [[[0.4, 0.4], [0.0, 0.0], [0.0, 0.0]]]
+    assert visibility == [[2, 0, 0]]
+
+
+def test_open_yolo_keypoint_detection_label__float_visibility_flags(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    # Real exports write the flag as a float, e.g. "2.000000".
+    with open(label_path, "w") as f:
+        f.write(
+            "0 0.500000 0.500000 0.200000 0.400000 "
+            "0.400000 0.400000 2.000000 0.600000 0.600000 1.000000 "
+            "0.000000 0.000000 0.000000\n"
+        )
+    _, keypoints, visibility, _ = file_helpers.open_yolo_keypoint_detection_label(
+        label_path=label_path, num_keypoints=3, num_dims=3
+    )
+    assert keypoints == [[[0.4, 0.4], [0.6, 0.6], [0.0, 0.0]]]
+    assert visibility == [[2, 1, 0]]
+
+
+def test_open_yolo_keypoint_detection_label__out_of_bounds_not_clipped(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 -0.2 1.4 2 0.6 0.6 2 0.5 0.5 2\n")
+    _, keypoints, _, _ = file_helpers.open_yolo_keypoint_detection_label(
+        label_path=label_path, num_keypoints=3, num_dims=3
+    )
+    # Transforms need to see where an out-of-frame keypoint actually is.
+    assert keypoints[0][0] == [-0.2, 1.4]
+
+
+def test_open_yolo_keypoint_detection_label__duplicate_lines_skipped(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    line = "0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.6 0.6 2 0.5 0.5 2\n"
+    with open(label_path, "w") as f:
+        f.write(line + "\n" + line)
+    _, keypoints, _, classes = file_helpers.open_yolo_keypoint_detection_label(
+        label_path=label_path, num_keypoints=3, num_dims=3
+    )
+    assert classes == [0]
+    assert len(keypoints) == 1
+
+
+def test_open_yolo_keypoint_detection_label__wrong_token_count_raises(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 2\n")
+    with pytest.raises(
+        ValueError, match=r"Expected 14 values per line .* got 8 .* on line 1"
+    ):
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=3
+        )
+
+
+def test_open_yolo_keypoint_detection_label__wrong_token_count_reports_line_number(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write(
+            "0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.6 0.6 2 0.5 0.5 2\n\n1 0.5 0.5 0.2 0.4\n"
+        )
+    # Line 3 as the file shows it, even though the blank line 2 is skipped.
+    with pytest.raises(ValueError, match="on line 3"):
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=3
+        )
+
+
+def test_open_yolo_keypoint_detection_label__wrong_token_count_suggests_other_num_dims(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    # A num_dims == 3 line read with num_dims == 2, the most common config mistake.
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.6 0.6 2 0.5 0.5 2\n")
+    with pytest.raises(ValueError, match=r"fits kpt_shape=\[3, 3\], did you mean that"):
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=2
+        )
+
+
+def test_open_yolo_keypoint_detection_label__visibility_out_of_range_raises(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.6 0.6 3 0.5 0.5 2\n")
+    with pytest.raises(ValueError, match="visibility to be one of"):
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=3
+        )
