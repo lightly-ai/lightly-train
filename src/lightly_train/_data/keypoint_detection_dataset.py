@@ -22,7 +22,6 @@ from lightly_train._data import (
     file_helpers,
     keypoint_helpers,
 )
-from lightly_train._data.keypoint_helpers import KeypointSetArgs
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train.types import PathLike
 
@@ -43,18 +42,14 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     """Accepted for compatibility with YOLO data configs. Task training consumes only
     train and val."""
     names: dict[int, str]
-    kpt_shape: list[int]
+    kpt_shape: tuple[int, int] = Field(strict=False)
     """``[num_keypoints, num_dims]``. ``num_dims`` is 2 for (x, y) or 3 for
     (x, y, visibility)."""
     flip_idx: list[int] | None = None
     kpt_names: dict[int, list[str]] | None = None
-    keypoints: KeypointSetArgs | None = None
-    """Keypoint set fields the YOLO config has no place for, e.g. the OKS ``sigmas``.
-    Values given here and in the fields above must agree."""
+    kpt_oks_sigmas: list[float] | None = Field(default=None, strict=False)
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
-    min_keypoints: int = 0
-    """Drop instances with fewer labeled keypoints."""
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:
@@ -64,26 +59,12 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
         return v
 
     @model_validator(mode="after")
-    def validate_keypoint_set(self) -> Self:
-        # Resolve at construction so a bad keypoint config fails here, not much later
-        # when the labels are read. Not stored: assigning to self would re-trigger
-        # validation because of validate_assignment=True.
-        self._resolve_keypoint_set()
+    def validate_keypoint_config(self) -> Self:
+        num_keypoints, _ = keypoint_helpers.validate_kpt_shape(self.kpt_shape)
+        keypoint_helpers.validate_flip_idx(self.flip_idx, num_keypoints)
+        keypoint_helpers.validate_kpt_names(self.kpt_names, num_keypoints)
+        keypoint_helpers.validate_kpt_oks_sigmas(self.kpt_oks_sigmas, num_keypoints)
         return self
-
-    def _resolve_keypoint_set(self) -> KeypointSetArgs:
-        return keypoint_helpers.resolve_yolo_keypoint_set(
-            kpt_shape=self.kpt_shape,
-            flip_idx=self.flip_idx,
-            kpt_names=self.kpt_names,
-            keypoints=self.keypoints,
-            included_class_ids=self.included_classes.keys(),
-        )
-
-    @functools.cached_property
-    def keypoint_set(self) -> KeypointSetArgs:
-        """The keypoint set, combining the dataset config and the 'keypoints' arg."""
-        return self._resolve_keypoint_set()
 
     def resolve_data_paths(self, base_dir: Path) -> None:
         self.path = data_helpers.resolve_path(self.path, base_dir=base_dir)
@@ -93,10 +74,12 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
             (
                 (Path(self.path) / self.train).resolve(),
                 self.names,
-                self.keypoint_set.model_dump_json(),
+                self.kpt_shape,
+                self.flip_idx,
+                self.kpt_names,
+                self.kpt_oks_sigmas,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_label_file_missing,
-                self.min_keypoints,
             )
         )
 
@@ -105,10 +88,12 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
             (
                 (Path(self.path) / self.val).resolve(),
                 self.names,
-                self.keypoint_set.model_dump_json(),
+                self.kpt_shape,
+                self.flip_idx,
+                self.kpt_names,
+                self.kpt_oks_sigmas,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_label_file_missing,
-                self.min_keypoints,
             )
         )
 
@@ -138,22 +123,15 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
     Labels are COCO JSON annotation files. Images resolve relative to the annotation
     file's parent directory, optionally under ``images``.
 
-    The keypoint set comes from the ``categories`` of the train annotations, which
-    declare names and a skeleton but neither OKS sigmas nor flip pairs.
+    The number of keypoints comes from the train annotations' ``categories``.
     """
 
     format: Literal["coco"] = "coco"
     train: COCOSplitArgs
     val: COCOSplitArgs
-    keypoints: KeypointSetArgs | None = None
-    """Keypoint set fields the annotations do not carry, e.g. the OKS ``sigmas``.
-    Values given here and in the annotations must agree. Required if no category
-    declares keypoints."""
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_annotations_missing: bool = False
     include_crowd: bool = False
-    min_keypoints: int = 0
-    """Drop instances with fewer labeled keypoints."""
 
     def resolve_data_paths(self, base_dir: Path) -> None:
         self.train.annotations = data_helpers.resolve_path(
@@ -189,12 +167,11 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
         return {category["id"]: category["name"] for category in self._categories}
 
     @functools.cached_property
-    def keypoint_set(self) -> KeypointSetArgs:
-        """The keypoint set, combining the annotations and the 'keypoints' arg."""
-        return keypoint_helpers.resolve_coco_keypoint_set(
+    def num_keypoints(self) -> int:
+        """Returns the number of keypoints in the included categories."""
+        return keypoint_helpers.get_coco_num_keypoints(
             categories=self._categories,
             included_class_ids=self.included_classes.keys(),
-            keypoints=self.keypoints,
         )
 
     def train_data_mmap_hash(self) -> str:
@@ -213,11 +190,10 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
                 annotations_path,
                 annotations_path.stat().st_mtime,
                 images_dir,
-                self.keypoint_set.model_dump_json(),
+                self.num_keypoints,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
                 self.skip_if_annotations_missing,
                 self.include_crowd,
-                self.min_keypoints,
             )
         )
 
