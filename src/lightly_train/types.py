@@ -35,11 +35,11 @@ NDArray4Corners = NDArray[
     np.float64
 ]  # (n_boxes, 8) with x1, y1, x2, y2, x3, y3, x4, y4 coordinates.
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
-# Keypoint coordinates per instance. Coordinates are in [0, 1] but are not clipped:
-# a keypoint annotated outside the image keeps its position.
+# Keypoint coordinates per instance. In [0, 1] but not clipped: a keypoint annotated
+# outside the image keeps its position.
 NDArrayKeypoints = NDArray[np.float64]  # (n_instances, n_keypoints, 2)
 # Per-keypoint visibility: 0 not labeled, 1 labeled but not visible, 2 labeled and
-# visible. Coordinates of keypoints with visibility 0 must not be read.
+# visible. Coordinates of visibility 0 keypoints must not be read.
 NDArrayKeypointVisibility = NDArray[np.int64]  # (n_instances, n_keypoints)
 # Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
 # are in [0, 1].

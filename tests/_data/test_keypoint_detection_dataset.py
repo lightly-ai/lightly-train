@@ -53,7 +53,7 @@ def _round(value: Any, ndigits: int = 6) -> Any:
     """Rounds floats in a nested structure.
 
     pytest.approx does not support nested sequences, and the normalized coordinates
-    carry the float noise of a pixel-to-[0, 1] division.
+    carry the float noise of the pixel-to-[0, 1] division.
     """
     if isinstance(value, list):
         return [_round(item, ndigits) for item in value]
@@ -874,11 +874,10 @@ class TestCOCOKeypointDetectionMmapHash:
 class _KeypointDetectionDataConfig(PydanticConfig):
     """Local stand-in for the future KeypointDetectionTrainTaskConfig.
 
-    The data args intentionally ship without being wired into train_task.py, because
-    there is no keypoint detection model to train yet. This class exercises the
-    discriminated union and the YAML loading path anyway, since that is where a field
-    missing from the data args would be dropped silently. It moves into train_task.py
-    unchanged once a model lands.
+    The data args ship unwired from train_task.py, since there is no keypoint model to
+    train yet. This class still exercises the discriminated union and the YAML loading
+    path, where a field missing from the data args would be dropped silently. It moves
+    into train_task.py unchanged once a model lands.
     """
 
     data: Annotated[

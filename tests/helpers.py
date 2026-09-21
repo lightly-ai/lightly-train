@@ -1133,10 +1133,9 @@ def normalized_keypoints_for_testing(
 ) -> tuple[list[list[float]], list[int]]:
     """Returns deterministic normalized keypoints and visibility flags for one instance.
 
-    With ``num_dims == 3`` the visibility cycles through visible (2), occluded (1) and
-    unlabeled (0) so that every case is exercised, and unlabeled keypoints sit at
-    (0, 0) as both real dataset formats store them. With ``num_dims == 2`` the format
-    carries no visibility, so every keypoint is labeled and visible.
+    - ``num_dims == 3``: visibility cycles 2, 1, 0 so every case is exercised, and
+      unlabeled keypoints sit at (0, 0) as both real formats store them.
+    - ``num_dims == 2``: the format carries no visibility, so all keypoints are visible.
     """
     keypoints = []
     visibility = []
@@ -1161,8 +1160,8 @@ def create_normalized_yolo_keypoint_detection_labels(
 ) -> None:
     """Create YOLO pose label files.
 
-    Format: class_id x_center y_center width height followed by num_keypoints keypoints
-    of num_dims values each.
+    One line per instance: class_id x_center y_center width height followed by
+    num_keypoints keypoints of num_dims values each.
     """
     if missing_label_indices is None:
         missing_label_indices = []
@@ -1264,21 +1263,18 @@ def create_coco_keypoint_detection_dataset(
     """Create a minimal COCO keypoint detection dataset.
 
     Args:
-        classes: Mapping from category id to category name. If None, auto-generated
-            from num_classes as {0: "class_0", 1: "class_1", ...}.
-        num_keypoints: Number of keypoints per instance, used to generate the default
-            keypoint names and annotations.
-        keypoint_names: Mapping from category id to that category's keypoint names. If
-            None, every category gets ["keypoint_0", ...]. A category mapped to an empty
-            list gets no "keypoints" field at all, as in a COCO file that mixes keypoint
-            and non-keypoint categories.
-        skeleton: Mapping from category id to that category's skeleton. As in the COCO
-            format, the indices are one-based. If None, every category that has keypoint
-            names gets a chain [[1, 2], [2, 3], ...].
-        annotations_per_image: Per-image list of partial annotation dicts (without "id"
-            and "image_id"). Must have length num_files. If None, defaults to one
-            annotation per image with category_id=0, bbox=[10, 10, 30, 40] and keypoints
-            generated from num_keypoints.
+        classes: Category id to category name. None auto-generates
+            {0: "class_0", 1: "class_1", ...} from num_classes.
+        num_keypoints: Keypoints per instance, used for the default keypoint names and
+            annotations.
+        keypoint_names: Category id to that category's keypoint names. None gives every
+            category ["keypoint_0", ...]. An empty list gives no "keypoints" field at
+            all, as in a COCO file mixing keypoint and non-keypoint categories.
+        skeleton: Category id to that category's skeleton, one-based as in COCO. None
+            gives every category with keypoint names a chain [[1, 2], [2, 3], ...].
+        annotations_per_image: Per-image partial annotation dicts, without "id" and
+            "image_id". Must have length num_files. None gives one annotation per image
+            with category_id=0, bbox=[10, 10, 30, 40] and keypoints from num_keypoints.
     """
     if classes is None:
         classes = {i: f"class_{i}" for i in range(num_classes)}

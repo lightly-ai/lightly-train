@@ -15,8 +15,7 @@ from typing_extensions import Self
 
 from lightly_train._configs.config import PydanticConfig
 
-# A keypoint is either not labeled, labeled but not visible, or labeled and visible.
-# This is the COCO convention and the YOLO pose convention alike.
+# Visibility convention, shared by COCO and YOLO pose.
 VISIBILITY_UNLABELED = 0
 VISIBILITY_OCCLUDED = 1
 VISIBILITY_VISIBLE = 2
@@ -24,47 +23,40 @@ VISIBILITIES = (VISIBILITY_UNLABELED, VISIBILITY_OCCLUDED, VISIBILITY_VISIBLE)
 
 
 class KeypointSetArgs(PydanticConfig):
-    """Describes a keypoint set: how many keypoints, what they are called, and how
-    they relate to each other.
+    """A keypoint set: how many keypoints, their names, how they relate.
 
-    Every field except ``num_keypoints`` is optional because no dataset format carries
-    all of them. The COCO format declares keypoint names and a skeleton but no OKS
-    sigmas and no flip pairs; the YOLO pose format declares the keypoint count and
-    optionally flip pairs and names, but no sigmas and no skeleton. Fields that neither
-    the dataset nor the user provides stay ``None``. They are deliberately not defaulted
-    here: whichever consumer needs one (the OKS metric needs ``sigmas``, the horizontal
-    flip transform needs ``flip_idx``) decides what to do without a value.
+    Only ``num_keypoints`` is required. No format carries every field: COCO declares
+    names and a skeleton, YOLO pose the count and optionally flip pairs and names.
+    Fields that neither the dataset nor the user provides stay ``None``. Nothing is
+    defaulted here; each consumer decides what to do without a value.
 
     Attributes:
         num_keypoints:
-            Number of keypoints per instance. Every instance has exactly this many
-            keypoints; unlabeled ones are marked via their visibility flag.
+            Keypoints per instance. Every instance has this many; unlabeled ones are
+            marked via their visibility flag.
         names:
             Name of each keypoint, in keypoint order.
         sigmas:
-            Per-keypoint OKS standard deviations. These describe how much a keypoint's
-            position varies between human annotators and are therefore a property of the
-            keypoint set, not of any single dataset. No dataset format stores them, so
-            they can only come from the user.
+            Per-keypoint OKS standard deviations. A property of the keypoint set, not
+            of a dataset. No format stores them, so they come from the user only.
         flip_idx:
-            Permutation applied to the keypoints when an image is flipped horizontally.
-            ``flip_idx[i]`` is the keypoint that takes position ``i`` after the flip, so
-            a left/right pair ``(1, 2)`` appears as ``flip_idx[1] == 2`` and
-            ``flip_idx[2] == 1``. Must be a permutation and its own inverse.
+            Keypoint permutation for a horizontal flip. ``flip_idx[i]`` is the keypoint
+            that takes position ``i``, so a left/right pair ``(1, 2)`` gives
+            ``flip_idx[1] == 2`` and ``flip_idx[2] == 1``. Must be a permutation and its
+            own inverse.
         skeleton:
-            Pairs of keypoint indices that are connected, used for visualization.
-            Zero-indexed, unlike the COCO format's one-indexed ``skeleton`` field.
+            Connected keypoint index pairs, for visualization. Zero-indexed, unlike
+            COCO's one-indexed ``skeleton``.
     """
 
     num_keypoints: int
     names: list[str] | None = None
-    # strict=False because PydanticConfig sets strict=True, under which an int is not
-    # accepted for a float field. A YAML list such as `sigmas: [1, 0.5]` would otherwise
-    # be rejected because of its first element.
+    # strict=False: PydanticConfig sets strict=True, which rejects an int for a float
+    # field. A YAML `sigmas: [1, 0.5]` would fail on its first element.
     sigmas: list[float] | None = Field(default=None, strict=False)
     flip_idx: list[int] | None = None
-    # list[list[int]] rather than list[tuple[int, int]]: under strict=True a list is not
-    # coerced to a tuple, and JSON and YAML only ever give us lists.
+    # list, not tuple: strict=True does not coerce lists to tuples, and JSON and YAML
+    # only give us lists.
     skeleton: list[list[int]] | None = None
 
     @model_validator(mode="after")
@@ -90,15 +82,15 @@ class KeypointSetArgs(PydanticConfig):
                 )
 
         if self.flip_idx is not None:
-            # A permutation, not merely indices in range: a non-permutation would
-            # silently duplicate one keypoint and drop another on every flip.
+            # Must be a permutation, not just indices in range: anything else
+            # duplicates one keypoint and drops another on every flip.
             if sorted(self.flip_idx) != list(range(self.num_keypoints)):
                 raise ValueError(
                     f"Expected 'flip_idx' to be a permutation of "
                     f"[0, {self.num_keypoints - 1}], got {self.flip_idx}."
                 )
-            # Flipping twice must be the identity, so the permutation must be its own
-            # inverse. A violation is always a mistake in the dataset config.
+            # Flipping twice must restore the original order, so the permutation must
+            # be its own inverse.
             not_involutive = [
                 i
                 for i in range(self.num_keypoints)
@@ -138,10 +130,9 @@ class KeypointSetArgs(PydanticConfig):
 def _check_agrees(
     field_name: str, from_dataset: Any, from_user: Any, dataset_description: str
 ) -> Any:
-    """Returns the single value for a field that both the dataset and the user may set.
+    """Returns the single value for a field the dataset and the user may both set.
 
-    Neither source takes precedence: if both provide a value they must agree, otherwise
-    it is impossible to tell which one the user meant.
+    Neither source wins. If both give a value they must agree.
     """
     if from_dataset is None:
         return from_user
@@ -168,18 +159,17 @@ def resolve_keypoint_set_from_parts(
 
     Args:
         num_keypoints:
-            Number of keypoints as determined by the dataset.
+            Keypoint count from the dataset.
         names:
-            Keypoint names from the dataset, if it declares any.
+            Keypoint names from the dataset, if declared.
         flip_idx:
-            Flip permutation from the dataset, if it declares one.
+            Flip permutation from the dataset, if declared.
         skeleton:
-            Zero-indexed skeleton from the dataset, if it declares one.
+            Zero-indexed skeleton from the dataset, if declared.
         keypoints:
             Keypoint set declared by the user, if any.
         dataset_description:
-            Human readable description of where the dataset values came from, used in
-            error messages.
+            Where the dataset values came from, for error messages.
     """
     if keypoints is not None and keypoints.num_keypoints != num_keypoints:
         raise ValueError(
@@ -220,11 +210,12 @@ def resolve_yolo_keypoint_set(
 ) -> KeypointSetArgs:
     """Resolves the keypoint set of a YOLO pose dataset.
 
-    The dataset contributes the keypoint count via ``kpt_shape``, and optionally the
-    flip permutation and the keypoint names. It never declares sigmas or a skeleton.
+    - ``kpt_shape`` gives the keypoint count.
+    - ``flip_idx`` and ``kpt_names`` are optional.
+    - Sigmas and skeleton are never declared by the format.
 
-    ``kpt_names`` is declared per class, but a single keypoint set is used for all
-    classes, so all included classes must declare the same names.
+    ``kpt_names`` is per class, but one keypoint set is used for all classes, so all
+    included classes must declare the same names.
     """
     num_keypoints, _ = validate_kpt_shape(kpt_shape)
 
@@ -289,13 +280,13 @@ def resolve_coco_keypoint_set(
 ) -> KeypointSetArgs:
     """Resolves the keypoint set of a COCO keypoint dataset.
 
-    The keypoint names and the skeleton are read from the ``categories`` entries. A
-    single keypoint set is used for all classes, so all included categories that declare
-    keypoints must declare the same ones. Categories without keypoints are ignored here;
-    their annotations are read as having no labeled keypoints.
+    - Names and skeleton come from the ``categories`` entries.
+    - Sigmas and flip pairs are never declared by the format; they come from
+      ``keypoints``.
 
-    The COCO format declares neither sigmas nor flip pairs, so those can only come from
-    ``keypoints``.
+    One keypoint set is used for all classes, so all included categories that declare
+    keypoints must declare the same ones. Categories without keypoints are ignored;
+    their annotations are read as having no labeled keypoints.
     """
     included = set(included_class_ids)
     declared = {
@@ -329,8 +320,8 @@ def resolve_coco_keypoint_set(
     names = list(next(iter(distinct)))
     num_keypoints = len(names)
 
-    # All included categories declare the same keypoints, so any of them can supply the
-    # skeleton. Prefer the first one that has a non-empty skeleton.
+    # All included categories declare the same keypoints, so any of them can supply
+    # the skeleton. Take the first with a non-empty one.
     skeleton_one_indexed = next(
         (
             category["skeleton"]
@@ -378,8 +369,8 @@ def bbox_from_keypoints(
             Visibility flag per keypoint. Keypoints with visibility 0 are ignored.
 
     Returns:
-        The bounding box as (x_center, y_center, width, height) in the same coordinate
-        system as the keypoints, or None if no keypoint is labeled.
+        (x_center, y_center, width, height) in the keypoints' coordinate system, or
+        None if no keypoint is labeled.
     """
     labeled = [
         point

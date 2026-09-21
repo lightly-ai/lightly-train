@@ -39,9 +39,9 @@ logger = logging.getLogger(__name__)
 class KeypointDetectionDataset(TaskDataset):
     """Dataset for keypoint detection.
 
-    Reading the labels is implemented, but turning them into training samples is not:
-    there is no keypoint detection model and no keypoint transform yet, so there is
-    nothing to feed. ``list_image_info`` on the dataset args is the useful part today.
+    Reading labels works. Turning them into training samples does not: there is no
+    keypoint detection model and no keypoint transform yet. Today the useful part is
+    ``list_image_info`` on the dataset args.
     """
 
     dataset_args: (  # type: ignore[assignment]
@@ -64,8 +64,7 @@ def _filter_instances(
 ) -> tuple[list[list[float]], list[int], list[list[list[float]]], list[list[int]]]:
     """Applies the same mask to all four per-instance lists.
 
-    They are kept in lockstep; dropping one of them here would misalign the dataset in
-    a way that only surfaces during training.
+    They must stay in lockstep. A misalignment here only surfaces during training.
     """
     return (
         list(itertools.compress(bboxes, keep)),
@@ -103,28 +102,27 @@ def _count_labeled(visibility: list[int]) -> int:
 class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     """Data arguments for a YOLO-format keypoint detection dataset.
 
-    Labels are ``.txt`` files next to the images, in a ``labels`` directory mirroring
-    the ``images`` directory. Each line holds one instance as
-    ``class_id x_center y_center width height`` followed by ``kpt_shape[0]`` keypoints
-    of ``kpt_shape[1]`` values each, all normalized to [0, 1].
+    Labels are ``.txt`` files in a ``labels`` directory mirroring ``images``. One line
+    per instance: ``class_id x_center y_center width height`` followed by
+    ``kpt_shape[0]`` keypoints of ``kpt_shape[1]`` values each, normalized to [0, 1].
 
     Attributes:
         kpt_shape:
             ``[num_keypoints, num_dims]``. ``num_dims`` is 2 for (x, y) or 3 for
-            (x, y, visibility). A dataset with ``num_dims == 2`` cannot express an
-            unlabeled keypoint, so all its keypoints are read as visible.
+            (x, y, visibility). With 2 every keypoint is read as visible; the format
+            cannot express an unlabeled one.
         flip_idx:
-            Keypoint permutation applied on a horizontal flip.
+            Keypoint permutation for a horizontal flip.
         kpt_names:
-            Keypoint names per class. A single keypoint set is used for all classes, so
-            all included classes must declare the same names.
+            Keypoint names per class. One keypoint set is used for all classes, so all
+            included classes must declare the same names.
         keypoints:
-            Keypoint set properties that the dataset config has no field for, most
-            importantly the OKS ``sigmas`` and the ``skeleton``. Values given both here
-            and in the fields above must agree.
+            Keypoint set fields the dataset config has no place for, above all the OKS
+            ``sigmas`` and the ``skeleton``. Values given here and in the fields above
+            must agree.
         min_keypoints:
-            Drop instances with fewer than this many labeled keypoints. Defaults to 0,
-            which keeps everything the label file contains.
+            Drop instances with fewer labeled keypoints. Default 0 keeps everything the
+            label file contains.
     """
 
     format: Literal["yolo"] = "yolo"
@@ -153,9 +151,9 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
 
     @model_validator(mode="after")
     def validate_keypoint_set(self) -> Self:
-        # Resolve once at construction so that a bad keypoint config fails here rather
-        # than much later when the labels are read. The result is not stored: assigning
-        # to self would re-trigger validation because of validate_assignment=True.
+        # Resolve at construction so a bad keypoint config fails here, not much later
+        # when the labels are read. Not stored: assigning to self would re-trigger
+        # validation because of validate_assignment=True.
         self._resolve_keypoint_set()
         return self
 
@@ -262,12 +260,11 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     def list_image_info(self) -> Iterable[dict[str, str]]:
         """Yields image info dicts for each image in the image directory.
 
-        Bounding boxes are (x_center, y_center, width, height) and keypoints are (x, y),
-        both already normalized to [0, 1] by the YOLO format and therefore passed
-        through unchanged. Keypoints are not clipped to [0, 1]: a keypoint annotated
-        outside the frame keeps its position, so that transforms can decide what to do
-        with it. Keypoints with visibility 0 have coordinates (0, 0) and must not be
-        read.
+        - Bboxes are (x_center, y_center, width, height), keypoints are (x, y).
+        - Both are already normalized by the YOLO format and pass through unchanged.
+        - Keypoints are not clipped to [0, 1]: one annotated outside the frame keeps
+          its position, so transforms can decide what to do with it.
+        - Keypoints with visibility 0 sit at (0, 0) and must not be read.
         """
         class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
@@ -298,8 +295,8 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                     continue
                 bboxes, keypoints, visibility, class_labels = [], [], [], []
 
-            # Remove instances with class IDs that are not in the included classes, and
-            # instances with too few labeled keypoints.
+            # Drop instances of excluded classes and instances with too few labeled
+            # keypoints.
             keep = [
                 label in class_id_to_internal_class_id
                 and _count_labeled(instance_visibility) >= self.min_keypoints
@@ -340,26 +337,25 @@ class COCOSplitArgs(PydanticConfig):
 class COCOKeypointDetectionDataArgs(TaskDataArgs):
     """Data arguments for a COCO-format keypoint detection dataset.
 
-    The labels files are COCO JSON annotation files. Images are resolved relative to the
-    annotation file's parent directory, optionally under ``images``.
+    Labels are COCO JSON annotation files. Images resolve relative to the annotation
+    file's parent directory, optionally under ``images``.
 
-    The keypoint set is read from the ``categories`` entries of the training
-    annotations, which declare the keypoint names and the skeleton. The format declares
-    neither OKS sigmas nor flip pairs, so those can only be passed via ``keypoints``.
+    The keypoint set comes from the ``categories`` of the training annotations, which
+    declare names and skeleton. The format declares neither OKS sigmas nor flip pairs;
+    pass those via ``keypoints``.
 
     Attributes:
         keypoints:
-            Keypoint set properties that the annotations do not carry, most importantly
-            the OKS ``sigmas`` and the ``flip_idx``. Values given both here and in the
-            annotations must agree. Required if no category declares keypoints.
+            Keypoint set fields the annotations do not carry, above all the OKS
+            ``sigmas`` and the ``flip_idx``. Values given here and in the annotations
+            must agree. Required if no category declares keypoints.
         include_crowd:
-            Keep annotations with ``iscrowd == 1``. They describe a group of instances
-            rather than one, and carry no usable keypoints, so they are dropped by
-            default.
+            Keep ``iscrowd == 1`` annotations. They describe a group rather than one
+            instance and carry no usable keypoints, so they are dropped by default.
         min_keypoints:
-            Drop instances with fewer than this many labeled keypoints. Defaults to 0,
-            which keeps everything the annotations contain, including the
-            ``num_keypoints == 0`` annotations that COCO keypoint files are full of.
+            Drop instances with fewer labeled keypoints. Default 0 keeps everything the
+            annotations contain, including the ``num_keypoints == 0`` annotations that
+            COCO keypoint files are full of.
     """
 
     format: Literal["coco"] = "coco"
@@ -393,9 +389,8 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
     def _categories(self) -> list[dict[str, Any]]:
         """Reads and caches the categories from the train labels file.
 
-        Always uses the training labels so that train and validation share the same
-        class-to-internal-id mapping and the same keypoint set. Cached so that the
-        annotations are read once for both the classes and the keypoint set.
+        Always the training labels, so train and val share the class-to-internal-id
+        mapping and the keypoint set. Cached so the file is read once for both.
         """
         with open(self.train.annotations) as f:
             categories = json.load(f).get("categories", [])
@@ -488,16 +483,14 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     def list_image_info(self) -> Iterable[dict[str, str]]:
         """Yields image info dicts for each image in the COCO annotation file.
 
-        Keypoints and bounding boxes are converted from COCO's pixel coordinates to
-        normalized [0, 1] coordinates, bboxes additionally from (x, y, width, height) to
-        (x_center, y_center, width, height). Keypoints are not clipped: a keypoint
-        annotated outside the frame keeps its position, so that transforms can decide
-        what to do with it. Keypoints with visibility 0 have coordinates (0, 0) and must
-        not be read.
-
-        Instances whose bounding box is missing or degenerate get a bounding box derived
-        from their labeled keypoints. Instances with neither are dropped. Images with no
-        annotations are included unless ``skip_if_annotations_missing`` is True.
+        - Coordinates are converted from COCO pixels to normalized [0, 1].
+        - Bboxes go from (x, y, width, height) to (x_center, y_center, width, height).
+        - Keypoints are not clipped: one annotated outside the frame keeps its
+          position, so transforms can decide what to do with it.
+        - Keypoints with visibility 0 sit at (0, 0) and must not be read.
+        - Instances with a missing or degenerate bbox get one derived from their
+          labeled keypoints. Instances with neither are dropped.
+        - Images without annotations are kept unless ``skip_if_annotations_missing``.
         """
         class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
@@ -551,8 +544,7 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                         image_height_pixel=image_height_pixel,
                     )
                     if bbox is None:
-                        # Neither a usable box nor a labeled keypoint; nothing to learn
-                        # from this instance.
+                        # No usable box and no labeled keypoint, nothing to learn.
                         continue
 
                     bboxes.append(bbox)
@@ -565,7 +557,7 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 if self.skip_if_annotations_missing:
                     continue
 
-            # Remove instances with class IDs that are not in the included classes.
+            # Drop instances of excluded classes.
             keep = [label in class_id_to_internal_class_id for label in class_labels]
             bboxes, class_labels, keypoints, visibility = _filter_instances(
                 keep=keep,
@@ -598,9 +590,8 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     ) -> tuple[list[list[float]], list[int]]:
         """Returns normalized (x, y) keypoints and visibility flags for one annotation.
 
-        An annotation without a ``keypoints`` field has no labeled keypoints. Such
-        annotations are common in files that mix keypoint and non-keypoint categories,
-        so this is not an error.
+        An annotation without a ``keypoints`` field has no labeled keypoints. Common in
+        files that mix keypoint and non-keypoint categories, so not an error.
         """
         flat = annotation.get("keypoints")
         if not flat:
@@ -632,7 +623,7 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 keypoints.append([x / image_width_pixel, y / image_height_pixel])
             visibility.append(vis)
 
-        # COCO stores the number of labeled keypoints, but third-party exports are not
+        # COCO stores the labeled keypoint count, but third-party exports are not
         # always consistent about it, so the visibility flags win.
         num_labeled = _count_labeled(visibility)
         stored = annotation.get("num_keypoints")
@@ -654,8 +645,8 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     ) -> list[float] | None:
         """Returns the normalized (x_center, y_center, w, h) box for one annotation.
 
-        Falls back to the tight box around the labeled keypoints when the annotation has
-        no box or a degenerate one. Returns None if neither is available.
+        Falls back to the tight box around the labeled keypoints when the box is
+        missing or degenerate. Returns None if neither is available.
         """
         bbox = annotation.get("bbox")
         if bbox is not None:
