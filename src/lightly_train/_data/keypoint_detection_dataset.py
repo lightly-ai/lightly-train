@@ -33,42 +33,28 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     Labels are ``.txt`` files in a ``labels`` directory mirroring ``images``. One line
     per instance: ``class_id x_center y_center width height`` followed by
     ``kpt_shape[0]`` keypoints of ``kpt_shape[1]`` values each, normalized to [0, 1].
-
-    Attributes:
-        kpt_shape:
-            ``[num_keypoints, num_dims]``. ``num_dims`` is 2 for (x, y) or 3 for
-            (x, y, visibility). With 2 every keypoint is read as visible; the format
-            cannot express an unlabeled one.
-        flip_idx:
-            Keypoint permutation for a horizontal flip.
-        kpt_names:
-            Keypoint names per class. One keypoint set is used for all classes, so all
-            included classes must declare the same names.
-        keypoints:
-            Keypoint set fields the dataset config has no place for, above all the OKS
-            ``sigmas`` and the ``skeleton``. Values given here and in the fields above
-            must agree.
-        min_keypoints:
-            Drop instances with fewer labeled keypoints. Default 0 keeps everything the
-            label file contains.
     """
 
     format: Literal["yolo"] = "yolo"
     path: PathLike
     train: PathLike
     val: PathLike
-    # Accepted for compatibility with YOLO data configs. Task training currently
-    # consumes only train and val splits.
     test: PathLike | None = None
-    # "names" instead of "classes" to match YOLO convention.
+    """Accepted for compatibility with YOLO data configs. Task training consumes only
+    train and val."""
     names: dict[int, str]
     kpt_shape: list[int]
+    """``[num_keypoints, num_dims]``. ``num_dims`` is 2 for (x, y) or 3 for
+    (x, y, visibility)."""
     flip_idx: list[int] | None = None
     kpt_names: dict[int, list[str]] | None = None
     keypoints: KeypointSetArgs | None = None
+    """Keypoint set fields the YOLO config has no place for, e.g. the OKS ``sigmas``.
+    Values given here and in the fields above must agree."""
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
     min_keypoints: int = 0
+    """Drop instances with fewer labeled keypoints."""
 
     @pydantic.field_validator("train", "val", mode="after")
     def validate_paths(cls, v: PathLike) -> Path:
@@ -152,32 +138,22 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
     Labels are COCO JSON annotation files. Images resolve relative to the annotation
     file's parent directory, optionally under ``images``.
 
-    The keypoint set comes from the ``categories`` of the training annotations, which
-    declare names and skeleton. The format declares neither OKS sigmas nor flip pairs;
-    pass those via ``keypoints``.
-
-    Attributes:
-        keypoints:
-            Keypoint set fields the annotations do not carry, above all the OKS
-            ``sigmas`` and the ``flip_idx``. Values given here and in the annotations
-            must agree. Required if no category declares keypoints.
-        include_crowd:
-            Keep ``iscrowd == 1`` annotations. They describe a group rather than one
-            instance and carry no usable keypoints, so they are dropped by default.
-        min_keypoints:
-            Drop instances with fewer labeled keypoints. Default 0 keeps everything the
-            annotations contain, including the ``num_keypoints == 0`` annotations that
-            COCO keypoint files are full of.
+    The keypoint set comes from the ``categories`` of the train annotations, which
+    declare names and a skeleton but neither OKS sigmas nor flip pairs.
     """
 
     format: Literal["coco"] = "coco"
     train: COCOSplitArgs
     val: COCOSplitArgs
     keypoints: KeypointSetArgs | None = None
+    """Keypoint set fields the annotations do not carry, e.g. the OKS ``sigmas``.
+    Values given here and in the annotations must agree. Required if no category
+    declares keypoints."""
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_annotations_missing: bool = False
     include_crowd: bool = False
     min_keypoints: int = 0
+    """Drop instances with fewer labeled keypoints."""
 
     def resolve_data_paths(self, base_dir: Path) -> None:
         self.train.annotations = data_helpers.resolve_path(
