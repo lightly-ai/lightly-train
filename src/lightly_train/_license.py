@@ -12,7 +12,8 @@ from __future__ import annotations
 LICENSE_INFO = (
     "LightlyTrain License Notice\n"
     "\n"
-    "Model training and inference in commercial settings require a valid Commercial License.\n"
+    "Use of the code and model weights for training and inference in commercial settings\n"
+    "requires a valid Commercial License.\n"
     "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
     "please ensure your usage complies with the respective terms.\n"
     "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"
