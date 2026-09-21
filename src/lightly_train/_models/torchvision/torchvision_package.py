@@ -15,10 +15,11 @@ from typing import Any
 import torch
 from torch.nn import Module
 from torchvision import models as torchvision_models
+from torchvision.models import ConvNeXt, ResNet, ShuffleNetV2
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
 from lightly_train._models.torchvision.resnet import ResNetModelWrapper
 from lightly_train._models.torchvision.shufflenet import ShuffleNetV2ModelWrapper
@@ -28,7 +29,7 @@ from lightly_train.errors import UnknownModelError
 logger = logging.getLogger(__name__)
 
 
-class TorchvisionPackage(Package):
+class TorchvisionPackage(MultiScaleFeaturePackage):
     name = "torchvision"
 
     _FEATURE_EXTRACTORS = [
@@ -78,11 +79,20 @@ class TorchvisionPackage(Package):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> TorchvisionModelWrapper:
-        feature_extractor_cls = cls._model_cls_to_extractor_cls().get(type(model))
-        if feature_extractor_cls is not None:
-            return feature_extractor_cls(model)
-        raise UnknownModelError(f"Unknown torchvision model: '{model}'")
+    def get_model_wrapper(
+        cls, model: Module
+    ) -> ConvNeXtModelWrapper | ResNetModelWrapper | ShuffleNetV2ModelWrapper:
+        model_cls = type(model)
+        if model_cls is ConvNeXt:
+            return ConvNeXtModelWrapper(model)
+        elif model_cls is ResNet:
+            return ResNetModelWrapper(model)
+        elif model_cls is ShuffleNetV2:
+            return ShuffleNetV2ModelWrapper(model)
+        raise UnknownModelError(
+            f"Unknown torchvision model: '{type(model).__name__}'. Available models "
+            f"are: {cls.list_model_names()}."
+        )
 
     @classmethod
     def _model_cls_to_extractor_cls(

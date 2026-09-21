@@ -279,6 +279,59 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNextBaseEupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-base-eupe"
 
+    # --- Torchvision (CNN backbones) ---
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_tiny-linear")
+    class TorchvisionConvNeXtTiny(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_tiny"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_small-linear")
+    class TorchvisionConvNeXtSmall(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_small"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_base-linear")
+    class TorchvisionConvNeXtBase(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_base"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_large-linear")
+    class TorchvisionConvNeXtLarge(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_large"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet18-linear")
+    class TorchvisionResNet18(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet18"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet34-linear")
+    class TorchvisionResNet34(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet34"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet50-linear")
+    class TorchvisionResNet50(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet50"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet101-linear")
+    class TorchvisionResNet101(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet101"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet152-linear")
+    class TorchvisionResNet152(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet152"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x0_5-linear")
+    class TorchvisionShuffleNetV2X05(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x0_5"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x1_0-linear")
+    class TorchvisionShuffleNetV2X10(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x1_0"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x1_5-linear")
+    class TorchvisionShuffleNetV2X15(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x1_5"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x2_0-linear")
+    class TorchvisionShuffleNetV2X20(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x2_0"
+
     # --- EdgeCrafter ECViT variants ---
     @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvitt-linear")
     class EdgeCrafterECViTT(LinearSemanticSegmentationConfig):

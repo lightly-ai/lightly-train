@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add multi-scale feature support to the `torchvision` model package. The ResNet,
+  ConvNeXt and ShuffleNetV2 model wrappers now implement the multi-scale feature
+  interface, exposing intermediate feature maps for dense prediction tasks. These
+  backbones are now available for the linear semantic segmentation task, for example
+  with `model="torchvision/resnet50-linear"`.
 - Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
   covering ONNX Runtime's CUDA execution provider and TensorRT directly, both with
   zero-copy GPU input/output allocation.
