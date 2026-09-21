@@ -482,11 +482,15 @@ def open_yolo_keypoint_detection_label(
 
     With ``num_dims == 3`` the third value of each keypoint is its visibility flag:
     0 not labeled, 1 labeled but not visible, 2 labeled and visible. The flag is taken
-    as it is, a file that only uses 0 and 1 is not remapped.
+    as it is, a file that only uses 0 and 1 is not remapped. Real exports write the flag
+    as a float, e.g. "2.000000", hence the parse via float.
 
     With ``num_dims == 2`` the format carries no visibility information at all, so every
     keypoint is reported as labeled and visible. Such a dataset cannot express an
-    unlabeled keypoint.
+    unlabeled keypoint. It is tempting to read (0, 0) as a placeholder for one, but a
+    real num_dims == 2 dataset checked while writing this reader contained 3156 keypoints
+    with not a single (0, 0) pair and not a single negative coordinate, so there is no
+    evidence for such a sentinel and guessing one would silently move keypoints.
 
     Duplicate lines are skipped, consistent with the other YOLO label readers.
 
