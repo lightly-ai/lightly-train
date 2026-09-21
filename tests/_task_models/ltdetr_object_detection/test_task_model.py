@@ -22,6 +22,12 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
+    MODELS as DINOV2_MODELS,
+)
+from lightly_train._models.dinov3.dinov3_package import (
+    MODEL_NAME_TO_INFO as DINOV3_MODEL_NAME_TO_INFO,
+)
 from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
@@ -328,6 +334,92 @@ def test_resolve_transformer_config__selects_decoder_family(
     )
 
     assert isinstance(transformer_config, expected_config_type)
+
+
+@pytest.mark.parametrize(
+    ("notpretrained_alias", "pretrained_alias", "expected_backbone_name"),
+    [
+        # DINOv3 ConvNeXt sizes: previously had no "-notpretrained-ltdetr" alias at
+        # all. See https://github.com/lightly-ai/lightly-train/issues/933.
+        (
+            "dinov3/convnext-tiny-notpretrained-ltdetr",
+            "dinov3/convnext-tiny-ltdetr",
+            "dinov3/convnext-tiny-notpretrained",
+        ),
+        (
+            "dinov3/convnext-small-notpretrained-ltdetr",
+            "dinov3/convnext-small-ltdetr",
+            "dinov3/convnext-small-notpretrained",
+        ),
+        (
+            "dinov3/convnext-base-notpretrained-ltdetr",
+            "dinov3/convnext-base-ltdetr",
+            "dinov3/convnext-base-notpretrained",
+        ),
+        (
+            "dinov3/convnext-large-notpretrained-ltdetr",
+            "dinov3/convnext-large-ltdetr",
+            "dinov3/convnext-large-notpretrained",
+        ),
+        # DINOv3 ViT-tiny: alias existed but was broken, pointing to the same class
+        # as the pretrained alias (silently still loaded pretrained weights).
+        (
+            "dinov3/vitt16-notpretrained-ltdetr",
+            "dinov3/vitt16-ltdetr",
+            "dinov3/vitt16-notpretrained",
+        ),
+        # DINOv3 ViT-tiny+/small/base/large: previously had no alias at all.
+        (
+            "dinov3/vitt16plus-notpretrained-ltdetr",
+            "dinov3/vitt16plus-ltdetr",
+            "dinov3/vitt16plus-notpretrained",
+        ),
+        (
+            "dinov3/vits16-notpretrained-ltdetr",
+            "dinov3/vits16-ltdetr",
+            "dinov3/vits16-notpretrained",
+        ),
+        (
+            "dinov3/vitb16-notpretrained-ltdetr",
+            "dinov3/vitb16-ltdetr",
+            "dinov3/vitb16-notpretrained",
+        ),
+        (
+            "dinov3/vitl16-notpretrained-ltdetr",
+            "dinov3/vitl16-ltdetr",
+            "dinov3/vitl16-notpretrained",
+        ),
+        # Bonus fix: DINOv2 legacy no-registers variant, requested in the issue.
+        (
+            "dinov2/vits14-noreg-notpretrained-ltdetr",
+            "dinov2/vits14-noreg-ltdetr",
+            "dinov2/vits14-noreg-notpretrained",
+        ),
+    ],
+)
+def test_notpretrained_ltdetr_alias__resolves_to_distinct_backbone(
+    notpretrained_alias: str,
+    pretrained_alias: str,
+    expected_backbone_name: str,
+) -> None:
+    # Regression test for https://github.com/lightly-ai/lightly-train/issues/933:
+    # a "-notpretrained-ltdetr" alias must resolve to its own config class (not the
+    # pretrained class) and that class must point at a backbone entry with no
+    # pretrained weights.
+    notpretrained_cls = LTDETR_MODEL_REGISTRY.get(alias=notpretrained_alias)
+    pretrained_cls = LTDETR_MODEL_REGISTRY.get(alias=pretrained_alias)
+
+    assert notpretrained_cls is not pretrained_cls
+
+    notpretrained_config = notpretrained_cls()
+    assert notpretrained_config.backbone_name == expected_backbone_name
+    assert notpretrained_config.backbone_name != pretrained_cls().backbone_name
+
+    package_name, backbone_name = notpretrained_config.backbone_name.split("/", 1)
+    if package_name == "dinov3":
+        assert DINOV3_MODEL_NAME_TO_INFO[backbone_name]["default_weights"] is None
+    elif package_name == "dinov2":
+        assert DINOV2_MODELS[backbone_name]["url"] == ""
 
 
 @pytest.mark.parametrize(
