@@ -529,14 +529,15 @@ def open_yolo_keypoint_detection_label(
             if num_dims == 2:
                 vis = keypoint_helpers.VISIBILITY_VISIBLE
             else:
-                # Exporters commonly write the flag as a float, e.g. "2.000000".
-                vis = int(values[offset + 2])
-                if vis not in keypoint_helpers.VISIBILITIES:
+                parsed_vis = keypoint_helpers.parse_visibility(values[offset + 2])
+                if parsed_vis is None:
                     raise ValueError(
                         f"Expected keypoint visibility to be one of "
-                        f"{list(keypoint_helpers.VISIBILITIES)}, got {vis} for keypoint "
-                        f"{i} in '{label_path}' on line {line_number}."
+                        f"{list(keypoint_helpers.VISIBILITIES)}, got "
+                        f"{values[offset + 2]} for keypoint {i} in '{label_path}' on "
+                        f"line {line_number}."
                     )
+                vis = parsed_vis
                 if vis == keypoint_helpers.VISIBILITY_UNLABELED:
                     # Unlabeled keypoints carry no position. Make that explicit
                     # instead of passing on whatever the file stored.

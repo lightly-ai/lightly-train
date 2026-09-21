@@ -705,3 +705,16 @@ def test_open_yolo_keypoint_detection_label__visibility_out_of_range_raises(
         file_helpers.open_yolo_keypoint_detection_label(
             label_path=label_path, num_keypoints=3, num_dims=3
         )
+
+
+def test_open_yolo_keypoint_detection_label__fractional_visibility_raises(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    # Must not be truncated to the valid flag 1.
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 2 0.6 0.6 1.9 0.5 0.5 2\n")
+    with pytest.raises(ValueError, match="visibility to be one of"):
+        file_helpers.open_yolo_keypoint_detection_label(
+            label_path=label_path, num_keypoints=3, num_dims=3
+        )

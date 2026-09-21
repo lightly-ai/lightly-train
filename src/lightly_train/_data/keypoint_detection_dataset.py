@@ -54,50 +54,6 @@ class KeypointDetectionDataset(TaskDataset):
         )
 
 
-def _filter_instances(
-    keep: list[bool],
-    bboxes: list[list[float]],
-    class_labels: list[int],
-    keypoints: list[list[list[float]]],
-    visibility: list[list[int]],
-) -> tuple[list[list[float]], list[int], list[list[list[float]]], list[list[int]]]:
-    """Applies the same mask to all four per-instance lists.
-
-    They must stay in lockstep. A misalignment here only surfaces during training.
-    """
-    return (
-        list(itertools.compress(bboxes, keep)),
-        list(itertools.compress(class_labels, keep)),
-        list(itertools.compress(keypoints, keep)),
-        list(itertools.compress(visibility, keep)),
-    )
-
-
-def _image_info(
-    image_path: Path,
-    bboxes: list[list[float]],
-    class_labels: list[int],
-    keypoints: list[list[list[float]]],
-    visibility: list[list[int]],
-    num_keypoints: int,
-) -> dict[str, str]:
-    """Serializes one image's labels into the flat string columns of the mmap."""
-    assert len(bboxes) == len(class_labels) == len(keypoints) == len(visibility)
-    assert all(len(instance) == num_keypoints for instance in keypoints)
-    assert all(len(instance) == num_keypoints for instance in visibility)
-    return {
-        "image_path": str(image_path),
-        "bboxes": json.dumps(bboxes),
-        "class_labels": json.dumps(class_labels),
-        "keypoints": json.dumps(keypoints),
-        "keypoint_visibility": json.dumps(visibility),
-    }
-
-
-def _count_labeled(visibility: list[int]) -> int:
-    return sum(1 for vis in visibility if vis != keypoint_helpers.VISIBILITY_UNLABELED)
-
-
 class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     """Data arguments for a YOLO-format keypoint detection dataset.
 
@@ -540,12 +496,14 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
         keypoints: list[list[float]] = []
         visibility: list[int] = []
         for i in range(num_keypoints):
-            x, y, vis = flat[3 * i], flat[3 * i + 1], int(flat[3 * i + 2])
-            if vis not in keypoint_helpers.VISIBILITIES:
+            x, y = flat[3 * i], flat[3 * i + 1]
+            vis = keypoint_helpers.parse_visibility(flat[3 * i + 2])
+            if vis is None:
                 raise ValueError(
                     f"Expected keypoint visibility to be one of "
-                    f"{list(keypoint_helpers.VISIBILITIES)}, got {vis} for keypoint "
-                    f"{i} of annotation {annotation.get('id')} in '{self.labels}'."
+                    f"{list(keypoint_helpers.VISIBILITIES)}, got {flat[3 * i + 2]} for "
+                    f"keypoint {i} of annotation {annotation.get('id')} in "
+                    f"'{self.labels}'."
                 )
             if vis == keypoint_helpers.VISIBILITY_UNLABELED:
                 keypoints.append([0.0, 0.0])
@@ -595,3 +553,47 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     @staticmethod
     def get_dataset_cls() -> type[KeypointDetectionDataset]:
         return KeypointDetectionDataset
+
+
+def _filter_instances(
+    keep: list[bool],
+    bboxes: list[list[float]],
+    class_labels: list[int],
+    keypoints: list[list[list[float]]],
+    visibility: list[list[int]],
+) -> tuple[list[list[float]], list[int], list[list[list[float]]], list[list[int]]]:
+    """Applies the same mask to all four per-instance lists.
+
+    They must stay in lockstep. A misalignment here only surfaces during training.
+    """
+    return (
+        list(itertools.compress(bboxes, keep)),
+        list(itertools.compress(class_labels, keep)),
+        list(itertools.compress(keypoints, keep)),
+        list(itertools.compress(visibility, keep)),
+    )
+
+
+def _image_info(
+    image_path: Path,
+    bboxes: list[list[float]],
+    class_labels: list[int],
+    keypoints: list[list[list[float]]],
+    visibility: list[list[int]],
+    num_keypoints: int,
+) -> dict[str, str]:
+    """Serializes one image's labels into the flat string columns of the mmap."""
+    assert len(bboxes) == len(class_labels) == len(keypoints) == len(visibility)
+    assert all(len(instance) == num_keypoints for instance in keypoints)
+    assert all(len(instance) == num_keypoints for instance in visibility)
+    return {
+        "image_path": str(image_path),
+        "bboxes": json.dumps(bboxes),
+        "class_labels": json.dumps(class_labels),
+        "keypoints": json.dumps(keypoints),
+        "keypoint_visibility": json.dumps(visibility),
+    }
+
+
+def _count_labeled(visibility: list[int]) -> int:
+    return sum(1 for vis in visibility if vis != keypoint_helpers.VISIBILITY_UNLABELED)

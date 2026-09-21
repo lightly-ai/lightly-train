@@ -14,6 +14,16 @@ import pytest
 from lightly_train._data import keypoint_helpers
 
 
+@pytest.mark.parametrize("visibility", [0, 1, 2, 2.0, 0.0])
+def test_parse_visibility__valid(visibility: float) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) == int(visibility)
+
+
+@pytest.mark.parametrize("visibility", [1.9, 0.5, -1, 3, 2.5])
+def test_parse_visibility__invalid(visibility: float) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) is None
+
+
 def test_validate_kpt_shape__valid() -> None:
     assert keypoint_helpers.validate_kpt_shape((17, 3)) == (17, 3)
     assert keypoint_helpers.validate_kpt_shape((12, 2)) == (12, 2)

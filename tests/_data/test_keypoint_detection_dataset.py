@@ -236,6 +236,27 @@ class TestCOCOKeypointDetectionDatasetArgs:
         ]
         assert rows[0]["class_labels"] == [0]
 
+    @pytest.mark.parametrize("visibility", [1.9, 3])
+    def test_list_image_info__invalid_visibility(
+        self, tmp_path: Path, visibility: float
+    ) -> None:
+        # 1.9 must not be truncated to the valid flag 1.
+        helpers.create_coco_keypoint_detection_dataset(
+            tmp_path,
+            annotations_per_image=[
+                [
+                    {
+                        "category_id": 0,
+                        "bbox": [10, 10, 30, 40],
+                        "keypoints": [10, 10, 2, 20, 20, visibility, 30, 30, 2],
+                    }
+                ]
+            ]
+            * 2,
+        )
+        with pytest.raises(ValueError, match="visibility to be one of"):
+            list(_coco_data_args(tmp_path).get_train_args().list_image_info())
+
     def test_list_image_info__skip_if_annotations_missing(self, tmp_path: Path) -> None:
         helpers.create_coco_keypoint_detection_dataset(tmp_path)
         labels_path = tmp_path / "train.json"

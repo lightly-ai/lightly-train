@@ -17,6 +17,18 @@ VISIBILITY_VISIBLE = 2
 VISIBILITIES = (VISIBILITY_UNLABELED, VISIBILITY_OCCLUDED, VISIBILITY_VISIBLE)
 
 
+def parse_visibility(visibility: float) -> int | None:
+    """Returns the visibility flag as an int, or None if it is not a valid flag.
+
+    Exporters commonly write the flag as a float, e.g. ``2.000000``. A fractional
+    value such as ``1.9`` is not a flag and must not be truncated to one.
+    """
+    flag = int(visibility)
+    if flag != visibility or flag not in VISIBILITIES:
+        return None
+    return flag
+
+
 def validate_kpt_shape(kpt_shape: tuple[int, int]) -> tuple[int, int]:
     """Validates a YOLO ``kpt_shape``."""
     num_keypoints, num_dims = kpt_shape
