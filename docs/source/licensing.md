@@ -29,15 +29,19 @@ ______________________________________________________________________
 
 ### Do I have to open-source my trained model weights?
 
-If you use LightlyTrain under the AGPL-3.0 license, yes. The AGPL-3.0 license covers the
-training code **and the model weights produced by that training code**. Model weights
-trained with LightlyTrain under AGPL-3.0 are therefore subject to AGPL-3.0 by default.
+If you use LightlyTrain under the AGPL-3.0 license, yes, as soon as you share them. The
+AGPL-3.0 license covers the training code **and the model weights produced by that
+training code**, so weights trained under AGPL-3.0 are subject to AGPL-3.0 by default.
 
-In practice this means publishing the weights under AGPL-3.0 together with the complete
-corresponding source code of any application that uses them, including your
+The obligation applies once you distribute the weights or make them available to others
+over a network. It then means publishing the weights under AGPL-3.0 together with the
+complete corresponding source code of any application that uses them, including your
 modifications, training scripts, and configuration files.
 
-### How do I keep my model weights private?
+Training and using weights purely internally, without distributing them and without
+exposing them to outside users over a network, does not trigger this obligation.
+
+### How do I distribute or deploy my weights without open-sourcing them?
 
 Get a Commercial License. It covers model training and deployment, with no obligation to
 open-source your weights or your source code. If you are a student, researcher, or an

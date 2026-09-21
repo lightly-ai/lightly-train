@@ -77,7 +77,9 @@ If you use Lightly**Train** under the AGPL-3.0 license, yes. The AGPL-3.0 licens
 code and the model weights produced by that training code, so weights trained under AGPL-3.0 are
 subject to AGPL-3.0 by default.
 
-To keep your model weights private, you need a Commercial License or a Free Community License.
+This applies once you distribute the weights or serve them to outside users over a network;
+purely internal training and use does not trigger it. To distribute or deploy your weights
+without open-sourcing them, you need a Commercial License or a Free Community License.
 See the [Licensing](licensing.md) page for details.
 ```
 
