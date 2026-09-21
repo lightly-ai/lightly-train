@@ -55,6 +55,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pretrained weights because it pointed to the same config class as
   `dinov3/vitt16-ltdetr`. Also add `dinov2/vits14-noreg-notpretrained-ltdetr` for the
   legacy no-registers DINOv2 backbone.
+- Fix DINOv3 linear semantic segmentation `-notpretrained` backbone aliases.
+  `dinov3/vitt16-notpretrained-linear` and `dinov3/vitt16plus-notpretrained-linear`
+  silently loaded pretrained weights, and the remaining DINOv3 sizes had no
+  `dinov3/<size>-notpretrained-linear` model name at all.
 
 ### Security
 

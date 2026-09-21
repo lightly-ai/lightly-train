@@ -35,3 +35,25 @@ def test_registry_has_config_for_every_backbone() -> None:
         f"Missing explicit LinearSemanticSegmentation configs for backbones: "
         f"{missing}. Add a config for each in LinearSegConfigRegistry."
     )
+
+
+def test_registry_notpretrained_configs_use_notpretrained_backbones() -> None:
+    """Every "-notpretrained-linear" model name must map to a "-notpretrained" backbone.
+
+    Guards against registering a "-notpretrained" name on a pretrained config class,
+    which would silently load pretrained weights.
+    """
+    wrong = {
+        model_name: LINEAR_SEG_MODEL_REGISTRY.get(model_name)().backbone_name
+        for model_name in LinearSemanticSegmentation.list_model_names()
+        if model_name.endswith("-notpretrained-linear")
+    }
+    wrong = {
+        model_name: backbone_name
+        for model_name, backbone_name in wrong.items()
+        if not backbone_name.endswith("-notpretrained")
+    }
+    assert not wrong, (
+        f"Model names that load pretrained weights despite being '-notpretrained': "
+        f"{wrong}."
+    )
