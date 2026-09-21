@@ -89,7 +89,10 @@ class TorchvisionPackage(MultiScaleFeaturePackage):
             return ResNetModelWrapper(model)
         elif model_cls is ShuffleNetV2:
             return ShuffleNetV2ModelWrapper(model)
-        raise UnknownModelError(f"Unknown torchvision model: '{model}'")
+        raise UnknownModelError(
+            f"Unknown torchvision model: '{type(model).__name__}'. Available models "
+            f"are: {cls.list_model_names()}."
+        )
 
     @classmethod
     def _model_cls_to_extractor_cls(
