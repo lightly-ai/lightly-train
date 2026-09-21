@@ -399,7 +399,7 @@ def open_yolo_oriented_object_detection_label_numpy(
     """
     oriented_bboxes = []
     classes = []
-    for line in _iter_yolo_label_lines(label_path=label_path):
+    for _, line in _iter_yolo_label_lines(label_path=label_path):
         parts = [float(x) for x in line.split()]
         class_id = parts[0]
         x1 = parts[1]
@@ -434,7 +434,7 @@ def open_yolo_object_detection_label(
     """
     bboxes = []
     classes = []
-    for line in _iter_yolo_label_lines(label_path=label_path):
+    for _, line in _iter_yolo_label_lines(label_path=label_path):
         parts = [float(x) for x in line.split()]
         class_id = parts[0]
         x_center = parts[1]
@@ -460,7 +460,7 @@ def open_yolo_instance_segmentation_label(
     classes = []
     polygons = []
     bboxes = []
-    for line in _iter_yolo_label_lines(label_path=label_path):
+    for _, line in _iter_yolo_label_lines(label_path=label_path):
         parts = [float(x) for x in line.split()]
         class_id = parts[0]
         flat_polygon = parts[1:]
@@ -504,7 +504,7 @@ def open_yolo_keypoint_detection_label(
     visibility: list[list[int]] = []
     classes: list[int] = []
 
-    for line_number, line in _iter_yolo_label_lines_enumerated(label_path=label_path):
+    for line_number, line in _iter_yolo_label_lines(label_path=label_path):
         parts = line.split()
         if len(parts) != num_values:
             raise ValueError(
@@ -577,7 +577,7 @@ def _bbox_from_polygon(polygon: list[float]) -> list[float]:
     return [x_center, y_center, width, height]
 
 
-def _iter_yolo_label_lines_enumerated(label_path: Path) -> Iterable[tuple[int, str]]:
+def _iter_yolo_label_lines(label_path: Path) -> Iterable[tuple[int, str]]:
     """Yield (line number, line) pairs from a YOLO label file.
 
     Line numbers are 1-based, matching what an editor shows. Empty and duplicate lines
@@ -595,15 +595,6 @@ def _iter_yolo_label_lines_enumerated(label_path: Path) -> Iterable[tuple[int, s
                 continue
             lines.add(line)
             yield line_number, line
-
-
-def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
-    """Yield lines from a YOLO label file.
-
-    Skips empty and duplicate lines.
-    """
-    for _, line in _iter_yolo_label_lines_enumerated(label_path=label_path):
-        yield line
 
 
 def resolve_coco_images_dir(
