@@ -13,6 +13,8 @@ LICENSE_INFO = (
     "LightlyTrain License Notice\n"
     "\n"
     "Model training and inference in commercial settings require a valid Commercial License.\n"
+    "Model weights trained with LightlyTrain under AGPL-3.0 are subject to AGPL-3.0: the license\n"
+    "covers the training code and the model weights produced by that training code.\n"
     "If you are using LightlyTrain for open-source (AGPL-3.0) or under a Free Community License,\n"
     "please ensure your usage complies with the respective terms.\n"
     "See https://docs.lightly.ai/train/stable/index.html#license for more details.\n"

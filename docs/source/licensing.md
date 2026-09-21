@@ -25,6 +25,29 @@ experimenting with LightlyTrain. Full access to all features without cost.
 
 ______________________________________________________________________
 
+## Model Weights
+
+### Do I have to open-source my trained model weights?
+
+If you use LightlyTrain under the AGPL-3.0 license, yes. The AGPL-3.0 license covers the
+training code **and the model weights produced by that training code**. Model weights
+trained with LightlyTrain under AGPL-3.0 are therefore subject to AGPL-3.0 by default.
+
+In practice this means publishing the weights under AGPL-3.0 together with the complete
+corresponding source code of any application that uses them, including your
+modifications, training scripts, and configuration files.
+
+### How do I keep my model weights private?
+
+Get a Commercial License. It covers model training and deployment, with no obligation to
+open-source your weights or your source code. If you are a student, researcher, or an
+early-stage startup, the Free Community License gives you the same freedom at no cost.
+
+[Contact us](https://www.lightly.ai/contact) or write to
+[sales@lightly.ai](mailto:sales@lightly.ai) to find the right option for your project.
+
+______________________________________________________________________
+
 ## Commercial Pricing
 
 We publish our pricing openly so you know what to expect before reaching out.
