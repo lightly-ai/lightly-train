@@ -60,11 +60,11 @@ def _coco_data_args(tmp_path: Path, **kwargs: Any) -> COCOKeypointDetectionDataA
 
 
 class TestYOLOKeypointDetectionDataArgs:
-    def test_kpt_shape_accepts_yaml_list(self, tmp_path: Path) -> None:
+    def test_init__kpt_shape_list(self, tmp_path: Path) -> None:
         data_args = _yolo_data_args(tmp_path)
         assert data_args.kpt_shape == (3, 3)
 
-    def test_kpt_metadata(self, tmp_path: Path) -> None:
+    def test_init__native_keypoint_fields(self, tmp_path: Path) -> None:
         data_args = _yolo_data_args(
             tmp_path,
             flip_idx=[0, 2, 1],
@@ -75,20 +75,21 @@ class TestYOLOKeypointDetectionDataArgs:
         assert data_args.kpt_names == {0: ["a", "b", "c"]}
         assert data_args.kpt_oks_sigmas == [0.1, 0.2, 0.3]
 
-    @pytest.mark.parametrize(
-        "kwargs, match",
-        [
-            ({"kpt_shape": [3, 4]}, "to be 2 for"),
-            ({"flip_idx": [0, 0, 2]}, "flip_idx"),
-            ({"kpt_names": {0: ["a", "b"]}}, "kpt_names"),
-            ({"kpt_oks_sigmas": [0.1, 0.2]}, "kpt_oks_sigmas"),
-        ],
-    )
-    def test_invalid_keypoint_metadata(
-        self, tmp_path: Path, kwargs: Dict[str, Any], match: str
-    ) -> None:
-        with pytest.raises(ValidationError, match=match):
-            _yolo_data_args(tmp_path, **kwargs)
+    def test_init__invalid_kpt_shape(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="to be 2 for"):
+            _yolo_data_args(tmp_path, kpt_shape=[3, 4])
+
+    def test_init__invalid_flip_idx(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="flip_idx"):
+            _yolo_data_args(tmp_path, flip_idx=[0, 0, 2])
+
+    def test_init__invalid_kpt_names(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="kpt_names"):
+            _yolo_data_args(tmp_path, kpt_names={0: ["a", "b"]})
+
+    def test_init__invalid_kpt_oks_sigmas(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="kpt_oks_sigmas"):
+            _yolo_data_args(tmp_path, kpt_oks_sigmas=[0.1, 0.2])
 
     def test_get_train_args(self, tmp_path: Path) -> None:
         helpers.create_yolo_keypoint_detection_dataset(tmp_path, split_first=False)
@@ -97,11 +98,25 @@ class TestYOLOKeypointDetectionDataArgs:
         assert dataset_args.num_dims == 3
         assert dataset_args.image_dir == tmp_path / "images" / "train"
 
-    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
+    def test_resolve_data_paths__relative_to_data_config_file(
+        self, tmp_path: Path
+    ) -> None:
         data_args = _yolo_data_args(tmp_path, path="dataset")
         data_args.data_config_file = tmp_path / "configs" / "data.yaml"
         data_helpers.resolve_data_paths(data_args)
         assert data_args.path == (tmp_path / "configs" / "dataset").resolve()
+
+    def test_train_data_mmap_hash__num_dims(self, tmp_path: Path) -> None:
+        hash_2d = _yolo_data_args(tmp_path, kpt_shape=[3, 2]).train_data_mmap_hash()
+        hash_3d = _yolo_data_args(tmp_path, kpt_shape=[3, 3]).train_data_mmap_hash()
+        assert hash_2d != hash_3d
+
+    def test_train_data_mmap_hash__keypoint_metadata(self, tmp_path: Path) -> None:
+        before = _yolo_data_args(tmp_path).train_data_mmap_hash()
+        after = _yolo_data_args(
+            tmp_path, kpt_oks_sigmas=[0.1, 0.2, 0.3]
+        ).train_data_mmap_hash()
+        assert before != after
 
 
 class TestYOLOKeypointDetectionDatasetArgs:
@@ -115,7 +130,7 @@ class TestYOLOKeypointDetectionDatasetArgs:
         assert rows[0]["class_labels"] == [0]
         assert rows[0]["keypoint_visibility"] == [[2, 1, 0]]
 
-    def test_num_dims_2_marks_keypoints_visible(self, tmp_path: Path) -> None:
+    def test_list_image_info__num_dims_2(self, tmp_path: Path) -> None:
         helpers.create_yolo_keypoint_detection_dataset(
             tmp_path, split_first=False, num_dims=2
         )
@@ -127,7 +142,7 @@ class TestYOLOKeypointDetectionDatasetArgs:
         ]
         assert rows[0]["keypoint_visibility"] == [[2, 2, 2]]
 
-    def test_skip_if_label_file_missing(self, tmp_path: Path) -> None:
+    def test_list_image_info__skip_if_label_file_missing(self, tmp_path: Path) -> None:
         helpers.create_yolo_keypoint_detection_dataset(
             tmp_path, split_first=False, missing_label_indices=[0]
         )
@@ -138,7 +153,7 @@ class TestYOLOKeypointDetectionDatasetArgs:
         )
         assert len(rows) == 1
 
-    def test_ignored_classes_are_removed(self, tmp_path: Path) -> None:
+    def test_list_image_info__ignore_classes(self, tmp_path: Path) -> None:
         helpers.create_yolo_keypoint_detection_dataset(tmp_path, split_first=False)
         label_path = tmp_path / "labels" / "train" / "0.txt"
         label_path.write_text(label_path.read_text().replace("0 ", "1 "))
@@ -160,7 +175,9 @@ class TestCOCOKeypointDetectionDataArgs:
         assert dataset_args.num_keypoints == 3
         assert dataset_args.data_dir == Path("train")
 
-    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
+    def test_resolve_data_paths__relative_to_data_config_file(
+        self, tmp_path: Path
+    ) -> None:
         data_args = _coco_data_args(
             tmp_path,
             train=COCOSplitArgs(annotations="annotations/train.json", images="train"),
@@ -173,7 +190,23 @@ class TestCOCOKeypointDetectionDataArgs:
             == (tmp_path / "configs" / "annotations/train.json").resolve()
         )
 
-    def test_ignored_categories_may_have_different_keypoints(
+    def test_train_data_mmap_hash__deterministic(self, tmp_path: Path) -> None:
+        helpers.create_coco_keypoint_detection_dataset(tmp_path)
+        data_args = _coco_data_args(tmp_path)
+        assert data_args.train_data_mmap_hash() == data_args.train_data_mmap_hash()
+
+
+class TestCOCOKeypointDetectionDatasetArgs:
+    def test_list_image_info(self, tmp_path: Path) -> None:
+        helpers.create_coco_keypoint_detection_dataset(tmp_path)
+        rows = [
+            _decode(row)
+            for row in _coco_data_args(tmp_path).get_train_args().list_image_info()
+        ]
+        assert len(rows) == 2
+        assert rows[0]["bboxes"] == [[0.1953125, 0.234375, 0.234375, 0.3125]]
+
+    def test_list_image_info__ignored_category_with_different_keypoints(
         self, tmp_path: Path
     ) -> None:
         helpers.create_coco_keypoint_detection_dataset(
@@ -203,18 +236,7 @@ class TestCOCOKeypointDetectionDataArgs:
         ]
         assert rows[0]["class_labels"] == [0]
 
-
-class TestCOCOKeypointDetectionDatasetArgs:
-    def test_list_image_info(self, tmp_path: Path) -> None:
-        helpers.create_coco_keypoint_detection_dataset(tmp_path)
-        rows = [
-            _decode(row)
-            for row in _coco_data_args(tmp_path).get_train_args().list_image_info()
-        ]
-        assert len(rows) == 2
-        assert rows[0]["bboxes"] == [[0.1953125, 0.234375, 0.234375, 0.3125]]
-
-    def test_missing_annotations_are_skipped(self, tmp_path: Path) -> None:
+    def test_list_image_info__skip_if_annotations_missing(self, tmp_path: Path) -> None:
         helpers.create_coco_keypoint_detection_dataset(tmp_path)
         labels_path = tmp_path / "train.json"
         labels = json.loads(labels_path.read_text())
@@ -228,25 +250,6 @@ class TestCOCOKeypointDetectionDatasetArgs:
             )
             == []
         )
-
-
-class TestMmapHashes:
-    def test_yolo_hash_changes_with_num_dims(self, tmp_path: Path) -> None:
-        hash_2d = _yolo_data_args(tmp_path, kpt_shape=[3, 2]).train_data_mmap_hash()
-        hash_3d = _yolo_data_args(tmp_path, kpt_shape=[3, 3]).train_data_mmap_hash()
-        assert hash_2d != hash_3d
-
-    def test_yolo_hash_changes_with_pose_metadata(self, tmp_path: Path) -> None:
-        before = _yolo_data_args(tmp_path).train_data_mmap_hash()
-        after = _yolo_data_args(
-            tmp_path, kpt_oks_sigmas=[0.1, 0.2, 0.3]
-        ).train_data_mmap_hash()
-        assert before != after
-
-    def test_coco_hash_is_deterministic(self, tmp_path: Path) -> None:
-        helpers.create_coco_keypoint_detection_dataset(tmp_path)
-        data_args = _coco_data_args(tmp_path)
-        assert data_args.train_data_mmap_hash() == data_args.train_data_mmap_hash()
 
 
 class _KeypointDetectionDataConfig(PydanticConfig):
@@ -265,7 +268,7 @@ class _KeypointDetectionDataConfig(PydanticConfig):
 
 
 class TestKeypointDetectionDataConfig:
-    def test_yolo_yaml_roundtrip(self, tmp_path: Path) -> None:
+    def test_model_validate__yolo_yaml(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "data.yaml"
         data_yaml.write_text(
             yaml.safe_dump(
@@ -286,7 +289,7 @@ class TestKeypointDetectionDataConfig:
 
 
 class TestKeypointDetectionDataset:
-    def test_getitem_not_implemented(self, tmp_path: Path) -> None:
+    def test___getitem____not_implemented(self, tmp_path: Path) -> None:
         helpers.create_yolo_keypoint_detection_dataset(tmp_path, split_first=False)
         dataset_args = _yolo_data_args(tmp_path).get_train_args()
         image_info = list(dataset_args.list_image_info())
