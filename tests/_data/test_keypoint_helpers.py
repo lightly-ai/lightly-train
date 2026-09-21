@@ -372,31 +372,3 @@ class TestResolveCOCOKeypointSet:
                 included_class_ids=[1],
                 keypoints=KeypointSetArgs(num_keypoints=2, names=["x", "y"]),
             )
-
-
-class TestBboxFromKeypoints:
-    def test_tight_box_over_labeled_keypoints(self) -> None:
-        bbox = keypoint_helpers.bbox_from_keypoints(
-            keypoints_xy=[[0.2, 0.4], [0.6, 0.8], [0.0, 0.0]],
-            visibility=[2, 1, 0],
-        )
-        # The unlabeled keypoint at the origin must not stretch the box.
-        assert bbox == pytest.approx([0.4, 0.6, 0.4, 0.4])
-
-    def test_none_when_nothing_is_labeled(self) -> None:
-        bbox = keypoint_helpers.bbox_from_keypoints(
-            keypoints_xy=[[0.0, 0.0], [0.0, 0.0]], visibility=[0, 0]
-        )
-        assert bbox is None
-
-    def test_single_labeled_keypoint_gives_zero_size_box(self) -> None:
-        bbox = keypoint_helpers.bbox_from_keypoints(
-            keypoints_xy=[[0.3, 0.7], [0.0, 0.0]], visibility=[2, 0]
-        )
-        assert bbox == pytest.approx([0.3, 0.7, 0.0, 0.0])
-
-    def test_occluded_keypoints_count_as_labeled(self) -> None:
-        bbox = keypoint_helpers.bbox_from_keypoints(
-            keypoints_xy=[[0.2, 0.2], [0.4, 0.4]], visibility=[1, 1]
-        )
-        assert bbox == pytest.approx([0.3, 0.3, 0.2, 0.2])

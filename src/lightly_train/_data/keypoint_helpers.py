@@ -15,12 +15,6 @@ from typing_extensions import Self
 
 from lightly_train._configs.config import PydanticConfig
 
-# Visibility convention, shared by COCO and YOLO pose.
-VISIBILITY_UNLABELED = 0
-VISIBILITY_OCCLUDED = 1
-VISIBILITY_VISIBLE = 2
-VISIBILITIES = (VISIBILITY_UNLABELED, VISIBILITY_OCCLUDED, VISIBILITY_VISIBLE)
-
 
 class KeypointSetArgs(PydanticConfig):
     """A keypoint set: how many keypoints, their names, how they relate.
@@ -355,37 +349,3 @@ def resolve_coco_keypoint_set(
         keypoints=keypoints,
         dataset_description="the annotations file",
     )
-
-
-def bbox_from_keypoints(
-    keypoints_xy: list[list[float]], visibility: list[int]
-) -> list[float] | None:
-    """Returns the tight bounding box around all labeled keypoints.
-
-    Args:
-        keypoints_xy:
-            Keypoint coordinates as [[x, y], ...].
-        visibility:
-            Visibility flag per keypoint. Keypoints with visibility 0 are ignored.
-
-    Returns:
-        (x_center, y_center, width, height) in the keypoints' coordinate system, or
-        None if no keypoint is labeled.
-    """
-    labeled = [
-        point
-        for point, vis in zip(keypoints_xy, visibility)
-        if vis != VISIBILITY_UNLABELED
-    ]
-    if not labeled:
-        return None
-    xs = [point[0] for point in labeled]
-    ys = [point[1] for point in labeled]
-    x_min, x_max = min(xs), max(xs)
-    y_min, y_max = min(ys), max(ys)
-    return [
-        (x_min + x_max) / 2.0,
-        (y_min + y_max) / 2.0,
-        x_max - x_min,
-        y_max - y_min,
-    ]

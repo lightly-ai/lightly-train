@@ -35,12 +35,6 @@ NDArray4Corners = NDArray[
     np.float64
 ]  # (n_boxes, 8) with x1, y1, x2, y2, x3, y3, x4, y4 coordinates.
 NDArrayClasses = NDArray[np.int64]  # (n_boxes,)
-# Keypoint coordinates per instance. In [0, 1] but not clipped: a keypoint annotated
-# outside the image keeps its position.
-NDArrayKeypoints = NDArray[np.float64]  # (n_instances, n_keypoints, 2)
-# Per-keypoint visibility: 0 not labeled, 1 labeled but not visible, 2 labeled and
-# visible. Coordinates of visibility 0 keypoints must not be read.
-NDArrayKeypointVisibility = NDArray[np.int64]  # (n_instances, n_keypoints)
 # Array with x0, y0, x1, y1, x2, y2, ... coordinates of the polygon points. Coordinates
 # are in [0, 1].
 NDArrayPolygon = NDArray[np.float64]  # (n_points*2,)
@@ -141,18 +135,6 @@ class ObjectDetectionDatasetItem(TypedDict):
     image: NDArrayImage
     bboxes: NDArrayBBoxes  # Of shape (n_boxes, 4) with (x_center, y_center, w, h) coordinates.
     classes: NDArrayClasses  # Of shape (n_boxes,) with class labels.
-    original_size: tuple[int, int]  # (width, height) of the original image.
-
-
-class KeypointDetectionDatasetItem(TaskDatasetItem):
-    image_path: ImageFilename
-    image: NDArrayImage
-    bboxes: NDArrayBBoxes  # Of shape (n_instances, 4) with (x_center, y_center, w, h).
-    classes: NDArrayClasses  # Of shape (n_instances,) with class labels.
-    keypoints: NDArrayKeypoints  # Of shape (n_instances, n_keypoints, 2) with (x, y).
-    keypoint_visibility: (
-        NDArrayKeypointVisibility  # Of shape (n_instances, n_keypoints).
-    )
     original_size: tuple[int, int]  # (width, height) of the original image.
 
 
