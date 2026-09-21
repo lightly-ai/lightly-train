@@ -7,15 +7,14 @@
 #
 from __future__ import annotations
 
-import json
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated, Any
+from dataclasses import dataclass
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from sqlmodel import Session, col, func, select
-from torch import Tensor
 from torch.nn import functional as F
 
 from lightly_train_api import encoder, schemas, tasks, trainer
@@ -23,8 +22,17 @@ from lightly_train_api.db import get_session, init_db
 from lightly_train_api.models import Head, Sample, TrainingRun, User
 from lightly_train_api.settings import get_settings
 
-# user_id -> (head_id, weight, bias, class_names)
-_head_cache: dict[str, tuple[int, Tensor, Tensor, list[str]]] = {}
+
+@dataclass(frozen=True)
+class CachedHead:
+    """Head weights kept in memory to avoid reloading them on every prediction."""
+
+    head_id: int
+    weights: trainer.HeadWeights
+    class_names: list[str]
+
+
+_head_cache: dict[str, CachedHead] = {}
 
 
 @asynccontextmanager
@@ -79,12 +87,14 @@ def me(session: SessionDep, user: UserDep) -> schemas.UserInfo:
         .group_by(col(Sample.label))
     ).all()
     head = _latest_head(session=session, user_id=user.id)
-    run = session.exec(
-        _user_query(TrainingRun, user.id).order_by(col(TrainingRun.id).desc())
+    run: TrainingRun | None = session.exec(
+        select(TrainingRun)
+        .where(TrainingRun.user_id == user.id)
+        .order_by(col(TrainingRun.id).desc())
     ).first()
     return schemas.UserInfo(
         user_id=user.id,
-        class_names=json.loads(user.class_names),
+        class_names=user.class_names,
         num_samples=sum(count for _, count in counts),
         samples_per_class={label: count for label, count in counts},
         head=_head_info(head),
@@ -103,11 +113,11 @@ async def upload_samples(
     if len(files) != len(labels):
         raise HTTPException(400, "Number of files and labels must match.")
 
-    known = json.loads(user.class_names)
+    known = list(user.class_names)
     for name in [*(class_names or []), *labels]:
         if name not in known:
             known.append(name)
-    user.class_names = json.dumps(known)
+    user.class_names = known
     session.add(user)
 
     images_data = [await file.read() for file in files]
@@ -159,48 +169,40 @@ async def predict(
     head = _get_cached_head(session=session, user_id=user.id)
     if head is None:
         raise HTTPException(409, "No trained head available yet.")
-    _, weight, bias, class_names = head
 
     images = [encoder.decode_image(await file.read()) for file in files]
     features = encoder.normalize_features(encoder.encode(images))
-    probabilities = F.softmax(F.linear(features, weight, bias), dim=-1)
+    logits = F.linear(features, head.weights.weight, head.weights.bias)
+    probabilities = F.softmax(logits, dim=-1)
     scores, indices = probabilities.max(dim=-1)
 
     return [
         schemas.Prediction(
-            label=class_names[index],
+            label=head.class_names[index],
             score=float(score),
-            probabilities=dict(zip(class_names, row.tolist())),
+            probabilities=dict(zip(head.class_names, row.tolist())),
         )
         for index, score, row in zip(indices, scores, probabilities)
     ]
 
 
-def _user_query(table: Any, user_id: str) -> Any:
-    return select(table).where(table.user_id == user_id)
-
-
 def _latest_head(session: Session, user_id: str) -> Head | None:
     head: Head | None = session.exec(
-        _user_query(Head, user_id).order_by(col(Head.id).desc())
+        select(Head).where(Head.user_id == user_id).order_by(col(Head.id).desc())
     ).first()
     return head
 
 
-def _get_cached_head(
-    session: Session, user_id: str
-) -> tuple[int, Tensor, Tensor, list[str]] | None:
+def _get_cached_head(session: Session, user_id: str) -> CachedHead | None:
     head = _latest_head(session=session, user_id=user_id)
     if head is None or head.id is None:
         return None
     cached = _head_cache.get(user_id)
-    if cached is None or cached[0] != head.id:
-        weights = trainer.load_weights(head.weights)
-        cached = (
-            head.id,
-            weights["weight"],
-            weights["bias"],
-            json.loads(head.class_names),
+    if cached is None or cached.head_id != head.id:
+        cached = CachedHead(
+            head_id=head.id,
+            weights=trainer.load_weights(head.weights),
+            class_names=list(head.class_names),
         )
         _head_cache[user_id] = cached
     return cached
@@ -211,7 +213,7 @@ def _head_info(head: Head | None) -> schemas.HeadInfo | None:
         return None
     return schemas.HeadInfo(
         id=head.id,
-        class_names=json.loads(head.class_names),
+        class_names=head.class_names,
         num_samples=head.num_samples,
         train_loss=head.train_loss,
         train_accuracy=head.train_accuracy,

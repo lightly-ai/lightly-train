@@ -26,24 +26,32 @@ def _separable(
 
 def test_fit_linear_head() -> None:
     features, labels = _separable(num_classes=3)
-    state_dict, metrics = trainer.fit_linear_head(
-        features=features, labels=labels, num_classes=3
-    )
-    assert state_dict["weight"].shape == (3, features.shape[-1])
-    assert metrics["train_accuracy"] == 1.0
+    fitted = trainer.fit_linear_head(features=features, labels=labels, num_classes=3)
+    assert fitted.weights.weight.shape == (3, features.shape[-1])
+    assert fitted.metrics.train_accuracy == 1.0
     logits = torch.nn.functional.linear(
-        encoder.normalize_features(features), state_dict["weight"], state_dict["bias"]
+        encoder.normalize_features(features),
+        fitted.weights.weight,
+        fitted.weights.bias,
     )
     assert torch.equal(logits.argmax(dim=-1), labels)
 
 
 def test_fit_linear_head__num_classes() -> None:
     features, labels = _separable(num_classes=4)
-    state_dict, _ = trainer.fit_linear_head(
-        features=features, labels=labels, num_classes=4
-    )
-    assert state_dict["weight"].shape[0] == 4
-    assert state_dict["bias"].shape[0] == 4
+    fitted = trainer.fit_linear_head(features=features, labels=labels, num_classes=4)
+    assert fitted.weights.weight.shape[0] == 4
+    assert fitted.weights.bias.shape[0] == 4
+
+
+def test_dump_weights() -> None:
+    features, labels = _separable(num_classes=2)
+    weights = trainer.fit_linear_head(
+        features=features, labels=labels, num_classes=2
+    ).weights
+    loaded = trainer.load_weights(trainer.dump_weights(weights))
+    assert torch.equal(loaded.weight, weights.weight)
+    assert torch.equal(loaded.bias, weights.bias)
 
 
 def test_fit_linear_head__time_budget(monkeypatch: pytest.MonkeyPatch) -> None:

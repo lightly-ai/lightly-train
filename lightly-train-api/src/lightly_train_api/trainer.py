@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import io
-import json
 import time
 import traceback
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import torch
@@ -21,13 +21,31 @@ from torch.nn import functional as F
 
 from lightly_train_api import encoder
 from lightly_train_api.db import get_engine
-from lightly_train_api.models import Head, Sample, TrainingRun, User
+from lightly_train_api.models import Head, RunStatus, Sample, TrainingRun, User
 from lightly_train_api.settings import get_settings
 
 
-def fit_linear_head(
-    features: Tensor, labels: Tensor, num_classes: int
-) -> tuple[dict[str, Tensor], dict[str, float]]:
+@dataclass(frozen=True)
+class HeadWeights:
+    """Parameters of a linear head."""
+
+    weight: Tensor
+    bias: Tensor
+
+
+@dataclass(frozen=True)
+class TrainMetrics:
+    train_loss: float
+    train_accuracy: float
+
+
+@dataclass(frozen=True)
+class FittedHead:
+    weights: HeadWeights
+    metrics: TrainMetrics
+
+
+def fit_linear_head(features: Tensor, labels: Tensor, num_classes: int) -> FittedHead:
     """Fits a randomly initialized linear head on all features. Full batch."""
     settings = get_settings()
     features = encoder.normalize_features(features)
@@ -61,18 +79,21 @@ def fit_linear_head(
         logits = head(features)
         accuracy = (logits.argmax(dim=-1) == labels).float().mean()
 
-    state_dict = {"weight": head.weight.detach(), "bias": head.bias.detach()}
-    metrics = {"train_loss": float(loss.detach()), "train_accuracy": float(accuracy)}
-    return state_dict, metrics
+    return FittedHead(
+        weights=HeadWeights(weight=head.weight.detach(), bias=head.bias.detach()),
+        metrics=TrainMetrics(
+            train_loss=float(loss.detach()), train_accuracy=float(accuracy)
+        ),
+    )
 
 
-def retrain_user(user_id: str, run_id: int) -> dict[str, float]:
+def retrain_user(user_id: str, run_id: int) -> TrainMetrics:
     """Retrains the head of a user from scratch on all their samples."""
     with Session(get_engine()) as session:
         run = session.get(TrainingRun, run_id)
         if run is None:
             raise ValueError(f"Unknown training run {run_id}.")
-        run.status = "running"
+        run.status = RunStatus.RUNNING
         session.add(run)
         session.commit()
 
@@ -82,7 +103,7 @@ def retrain_user(user_id: str, run_id: int) -> dict[str, float]:
             session.rollback()
             run = session.get(TrainingRun, run_id)
             assert run is not None
-            run.status = "failed"
+            run.status = RunStatus.FAILED
             run.error = traceback.format_exc()
             run.finished_at = datetime.now(timezone.utc)
             session.add(run)
@@ -91,13 +112,12 @@ def retrain_user(user_id: str, run_id: int) -> dict[str, float]:
         return metrics
 
 
-def _retrain(session: Session, user_id: str, run: TrainingRun) -> dict[str, float]:
+def _retrain(session: Session, user_id: str, run: TrainingRun) -> TrainMetrics:
     user = session.get(User, user_id)
     if user is None:
         raise ValueError(f"Unknown user {user_id}.")
 
-    class_names: list[str] = json.loads(user.class_names)
-    class_to_index = {name: index for index, name in enumerate(class_names)}
+    class_to_index = {name: index for index, name in enumerate(user.class_names)}
     samples = list(session.exec(select(Sample).where(Sample.user_id == user_id)).all())
     if not samples:
         raise ValueError(f"User {user_id} has no samples.")
@@ -106,39 +126,39 @@ def _retrain(session: Session, user_id: str, run: TrainingRun) -> dict[str, floa
         [encoder.blob_to_feature(sample.embedding) for sample in samples]
     )
     labels = torch.tensor([class_to_index[sample.label] for sample in samples])
-    state_dict, metrics = fit_linear_head(
-        features=features, labels=labels, num_classes=len(class_names)
+    fitted = fit_linear_head(
+        features=features, labels=labels, num_classes=len(user.class_names)
     )
 
     head = Head(
         user_id=user_id,
-        class_names=user.class_names,
+        class_names=list(user.class_names),
         backbone=get_settings().model_name,
-        weights=dump_weights(state_dict),
+        weights=dump_weights(fitted.weights),
         num_samples=len(samples),
-        train_loss=metrics["train_loss"],
-        train_accuracy=metrics["train_accuracy"],
+        train_loss=fitted.metrics.train_loss,
+        train_accuracy=fitted.metrics.train_accuracy,
     )
     session.add(head)
     session.commit()
     session.refresh(head)
 
-    run.status = "succeeded"
+    run.status = RunStatus.SUCCEEDED
     run.head_id = head.id
     run.finished_at = datetime.now(timezone.utc)
     session.add(run)
     session.commit()
-    return metrics
+    return fitted.metrics
 
 
-def dump_weights(state_dict: dict[str, Tensor]) -> bytes:
+def dump_weights(weights: HeadWeights) -> bytes:
     buffer = io.BytesIO()
-    torch.save(state_dict, buffer)
+    torch.save({"weight": weights.weight, "bias": weights.bias}, buffer)
     return buffer.getvalue()
 
 
-def load_weights(weights: bytes) -> dict[str, Tensor]:
-    loaded: dict[str, Tensor] = torch.load(
-        io.BytesIO(weights), map_location="cpu", weights_only=True
+def load_weights(blob: bytes) -> HeadWeights:
+    state_dict: dict[str, Tensor] = torch.load(
+        io.BytesIO(blob), map_location="cpu", weights_only=True
     )
-    return loaded
+    return HeadWeights(weight=state_dict["weight"], bias=state_dict["bias"])

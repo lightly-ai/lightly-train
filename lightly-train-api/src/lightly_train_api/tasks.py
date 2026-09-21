@@ -7,22 +7,24 @@
 #
 from __future__ import annotations
 
-from typing import Any
-
-from hatchet_sdk import Context, Hatchet
+from hatchet_sdk import Context, Hatchet, Worker
+from hatchet_sdk.runnables.workflow import Standalone
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from lightly_train_api import trainer
 from lightly_train_api.settings import get_settings
 
-_hatchet: Hatchet | None = None
-_retrain_task: Any = None
-
 
 class RetrainInput(BaseModel):
     user_id: str
     run_id: int
+
+
+RetrainTask = Standalone[RetrainInput, trainer.TrainMetrics]
+
+_hatchet: Hatchet | None = None
+_retrain_task: RetrainTask | None = None
 
 
 def get_hatchet() -> Hatchet:
@@ -33,12 +35,12 @@ def get_hatchet() -> Hatchet:
     return _hatchet
 
 
-def get_retrain_task() -> Any:
+def get_retrain_task() -> RetrainTask:
     global _retrain_task
     if _retrain_task is None:
 
         @get_hatchet().task(name="retrain", input_validator=RetrainInput)
-        def retrain(input: RetrainInput, ctx: Context) -> dict[str, float]:
+        def retrain(input: RetrainInput, ctx: Context) -> trainer.TrainMetrics:
             return trainer.retrain_user(user_id=input.user_id, run_id=input.run_id)
 
         _retrain_task = retrain
@@ -54,6 +56,6 @@ async def enqueue_retrain(user_id: str, run_id: int) -> None:
     )
 
 
-def create_worker() -> Any:
+def create_worker() -> Worker:
     """Worker for the embedded engine. Must run in the same process as the client."""
     return get_hatchet().worker("lightly-train-api", workflows=[get_retrain_task()])

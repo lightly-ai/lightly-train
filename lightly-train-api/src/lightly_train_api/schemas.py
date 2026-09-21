@@ -11,6 +11,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from lightly_train_api.models import RunStatus
+
 
 class ModelInfo(BaseModel):
     backbone: str
@@ -29,7 +31,7 @@ class HeadInfo(BaseModel):
 
 class RunInfo(BaseModel):
     id: int
-    status: str
+    status: RunStatus
     head_id: int | None
     error: str | None
     created_at: datetime
