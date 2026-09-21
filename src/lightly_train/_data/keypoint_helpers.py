@@ -8,25 +8,31 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from enum import IntEnum
 from typing import Any
 
-# Visibility convention, shared by COCO and YOLO pose.
-VISIBILITY_UNLABELED = 0
-VISIBILITY_OCCLUDED = 1
-VISIBILITY_VISIBLE = 2
-VISIBILITIES = (VISIBILITY_UNLABELED, VISIBILITY_OCCLUDED, VISIBILITY_VISIBLE)
+
+class Visibility(IntEnum):
+    """Keypoint visibility flag, shared by COCO and YOLO pose."""
+
+    UNLABELED = 0
+    OCCLUDED = 1
+    VISIBLE = 2
 
 
-def parse_visibility(visibility: float) -> int | None:
-    """Returns the visibility flag as an int, or None if it is not a valid flag.
+def parse_visibility(visibility: float) -> Visibility | None:
+    """Returns the visibility flag, or None if the value is not a valid flag.
 
     Exporters commonly write the flag as a float, e.g. ``2.000000``. A fractional
     value such as ``1.9`` is not a flag and must not be truncated to one.
     """
     flag = int(visibility)
-    if flag != visibility or flag not in VISIBILITIES:
+    if flag != visibility:
         return None
-    return flag
+    try:
+        return Visibility(flag)
+    except ValueError:
+        return None
 
 
 def validate_kpt_shape(kpt_shape: tuple[int, int]) -> tuple[int, int]:
@@ -125,7 +131,7 @@ def bbox_from_keypoints(
     labeled = [
         point
         for point, vis in zip(keypoints_xy, visibility)
-        if vis != VISIBILITY_UNLABELED
+        if vis != Visibility.UNLABELED
     ]
     if not labeled:
         return None

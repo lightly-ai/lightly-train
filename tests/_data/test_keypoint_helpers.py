@@ -14,9 +14,21 @@ import pytest
 from lightly_train._data import keypoint_helpers
 
 
-@pytest.mark.parametrize("visibility", [0, 1, 2, 2.0, 0.0])
-def test_parse_visibility__valid(visibility: float) -> None:
-    assert keypoint_helpers.parse_visibility(visibility) == int(visibility)
+@pytest.mark.parametrize(
+    "visibility, expected",
+    [
+        (0, keypoint_helpers.Visibility.UNLABELED),
+        (1, keypoint_helpers.Visibility.OCCLUDED),
+        (2, keypoint_helpers.Visibility.VISIBLE),
+        # Exporters commonly write the flag as a float.
+        (0.0, keypoint_helpers.Visibility.UNLABELED),
+        (2.0, keypoint_helpers.Visibility.VISIBLE),
+    ],
+)
+def test_parse_visibility__valid(
+    visibility: float, expected: keypoint_helpers.Visibility
+) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) is expected
 
 
 @pytest.mark.parametrize("visibility", [1.9, 0.5, -1, 3, 2.5])

@@ -483,7 +483,7 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
         if not flat:
             return (
                 [[0.0, 0.0] for _ in range(num_keypoints)],
-                [keypoint_helpers.VISIBILITY_UNLABELED] * num_keypoints,
+                [keypoint_helpers.Visibility.UNLABELED] * num_keypoints,
             )
 
         if len(flat) != 3 * num_keypoints:
@@ -501,11 +501,11 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
             if vis is None:
                 raise ValueError(
                     f"Expected keypoint visibility to be one of "
-                    f"{list(keypoint_helpers.VISIBILITIES)}, got {flat[3 * i + 2]} for "
-                    f"keypoint {i} of annotation {annotation.get('id')} in "
-                    f"'{self.labels}'."
+                    f"{[flag.value for flag in keypoint_helpers.Visibility]}, "
+                    f"got {flat[3 * i + 2]} for keypoint {i} of annotation "
+                    f"{annotation.get('id')} in '{self.labels}'."
                 )
-            if vis == keypoint_helpers.VISIBILITY_UNLABELED:
+            if vis == keypoint_helpers.Visibility.UNLABELED:
                 keypoints.append([0.0, 0.0])
             else:
                 keypoints.append([x / image_width_pixel, y / image_height_pixel])
@@ -596,4 +596,4 @@ def _image_info(
 
 
 def _count_labeled(visibility: list[int]) -> int:
-    return sum(1 for vis in visibility if vis != keypoint_helpers.VISIBILITY_UNLABELED)
+    return sum(1 for vis in visibility if vis != keypoint_helpers.Visibility.UNLABELED)

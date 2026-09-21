@@ -527,18 +527,18 @@ def open_yolo_keypoint_detection_label(
             offset = 5 + i * num_dims
             x, y = values[offset], values[offset + 1]
             if num_dims == 2:
-                vis = keypoint_helpers.VISIBILITY_VISIBLE
+                vis = keypoint_helpers.Visibility.VISIBLE
             else:
                 parsed_vis = keypoint_helpers.parse_visibility(values[offset + 2])
                 if parsed_vis is None:
                     raise ValueError(
                         f"Expected keypoint visibility to be one of "
-                        f"{list(keypoint_helpers.VISIBILITIES)}, got "
-                        f"{values[offset + 2]} for keypoint {i} in '{label_path}' on "
-                        f"line {line_number}."
+                        f"{[flag.value for flag in keypoint_helpers.Visibility]}, "
+                        f"got {values[offset + 2]} for keypoint {i} in "
+                        f"'{label_path}' on line {line_number}."
                     )
                 vis = parsed_vis
-                if vis == keypoint_helpers.VISIBILITY_UNLABELED:
+                if vis == keypoint_helpers.Visibility.UNLABELED:
                     # Unlabeled keypoints carry no position. Make that explicit
                     # instead of passing on whatever the file stored.
                     x, y = 0.0, 0.0
