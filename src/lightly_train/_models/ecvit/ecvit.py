@@ -662,6 +662,13 @@ class ECViTModelWrapper(
         # All pyramid levels share the same channel dimension.
         return [self.feature_dim()] * self.num_levels
 
+    # TODO(Lionel, 09/26): Levels are not uniformly normalized, so this does not
+    # fully satisfy the ForwardMultiScaleFeatures contract. When the preset
+    # `proj_dim` is None (ecvitt, ecvittplus) `forward` projects only the last
+    # level, leaving levels 0 and 1 as raw interpolated activations. Normalizing
+    # all levels would change `forward`, which intentionally mirrors upstream
+    # EdgeCrafter's adapter and is what the LTDETR detection path was tuned
+    # against. Revisit once a consumer needs comparable statistics across levels.
     def forward_multiscale_features(
         self, x: Tensor, layer_indices: Sequence[int]
     ) -> list[ForwardFeaturesOutput]:

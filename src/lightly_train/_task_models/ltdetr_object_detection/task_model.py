@@ -34,7 +34,6 @@ from lightly_train._models.dinov3.dinov3_src.models.vision_transformer import (
 )
 from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
 from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
-from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionMetadata,
     ObjectDetectionOutput,
@@ -203,9 +202,7 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         # Resolve the backbone's expected input channel count.
         # backbone_args["in_chans"] overrides image_normalize, which overrides 3.
         self._expected_input_channels: int
-        if package_name == EDGE_CRAFTER_PACKAGE.name:
-            self._expected_input_channels = 3
-        elif backbone_args is not None and "in_chans" in backbone_args:
+        if backbone_args is not None and "in_chans" in backbone_args:
             self._expected_input_channels = backbone_args["in_chans"]
         else:
             self._expected_input_channels = len(self.image_normalize["mean"])

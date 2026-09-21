@@ -128,12 +128,11 @@ class EdgeCrafterPackage(MultiScaleFeaturePackage):
                 preset_name=preset_name, model_info=model_info
             )
 
-        return ECViTModelWrapper(
-            name=preset_name,
-            weights_path=weights_path,
-            num_input_channels=num_input_channels,
-            **(model_args or {}),
-        )
+        args: dict[str, Any] = {"num_input_channels": num_input_channels}
+        if model_args is not None:
+            args.update(model_args)
+
+        return ECViTModelWrapper(name=preset_name, weights_path=weights_path, **args)
 
     @classmethod
     def get_model_wrapper(cls, model: ECViTModelWrapper) -> ECViTModelWrapper:

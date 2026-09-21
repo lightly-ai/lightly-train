@@ -12,8 +12,10 @@ from pathlib import Path
 
 import pytest
 import torch
+from torch import nn
 
 from lightly_train._models.ecvit import ECVIT_PRESETS, ECViTModelWrapper
+from lightly_train._models.ecvit.ecvit import ConvPyramidPatchEmbed
 from lightly_train._models.model_wrapper import (
     ModelWrapper,
     missing_model_wrapper_attrs,
@@ -414,7 +416,10 @@ class TestECViTModelWrapper:
             proj_dim=16,
             num_input_channels=4,
         )
-        first_conv = model.backbone.patch_embed.convs[0].conv
+        patch_embed = model.backbone.patch_embed
+        assert isinstance(patch_embed, ConvPyramidPatchEmbed)
+        first_conv = patch_embed.convs[0].conv
+        assert isinstance(first_conv, nn.Conv2d)
         assert first_conv.in_channels == 4
         assert first_conv.weight.shape[1] == 4
 
