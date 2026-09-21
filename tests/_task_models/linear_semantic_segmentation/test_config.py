@@ -16,22 +16,25 @@ from lightly_train._task_models.linear_semantic_segmentation.task_model import (
 )
 
 
-def test_registry_has_config_for_every_backbone() -> None:
-    """Every backbone in the DINOv2/DINOv3 packages must have an explicit config.
+def test_registry_has_config_for_every_dinov2_backbone() -> None:
+    """Every DINOv2 backbone must have an explicit config.
 
-    Guards against forgetting to register a config when a new backbone is added
-    to the dinov2 or dinov3 packages. Names that fall through to ``Fallback`` are
-    derived at runtime and are not considered registered.
+    DINOv2 configs set ``freeze_mask_token=True`` and ``drop_path_rate=0.0``.
+    ``Fallback`` keeps ``backbone_name=""``, so ``_check_freeze_mask_token`` does
+    not fire for it and an unregistered DINOv2 backbone would silently run with
+    ``freeze_mask_token=False``. Backbones of other packages need no extra fields
+    and are fine on ``Fallback``.
     """
     missing = [
         model_name
         for model_name in LinearSemanticSegmentation.list_model_names()
-        if LINEAR_SEG_MODEL_REGISTRY.get(
+        if model_name.startswith("dinov2/")
+        and LINEAR_SEG_MODEL_REGISTRY.get(
             model_name, default=LinearSegConfigRegistry.Fallback
         )
         is LinearSegConfigRegistry.Fallback
     ]
     assert not missing, (
-        f"Missing explicit LinearSemanticSegmentation configs for backbones: "
+        f"Missing explicit LinearSemanticSegmentation configs for DINOv2 backbones: "
         f"{missing}. Add a config for each in LinearSegConfigRegistry."
     )
