@@ -15,6 +15,7 @@ from typing import Any
 import torch
 from torch.nn import Module
 from torchvision import models as torchvision_models
+from torchvision.models import ConvNeXt, ResNet, ShuffleNetV2
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -51,19 +52,6 @@ class TorchvisionPackage(MultiScaleFeaturePackage):
         return sorted(model_names)
 
     @classmethod
-    def supports_multiscale_model(cls, model_name: str) -> bool:
-        # Map the model name to its feature-extractor wrapper and ask whether that
-        # wrapper implements multi-scale feature extraction. ShuffleNetV2 does not.
-        prefix = f"{cls.name}/"
-        name = (
-            model_name[len(prefix) :] if model_name.startswith(prefix) else model_name
-        )
-        for feature_extractor in cls._FEATURE_EXTRACTORS:
-            if re.match(feature_extractor._torchvision_model_name_pattern, name):
-                return feature_extractor.supports_multiscale_features()
-        return False
-
-    @classmethod
     def is_supported_model(cls, model: Module | ModelWrapper | Any) -> bool:
         if isinstance(model, ModelWrapper):
             model = model.get_model()
@@ -91,10 +79,16 @@ class TorchvisionPackage(MultiScaleFeaturePackage):
         return model
 
     @classmethod
-    def get_model_wrapper(cls, model: Module) -> TorchvisionModelWrapper:
-        feature_extractor_cls = cls._model_cls_to_extractor_cls().get(type(model))
-        if feature_extractor_cls is not None:
-            return feature_extractor_cls(model)
+    def get_model_wrapper(
+        cls, model: Module
+    ) -> ConvNeXtModelWrapper | ResNetModelWrapper | ShuffleNetV2ModelWrapper:
+        model_cls = type(model)
+        if model_cls is ConvNeXt:
+            return ConvNeXtModelWrapper(model)
+        elif model_cls is ResNet:
+            return ResNetModelWrapper(model)
+        elif model_cls is ShuffleNetV2:
+            return ShuffleNetV2ModelWrapper(model)
         raise UnknownModelError(f"Unknown torchvision model: '{model}'")
 
     @classmethod

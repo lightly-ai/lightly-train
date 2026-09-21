@@ -286,5 +286,21 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class TorchvisionResNet152(LinearSemanticSegmentationConfig):
         backbone_name: str = "torchvision/resnet152"
 
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x0_5-linear")
+    class TorchvisionShuffleNetV2X05(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x0_5"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x1_0-linear")
+    class TorchvisionShuffleNetV2X10(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x1_0"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x1_5-linear")
+    class TorchvisionShuffleNetV2X15(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x1_5"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x2_0-linear")
+    class TorchvisionShuffleNetV2X20(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x2_0"
+
     class Fallback(LinearSemanticSegmentationConfig):
         pass  # backbone_name stays "", parsed from model_name at runtime

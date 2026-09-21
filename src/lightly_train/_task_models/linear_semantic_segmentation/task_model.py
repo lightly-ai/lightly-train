@@ -156,7 +156,7 @@ class LinearSemanticSegmentation(TaskModel):
             f"{name}-{cls.model_suffix}"
             for pkg in package_helpers.list_packages()
             if isinstance(pkg, MultiScaleFeaturePackage)
-            for name in pkg.list_multiscale_model_names()
+            for name in pkg.list_model_names()
         ]
 
     @classmethod
@@ -192,9 +192,7 @@ class LinearSemanticSegmentation(TaskModel):
             package = package_helpers.get_package(package_name)
         except ValueError:
             package = None  # type: ignore[assignment]
-        if not isinstance(
-            package, MultiScaleFeaturePackage
-        ) or not package.supports_multiscale_model(backbone_name):
+        if not isinstance(package, MultiScaleFeaturePackage):
             raise ValueError(
                 f"Model name '{model_name}' is not supported. Available "
                 f"models are: {cls.list_model_names()}."

@@ -48,6 +48,8 @@ class TestLinearSemanticSegmentation:
             "dinov3/convnext-tiny-linear",
             "dinov2/_vittest14-linear",
             "dinov3/_vittest16-linear",
+            "torchvision/resnet18-linear",
+            "torchvision/shufflenet_v2_x0_5-linear",
         ],
     )
     def test_is_supported_model__supported(self, model_name: str) -> None:
@@ -58,8 +60,6 @@ class TestLinearSemanticSegmentation:
         [
             "dinov2/vits14",
             "unknown/model-linear",
-            # ShuffleNetV2 is a torchvision backbone without multi-scale support.
-            "torchvision/shufflenet_v2_x0_5-linear",
         ],
     )
     def test_is_supported_model__unsupported(self, model_name: str) -> None:
@@ -73,6 +73,7 @@ class TestLinearSemanticSegmentation:
             ("dinov3/_convnexttest-linear", (32, 32)),
             ("torchvision/resnet18-linear", (64, 64)),
             ("torchvision/convnext_tiny-linear", (64, 64)),
+            ("torchvision/shufflenet_v2_x0_5-linear", (64, 64)),
         ],
     )
     def test_forward_train__output_shape(

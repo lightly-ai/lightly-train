@@ -7,128 +7,53 @@
 #
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from typing import Sequence
 
-import torch
-from torch import Tensor
-from torch.nn import Module
+from torch.nn import Conv2d, Module
 
-from lightly_train._models.model_wrapper import (
-    ForwardFeaturesOutput,
-    MultiScaleFeatureCNN,
-)
-
-# Spatial size of the dummy input used to read the multi-scale feature dimensions and
-# strides. It is a multiple of the largest expected stride (32) so that the strides
-# divide evenly.
-_MULTI_SCALE_DUMMY_INPUT_SIZE = 224
+from lightly_train._models.model_wrapper import ModelWrapper
 
 
-class TorchvisionModelWrapper(Module, MultiScaleFeatureCNN):
+class TorchvisionModelWrapper(Module, ModelWrapper):
     _torchvision_models: list[type[Module]]
     # Regex pattern for matching model names.
     _torchvision_model_name_pattern: str
 
-    # Cache for the multi-scale feature dimensions and strides. Filled on first use.
-    _multiscale_cache: tuple[list[int], list[int]] | None = None
 
-    def multiscale_feature_dims(self) -> list[int]:
-        dims, _ = self._get_multiscale_dims_and_strides()
-        return dims
-
-    def multiscale_feature_strides(self) -> list[int]:
-        _, strides = self._get_multiscale_dims_and_strides()
-        return strides
-
-    def forward_multiscale_features(
-        self, x: Tensor, layer_indices: Sequence[int]
-    ) -> list[ForwardFeaturesOutput]:
-        stages = self._extract_multiscale_stages(x)
-        _validate_layer_indices(layer_indices=layer_indices, num_stages=len(stages))
-        return [{"features": stages[index]} for index in layer_indices]
-
-    def _extract_multiscale_stages(self, x: Tensor) -> list[Tensor]:
-        """Returns the feature map of every multi-scale stage, in order.
-
-        Model wrappers that support multi-scale features override this method. The
-        default raises to signal that the architecture is not supported.
-        """
-        raise NotImplementedError(
-            f"Multi-scale feature extraction is not supported for "
-            f"'{type(self).__name__}'."
-        )
-
-    @classmethod
-    def supports_multiscale_features(cls) -> bool:
-        """True if the wrapper implements multi-scale feature extraction.
-
-        A wrapper supports multi-scale features when it overrides
-        ``_extract_multiscale_stages``; the base implementation raises.
-        """
-        return (
-            cls._extract_multiscale_stages
-            is not TorchvisionModelWrapper._extract_multiscale_stages
-        )
-
-    def _get_multiscale_dims_and_strides(self) -> tuple[list[int], list[int]]:
-        """Returns the cached feature dimensions and strides, reading them on first use."""
-        if self._multiscale_cache is None:
-            self._multiscale_cache = _multiscale_dims_and_strides(
-                model=self.get_model(),
-                extract_stages=self._extract_multiscale_stages,
-            )
-        return self._multiscale_cache
-
-
-def _multiscale_dims_and_strides(
-    model: Module, extract_stages: Callable[[Tensor], list[Tensor]]
-) -> tuple[list[int], list[int]]:
-    """Reads the feature dimension and stride of every multi-scale stage.
-
-    Runs a single dummy forward pass through ``extract_stages`` and reads the number of
-    channels and the spatial stride of each stage from the output shapes. The model is
-    set to eval mode for the forward pass so that batch norm statistics are not updated.
-    The original mode is restored afterwards.
-
-    Args:
-        model:
-            Model that provides the device for the dummy input.
-        extract_stages:
-            Function that returns the feature map of every stage for a given input.
-
-    Returns:
-        A tuple with the feature dimensions and the strides, one entry per stage.
-    """
-    device = next(model.parameters()).device
-    size = _MULTI_SCALE_DUMMY_INPUT_SIZE
-    was_training = model.training
-    model.eval()
-    try:
-        with torch.no_grad():
-            stages = extract_stages(torch.zeros(1, 3, size, size, device=device))
-    finally:
-        model.train(was_training)
-    dims = [stage.shape[1] for stage in stages]
-    strides = [size // stage.shape[-1] for stage in stages]
-    return dims, strides
-
-
-def _validate_layer_indices(layer_indices: Sequence[int], num_stages: int) -> None:
+def _validate_layer_indices(layer_indices: Sequence[int], num_layers: int) -> None:
     """Makes sure that all layer indices are within the valid range.
+
+    Negative indices are rejected because the wrappers index a list of stage outputs,
+    where a negative index would silently select a stage instead of raising.
 
     Args:
         layer_indices:
             Indices of the stages to extract features from.
-        num_stages:
+        num_layers:
             Total number of multi-scale stages in the model.
 
     Raises:
         ValueError:
-            If any index is not in the range ``[0, num_stages)``.
+            If any index is not in the range ``[0, num_layers)``.
     """
-    for index in layer_indices:
-        if not 0 <= index < num_stages:
+    for layer_index in layer_indices:
+        if not 0 <= layer_index < num_layers:
             raise ValueError(
-                f"Layer index '{index}' is out of range for a model with "
-                f"'{num_stages}' multi-scale stages."
+                f"Layer index {layer_index} is out of range, it must be in "
+                f"[0, {num_layers - 1}]."
             )
+
+
+def _last_conv_out_channels(module: Module) -> int:
+    """Returns the number of output channels of the last Conv2d in the module."""
+    convs = [m for m in module.modules() if isinstance(m, Conv2d)]
+    return convs[-1].out_channels
+
+
+def _max_conv_stride(module: Module) -> int:
+    """Returns the largest stride of any Conv2d in the module.
+
+    Blocks that downsample apply the same stride on every branch, so the maximum is the
+    stride of the block as a whole. Blocks that do not downsample return 1.
+    """
+    return max(m.stride[0] for m in module.modules() if isinstance(m, Conv2d))
