@@ -40,7 +40,7 @@ static-checks: format-check type-check
 # Files to format with mdformat.
 # This is needed to avoid formatting files in .venv. The mdformat command has an
 # --exclude option but only on Python 3.13+.
-MDFORMAT_FILES := .github docker docs src tests inference_benchmarks *.md
+MDFORMAT_FILES := .github docker docs src tests inference_benchmarks lightly-train-api/*.md *.md
 
 # run formatter
 .PHONY: format
@@ -112,6 +112,8 @@ add-header:
 		-x src/lightly_train/_task_models/depth_estimation_components/image_utils.py \
 		-E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d tests
+	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d lightly-train-api/src -E py
+	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d lightly-train-api/tests -E py
 	uv run --frozen licenseheaders -t dev_tools/licenseheader.tmpl -d inference_benchmarks -E py
 
 	# Apply the Apache 2.0 license header to DINOv2-derived files

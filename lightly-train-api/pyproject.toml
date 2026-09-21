@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lightly-train-api"
+version = "0.1.0"
+description = "Draft API serving per-user linear probes on a shared LightlyTrain backbone"
+readme = "README.md"
+license = { "text" = "AGPL-3.0" }
+# Lower bound from hatchet-sdk, upper bound from lightly-train.
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "lightly-train",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlmodel>=0.0.22",
+    "hatchet-sdk>=1.40",
+    "python-multipart>=0.0.9",
+    "pydantic-settings>=2.0",
+    "pillow>=10.3,<12",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+    "mypy>=1.10",
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]
+
+[tool.uv.sources]
+lightly-train = { path = "..", editable = true }
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.mypy]
+strict = true
+disallow_untyped_defs = true
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = ["lightly_train.*"]
+ignore_missing_imports = true
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lightly_train", "lightly_train_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
