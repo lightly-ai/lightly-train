@@ -36,6 +36,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Object detection fine-tuning now randomly initializes the classification head whenever
+  the number of classes differs from the checkpoint. Previously the head reused the
+  checkpoint's leading rows, so a model fine-tuned from a COCO checkpoint silently
+  started from the COCO classes at those indices. This matches the documented behavior
+  and the behavior of the segmentation tasks.
 - Fine-tuning now requires `torchmetrics>=1.5` and fails with a clear error message if
   an older version is installed. This happens for example when SuperGradients is
   installed, as it requires `torchmetrics==0.8`. Classification, segmentation, and

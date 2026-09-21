@@ -16,8 +16,12 @@ from PIL import Image
 from torch import Tensor
 from torch.nn import functional as F
 
+from lightly_train._commands import train_api
 from lightly_train._task_models.image_classification.task_model import (
     ImageClassification,
+)
+from lightly_train._task_models.ltdetr_object_detection.task_model import (
+    LTDETRObjectDetection,
 )
 from lightly_train._transforms.transform import NormalizeArgs
 from lightly_train_api.settings import get_settings
@@ -80,3 +84,36 @@ def feature_to_blob(feature: Tensor) -> bytes:
 
 def blob_to_feature(blob: bytes) -> Tensor:
     return torch.frombuffer(bytearray(blob), dtype=torch.float32)
+
+
+@lru_cache(maxsize=8)
+def get_detector(class_names: tuple[str, ...]) -> LTDETRObjectDetection:
+    """Returns the shared detector for a class set, with a random class head.
+
+    Cached per class set because a user gains classes over time and every cache miss
+    rebuilds the model. The pretrained checkpoint itself is loaded only once.
+    """
+    settings = get_settings()
+    size = settings.detection_image_size
+    return train_api.load_detector(
+        model_name=settings.detection_model_name,
+        classes=dict(enumerate(class_names)),
+        image_size=(size, size),
+        device=resolve_device(settings.device),
+    )
+
+
+def preprocess_for_detection(image: Image.Image, class_names: Sequence[str]) -> Tensor:
+    """Returns the (3, H, W) tensor the detector expects, unnormalized."""
+    model = get_detector(tuple(class_names))
+    return train_api.preprocess_detection_image(
+        model=model, image=image, device=resolve_device(get_settings().device)
+    )
+
+
+def tensor_to_blob(tensor: Tensor) -> bytes:
+    return tensor.detach().to(torch.float32).contiguous().cpu().numpy().tobytes()
+
+
+def blob_to_tensor(blob: bytes, shape: tuple[int, ...]) -> Tensor:
+    return torch.frombuffer(bytearray(blob), dtype=torch.float32).reshape(shape)

@@ -7,61 +7,28 @@
 #
 from __future__ import annotations
 
-import time
-
-import pytest
 import torch
 
-from lightly_train_api import encoder, trainer
-
-
-def _separable(
-    num_classes: int, per_class: int = 8, dim: int = 16
-) -> tuple[torch.Tensor, torch.Tensor]:
-    centers = torch.eye(num_classes, dim) * 10.0
-    labels = torch.arange(num_classes).repeat_interleave(per_class)
-    features = centers[labels] + 0.01 * torch.randn(len(labels), dim)
-    return features, labels
-
-
-def test_fit_linear_head() -> None:
-    features, labels = _separable(num_classes=3)
-    fitted = trainer.fit_linear_head(features=features, labels=labels, num_classes=3)
-    assert fitted.weights.weight.shape == (3, features.shape[-1])
-    assert fitted.metrics.train_accuracy == 1.0
-    logits = torch.nn.functional.linear(
-        encoder.normalize_features(features),
-        fitted.weights.weight,
-        fitted.weights.bias,
-    )
-    assert torch.equal(logits.argmax(dim=-1), labels)
-
-
-def test_fit_linear_head__num_classes() -> None:
-    features, labels = _separable(num_classes=4)
-    fitted = trainer.fit_linear_head(features=features, labels=labels, num_classes=4)
-    assert fitted.weights.weight.shape[0] == 4
-    assert fitted.weights.bias.shape[0] == 4
+from lightly_train_api import trainer
 
 
 def test_dump_weights() -> None:
-    features, labels = _separable(num_classes=2)
-    weights = trainer.fit_linear_head(
-        features=features, labels=labels, num_classes=2
-    ).weights
+    weights = {"weight": torch.randn(3, 4), "bias": torch.randn(3)}
+
     loaded = trainer.load_weights(trainer.dump_weights(weights))
-    assert torch.equal(loaded.weight, weights.weight)
-    assert torch.equal(loaded.bias, weights.bias)
+
+    assert set(loaded) == set(weights)
+    assert all(torch.equal(loaded[key], weights[key]) for key in weights)
 
 
-def test_fit_linear_head__time_budget(monkeypatch: pytest.MonkeyPatch) -> None:
-    from lightly_train_api import settings
+def test_dump_weights__detection_head() -> None:
+    weights = {
+        "decoder.enc_score_head.weight": torch.randn(2, 8),
+        "decoder.enc_score_head.bias": torch.randn(2),
+        "decoder.denoising_class_embed.weight": torch.randn(3, 8),
+    }
 
-    monkeypatch.setenv("LIGHTLY_TRAIN_API_TRAIN_STEPS", "1000000")
-    monkeypatch.setenv("LIGHTLY_TRAIN_API_TRAIN_MAX_SECONDS", "0.5")
-    settings.get_settings.cache_clear()
+    loaded = trainer.load_weights(trainer.dump_weights(weights))
 
-    features, labels = _separable(num_classes=2)
-    start = time.monotonic()
-    trainer.fit_linear_head(features=features, labels=labels, num_classes=2)
-    assert time.monotonic() - start < 5.0
+    assert set(loaded) == set(weights)
+    assert all(torch.equal(loaded[key], weights[key]) for key in weights)

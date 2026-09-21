@@ -1407,3 +1407,65 @@ def test_get_train_model_args_cls__scopes_ltdetrv2_large_backbone_lr_factor(
     args_cls = LTDETRObjectDetectionTrain.get_train_model_args_cls(model_name)
     assert args_cls is expected_args_cls
     assert args_cls().backbone_lr_factor == expected_backbone_lr_factor
+
+
+def _task_model(num_classes: int = 2) -> LTDETRObjectDetection:
+    return LTDETRObjectDetection(
+        model_name="dinov2/_vittest14-ltdetrv2",
+        classes={index: f"class_{index}" for index in range(num_classes)},
+        image_size=(224, 224),
+        load_weights=False,
+    )
+
+
+def test_freeze_all() -> None:
+    model = _task_model()
+
+    model.freeze_all()
+
+    assert not any(parameter.requires_grad for parameter in model.parameters())
+    assert not model.training
+
+
+def test_class_head_modules() -> None:
+    model = _task_model()
+
+    modules = model.class_head_modules()
+
+    assert modules[0] is model.decoder.enc_score_head
+    assert modules[1 : 1 + len(model.decoder.dec_score_head)] == list(
+        model.decoder.dec_score_head
+    )
+    assert modules[-1] is model.decoder.denoising_class_embed
+
+
+def test_class_head_parameters() -> None:
+    model = _task_model(num_classes=3)
+    model.freeze_all()
+
+    for parameter in model.class_head_parameters():
+        parameter.requires_grad_(True)
+
+    trainable = {name for name, p in model.named_parameters() if p.requires_grad}
+    expected = {"decoder.enc_score_head.weight", "decoder.enc_score_head.bias"}
+    expected |= {
+        f"decoder.dec_score_head.{index}.{suffix}"
+        for index in range(len(model.decoder.dec_score_head))
+        for suffix in ("weight", "bias")
+    }
+    expected.add("decoder.denoising_class_embed.weight")
+    assert trainable == expected
+
+
+def test_class_head_parameters__no_denoising() -> None:
+    model = LTDETRObjectDetection(
+        model_name="dinov2/_vittest14-ltdetrv2",
+        classes={0: "class_0"},
+        image_size=(224, 224),
+        load_weights=False,
+    )
+    del model.decoder.denoising_class_embed
+
+    modules = model.class_head_modules()
+
+    assert all(not isinstance(module, nn.Embedding) for module in modules)
