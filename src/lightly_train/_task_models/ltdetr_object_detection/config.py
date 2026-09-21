@@ -824,6 +824,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-tiny-notpretrained-ltdetr")
+    class DINOv3ConvNeXtTinyNotPretrained(DINOv3ConvNeXtTiny):
+        backbone_name: str = "dinov3/convnext-tiny-notpretrained"
+
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
             name="dinov3/convnext-small-ltdetr-coco",
@@ -842,6 +846,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=LTDETRRTDETRTransformerv2Config.CNNSmall
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-small-notpretrained-ltdetr")
+    class DINOv3ConvNeXtSmallNotPretrained(DINOv3ConvNeXtSmall):
+        backbone_name: str = "dinov3/convnext-small-notpretrained"
 
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
@@ -862,6 +870,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-base-notpretrained-ltdetr")
+    class DINOv3ConvNeXtBaseNotPretrained(DINOv3ConvNeXtBase):
+        backbone_name: str = "dinov3/convnext-base-notpretrained"
+
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
             name="dinov3/convnext-large-ltdetr-coco",
@@ -880,6 +892,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         )
         backbone_args: dict[str, Any] = Field(default_factory=dict)
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-large-notpretrained-ltdetr")
+    class DINOv3ConvNeXtLargeNotPretrained(DINOv3ConvNeXtLarge):
+        backbone_name: str = "dinov3/convnext-large-notpretrained"
+
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
             name="dinov3/vitt16-ltdetr-coco",
@@ -890,7 +906,6 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         ),
         "dinov3/vitt16-ltdetr",
         "dinov3/vitt16-eupe-ltdetr",
-        "dinov3/vitt16-notpretrained-ltdetr",
     )
     class DINOv3ViTTiny(LTDETRBaseConfig.ViTTiny):
         version: Literal["v1"] = "v1"
@@ -904,6 +919,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitt16-notpretrained-ltdetr")
+    class DINOv3ViTTinyNotPretrained(DINOv3ViTTiny):
+        backbone_name: str = "dinov3/vitt16-notpretrained"
 
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
@@ -927,6 +946,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitt16plus-notpretrained-ltdetr")
+    class DINOv3ViTTinyPlusNotPretrained(DINOv3ViTTinyPlus):
+        backbone_name: str = "dinov3/vitt16plus-notpretrained"
 
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
@@ -952,6 +975,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vits16-notpretrained-ltdetr")
+    class DINOv3ViTSmallNotPretrained(DINOv3ViTSmall):
+        backbone_name: str = "dinov3/vits16-notpretrained"
+
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
     class DINOv3ViTBase(LTDETRBaseConfig.ViTBase):
         version: Literal["v1"] = "v1"
@@ -966,6 +993,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             default_factory=lambda: {"patch_size": 16}
         )
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-notpretrained-ltdetr")
+    class DINOv3ViTBaseNotPretrained(DINOv3ViTBase):
+        backbone_name: str = "dinov3/vitb16-notpretrained"
+
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTLarge(LTDETRBaseConfig.ViTLarge):
         version: Literal["v1"] = "v1"
@@ -979,6 +1010,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 16}
         )
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-notpretrained-ltdetr")
+    class DINOv3ViTLargeNotPretrained(DINOv3ViTLarge):
+        backbone_name: str = "dinov3/vitl16-notpretrained"
 
     @LTDETR_MODEL_REGISTRY.register("dinov2/_vittest14-ltdetr")
     class ViTTest(LTDETRBaseConfig.ViTTest):
@@ -1036,6 +1071,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
         backbone_args: dict[str, Any] = Field(
             default_factory=lambda: {"patch_size": 14, "drop_path_rate": 0.0}
         )
+
+    @LTDETR_MODEL_REGISTRY.register("dinov2/vits14-noreg-notpretrained-ltdetr")
+    class DINOv2ViTSmallNoRegistersLegacyNotPretrained(DINOv2ViTSmallNoRegistersLegacy):
+        backbone_name: str = "dinov2/vits14-noreg-notpretrained"
 
     @LTDETR_MODEL_REGISTRY.register(
         "dinov2/vitb14-ltdetr",

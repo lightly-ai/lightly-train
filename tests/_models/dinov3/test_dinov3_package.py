@@ -15,6 +15,7 @@ import torch
 
 from lightly_train._models.dinov3.dinov3_convnext import DINOv3VConvNeXtModelWrapper
 from lightly_train._models.dinov3.dinov3_package import (
+    MODEL_NAME_TO_INFO,
     DINOv3Package,
     _resolve_patch_size,
 )
@@ -44,18 +45,25 @@ class TestDINOv3Package:
             ("dinov3/vitt16plus-notpretrained", True),
             # ViT models (Meta).
             ("dinov3/vits16", True),
+            ("dinov3/vits16-notpretrained", True),
             ("dinov3/vits16plus", True),
             ("dinov3/vitb16", True),
+            ("dinov3/vitb16-notpretrained", True),
             ("dinov3/vitl16", True),
+            ("dinov3/vitl16-notpretrained", True),
             ("dinov3/vitl16-sat493m", True),
             ("dinov3/vith16plus", True),
             ("dinov3/vit7b16", True),
             ("dinov3/vit7b16-sat493m", True),
             # ConvNeXt models (Meta).
             ("dinov3/convnext-tiny", True),
+            ("dinov3/convnext-tiny-notpretrained", True),
             ("dinov3/convnext-small", True),
+            ("dinov3/convnext-small-notpretrained", True),
             ("dinov3/convnext-base", True),
+            ("dinov3/convnext-base-notpretrained", True),
             ("dinov3/convnext-large", True),
+            ("dinov3/convnext-large-notpretrained", True),
             # LingBot Vision models (Robbyant).
             ("dinov3/vits16-lingbot", True),
             ("dinov3/vitb16-lingbot", True),
@@ -97,6 +105,28 @@ class TestDINOv3Package:
     def test_get_model__convnext(self) -> None:
         model = DINOv3Package.get_model("_convnexttest")
         assert isinstance(model, ConvNeXt)
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "vitt16-notpretrained",
+            "vitt16plus-notpretrained",
+            "vits16-notpretrained",
+            "vitb16-notpretrained",
+            "vitl16-notpretrained",
+            "convnext-tiny-notpretrained",
+            "convnext-small-notpretrained",
+            "convnext-base-notpretrained",
+            "convnext-large-notpretrained",
+        ],
+    )
+    def test_get_model__notpretrained_has_no_weights_url(self, model_name: str) -> None:
+        # Regression test for https://github.com/lightly-ai/lightly-train/issues/933:
+        # every "-notpretrained" entry must have no default weights to download and
+        # must build successfully with a randomly initialized backbone.
+        assert MODEL_NAME_TO_INFO[model_name]["default_weights"] is None
+        model = DINOv3Package.get_model(model_name)
+        assert isinstance(model, (DinoVisionTransformer, ConvNeXt))
 
     @pytest.mark.parametrize("model_name", ["_vittest16", "_convnexttest"])
     def test_get_model__drop_path_rate_does_not_collide(self, model_name: str) -> None:
