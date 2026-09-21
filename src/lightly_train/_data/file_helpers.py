@@ -25,7 +25,7 @@ from torch import Tensor
 from torchvision.io import ImageReadMode
 from torchvision.transforms.v2 import functional as F
 
-from lightly_train._data import yolo_helpers
+from lightly_train._data import keypoint_helpers, yolo_helpers
 from lightly_train.types import (
     ImageDtypes,
     ImageFilename,
@@ -471,6 +471,95 @@ def open_yolo_instance_segmentation_label(
     return polygons, bboxes, classes
 
 
+def open_yolo_keypoint_detection_label(
+    label_path: Path, num_keypoints: int, num_dims: int
+) -> tuple[list[list[float]], list[list[list[float]]], list[list[int]], list[int]]:
+    """Open a YOLO pose label file and return the boxes, keypoints and classes.
+
+    Every line holds one instance as ``class_id x_center y_center width height``
+    followed by ``num_keypoints`` keypoints of ``num_dims`` values each, so exactly
+    ``5 + num_keypoints * num_dims`` numbers.
+
+    With ``num_dims == 3`` the third value of each keypoint is its visibility flag:
+    0 not labeled, 1 labeled but not visible, 2 labeled and visible. The flag is taken
+    as it is, a file that only uses 0 and 1 is not remapped.
+
+    With ``num_dims == 2`` the format carries no visibility information at all, so every
+    keypoint is reported as labeled and visible. Such a dataset cannot express an
+    unlabeled keypoint.
+
+    Duplicate lines are skipped, consistent with the other YOLO label readers.
+
+    Returns:
+        (bboxes, keypoints, visibility, classes) tuple. All coordinates are normalized
+        to [0, 1]. Bboxes are formatted as (x_center, y_center, width, height) and
+        keypoints as (x, y). Keypoints with visibility 0 have coordinates (0, 0).
+    """
+    num_values = 5 + num_keypoints * num_dims
+    bboxes: list[list[float]] = []
+    keypoints: list[list[list[float]]] = []
+    visibility: list[list[int]] = []
+    classes: list[int] = []
+
+    for line_number, line in _iter_yolo_label_lines_enumerated(label_path=label_path):
+        parts = line.split()
+        if len(parts) != num_values:
+            raise ValueError(
+                f"Expected {num_values} values per line for "
+                f"kpt_shape=[{num_keypoints}, {num_dims}], got {len(parts)} in "
+                f"'{label_path}' on line {line_number}."
+                + _suggest_other_num_dims(
+                    num_values=len(parts),
+                    num_keypoints=num_keypoints,
+                    num_dims=num_dims,
+                )
+            )
+        values = [float(part) for part in parts]
+        classes.append(int(values[0]))
+        bboxes.append(values[1:5])
+
+        instance_keypoints: list[list[float]] = []
+        instance_visibility: list[int] = []
+        for i in range(num_keypoints):
+            offset = 5 + i * num_dims
+            x, y = values[offset], values[offset + 1]
+            if num_dims == 2:
+                vis = keypoint_helpers.VISIBILITY_VISIBLE
+            else:
+                # Exporters commonly write the flag as a float, e.g. "2.000000".
+                vis = int(values[offset + 2])
+                if vis not in keypoint_helpers.VISIBILITIES:
+                    raise ValueError(
+                        f"Expected keypoint visibility to be one of "
+                        f"{list(keypoint_helpers.VISIBILITIES)}, got {vis} for keypoint "
+                        f"{i} in '{label_path}' on line {line_number}."
+                    )
+                if vis == keypoint_helpers.VISIBILITY_UNLABELED:
+                    # Unlabeled keypoints carry no position; make that explicit instead
+                    # of passing on whatever the file happened to store.
+                    x, y = 0.0, 0.0
+            instance_keypoints.append([x, y])
+            instance_visibility.append(vis)
+        keypoints.append(instance_keypoints)
+        visibility.append(instance_visibility)
+
+    return bboxes, keypoints, visibility, classes
+
+
+def _suggest_other_num_dims(num_values: int, num_keypoints: int, num_dims: int) -> str:
+    """Returns a hint if the line would fit the other 'kpt_shape' dimensionality.
+
+    Mixing up [K, 2] and [K, 3] is by far the most common YOLO pose config mistake.
+    """
+    other_num_dims = 2 if num_dims == 3 else 3
+    if num_values == 5 + num_keypoints * other_num_dims:
+        return (
+            f" The line fits kpt_shape=[{num_keypoints}, {other_num_dims}], did you "
+            f"mean that?"
+        )
+    return ""
+
+
 def _bbox_from_polygon(polygon: list[float]) -> list[float]:
     xs = polygon[0::2]
     ys = polygon[1::2]
@@ -485,14 +574,15 @@ def _bbox_from_polygon(polygon: list[float]) -> list[float]:
     return [x_center, y_center, width, height]
 
 
-def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
-    """Yield lines from a YOLO label file.
+def _iter_yolo_label_lines_enumerated(label_path: Path) -> Iterable[tuple[int, str]]:
+    """Yield (line number, line) pairs from a YOLO label file.
 
-    Skips empty and duplicate lines.
+    Line numbers are 1-based so that they match what an editor shows. Empty and
+    duplicate lines are skipped.
     """
     lines = set()
     with open(label_path, "r") as f:
-        for line in f.readlines():
+        for line_number, line in enumerate(f.readlines(), start=1):
             line = line.strip()
             # Skip empty lines.
             if not line:
@@ -501,7 +591,16 @@ def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
             if line in lines:
                 continue
             lines.add(line)
-            yield line
+            yield line_number, line
+
+
+def _iter_yolo_label_lines(label_path: Path) -> Iterable[str]:
+    """Yield lines from a YOLO label file.
+
+    Skips empty and duplicate lines.
+    """
+    for _, line in _iter_yolo_label_lines_enumerated(label_path=label_path):
+        yield line
 
 
 def resolve_coco_images_dir(

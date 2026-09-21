@@ -29,6 +29,13 @@ from lightly_train._data.instance_segmentation_dataset import (
 from lightly_train._data.instance_segmentation_dataset import (
     COCOSplitArgs as COCOInstanceSegmentationSplitArgs,
 )
+from lightly_train._data.keypoint_detection_dataset import (
+    COCOKeypointDetectionDataArgs,
+    YOLOKeypointDetectionDataArgs,
+)
+from lightly_train._data.keypoint_detection_dataset import (
+    COCOSplitArgs as COCOKeypointDetectionSplitArgs,
+)
 from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
 )
@@ -461,4 +468,100 @@ class TestMaskPanopticSegmentationDataArgs:
         assert (
             data_args.val.annotations
             == (tmp_path / "configs" / "annotations/val.json").resolve()
+        )
+
+
+class TestYOLOKeypointDetectionDataArgs:
+    def test_resolves_dict_paths_relative_to_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        data_args = YOLOKeypointDetectionDataArgs(
+            path="dataset",
+            train="images/train",
+            val="images/val",
+            names={0: "class_a"},
+            kpt_shape=[3, 3],
+        )
+
+        data_helpers.resolve_data_paths(data_args)
+
+        assert data_args.path == (tmp_path / "dataset").resolve()
+        assert data_args.train == Path("images/train")
+        assert data_args.val == Path("images/val")
+
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
+        data_yaml = tmp_path / "configs" / "data.yaml"
+        data_args = YOLOKeypointDetectionDataArgs(
+            path="dataset",
+            train="images/train",
+            val="images/val",
+            names={0: "class_a"},
+            kpt_shape=[3, 3],
+        )
+        data_args.data_config_file = data_yaml
+
+        data_helpers.resolve_data_paths(data_args)
+
+        assert data_args.path == (tmp_path / "configs" / "dataset").resolve()
+        assert data_args.train == Path("images/train")
+        assert data_args.val == Path("images/val")
+
+
+class TestCOCOKeypointDetectionDataArgs:
+    def test_resolves_dict_paths_relative_to_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        data_args = COCOKeypointDetectionDataArgs(
+            train=COCOKeypointDetectionSplitArgs(
+                annotations="annotations/train.json",
+                images="images/train",
+            ),
+            val=COCOKeypointDetectionSplitArgs(
+                annotations="annotations/val.json",
+                images=tmp_path / "absolute/val_images",
+            ),
+        )
+
+        data_helpers.resolve_data_paths(data_args)
+
+        assert (
+            data_args.train.annotations
+            == (tmp_path / "annotations/train.json").resolve()
+        )
+        assert data_args.train.images == Path("images/train")
+        assert (
+            data_args.val.annotations == (tmp_path / "annotations/val.json").resolve()
+        )
+        assert data_args.val.images == (tmp_path / "absolute/val_images").resolve()
+
+    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
+        data_yaml = tmp_path / "configs" / "data.yaml"
+        data_args = COCOKeypointDetectionDataArgs(
+            train=COCOKeypointDetectionSplitArgs(
+                annotations="annotations/train.json",
+                images="images/train",
+            ),
+            val=COCOKeypointDetectionSplitArgs(
+                annotations="annotations/val.json",
+                images=tmp_path / "configs" / "absolute/val_images",
+            ),
+        )
+        data_args.data_config_file = data_yaml
+
+        data_helpers.resolve_data_paths(data_args)
+
+        assert (
+            data_args.train.annotations
+            == (tmp_path / "configs" / "annotations/train.json").resolve()
+        )
+        assert data_args.train.images == Path("images/train")
+        assert (
+            data_args.val.annotations
+            == (tmp_path / "configs" / "annotations/val.json").resolve()
+        )
+        assert (
+            data_args.val.images
+            == (tmp_path / "configs" / "absolute/val_images").resolve()
         )
