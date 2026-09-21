@@ -247,8 +247,7 @@ Lightly**Train** offers flexible licensing options to suit your specific needs:
 
 - **AGPL-3.0 License**: Perfect for open-source projects, academic research, and
   community contributions. Share your innovations with the world while benefiting from
-  community improvements. Model weights trained with LightlyTrain under AGPL-3.0 are
-  also covered by AGPL-3.0, see [Licensing](licensing.md).
+  community improvements.
 
 - **Commercial License**: Ideal for businesses and organizations that need proprietary
   development freedom. Enjoy all the benefits of LightlyTrain while keeping your code

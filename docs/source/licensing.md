@@ -27,25 +27,20 @@ ______________________________________________________________________
 
 ## Model Weights
 
-### Do I have to open-source my trained model weights?
+### Are my trained model weights covered by AGPL-3.0?
 
-If you use LightlyTrain under the AGPL-3.0 license, yes, as soon as you share them. The
-AGPL-3.0 license covers the training code **and the model weights produced by that
-training code**, so weights trained under AGPL-3.0 are subject to AGPL-3.0 by default.
+Yes. The AGPL-3.0 license covers the training code **and the model weights produced by
+that training code**. Weights trained with LightlyTrain under AGPL-3.0 are therefore
+AGPL-3.0 licensed.
 
-The obligation applies once you distribute the weights or make them available to others
-over a network. It then means publishing the weights under AGPL-3.0 together with the
-complete corresponding source code of any application that uses them, including your
-modifications, training scripts, and configuration files.
+### What are my options?
 
-Training and using weights purely internally, without distributing them and without
-exposing them to outside users over a network, does not trigger this obligation.
-
-### How do I distribute or deploy my weights without open-sourcing them?
-
-Get a Commercial License. It covers model training and deployment, with no obligation to
-open-source your weights or your source code. If you are a student, researcher, or an
-early-stage startup, the Free Community License gives you the same freedom at no cost.
+- **AGPL-3.0 License**: Open-source your model weights and the complete source code of
+  any application that uses them under AGPL-3.0.
+- **Commercial License**: Required for any commercial use of the weights. No obligation
+  to open-source your code or weights.
+- **Free Community License**: For non-commercial use without open-sourcing. Free for
+  students, researchers, and early-stage startups.
 
 [Contact us](https://www.lightly.ai/contact) or write to
 [sales@lightly.ai](mailto:sales@lightly.ai) to find the right option for your project.

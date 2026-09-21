@@ -75,12 +75,10 @@ Please [contact us](https://www.lightly.ai/contact) to discuss the best licensin
 ```{dropdown} <h6>Do I have to open-source my trained model weights?<a class="headerlink" id="do-i-have-to-open-source-my-trained-model-weights" href="#do-i-have-to-open-source-my-trained-model-weights" title="Link to this heading">¶</a></h6>
 If you use Lightly**Train** under the AGPL-3.0 license, yes. The AGPL-3.0 license covers the training
 code and the model weights produced by that training code, so weights trained under AGPL-3.0 are
-subject to AGPL-3.0 by default.
+AGPL-3.0 licensed.
 
-This applies once you distribute the weights or serve them to outside users over a network;
-purely internal training and use does not trigger it. To distribute or deploy your weights
-without open-sourcing them, you need a Commercial License or a Free Community License.
-See the [Licensing](licensing.md) page for details.
+Any commercial use of the weights requires a Commercial License. Non-commercial use without
+open-sourcing requires a Free Community License. See the [Licensing](licensing.md) page for details.
 ```
 
 ```{dropdown} <h6>What's the difference between LightlyTrain and LightlySSL?<a class="headerlink" id="whats-the-difference-between-lightlytrain-and-lightlyssl" href="#whats-the-difference-between-lightlytrain-and-lightlyssl" title="Link to this heading">¶</a></h6>
