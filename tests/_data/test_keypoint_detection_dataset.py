@@ -45,10 +45,10 @@ def _write_coco_labels(tmp_path: Path) -> None:
 
 
 class TestYOLOKeypointDetectionDataArgs:
-    def test_kpt_shape_accepts_yaml_list(self, tmp_path: Path) -> None:
+    def test_init__kpt_shape_list(self, tmp_path: Path) -> None:
         assert _yolo_data_args(tmp_path).kpt_shape == (3, 3)
 
-    def test_native_keypoint_fields(self, tmp_path: Path) -> None:
+    def test_init__native_keypoint_fields(self, tmp_path: Path) -> None:
         data_args = _yolo_data_args(
             tmp_path,
             flip_idx=[0, 2, 1],
@@ -57,27 +57,30 @@ class TestYOLOKeypointDetectionDataArgs:
         )
         assert data_args.kpt_oks_sigmas == [0.1, 0.2, 0.3]
 
-    @pytest.mark.parametrize(
-        "kwargs, match",
-        [
-            ({"kpt_shape": [3, 4]}, "to be 2 for"),
-            ({"flip_idx": [0, 0, 2]}, "flip_idx"),
-            ({"kpt_names": {0: ["a", "b"]}}, "kpt_names"),
-            ({"kpt_oks_sigmas": [0.1, 0.2]}, "kpt_oks_sigmas"),
-        ],
-    )
-    def test_invalid_metadata(
-        self, tmp_path: Path, kwargs: Dict[str, Any], match: str
-    ) -> None:
-        with pytest.raises(ValidationError, match=match):
-            _yolo_data_args(tmp_path, **kwargs)
+    def test_init__invalid_kpt_shape(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="to be 2 for"):
+            _yolo_data_args(tmp_path, kpt_shape=[3, 4])
 
-    def test_hash_includes_num_dims(self, tmp_path: Path) -> None:
+    def test_init__invalid_flip_idx(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="flip_idx"):
+            _yolo_data_args(tmp_path, flip_idx=[0, 0, 2])
+
+    def test_init__invalid_kpt_names(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="kpt_names"):
+            _yolo_data_args(tmp_path, kpt_names={0: ["a", "b"]})
+
+    def test_init__invalid_kpt_oks_sigmas(self, tmp_path: Path) -> None:
+        with pytest.raises(ValidationError, match="kpt_oks_sigmas"):
+            _yolo_data_args(tmp_path, kpt_oks_sigmas=[0.1, 0.2])
+
+    def test_train_data_mmap_hash__num_dims(self, tmp_path: Path) -> None:
         hash_2d = _yolo_data_args(tmp_path, kpt_shape=[3, 2]).train_data_mmap_hash()
         hash_3d = _yolo_data_args(tmp_path, kpt_shape=[3, 3]).train_data_mmap_hash()
         assert hash_2d != hash_3d
 
-    def test_resolves_paths_relative_to_data_config_file(self, tmp_path: Path) -> None:
+    def test_resolve_data_paths__relative_to_data_config_file(
+        self, tmp_path: Path
+    ) -> None:
         data_args = _yolo_data_args(tmp_path, path="dataset")
         data_args.data_config_file = tmp_path / "configs" / "data.yaml"
         data_helpers.resolve_data_paths(data_args)
@@ -85,7 +88,7 @@ class TestYOLOKeypointDetectionDataArgs:
 
 
 class TestCOCOKeypointDetectionDataArgs:
-    def test_reads_num_keypoints_from_categories(self, tmp_path: Path) -> None:
+    def test_init__num_keypoints_from_categories(self, tmp_path: Path) -> None:
         _write_coco_labels(tmp_path)
         data_args = COCOKeypointDetectionDataArgs(
             train=COCOSplitArgs(annotations=tmp_path / "train.json"),
@@ -93,7 +96,9 @@ class TestCOCOKeypointDetectionDataArgs:
         )
         assert data_args.num_keypoints == 3
 
-    def test_ignored_category_may_differ(self, tmp_path: Path) -> None:
+    def test_init__ignored_category_with_different_keypoints(
+        self, tmp_path: Path
+    ) -> None:
         labels = {
             "categories": [
                 {"id": 0, "name": "person", "keypoints": ["a", "b", "c"]},
@@ -126,7 +131,7 @@ class _KeypointDetectionDataConfig(PydanticConfig):
 
 
 class TestKeypointDetectionDataConfig:
-    def test_yolo_yaml_roundtrip(self, tmp_path: Path) -> None:
+    def test_model_validate__yolo_yaml(self, tmp_path: Path) -> None:
         data_yaml = tmp_path / "data.yaml"
         data_yaml.write_text(
             yaml.safe_dump(
