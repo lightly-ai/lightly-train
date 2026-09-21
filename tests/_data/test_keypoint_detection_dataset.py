@@ -156,7 +156,7 @@ class TestYOLOKeypointDetectionDatasetArgs:
     def test_list_image_info__ignore_classes(self, tmp_path: Path) -> None:
         helpers.create_yolo_keypoint_detection_dataset(tmp_path, split_first=False)
         label_path = tmp_path / "labels" / "train" / "0.txt"
-        label_path.write_text(label_path.read_text().replace("0 ", "1 "))
+        label_path.write_text("1 " + label_path.read_text().split(" ", 1)[1])
         rows = [
             _decode(row)
             for row in _yolo_data_args(
@@ -166,6 +166,33 @@ class TestYOLOKeypointDetectionDatasetArgs:
             .list_image_info()
         ]
         assert sorted(len(row["class_labels"]) for row in rows) == [0, 1]
+
+    def test_list_image_info__degenerate_bbox_from_keypoints(
+        self, tmp_path: Path
+    ) -> None:
+        helpers.create_yolo_keypoint_detection_dataset(
+            tmp_path, split_first=False, num_files=1
+        )
+        label_path = tmp_path / "labels" / "train" / "0.txt"
+        label_path.write_text("0 0.5 0.5 0 0 0.2 0.4 2 0.6 0.8 2 0 0 0\n")
+        rows = [
+            _decode(row)
+            for row in _yolo_data_args(tmp_path).get_train_args().list_image_info()
+        ]
+        assert rows[0]["bboxes"] == [pytest.approx([0.4, 0.6, 0.4, 0.4])]
+
+    def test_list_image_info__degenerate_bbox_dropped(self, tmp_path: Path) -> None:
+        helpers.create_yolo_keypoint_detection_dataset(
+            tmp_path, split_first=False, num_files=1
+        )
+        label_path = tmp_path / "labels" / "train" / "0.txt"
+        label_path.write_text("0 0.5 0.5 0 0 0.2 0.4 2 0 0 0 0 0 0\n")
+        rows = [
+            _decode(row)
+            for row in _yolo_data_args(tmp_path).get_train_args().list_image_info()
+        ]
+        assert rows[0]["bboxes"] == []
+        assert rows[0]["class_labels"] == []
 
 
 class TestCOCOKeypointDetectionDataArgs:
@@ -236,9 +263,9 @@ class TestCOCOKeypointDetectionDatasetArgs:
         ]
         assert rows[0]["class_labels"] == [0]
 
-    @pytest.mark.parametrize("visibility", [1.9, 3])
+    @pytest.mark.parametrize("visibility", [1.9, 3, None, "abc"])
     def test_list_image_info__invalid_visibility(
-        self, tmp_path: Path, visibility: float
+        self, tmp_path: Path, visibility: Any
     ) -> None:
         # 1.9 must not be truncated to the valid flag 1.
         helpers.create_coco_keypoint_detection_dataset(
@@ -256,6 +283,51 @@ class TestCOCOKeypointDetectionDatasetArgs:
         )
         with pytest.raises(ValueError, match="visibility to be one of"):
             list(_coco_data_args(tmp_path).get_train_args().list_image_info())
+
+    def test_list_image_info__degenerate_bbox_from_keypoints(
+        self, tmp_path: Path
+    ) -> None:
+        helpers.create_coco_keypoint_detection_dataset(
+            tmp_path,
+            num_files=1,
+            annotations_per_image=[
+                [
+                    {
+                        "category_id": 0,
+                        "bbox": [10, 10, 0, 0],
+                        "keypoints": [10, 10, 2, 20, 20, 2, 0, 0, 0],
+                    }
+                ]
+            ],
+        )
+        rows = [
+            _decode(row)
+            for row in _coco_data_args(tmp_path).get_train_args().list_image_info()
+        ]
+        assert rows[0]["bboxes"] == [
+            pytest.approx([15 / 128, 15 / 128, 10 / 128, 10 / 128])
+        ]
+
+    def test_list_image_info__degenerate_bbox_dropped(self, tmp_path: Path) -> None:
+        helpers.create_coco_keypoint_detection_dataset(
+            tmp_path,
+            num_files=1,
+            annotations_per_image=[
+                [
+                    {
+                        "category_id": 0,
+                        "bbox": [10, 10, 0, 0],
+                        "keypoints": [10, 10, 2, 0, 0, 0, 0, 0, 0],
+                    }
+                ]
+            ],
+        )
+        rows = [
+            _decode(row)
+            for row in _coco_data_args(tmp_path).get_train_args().list_image_info()
+        ]
+        assert rows[0]["bboxes"] == []
+        assert rows[0]["class_labels"] == []
 
     def test_list_image_info__skip_if_annotations_missing(self, tmp_path: Path) -> None:
         helpers.create_coco_keypoint_detection_dataset(tmp_path)

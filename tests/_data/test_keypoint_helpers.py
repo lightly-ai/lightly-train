@@ -36,6 +36,11 @@ def test_parse_visibility__invalid(visibility: float) -> None:
     assert keypoint_helpers.parse_visibility(visibility) is None
 
 
+@pytest.mark.parametrize("visibility", [None, "abc", True, float("nan"), float("inf")])
+def test_parse_visibility__not_a_number(visibility: Any) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) is None
+
+
 def test_validate_kpt_shape__valid() -> None:
     assert keypoint_helpers.validate_kpt_shape((17, 3)) == (17, 3)
     assert keypoint_helpers.validate_kpt_shape((12, 2)) == (12, 2)
@@ -118,6 +123,25 @@ def test_bbox_from_keypoints__no_labeled_keypoints() -> None:
     assert (
         keypoint_helpers.bbox_from_keypoints(
             keypoints_xy=[[0.0, 0.0], [0.0, 0.0]], visibility=[0, 0]
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("keypoints_xy", "visibility"),
+    [
+        ([[0.2, 0.4], [0.0, 0.0]], [2, 0]),
+        ([[0.2, 0.4], [0.2, 0.8]], [2, 2]),
+        ([[0.2, 0.4], [0.6, 0.4]], [2, 1]),
+    ],
+)
+def test_bbox_from_keypoints__no_area(
+    keypoints_xy: List[List[float]], visibility: List[int]
+) -> None:
+    assert (
+        keypoint_helpers.bbox_from_keypoints(
+            keypoints_xy=keypoints_xy, visibility=visibility
         )
         is None
     )

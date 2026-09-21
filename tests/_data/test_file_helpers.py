@@ -579,6 +579,19 @@ def test_open_yolo_keypoint_detection_label__num_dims_2(tmp_path: Path) -> None:
     assert visibility == [[2, 2, 2]]
 
 
+def test_open_yolo_keypoint_detection_label__num_dims_2_negative_unlabeled(
+    tmp_path: Path,
+) -> None:
+    label_path = tmp_path / "label.txt"
+    with open(label_path, "w") as f:
+        f.write("0 0.5 0.5 0.2 0.4 0.4 0.4 -1 -1 0.5 -0.2\n")
+    _, keypoints, visibility, _ = file_helpers.open_yolo_keypoint_detection_label(
+        label_path=label_path, num_keypoints=3, num_dims=2
+    )
+    assert keypoints == [[[0.4, 0.4], [0.0, 0.0], [0.0, 0.0]]]
+    assert visibility == [[2, 0, 0]]
+
+
 def test_open_yolo_keypoint_detection_label__empty(tmp_path: Path) -> None:
     label_path = tmp_path / "label.txt"
     with open(label_path, "w") as f:

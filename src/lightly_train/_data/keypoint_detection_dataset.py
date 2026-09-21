@@ -39,8 +39,7 @@ class KeypointDetectionDataset(TaskDataset):
     """Dataset for keypoint detection.
 
     Reading labels works. Turning them into training samples does not: there is no
-    keypoint detection model and no keypoint transform yet. Today the useful part is
-    ``list_image_info`` on the dataset args.
+    keypoint detection model and no keypoint transform yet.
     """
 
     dataset_args: (  # type: ignore[assignment]
@@ -192,10 +191,12 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
         """Yields image info dicts for each image in the image directory.
 
         - Bboxes are (x_center, y_center, width, height), keypoints are (x, y).
-        - Both are already normalized by the YOLO format and pass through unchanged.
+        - Both are already normalized by the YOLO format.
         - Keypoints are not clipped to [0, 1]: one annotated outside the frame keeps
           its position, so transforms can decide what to do with it.
         - Keypoints with visibility 0 sit at (0, 0) and must not be read.
+        - Instances with a degenerate bbox get one derived from their labeled
+          keypoints. Instances with neither are dropped.
         """
         class_id_to_internal_class_id = (
             label_helpers.get_class_id_to_internal_class_id_mapping(
@@ -228,6 +229,13 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
             keep = [label in class_id_to_internal_class_id for label in class_labels]
             bboxes, class_labels, keypoints, visibility = _filter_instances(
                 keep=keep,
+                bboxes=bboxes,
+                class_labels=class_labels,
+                keypoints=keypoints,
+                visibility=visibility,
+            )
+
+            bboxes, class_labels, keypoints, visibility = _drop_instances_without_bbox(
                 bboxes=bboxes,
                 class_labels=class_labels,
                 keypoints=keypoints,
@@ -572,6 +580,37 @@ def _filter_instances(
         list(itertools.compress(keypoints, keep)),
         list(itertools.compress(visibility, keep)),
     )
+
+
+def _drop_instances_without_bbox(
+    bboxes: list[list[float]],
+    class_labels: list[int],
+    keypoints: list[list[list[float]]],
+    visibility: list[list[int]],
+) -> tuple[list[list[float]], list[int], list[list[list[float]]], list[list[int]]]:
+    """Derives a box from the labeled keypoints where the box has no area.
+
+    Drops instances left without a box.
+    """
+    kept_bboxes: list[list[float]] = []
+    kept_class_labels: list[int] = []
+    kept_keypoints: list[list[list[float]]] = []
+    kept_visibility: list[list[int]] = []
+    for bbox, class_label, instance_keypoints, instance_visibility in zip(
+        bboxes, class_labels, keypoints, visibility
+    ):
+        resolved: list[float] | None = bbox
+        if bbox[2] <= 0 or bbox[3] <= 0:
+            resolved = keypoint_helpers.bbox_from_keypoints(
+                keypoints_xy=instance_keypoints, visibility=instance_visibility
+            )
+        if resolved is None:
+            continue
+        kept_bboxes.append(resolved)
+        kept_class_labels.append(class_label)
+        kept_keypoints.append(instance_keypoints)
+        kept_visibility.append(instance_visibility)
+    return kept_bboxes, kept_class_labels, kept_keypoints, kept_visibility
 
 
 def _image_info(

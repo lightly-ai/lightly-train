@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from enum import IntEnum
 from typing import Any
@@ -20,12 +21,16 @@ class Visibility(IntEnum):
     VISIBLE = 2
 
 
-def parse_visibility(visibility: float) -> Visibility | None:
+def parse_visibility(visibility: Any) -> Visibility | None:
     """Returns the visibility flag, or None if the value is not a valid flag.
 
     Exporters commonly write the flag as a float, e.g. ``2.000000``. A fractional
     value such as ``1.9`` is not a flag and must not be truncated to one.
     """
+    if isinstance(visibility, bool) or not isinstance(visibility, (int, float)):
+        return None
+    if not math.isfinite(visibility):
+        return None
     flag = int(visibility)
     if flag != visibility:
         return None
@@ -139,9 +144,13 @@ def bbox_from_keypoints(
     ys = [point[1] for point in labeled]
     x_min, x_max = min(xs), max(xs)
     y_min, y_max = min(ys), max(ys)
+    width = x_max - x_min
+    height = y_max - y_min
+    if width <= 0 or height <= 0:
+        return None
     return [
         (x_min + x_max) / 2.0,
         (y_min + y_max) / 2.0,
-        x_max - x_min,
-        y_max - y_min,
+        width,
+        height,
     ]

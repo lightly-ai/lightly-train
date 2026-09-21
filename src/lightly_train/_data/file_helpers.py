@@ -485,11 +485,9 @@ def open_yolo_keypoint_detection_label(
     only uses 0 and 1 is not remapped. Real exports write it as a float, e.g.
     "2.000000", hence the parse via float.
 
-    ``num_dims == 2``: the format carries no visibility, so every keypoint is reported
-    as labeled and visible. Such a dataset cannot express an unlabeled keypoint. (0, 0)
-    is not read as a sentinel for one: a real num_dims == 2 dataset checked while
-    writing this reader had 3156 keypoints with no (0, 0) pair and no negative
-    coordinate, so guessing a sentinel would silently move keypoints.
+    ``num_dims == 2``: the format carries no visibility. A keypoint with a negative x or
+    y is not labeled, as in Ultralytics; every other keypoint is labeled and visible.
+    (0, 0) is not read as a sentinel for an unlabeled keypoint.
 
     Duplicate lines are skipped, as in the other YOLO label readers.
 
@@ -527,7 +525,11 @@ def open_yolo_keypoint_detection_label(
             offset = 5 + i * num_dims
             x, y = values[offset], values[offset + 1]
             if num_dims == 2:
-                vis = keypoint_helpers.Visibility.VISIBLE
+                vis = (
+                    keypoint_helpers.Visibility.UNLABELED
+                    if x < 0 or y < 0
+                    else keypoint_helpers.Visibility.VISIBLE
+                )
             else:
                 parsed_vis = keypoint_helpers.parse_visibility(values[offset + 2])
                 if parsed_vis is None:
@@ -538,10 +540,10 @@ def open_yolo_keypoint_detection_label(
                         f"'{label_path}' on line {line_number}."
                     )
                 vis = parsed_vis
-                if vis == keypoint_helpers.Visibility.UNLABELED:
-                    # Unlabeled keypoints carry no position. Make that explicit
-                    # instead of passing on whatever the file stored.
-                    x, y = 0.0, 0.0
+            if vis == keypoint_helpers.Visibility.UNLABELED:
+                # Unlabeled keypoints carry no position. Make that explicit
+                # instead of passing on whatever the file stored.
+                x, y = 0.0, 0.0
             instance_keypoints.append([x, y])
             instance_visibility.append(vis)
         keypoints.append(instance_keypoints)
