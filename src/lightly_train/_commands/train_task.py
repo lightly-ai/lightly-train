@@ -1480,6 +1480,7 @@ def _train_task_from_config(config: TrainTaskConfig) -> None:
             model_name=config.model,
             model_init_args=model_init_args,
             data_args=config.data,
+            train_dataset=train_dataset,
         )
 
         # TODO(Gabriel, 05/26): Split raw model_init_args from resolved

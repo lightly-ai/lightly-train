@@ -23,6 +23,7 @@ from typing import (
 )
 
 import pyarrow as pa  # type: ignore
+import pyarrow.compute as pc  # type: ignore
 from pyarrow import Table, ipc
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,52 @@ def write_items_to_file(
         mmap_filepath=mmap_filepath,
         chunk_size=chunk_size,
     )
+
+
+def as_table(items: Sequence[Mapping[str, Primitive]]) -> Table:
+    """Returns an Arrow table view of a sequence of rows.
+
+    The view is zero-copy for a memory mapped sequence. Other sequences are
+    materialized into an in-memory table so that callers only need a single,
+    vectorized code path.
+    """
+    if isinstance(items, MemoryMappedSequence):
+        return items.table()
+    return pa.Table.from_pylist(list(items))
+
+
+def value_counts_from_table(table: Table, column: str) -> dict[Primitive, int]:
+    """Counts how often every value occurs in a column.
+
+    Counting happens inside Arrow, in a single vectorized pass over the (memory mapped)
+    column instead of a Python loop over the rows. Values are counted as they are
+    stored; interpreting them is up to the caller.
+
+    Args:
+        table:
+            Arrow table holding the rows, see `as_table`.
+        column:
+            Name of the column to count.
+
+    Returns:
+        Mapping from value to number of occurrences. Empty values are not counted.
+    """
+    if column not in table.column_names:
+        # An empty sequence is written without any columns.
+        return {}
+
+    # The pyarrow.compute functions are generated at runtime, mypy doesn't see them.
+    values = table.column(column)
+    if pa.types.is_string(values.type):
+        values = pc.utf8_trim_whitespace(values)  # type: ignore[attr-defined]
+
+    # Null values are dropped by Arrow and don't show up in the result.
+    counts = pc.value_counts(values)  # type: ignore[attr-defined]
+    return {
+        value.as_py(): count.as_py()
+        for value, count in zip(counts.field("values"), counts.field("counts"))
+        if value.as_py() != ""
+    }
 
 
 class MemoryMappedSequence(Sequence[T[Primitive]], Generic[Primitive]):
@@ -99,6 +146,13 @@ class MemoryMappedSequence(Sequence[T[Primitive]], Generic[Primitive]):
             self._pid = pid
             self._table = _mmap_table_from_file(mmap_filepath=self._path)
         return self._table
+
+    def value_counts(self, column: str) -> dict[Primitive, int]:
+        """Counts how often every value occurs in a column.
+
+        See `value_counts_from_table` for details.
+        """
+        return value_counts_from_table(table=self.table(), column=column)
 
     def __len__(self) -> int:
         num_rows: int = self.table().num_rows

@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import pickle
 from pathlib import Path
 
@@ -194,3 +196,44 @@ def test_write_items_to_file(chunk_size: int, tmp_path: Path) -> None:
             "mask_filepaths": str(mask_dir / "mask3.png"),
         },
     ]
+
+
+def _write_and_read(
+    items: list[dict[str, str]], tmp_path: Path, chunk_size: int = 10_000
+) -> MemoryMappedSequence[str]:
+    memory_mapped_sequence.write_items_to_file(
+        items=items, mmap_filepath=tmp_path / "test.arrow", chunk_size=chunk_size
+    )
+    return MemoryMappedSequence[str].from_file(mmap_filepath=tmp_path / "test.arrow")
+
+
+class TestValueCounts:
+    @pytest.mark.parametrize("chunk_size", [1, 2, 10_000])
+    def test_counts(self, chunk_size: int, tmp_path: Path) -> None:
+        items = [
+            {"image_path": "a.jpg", "class_id": "3,12"},
+            {"image_path": "b.jpg", "class_id": "3,12"},
+            {"image_path": "c.jpg", "class_id": "3"},
+        ]
+        sequence = _write_and_read(items, tmp_path, chunk_size=chunk_size)
+        # Values are counted as they are stored.
+        assert sequence.value_counts(column="class_id") == {"3,12": 2, "3": 1}
+
+    def test_whitespace_and_empty_values(self, tmp_path: Path) -> None:
+        items = [
+            {"image_path": "a.jpg", "class_id": " 3 "},
+            {"image_path": "b.jpg", "class_id": "3"},
+            {"image_path": "c.jpg", "class_id": ""},
+        ]
+        sequence = _write_and_read(items, tmp_path)
+        # Whitespace is trimmed and empty values are not counted.
+        assert sequence.value_counts(column="class_id") == {"3": 2}
+
+    def test_no_items(self, tmp_path: Path) -> None:
+        # An empty sequence is written without any columns.
+        sequence = _write_and_read([], tmp_path)
+        assert sequence.value_counts(column="class_id") == {}
+
+    def test_unknown_column(self, tmp_path: Path) -> None:
+        sequence = _write_and_read([{"image_path": "a.jpg"}], tmp_path)
+        assert sequence.value_counts(column="class_id") == {}

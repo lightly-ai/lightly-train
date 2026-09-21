@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import csv
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -17,6 +18,7 @@ from pydantic import AliasChoices, Field, model_validator
 from torch import Tensor
 
 from lightly_train._data import data_helpers, file_helpers, label_helpers
+from lightly_train._data.item_store import ItemStore
 from lightly_train._data.task_data_args import TaskDataArgs
 from lightly_train._data.task_dataset import TaskDataset, TaskDatasetArgs
 from lightly_train._transforms.image_classification_transform import (
@@ -36,7 +38,7 @@ class ImageClassificationDataset(TaskDataset):
     def __init__(
         self,
         dataset_args: ImageClassificationDatasetArgs,
-        image_info: Sequence[dict[str, str]],
+        image_info: ItemStore | Sequence[dict[str, str]],
         transform: TaskTransform,
     ) -> None:
         super().__init__(
@@ -51,6 +53,24 @@ class ImageClassificationDataset(TaskDataset):
             )
         )
 
+    def _split_class_ids(self, class_ids_str: str) -> list[int]:
+        """Parses a delimiter-separated string of class IDs.
+
+        Args:
+            class_ids_str: Delimiter-separated class ID string (e.g. "3,7,12").
+
+        Returns:
+            List of class IDs. Empty entries are skipped.
+        """
+        class_ids = []
+        for class_id_str in class_ids_str.strip().split(
+            self.dataset_args.label_delimiter
+        ):
+            class_id_str = class_id_str.strip()
+            if class_id_str:
+                class_ids.append(int(class_id_str))
+        return class_ids
+
     def parse_and_map_to_internal_class_ids(self, class_ids_str: str) -> Tensor:
         """
         Parse a delimiter-separated string of class IDs and map them to internal class IDs.
@@ -61,17 +81,41 @@ class ImageClassificationDataset(TaskDataset):
         Returns:
             1D tensor of internal class IDs (dtype=torch.long).
         """
-        class_ids_str = class_ids_str.strip()
-        internal_class_ids = []
-        for class_id_str in class_ids_str.split(self.dataset_args.label_delimiter):
-            class_id_str = class_id_str.strip()
-            if class_id_str:
-                # Map to internal class id.
-                internal_class_id = self.class_id_to_internal_class_id[
-                    int(class_id_str)
-                ]
-                internal_class_ids.append(internal_class_id)
+        internal_class_ids = [
+            self.class_id_to_internal_class_id[class_id]
+            for class_id in self._split_class_ids(class_ids_str)
+        ]
         return torch.tensor(internal_class_ids, dtype=torch.long)
+
+    def count_class_occurrences(self) -> list[int]:
+        """Returns the number of images containing every class.
+
+        The counts are in internal class id order and come from `image_info`, which
+        the training command already built and shares between ranks. They therefore
+        match the examples that are actually trained on (missing/unsupported images,
+        ignored classes and empty remaining labels are already filtered) without
+        listing the dataset again.
+
+        The total number of images is `len(self)`.
+        """
+        # The class ids of an image are stored as a single delimiter-separated string,
+        # so the store counts label combinations. Expanding them to per class counts
+        # only loops over the distinct combinations, not over the images.
+        counts: Counter[int] = Counter()
+        for class_ids_str, num_images in self.image_info.value_counts(
+            "class_id"
+        ).items():
+            for class_id in self._split_class_ids(class_ids_str):
+                counts[class_id] += num_images
+
+        # Values that are not a class id of the dataset are ignored.
+        return [
+            counts.get(class_id, 0)
+            for class_id in label_helpers.internal_ordered_class_ids(
+                class_ids=self.dataset_args.classes.keys(),
+                ignore_classes=self.dataset_args.ignore_classes,
+            )
+        ]
 
     def __getitem__(self, index: int) -> ImageClassificationDatasetItem:
         # Load the image.
