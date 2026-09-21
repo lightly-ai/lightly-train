@@ -117,10 +117,8 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     """
     names: dict[int, str]
     kpt_shape: tuple[int, int] = Field(strict=False)
-    """The keypoint count and dimensionality.
-
-    ``num_dims`` is 2 for (x, y) or 3 for (x, y, visibility).
-    """
+    """``[num_keypoints, num_dims]``. ``num_dims`` is 2 for (x, y) or 3 for
+    (x, y, visibility)."""
     flip_idx: list[int] | None = None
     """Optional keypoint mapping for horizontal flips.
 
@@ -203,16 +201,15 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
         )
         assert image_dir is not None
         assert label_dir is not None
-        _, num_dims = keypoint_helpers.validate_kpt_shape(self.kpt_shape)
+        num_keypoints, num_dims = keypoint_helpers.validate_kpt_shape(self.kpt_shape)
         return YOLOKeypointDetectionDatasetArgs(
             image_dir=image_dir,
             label_dir=label_dir,
             classes=self.names,
-            keypoint_set=self.keypoint_set,
+            num_keypoints=num_keypoints,
             num_dims=num_dims,
             ignore_classes=self.ignore_classes,
             skip_if_label_file_missing=self.skip_if_label_file_missing,
-            min_keypoints=self.min_keypoints,
         )
 
     def get_train_args(self) -> YOLOKeypointDetectionDatasetArgs:
@@ -230,11 +227,10 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     image_dir: Path
     label_dir: Path
     classes: dict[int, str]
-    keypoint_set: KeypointSetArgs
+    num_keypoints: int
     num_dims: int
     ignore_classes: set[int] | None
     skip_if_label_file_missing: bool
-    min_keypoints: int
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         """Yields image info dicts for each image in the image directory.
@@ -251,8 +247,6 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 ignore_classes=self.ignore_classes,
             )
         )
-        num_keypoints = self.keypoint_set.num_keypoints
-
         for image_filename in file_helpers.list_image_filenames_from_dir(
             image_dir=self.image_dir
         ):
@@ -263,7 +257,7 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 bboxes, keypoints, visibility, class_labels = (
                     file_helpers.open_yolo_keypoint_detection_label(
                         label_path=label_filepath,
-                        num_keypoints=num_keypoints,
+                        num_keypoints=self.num_keypoints,
                         num_dims=self.num_dims,
                     )
                 )
@@ -274,13 +268,8 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                     continue
                 bboxes, keypoints, visibility, class_labels = [], [], [], []
 
-            # Drop instances of excluded classes and instances with too few labeled
-            # keypoints.
-            keep = [
-                label in class_id_to_internal_class_id
-                and _count_labeled(instance_visibility) >= self.min_keypoints
-                for label, instance_visibility in zip(class_labels, visibility)
-            ]
+            # Drop instances of excluded classes.
+            keep = [label in class_id_to_internal_class_id for label in class_labels]
             bboxes, class_labels, keypoints, visibility = _filter_instances(
                 keep=keep,
                 bboxes=bboxes,
@@ -300,7 +289,7 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 class_labels=class_labels,
                 keypoints=keypoints,
                 visibility=visibility,
-                num_keypoints=num_keypoints,
+                num_keypoints=self.num_keypoints,
             )
 
     @staticmethod
@@ -398,11 +387,10 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
             labels=Path(split.annotations),
             data_dir=Path(split.images) if split.images is not None else None,
             classes=self._classes,
-            keypoint_set=self.keypoint_set,
+            num_keypoints=self.num_keypoints,
             ignore_classes=self.ignore_classes,
             skip_if_annotations_missing=self.skip_if_annotations_missing,
             include_crowd=self.include_crowd,
-            min_keypoints=self.min_keypoints,
         )
 
     def get_train_args(self) -> COCOKeypointDetectionDatasetArgs:
@@ -434,11 +422,10 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
     labels: Path
     data_dir: Path | None
     classes: dict[int, str]
-    keypoint_set: KeypointSetArgs
+    num_keypoints: int
     ignore_classes: set[int] | None
     skip_if_annotations_missing: bool
     include_crowd: bool
-    min_keypoints: int
 
     def list_image_info(self) -> Iterable[dict[str, str]]:
         """Yields image info dicts for each image in the COCO annotation file.
@@ -458,8 +445,6 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 ignore_classes=self.ignore_classes,
             )
         )
-        num_keypoints = self.keypoint_set.num_keypoints
-
         with open(self.labels) as f:
             labels_dict = json.load(f)
 
@@ -484,18 +469,18 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
 
             if image_id in annotations_by_image_id:
                 for annotation in annotations_by_image_id[image_id]:
+                    category_id = annotation["category_id"]
+                    if category_id not in class_id_to_internal_class_id:
+                        continue
                     if annotation.get("iscrowd", 0) and not self.include_crowd:
                         continue
 
                     instance_keypoints, instance_visibility = self._parse_keypoints(
                         annotation=annotation,
-                        num_keypoints=num_keypoints,
+                        num_keypoints=self.num_keypoints,
                         image_width_pixel=image_width_pixel,
                         image_height_pixel=image_height_pixel,
                     )
-                    if _count_labeled(instance_visibility) < self.min_keypoints:
-                        continue
-
                     bbox = self._parse_bbox(
                         annotation=annotation,
                         keypoints=instance_keypoints,
@@ -508,7 +493,7 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                         continue
 
                     bboxes.append(bbox)
-                    class_labels.append(annotation["category_id"])
+                    class_labels.append(class_id_to_internal_class_id[category_id])
                     keypoints.append(instance_keypoints)
                     visibility.append(instance_visibility)
             else:
@@ -517,28 +502,13 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 if self.skip_if_annotations_missing:
                     continue
 
-            # Drop instances of excluded classes.
-            keep = [label in class_id_to_internal_class_id for label in class_labels]
-            bboxes, class_labels, keypoints, visibility = _filter_instances(
-                keep=keep,
-                bboxes=bboxes,
-                class_labels=class_labels,
-                keypoints=keypoints,
-                visibility=visibility,
-            )
-
-            # Map class IDs to internal class IDs.
-            class_labels = [
-                class_id_to_internal_class_id[label] for label in class_labels
-            ]
-
             yield _image_info(
                 image_path=image_filepath,
                 bboxes=bboxes,
                 class_labels=class_labels,
                 keypoints=keypoints,
                 visibility=visibility,
-                num_keypoints=num_keypoints,
+                num_keypoints=self.num_keypoints,
             )
 
     def _parse_keypoints(
