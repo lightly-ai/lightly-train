@@ -13,58 +13,61 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-# Approximate peak working set for resized logits and the FP32 mask-score
-# intermediates in get_labels_masks_scores. The calculation uses six FP32-sized
-# buffers per output pixel to stay conservative across input dtypes.
-_INSTANCE_PREDICTION_MEMORY_BUDGET_BYTES = 512 * 1024**2
-_FP32_WORKING_BUFFERS_PER_PIXEL = 6
 
-
-def _query_chunk_size(
+def get_chunk_size(
     *,
+    num_queries: int,
+    resize_size: tuple[int, int],
     image_size: tuple[int, int],
-    memory_budget_bytes: int = _INSTANCE_PREDICTION_MEMORY_BUDGET_BYTES,
 ) -> int:
-    image_h, image_w = image_size
-    bytes_per_query = (
-        image_h
-        * image_w
-        * torch.tensor([], dtype=torch.float32).element_size()
-        * _FP32_WORKING_BUFFERS_PER_PIXEL
-    )
-    return max(1, memory_budget_bytes // bytes_per_query)
+    """Number of queries to score at once.
+
+    Training scores all queries at the model input size. The chunk covers the same
+    number of mask elements at the original image size.
+    """
+    resize_pixels = resize_size[0] * resize_size[1]
+    image_pixels = image_size[0] * image_size[1]
+    return max(1, num_queries * resize_pixels // image_pixels)
 
 
 def get_instance_segmentation_prediction(
     *,
     mask_logits: Tensor,
     class_logits: Tensor,
-    model_image_size: tuple[int, int],
+    resize_size: tuple[int, int],
     crop_size: tuple[int, int],
     image_size: tuple[int, int],
     get_labels_masks_scores: Callable[[Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
-    memory_budget_bytes: int = _INSTANCE_PREDICTION_MEMORY_BUDGET_BYTES,
 ) -> dict[str, Tensor]:
-    """Build one prediction while bounding resized-mask working memory.
+    """Get the prediction for a single image, scoring the queries in chunks.
 
-    Queries are independent for bilinear interpolation and mask-score reduction,
-    so processing them in chunks preserves the result. Masks are moved to CPU as
-    soon as a chunk is complete because the metric and visualization store them
-    there. Labels and scores stay on their original device for distributed sync.
+    Bilinear interpolation and the mask score reduction act on every query alone, so
+    a chunk boundary does not change the result.
+
+    Args:
+        mask_logits:
+            Mask logits of shape (Q, H', W').
+        class_logits:
+            Class logits of shape (Q, num_classes).
+        resize_size:
+            Size the logits are resized to before cropping, usually
+            self.model.image_size.
+        crop_size:
+            Size of the non-padded region, as returned by resize_and_pad.
+        image_size:
+            Original image size.
+        get_labels_masks_scores:
+            Called per chunk with batched mask and class logits.
+
+    Returns:
+        A dict with labels of shape (Q,), masks of shape (Q, H, W) on the CPU and
+        scores of shape (Q,).
     """
-    if mask_logits.shape[0] == 0:
-        raise ValueError("mask_logits must contain at least one query")
-
     crop_h, crop_w = crop_size
-    # The first resize can be larger than the final image resize. Size chunks
-    # from the largest materialized mask surface so the intermediate logits stay
-    # within the same working-set budget.
-    peak_image_size = max(
-        (model_image_size, image_size), key=lambda size: size[0] * size[1]
-    )
-    chunk_size = _query_chunk_size(
-        image_size=peak_image_size,
-        memory_budget_bytes=memory_budget_bytes,
+    chunk_size = get_chunk_size(
+        num_queries=mask_logits.shape[0],
+        resize_size=resize_size,
+        image_size=image_size,
     )
     labels_chunks: list[Tensor] = []
     masks_chunks: list[Tensor] = []
@@ -72,17 +75,21 @@ def get_instance_segmentation_prediction(
 
     for start in range(0, mask_logits.shape[0], chunk_size):
         end = start + chunk_size
-        logits_chunk = mask_logits[start:end].unsqueeze(0)
-        class_logits_chunk = class_logits[start:end].unsqueeze(0)
-
-        logits_chunk = F.interpolate(logits_chunk, model_image_size, mode="bilinear")
-        logits_chunk = logits_chunk[..., :crop_h, :crop_w]
+        logits_chunk = mask_logits[start:end].unsqueeze(0)  # (1, C, H', W')
+        class_logits_chunk = class_logits[start:end].unsqueeze(0)  # (1, C, num_classes)
+        # Resize to same size as before passing through the model. This is usually
+        # (1, C, 640, 640) and depends on self.model.image_size.
+        logits_chunk = F.interpolate(logits_chunk, resize_size, mode="bilinear")
+        # Revert resize and pad from self.model.resize_and_pad.
+        logits_chunk = logits_chunk[..., :crop_h, :crop_w]  # (1, C, crop_h, crop_w)
         logits_chunk = F.interpolate(logits_chunk, image_size, mode="bilinear")
-
+        # (1, C), (1, C, H, W), (1, C)
         labels, masks, scores = get_labels_masks_scores(
             logits_chunk, class_logits_chunk
         )
         labels_chunks.append(labels[0])
+        # The metric and the visualization move the masks to the CPU anyway. Only
+        # labels and scores must stay on the device for the distributed metric sync.
         masks_chunks.append(masks[0].cpu())
         scores_chunks.append(scores[0])
 
