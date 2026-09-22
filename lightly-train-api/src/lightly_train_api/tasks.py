@@ -17,7 +17,7 @@ from lightly_train_api.settings import get_settings
 
 
 class RetrainInput(BaseModel):
-    user_id: str
+    dataset_id: int
     run_id: int
 
 
@@ -41,18 +41,20 @@ def get_retrain_task() -> RetrainTask:
 
         @get_hatchet().task(name="retrain", input_validator=RetrainInput)
         def retrain(input: RetrainInput, ctx: Context) -> trainer.TrainMetrics:
-            return trainer.retrain_user(user_id=input.user_id, run_id=input.run_id)
+            return trainer.retrain_dataset(
+                dataset_id=input.dataset_id, run_id=input.run_id
+            )
 
         _retrain_task = retrain
     return _retrain_task
 
 
-async def enqueue_retrain(user_id: str, run_id: int) -> None:
+async def enqueue_retrain(dataset_id: int, run_id: int) -> None:
     if not get_settings().use_hatchet:
-        await run_in_threadpool(trainer.retrain_user, user_id, run_id)
+        await run_in_threadpool(trainer.retrain_dataset, dataset_id, run_id)
         return
     await get_retrain_task().aio_run_no_wait(
-        RetrainInput(user_id=user_id, run_id=run_id)
+        RetrainInput(dataset_id=dataset_id, run_id=run_id)
     )
 
 

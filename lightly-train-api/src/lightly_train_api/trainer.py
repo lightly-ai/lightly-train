@@ -21,12 +21,12 @@ from lightly_train._commands.train_api import FittedHead, HeadWeights, TrainMetr
 from lightly_train_api import encoder
 from lightly_train_api.db import get_engine
 from lightly_train_api.models import (
+    Dataset,
     Head,
     RunStatus,
     Sample,
     TaskType,
     TrainingRun,
-    User,
 )
 from lightly_train_api.settings import get_settings
 
@@ -38,12 +38,12 @@ __all__ = [
     "TrainMetrics",
     "dump_weights",
     "load_weights",
-    "retrain_user",
+    "retrain_dataset",
 ]
 
 
-def retrain_user(user_id: str, run_id: int) -> TrainMetrics:
-    """Retrains the head of a user from scratch on all their samples."""
+def retrain_dataset(dataset_id: int, run_id: int) -> TrainMetrics:
+    """Retrains the head of a dataset from scratch on all of its samples."""
     with Session(get_engine()) as session:
         run = session.get(TrainingRun, run_id)
         if run is None:
@@ -53,7 +53,7 @@ def retrain_user(user_id: str, run_id: int) -> TrainMetrics:
         session.commit()
 
         try:
-            metrics = _retrain(session=session, user_id=user_id, run=run)
+            metrics = _retrain(session=session, dataset_id=dataset_id, run=run)
         except Exception:
             session.rollback()
             run = session.get(TrainingRun, run_id)
@@ -67,27 +67,29 @@ def retrain_user(user_id: str, run_id: int) -> TrainMetrics:
         return metrics
 
 
-def _retrain(session: Session, user_id: str, run: TrainingRun) -> TrainMetrics:
-    user = session.get(User, user_id)
-    if user is None:
-        raise ValueError(f"Unknown user {user_id}.")
+def _retrain(session: Session, dataset_id: int, run: TrainingRun) -> TrainMetrics:
+    dataset = session.get(Dataset, dataset_id)
+    if dataset is None:
+        raise ValueError(f"Unknown dataset {dataset_id}.")
 
-    samples = list(session.exec(select(Sample).where(Sample.user_id == user_id)).all())
+    samples = list(
+        session.exec(select(Sample).where(Sample.dataset_id == dataset_id)).all()
+    )
     if not samples:
-        raise ValueError(f"User {user_id} has no samples.")
+        raise ValueError(f"Dataset {dataset_id} has no samples.")
 
     settings = get_settings()
-    if user.task is TaskType.DETECTION:
-        fitted = _fit_detection(user=user, samples=samples)
+    if dataset.task is TaskType.DETECTION:
+        fitted = _fit_detection(dataset=dataset, samples=samples)
         backbone = settings.detection_model_name
     else:
-        fitted = _fit_classification(user=user, samples=samples)
+        fitted = _fit_classification(dataset=dataset, samples=samples)
         backbone = settings.model_name
 
     head = Head(
-        user_id=user_id,
-        task=user.task,
-        class_names=list(user.class_names),
+        dataset_id=dataset_id,
+        task=dataset.task,
+        class_names=list(dataset.class_names),
         backbone=backbone,
         weights=dump_weights(fitted.weights),
         num_samples=len(samples),
@@ -106,9 +108,9 @@ def _retrain(session: Session, user_id: str, run: TrainingRun) -> TrainMetrics:
     return fitted.metrics
 
 
-def _fit_classification(user: User, samples: list[Sample]) -> FittedHead:
+def _fit_classification(dataset: Dataset, samples: list[Sample]) -> FittedHead:
     settings = get_settings()
-    class_to_index = {name: index for index, name in enumerate(user.class_names)}
+    class_to_index = {name: index for index, name in enumerate(dataset.class_names)}
     features = torch.stack(
         [encoder.blob_to_feature(_require(sample.embedding)) for sample in samples]
     )
@@ -118,7 +120,7 @@ def _fit_classification(user: User, samples: list[Sample]) -> FittedHead:
     return train_api.fit_classification_head(
         features=features,
         labels=labels,
-        num_classes=len(user.class_names),
+        num_classes=len(dataset.class_names),
         steps=settings.train_steps,
         lr=settings.train_lr,
         weight_decay=settings.train_weight_decay,
@@ -126,9 +128,9 @@ def _fit_classification(user: User, samples: list[Sample]) -> FittedHead:
     )
 
 
-def _fit_detection(user: User, samples: list[Sample]) -> FittedHead:
+def _fit_detection(dataset: Dataset, samples: list[Sample]) -> FittedHead:
     settings = get_settings()
-    class_names = list(user.class_names)
+    class_names = list(dataset.class_names)
     class_to_index = {name: index for index, name in enumerate(class_names)}
     model = encoder.get_detector(tuple(class_names))
     size = settings.detection_image_size

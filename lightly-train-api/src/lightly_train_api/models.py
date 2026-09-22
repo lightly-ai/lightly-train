@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -43,6 +43,17 @@ class TaskType(str, Enum):
 
 class User(SQLModel, table=True):
     id: str = Field(primary_key=True)
+    created_at: datetime = Field(default_factory=_now)
+
+
+class Dataset(SQLModel, table=True):
+    """Samples, classes and heads are all scoped to one dataset of one user."""
+
+    __table_args__ = (UniqueConstraint("user_id", "name"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    name: str = Field(index=True)
     task: TaskType = Field(
         default=TaskType.CLASSIFICATION, sa_column=_enum_column(TaskType)
     )
@@ -52,8 +63,16 @@ class User(SQLModel, table=True):
 
 
 class Sample(SQLModel, table=True):
+    """One image of one dataset, identified by the client's `key` within it."""
+
+    __table_args__ = (UniqueConstraint("dataset_id", "key"),)
+
     id: int | None = Field(default=None, primary_key=True)
-    user_id: str = Field(foreign_key="user.id", index=True)
+    dataset_id: int = Field(foreign_key="dataset.id", index=True)
+    # Stable client-side identity, for example the path of the image in the dataset.
+    key: str
+    # sha256 of `image`, to detect that the bytes behind `key` changed.
+    content_hash: str
     # Set for classification samples.
     label: str | None = None
     image: bytes
@@ -65,11 +84,12 @@ class Sample(SQLModel, table=True):
     annotations: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     backbone: str
     created_at: datetime = Field(default_factory=_now)
+    updated_at: datetime = Field(default_factory=_now)
 
 
 class Head(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    user_id: str = Field(foreign_key="user.id", index=True)
+    dataset_id: int = Field(foreign_key="dataset.id", index=True)
     task: TaskType = Field(
         default=TaskType.CLASSIFICATION, sa_column=_enum_column(TaskType)
     )
@@ -85,7 +105,7 @@ class Head(SQLModel, table=True):
 
 class TrainingRun(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    user_id: str = Field(foreign_key="user.id", index=True)
+    dataset_id: int = Field(foreign_key="dataset.id", index=True)
     status: RunStatus = Field(
         default=RunStatus.QUEUED, sa_column=_enum_column(RunStatus)
     )

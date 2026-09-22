@@ -7,14 +7,25 @@
 #
 from __future__ import annotations
 
+import hashlib
 import threading
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Annotated
+from datetime import datetime, timezone
+from typing import Annotated, Any
 
 import torch
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Path,
+    UploadFile,
+)
 from PIL.Image import Image
 from pydantic import ValidationError
 from sqlmodel import Session, col, func, select
@@ -22,7 +33,15 @@ from torch.nn import functional as F
 
 from lightly_train_api import encoder, schemas, tasks, trainer
 from lightly_train_api.db import get_session, init_db
-from lightly_train_api.models import Head, Sample, TaskType, TrainingRun, User
+from lightly_train_api.models import (
+    Dataset,
+    Head,
+    RunStatus,
+    Sample,
+    TaskType,
+    TrainingRun,
+    User,
+)
 from lightly_train_api.settings import get_settings
 
 
@@ -35,7 +54,7 @@ class CachedHead:
     class_names: list[str]
 
 
-_head_cache: dict[str, CachedHead] = {}
+_head_cache: dict[int, CachedHead] = {}
 
 
 @asynccontextmanager
@@ -52,6 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="lightly-train-api", lifespan=lifespan)
 
 SessionDep = Annotated[Session, Depends(get_session)]
+DatasetName = Annotated[str, Path(min_length=1)]
 
 
 def get_current_user(session: SessionDep, x_user_id: Annotated[str, Header()]) -> User:
@@ -84,120 +104,242 @@ def model_info() -> schemas.ModelInfo:
     )
 
 
-@app.get("/me")
-def me(session: SessionDep, user: UserDep) -> schemas.UserInfo:
+@app.get("/datasets")
+def list_datasets(session: SessionDep, user: UserDep) -> list[str]:
+    names = session.exec(
+        select(Dataset.name)
+        .where(Dataset.user_id == user.id)
+        .order_by(col(Dataset.name))
+    ).all()
+    return list(names)
+
+
+@app.get("/datasets/{dataset_name}")
+def get_dataset(
+    session: SessionDep, user: UserDep, dataset_name: DatasetName
+) -> schemas.DatasetInfo:
+    dataset = _require_dataset(session=session, user=user, name=dataset_name)
+    assert dataset.id is not None
+
     counts = session.exec(
         select(Sample.label, func.count())
-        .where(Sample.user_id == user.id)
+        .where(Sample.dataset_id == dataset.id)
         .group_by(col(Sample.label))
     ).all()
     num_samples = session.exec(
-        select(func.count()).select_from(Sample).where(Sample.user_id == user.id)
+        select(func.count()).select_from(Sample).where(Sample.dataset_id == dataset.id)
     ).one()
-    head = _latest_head(session=session, user_id=user.id)
     run: TrainingRun | None = session.exec(
         select(TrainingRun)
-        .where(TrainingRun.user_id == user.id)
+        .where(TrainingRun.dataset_id == dataset.id)
         .order_by(col(TrainingRun.id).desc())
     ).first()
-    return schemas.UserInfo(
+    return schemas.DatasetInfo(
         user_id=user.id,
-        task=user.task,
-        class_names=user.class_names,
+        dataset=dataset.name,
+        task=dataset.task,
+        class_names=dataset.class_names,
         num_samples=num_samples,
         samples_per_class={
             label: count for label, count in counts if label is not None
         },
-        head=_head_info(head),
-        latest_run=_run_info(run),
+        head=_head_info(_latest_head(session=session, dataset_id=dataset.id)),
+        latest_run=_run_info(session=session, run=run),
     )
 
 
-@app.post("/samples")
+@app.post("/datasets/{dataset_name}/samples/diff")
+def diff_samples(
+    session: SessionDep,
+    user: UserDep,
+    dataset_name: DatasetName,
+    request: schemas.DiffRequest,
+) -> schemas.DiffResponse:
+    """Reports which samples the server is missing, so only those are uploaded.
+
+    Applies the same comparison as the ingest endpoint, so a sample reported as
+    `unchanged` would be a no-op to upload.
+    """
+    dataset = session.exec(
+        select(Dataset).where(Dataset.user_id == user.id, Dataset.name == dataset_name)
+    ).first()
+    keys = [sample.key for sample in request.samples]
+    known: dict[str, Sample] = {}
+    if dataset is not None:
+        known = {
+            sample.key: sample
+            for sample in session.exec(
+                select(Sample).where(
+                    Sample.dataset_id == dataset.id, col(Sample.key).in_(keys)
+                )
+            ).all()
+        }
+
+    response = schemas.DiffResponse(new=[], changed=[], unchanged=[])
+    for state in request.samples:
+        sample = known.get(state.key)
+        if sample is None:
+            response.new.append(state.key)
+        elif _is_unchanged(
+            sample=sample,
+            content_hash=state.content_hash,
+            label=state.label,
+            annotation=state.annotation,
+        ):
+            response.unchanged.append(state.key)
+        else:
+            response.changed.append(state.key)
+    return response
+
+
+@app.post("/datasets/{dataset_name}/samples")
 async def upload_samples(
     session: SessionDep,
     user: UserDep,
+    dataset_name: DatasetName,
     files: Annotated[list[UploadFile], File()],
+    keys: Annotated[list[str] | None, Form()] = None,
     labels: Annotated[list[str] | None, Form()] = None,
     annotations: Annotated[list[str] | None, Form()] = None,
     class_names: Annotated[list[str] | None, Form()] = None,
-) -> schemas.UploadResponse:
+) -> schemas.IngestResponse:
     if labels and annotations:
         raise HTTPException(400, "Provide either labels or annotations, not both.")
     task = TaskType.DETECTION if annotations else TaskType.CLASSIFICATION
-    if user.class_names and user.task is not task:
-        raise HTTPException(
-            400, f"User {user.id} already has samples for task '{user.task.value}'."
-        )
 
     per_file = annotations if task is TaskType.DETECTION else labels
     if per_file is None or len(files) != len(per_file):
         raise HTTPException(400, "Number of files and annotations must match.")
+    sample_keys = _resolve_keys(files=files, keys=keys)
+
+    dataset = _get_or_create_dataset(session=session, user=user, name=dataset_name)
+    if dataset.class_names and dataset.task is not task:
+        raise HTTPException(
+            400,
+            f"Dataset '{dataset.name}' already has samples for task "
+            f"'{dataset.task.value}'.",
+        )
+    assert dataset.id is not None
+
+    parsed = (
+        [_parse_annotation(value) for value in annotations or []]
+        if task is TaskType.DETECTION
+        else []
+    )
+    new_names = (
+        [label for item in parsed for label in item.labels]
+        if task is TaskType.DETECTION
+        else list(labels or [])
+    )
+
+    dataset.task = task
+    dataset.class_names = _extend_class_names(
+        known=dataset.class_names, new=[*(class_names or []), *new_names]
+    )
+    session.add(dataset)
 
     images_data = [await file.read() for file in files]
-    images = [encoder.decode_image(data) for data in images_data]
+    hashes = [hashlib.sha256(data).hexdigest() for data in images_data]
+    existing = {
+        sample.key: sample
+        for sample in session.exec(
+            select(Sample).where(
+                Sample.dataset_id == dataset.id, col(Sample.key).in_(sample_keys)
+            )
+        ).all()
+    }
 
-    if task is TaskType.DETECTION:
-        parsed = [_parse_annotation(value) for value in annotations or []]
-        new_names = [label for item in parsed for label in item.labels]
-    else:
-        parsed = []
-        new_names = list(labels or [])
-
-    user.task = task
-    user.class_names = _extend_class_names(
-        known=user.class_names, new=[*(class_names or []), *new_names]
+    response = schemas.IngestResponse(
+        ingested=[],
+        updated=[],
+        unchanged=[],
+        num_samples=0,
+        class_names=list(dataset.class_names),
+        run_id=None,
     )
-    session.add(user)
+    todo: list[int] = []
+    for index, key in enumerate(sample_keys):
+        sample = existing.get(key)
+        if sample is None:
+            response.ingested.append(key)
+            todo.append(index)
+        elif _is_unchanged(
+            sample=sample,
+            content_hash=hashes[index],
+            label=None if task is TaskType.DETECTION else (labels or [])[index],
+            annotation=parsed[index] if task is TaskType.DETECTION else None,
+        ):
+            response.unchanged.append(key)
+        else:
+            response.updated.append(key)
+            todo.append(index)
 
-    if task is TaskType.DETECTION:
-        samples = _detection_samples(
-            user=user, images=images, images_data=images_data, parsed=parsed
+    if todo:
+        images = [encoder.decode_image(images_data[index]) for index in todo]
+        payloads = (
+            _detection_payloads(
+                dataset=dataset,
+                images=images,
+                parsed=[parsed[index] for index in todo],
+            )
+            if task is TaskType.DETECTION
+            else _classification_payloads(
+                images=images, labels=[(labels or [])[index] for index in todo]
+            )
         )
-    else:
-        samples = _classification_samples(
-            user=user, images=images, images_data=images_data, labels=labels or []
-        )
+        for index, payload in zip(todo, payloads):
+            key = sample_keys[index]
+            sample = existing.get(key) or Sample(
+                dataset_id=dataset.id, key=key, content_hash="", image=b"", backbone=""
+            )
+            sample.content_hash = hashes[index]
+            sample.image = images_data[index]
+            sample.updated_at = datetime.now(timezone.utc)
+            for field, value in payload.items():
+                setattr(sample, field, value)
+            session.add(sample)
 
-    run = TrainingRun(user_id=user.id)
-    session.add_all([*samples, run])
     session.commit()
+    response.num_samples = session.exec(
+        select(func.count()).select_from(Sample).where(Sample.dataset_id == dataset.id)
+    ).one()
+    response.class_names = list(dataset.class_names)
 
-    for sample in samples:
-        session.refresh(sample)
-    session.refresh(run)
-    assert run.id is not None
-
-    await tasks.enqueue_retrain(user_id=user.id, run_id=run.id)
-    return schemas.UploadResponse(
-        sample_ids=[sample.id for sample in samples if sample.id is not None],
-        run_id=run.id,
-    )
+    if todo:
+        run_id = _enqueue_run(session=session, dataset_id=dataset.id)
+        response.run_id = run_id
+        await tasks.enqueue_retrain(dataset_id=dataset.id, run_id=run_id)
+    return response
 
 
 @app.get("/runs/{run_id}")
 def get_run(session: SessionDep, user: UserDep, run_id: int) -> schemas.RunInfo:
     run = session.get(TrainingRun, run_id)
-    if run is None or run.user_id != user.id:
+    dataset = None if run is None else session.get(Dataset, run.dataset_id)
+    if run is None or dataset is None or dataset.user_id != user.id:
         raise HTTPException(404, f"Unknown run {run_id}.")
-    info = _run_info(run)
+    info = _run_info(session=session, run=run)
     assert info is not None
     return info
 
 
-@app.post("/predict")
+@app.post("/datasets/{dataset_name}/predict")
 async def predict(
     session: SessionDep,
     user: UserDep,
+    dataset_name: DatasetName,
     files: Annotated[list[UploadFile], File()],
+    threshold: Annotated[float | None, Form()] = None,
 ) -> list[schemas.Prediction] | list[schemas.Detection]:
-    head = _get_cached_head(session=session, user_id=user.id)
+    dataset = _require_dataset(session=session, user=user, name=dataset_name)
+    assert dataset.id is not None
+    head = _get_cached_head(session=session, dataset_id=dataset.id)
     if head is None:
         raise HTTPException(409, "No trained head available yet.")
 
     images = [encoder.decode_image(await file.read()) for file in files]
-    if user.task is TaskType.DETECTION:
-        return _predict_detection(head=head, images=images)
+    if dataset.task is TaskType.DETECTION:
+        return _predict_detection(head=head, images=images, threshold=threshold)
     return _predict_classification(head=head, images=images)
 
 
@@ -220,10 +362,10 @@ def _predict_classification(
 
 
 def _predict_detection(
-    head: CachedHead, images: Sequence[Image]
+    head: CachedHead, images: Sequence[Image], threshold: float | None
 ) -> list[schemas.Detection]:
     model = encoder.get_detector(tuple(head.class_names))
-    # The detector is shared across users with the same class set, so the head is
+    # The detector is shared across datasets with the same class set, so the head is
     # loaded on every request rather than once at cache fill.
     model.load_state_dict(head.weights, strict=False)
     device = next(model.parameters()).device
@@ -237,7 +379,11 @@ def _predict_detection(
     predictions = model.postprocess(
         raw_outputs=raw,
         metadata=metadata,
-        threshold=get_settings().detection_predict_threshold,
+        threshold=(
+            get_settings().detection_predict_threshold
+            if threshold is None
+            else threshold
+        ),
     )
 
     return [
@@ -257,6 +403,38 @@ def _predict_detection(
     ]
 
 
+def _resolve_keys(files: Sequence[UploadFile], keys: Sequence[str] | None) -> list[str]:
+    """Returns one identity per file, defaulting to the uploaded filename."""
+    if keys is None:
+        resolved = [file.filename or "" for file in files]
+        if not all(resolved):
+            raise HTTPException(400, "Every file needs a key or a filename.")
+    elif len(keys) != len(files):
+        raise HTTPException(400, "Number of files and keys must match.")
+    else:
+        resolved = list(keys)
+    if len(set(resolved)) != len(resolved):
+        raise HTTPException(400, "Keys must be unique within one request.")
+    return resolved
+
+
+def _is_unchanged(
+    sample: Sample,
+    content_hash: str,
+    label: str | None,
+    annotation: schemas.Annotation | None,
+) -> bool:
+    """Whether re-ingesting would not change anything about the stored sample."""
+    if sample.content_hash != content_hash:
+        return False
+    if annotation is None:
+        return sample.label == label
+    stored = sample.annotations or {}
+    return stored.get("boxes") == [
+        list(box) for box in annotation.boxes
+    ] and stored.get("labels") == list(annotation.labels)
+
+
 def _parse_annotation(value: str) -> schemas.Annotation:
     try:
         return schemas.Annotation.model_validate_json(value)
@@ -273,70 +451,111 @@ def _extend_class_names(known: Sequence[str], new: Sequence[str]) -> list[str]:
     return names
 
 
-def _classification_samples(
-    user: User,
-    images: Sequence[Image],
-    images_data: Sequence[bytes],
-    labels: Sequence[str],
-) -> list[Sample]:
+def _classification_payloads(
+    images: Sequence[Image], labels: Sequence[str]
+) -> list[dict[str, Any]]:
     features = encoder.encode(images)
     return [
-        Sample(
-            user_id=user.id,
-            label=label,
-            image=data,
-            embedding=encoder.feature_to_blob(feature),
-            backbone=get_settings().model_name,
-        )
-        for data, label, feature in zip(images_data, labels, features)
+        {
+            "label": label,
+            "embedding": encoder.feature_to_blob(feature),
+            "tensor": None,
+            "annotations": None,
+            "backbone": get_settings().model_name,
+        }
+        for label, feature in zip(labels, features)
     ]
 
 
-def _detection_samples(
-    user: User,
+def _detection_payloads(
+    dataset: Dataset,
     images: Sequence[Image],
-    images_data: Sequence[bytes],
     parsed: Sequence[schemas.Annotation],
-) -> list[Sample]:
-    class_names = tuple(user.class_names)
+) -> list[dict[str, Any]]:
+    class_names = tuple(dataset.class_names)
     return [
-        Sample(
-            user_id=user.id,
-            image=data,
-            tensor=encoder.tensor_to_blob(
+        {
+            "label": None,
+            "embedding": None,
+            "tensor": encoder.tensor_to_blob(
                 encoder.preprocess_for_detection(image, class_names)
             ),
-            annotations={
+            "annotations": {
                 "boxes": [list(box) for box in annotation.boxes],
                 "labels": list(annotation.labels),
                 "height": image.height,
                 "width": image.width,
             },
-            backbone=get_settings().detection_model_name,
-        )
-        for data, image, annotation in zip(images_data, images, parsed)
+            "backbone": get_settings().detection_model_name,
+        }
+        for image, annotation in zip(images, parsed)
     ]
 
 
-def _latest_head(session: Session, user_id: str) -> Head | None:
+def _get_or_create_dataset(session: Session, user: User, name: str) -> Dataset:
+    dataset = session.exec(
+        select(Dataset).where(Dataset.user_id == user.id, Dataset.name == name)
+    ).first()
+    if dataset is None:
+        dataset = Dataset(user_id=user.id, name=name)
+        session.add(dataset)
+        session.commit()
+        session.refresh(dataset)
+    return dataset
+
+
+def _require_dataset(session: Session, user: User, name: str) -> Dataset:
+    dataset = session.exec(
+        select(Dataset).where(Dataset.user_id == user.id, Dataset.name == name)
+    ).first()
+    if dataset is None:
+        raise HTTPException(404, f"Unknown dataset '{name}'.")
+    return dataset
+
+
+def _enqueue_run(session: Session, dataset_id: int) -> int:
+    """Returns the run that will train on the current samples.
+
+    A queued run has not read the samples yet, so it is reused instead of stacking a
+    second run behind it when an upload arrives in several batches.
+    """
+    queued: TrainingRun | None = session.exec(
+        select(TrainingRun)
+        .where(
+            TrainingRun.dataset_id == dataset_id,
+            TrainingRun.status == RunStatus.QUEUED,
+        )
+        .order_by(col(TrainingRun.id).desc())
+    ).first()
+    if queued is not None and queued.id is not None:
+        return queued.id
+    run = TrainingRun(dataset_id=dataset_id)
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    assert run.id is not None
+    return run.id
+
+
+def _latest_head(session: Session, dataset_id: int) -> Head | None:
     head: Head | None = session.exec(
-        select(Head).where(Head.user_id == user_id).order_by(col(Head.id).desc())
+        select(Head).where(Head.dataset_id == dataset_id).order_by(col(Head.id).desc())
     ).first()
     return head
 
 
-def _get_cached_head(session: Session, user_id: str) -> CachedHead | None:
-    head = _latest_head(session=session, user_id=user_id)
+def _get_cached_head(session: Session, dataset_id: int) -> CachedHead | None:
+    head = _latest_head(session=session, dataset_id=dataset_id)
     if head is None or head.id is None:
         return None
-    cached = _head_cache.get(user_id)
+    cached = _head_cache.get(dataset_id)
     if cached is None or cached.head_id != head.id:
         cached = CachedHead(
             head_id=head.id,
             weights=trainer.load_weights(head.weights),
             class_names=list(head.class_names),
         )
-        _head_cache[user_id] = cached
+        _head_cache[dataset_id] = cached
     return cached
 
 
@@ -354,11 +573,14 @@ def _head_info(head: Head | None) -> schemas.HeadInfo | None:
     )
 
 
-def _run_info(run: TrainingRun | None) -> schemas.RunInfo | None:
+def _run_info(session: Session, run: TrainingRun | None) -> schemas.RunInfo | None:
     if run is None or run.id is None:
         return None
+    dataset = session.get(Dataset, run.dataset_id)
+    assert dataset is not None
     return schemas.RunInfo(
         id=run.id,
+        dataset=dataset.name,
         status=run.status,
         head_id=run.head_id,
         error=run.error,

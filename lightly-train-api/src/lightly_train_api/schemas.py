@@ -34,6 +34,7 @@ class HeadInfo(BaseModel):
 
 class RunInfo(BaseModel):
     id: int
+    dataset: str
     status: RunStatus
     head_id: int | None
     error: str | None
@@ -41,8 +42,9 @@ class RunInfo(BaseModel):
     finished_at: datetime | None
 
 
-class UserInfo(BaseModel):
+class DatasetInfo(BaseModel):
     user_id: str
+    dataset: str
     task: TaskType
     class_names: list[str]
     num_samples: int
@@ -51,9 +53,46 @@ class UserInfo(BaseModel):
     latest_run: RunInfo | None
 
 
-class UploadResponse(BaseModel):
-    sample_ids: list[int]
-    run_id: int
+class Annotation(BaseModel):
+    """Bounding boxes for one uploaded image, in image pixels."""
+
+    boxes: list[tuple[float, float, float, float]]
+    labels: list[str]
+
+
+class SampleState(BaseModel):
+    """Client-side state of one sample, as sent to `/samples/diff`.
+
+    Carries the annotation rather than only the image hash, so that re-labeling an
+    image whose bytes did not change is reported as `changed`.
+    """
+
+    key: str
+    content_hash: str
+    label: str | None = None
+    annotation: Annotation | None = None
+
+
+class DiffRequest(BaseModel):
+    samples: list[SampleState]
+
+
+class DiffResponse(BaseModel):
+    """Which of the requested samples the server still needs."""
+
+    new: list[str]
+    changed: list[str]
+    unchanged: list[str]
+
+
+class IngestResponse(BaseModel):
+    ingested: list[str]
+    updated: list[str]
+    unchanged: list[str]
+    num_samples: int
+    class_names: list[str]
+    # None when nothing changed, because then no training run is started.
+    run_id: int | None
 
 
 class Prediction(BaseModel):
@@ -71,10 +110,3 @@ class Box(BaseModel):
 
 class Detection(BaseModel):
     boxes: list[Box]
-
-
-class Annotation(BaseModel):
-    """Bounding boxes for one uploaded image, in image pixels."""
-
-    boxes: list[tuple[float, float, float, float]]
-    labels: list[str]
