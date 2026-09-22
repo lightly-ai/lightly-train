@@ -10,7 +10,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.#
-"""Load-state-dict pre-hooks shared by RT-DETRv2 / D-FINE decoders.
+"""Load-state-dict pre-hooks shared by RT-DETRv2 / D-FINE / ECSeg decoders.
 
 These hooks adapt a pretrained checkpoint to a module configured with a
 different number of classes by retaining the module's initialized

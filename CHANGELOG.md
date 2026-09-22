@@ -36,10 +36,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Object detection checkpoints with a different number of classes now retain the new
-  model's initialized classification heads and denoising class embeddings instead of
-  reusing unrelated checkpoint class rows. Matching class counts still reuse pretrained
-  weights, and the denoising padding embedding is preserved.
+- Object detection and LTDETRv2 instance segmentation checkpoints with a different
+  number of classes now retain the new model's initialized classification heads and
+  denoising class embeddings instead of reusing unrelated checkpoint class rows.
+  Matching class counts still reuse pretrained weights, and the denoising padding
+  embedding is preserved.
 
 - Fine-tuning now requires `torchmetrics>=1.5` and fails with a clear error message if
   an older version is installed. This happens for example when SuperGradients is
