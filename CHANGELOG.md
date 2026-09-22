@@ -50,6 +50,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix DINOv3 LT-DETR `-eupe` backbone aliases. All six `dinov3/<size>-eupe-ltdetr` model
+  names (ConvNeXt-tiny/small/base, ViT-tiny/small/base) now resolve to config classes
+  whose `backbone_name` points at the corresponding EUPE weights. Previously each alias
+  was registered on the plain (non-EUPE) config class, so the name promised EUPE weights
+  while non-EUPE weights were loaded. The `-notpretrained-linear` half of #980 was
+  already fixed on main.
 - Setting `transform_args={"random_resize": None}` during pretraining now only resizes
   images instead of also center cropping them to an aspect ratio between 3:4 and 4:3.
   Images that are not roughly square were previously cropped even though cropping was
