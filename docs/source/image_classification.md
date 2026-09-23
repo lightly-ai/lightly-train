@@ -23,6 +23,69 @@ how to prepare your dataset.
 In multiclass classification, each image is assigned to exactly one class. This is the
 default mode and does not need to be specified explicitly.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+[clothing-dataset-small](https://github.com/alexeygrigorev/clothing-dataset-small) (CC0
+licensed, 10 classes, already organized as class-subfolders):
+
+```bash
+git clone https://github.com/alexeygrigorev/clothing-dataset-small
+```
+
+The dataset looks like this after cloning:
+
+```text
+clothing-dataset-small/
+├── train
+│   ├── dress
+│   │   ├── 009b3c31-fb62-45c0-be9a-37a5c238cb88.jpg
+│   │   ├── 041c6bde-e737-46fd-9586-984c1503941f.jpg
+│   │   └── ...
+│   ├── hat
+│   │   ├── 00d94e21-5891-492e-be0e-792e7338c077.jpg
+│   │   └── ...
+│   └── ...
+├── validation
+│   ├── dress
+│   │   ├── 07cddef1-1fc8-47e4-a28a-613e60912590.jpg
+│   │   └── ...
+│   └── ...
+└── test
+    ├── dress
+    │   ├── 06a00c0f-5f9a-410d-a7da-3881a9df3a71.jpg
+    │   └── ...
+    └── ...
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_image_classification(
+        out="out/my_experiment",
+        model="dinov3/vitt16",
+        data={
+            "train": "clothing-dataset-small/train",
+            "val": "clothing-dataset-small/validation",
+            "classes": {
+                0: "dress",
+                1: "hat",
+                2: "longsleeve",
+                3: "outwear",
+                4: "pants",
+                5: "shirt",
+                6: "shoes",
+                7: "shorts",
+                8: "skirt",
+                9: "t-shirt",
+            },
+        },
+    )
+```
+
+`data` also accepts a path to a YAML file with the same keys, which reads quicker for
+larger class dictionaries. With your own dataset organized as class-subfolders, the
+minimal example looks like this:
+
 ```python
 import lightly_train
 
