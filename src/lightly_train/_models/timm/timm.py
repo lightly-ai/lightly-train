@@ -49,8 +49,9 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     ("sequencer2d_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("aimv2_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("convit_", {"model_type": "transformer", "norm_type": "layernorm"}),
-    # gemma4_vit_* uses RmsNorm throughout, but norm_type is a training-recipe
-    # tag (non-batchnorm) so "layernorm" is the correct bucket here.
+    # deepseek_vit_* and gemma4_vit_* use RmsNorm throughout, but norm_type is a
+    # training-recipe tag (non-batchnorm) so "layernorm" is the correct bucket here.
+    ("deepseek_vit_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("gemma4_vit_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("gmixer_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("gmlp_", {"model_type": "transformer", "norm_type": "layernorm"}),
@@ -60,6 +61,7 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     ("mvitv2_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("naflexvit_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("pvt_v2_", {"model_type": "transformer", "norm_type": "layernorm"}),
+    ("qwen3_vit_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("resmlp_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("sam2_hiera_", {"model_type": "transformer", "norm_type": "layernorm"}),
     ("samvit_", {"model_type": "transformer", "norm_type": "layernorm"}),
@@ -97,7 +99,9 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     ("cpubone_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("eca_botnext", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("eca_halonext", {"model_type": "hybrid", "norm_type": "batchnorm"}),
+    ("efficientvim_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("halo", {"model_type": "hybrid", "norm_type": "batchnorm"}),
+    ("iformer_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("lambda_resnet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("lamhalobotnet", {"model_type": "hybrid", "norm_type": "batchnorm"}),
     ("lowformer_", {"model_type": "hybrid", "norm_type": "batchnorm"}),
