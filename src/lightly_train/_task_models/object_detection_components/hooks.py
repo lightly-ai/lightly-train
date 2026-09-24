@@ -13,8 +13,10 @@
 """Load-state-dict pre-hooks shared by RT-DETRv2 / D-FINE decoders.
 
 These hooks adapt a pretrained checkpoint to a module configured with a
-different number of classes, by truncating or zero-/re-initializing the
-classification-related weights so ``load_state_dict`` succeeds.
+different number of classes. The checkpoint's classification-related weights are
+reused only when the class counts match. Otherwise the module's own
+initialization is kept, so a new class set starts from a randomly initialized
+class head instead of inheriting the checkpoint's class ordering.
 """
 
 from __future__ import annotations
@@ -22,7 +24,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-import torch
 from torch.nn import Module, ModuleList
 
 logger = logging.getLogger(__name__)
@@ -35,11 +36,11 @@ def denoising_class_embed_reuse_or_reinit_hook(
     *args: Any,
     **kwargs: Any,
 ) -> None:
-    """Adjust denoising class embeddings when checkpoint has different number of classes.
+    """Reinitialize denoising class embeddings when the class count changes.
 
-    If the checkpoint and module have different numbers of classes, this hook reuses
-    available weights and initializes missing ones from the module's initialization.
-    This allows loading checkpoints trained on different datasets.
+    The embedding rows are class-specific, so a checkpoint trained on a different
+    class set carries no usable information. The module's initialization is kept
+    instead, including the trailing ``padding_idx`` row.
 
     Args:
         module: The module being loaded.
@@ -62,36 +63,10 @@ def denoising_class_embed_reuse_or_reinit_hook(
 
     logger.info(
         f"Checkpoint has {num_classes_checkpoint - 1} classes, module expects "
-        f"{num_classes_module - 1} classes. Adjusting denoising class embeddings."
+        f"{num_classes_module - 1} classes. Reinitializing denoising class embeddings."
     )
 
-    device = embed_module.weight.device
-
-    # Last class is padding_idx
-    num_user_classes_checkpoint = num_classes_checkpoint - 1
-    num_user_classes_module = num_classes_module - 1
-
-    if num_classes_checkpoint > num_classes_module:
-        # Checkpoint has more classes: reuse checkpoint and discard excess
-        adjusted_weight = torch.cat(
-            [
-                checkpoint_weight[:num_user_classes_module].to(device),
-                checkpoint_weight[-1:].to(device),  # padding class
-            ],
-            dim=0,
-        )
-    else:
-        # Checkpoint has fewer classes: reuse checkpoint and initialize missing from
-        # module
-        adjusted_weight = torch.cat(
-            [
-                checkpoint_weight[:num_user_classes_checkpoint].to(device),
-                embed_module.weight[num_user_classes_checkpoint:].detach().clone(),  # type: ignore[index]
-            ],
-            dim=0,
-        )
-
-    state_dict[weight_key] = adjusted_weight
+    state_dict[weight_key] = embed_module.weight.detach().clone()
 
 
 def score_head_reuse_or_reinit_hook(
@@ -121,7 +96,7 @@ def _score_head_reuse_or_reinit_hook(
     prefix: str,
     enc_or_dec: Literal["enc", "dec"],
 ) -> None:
-    """Adjust score head weights when checkpoint has different number of classes.
+    """Reinitialize score heads when the checkpoint has a different number of classes.
 
     Handles both single score head (e.g., encoder) and multiple score heads (e.g., decoder layers).
 
@@ -161,7 +136,7 @@ def _score_head_reuse_or_reinit_hook(
     if any_adjusted:
         logger.info(
             f"Checkpoint has different number of classes for {module_name}. "
-            f"Adjusted weights/biases to match module configuration."
+            f"Reinitialized weights/biases to match module configuration."
         )
 
 
@@ -172,11 +147,11 @@ def _reuse_or_reinit(
     weight_key: str,
     bias_key: str,
 ) -> bool:
-    """Adjust linear head weights/biases when checkpoint has different number of classes.
+    """Reinitialize a linear head when the checkpoint has a different class count.
 
-    Enables loading checkpoints trained on different number of classes by either:
-    - Truncating weights if checkpoint has more classes (excess classes discarded)
-    - Padding weights if checkpoint has fewer classes (new classes initialized from module)
+    Each row of a score head belongs to one specific class, so rows from a
+    checkpoint trained on a different class set do not transfer. The module's own
+    initialization is kept instead of reusing the checkpoint's leading rows.
 
     Args:
         head_module: The linear classification head module.
@@ -185,10 +160,9 @@ def _reuse_or_reinit(
         bias_key: Key to the bias parameter in state_dict.
 
     Returns:
-        True if weights/biases were adjusted, False otherwise.
+        True if weights/biases were reinitialized, False otherwise.
     """
     checkpoint_weight = state_dict.get(weight_key)
-    checkpoint_bias = state_dict.get(bias_key)
     if checkpoint_weight is None:
         return False
 
@@ -197,32 +171,7 @@ def _reuse_or_reinit(
     if num_classes_module is None or num_classes_checkpoint == num_classes_module:
         return False
 
-    device = head_module.weight.device
-
-    if num_classes_checkpoint > num_classes_module:
-        # Checkpoint has more classes: truncate to module's expected size.
-        adjusted_weights = checkpoint_weight[:num_classes_module, :].to(device)
-        if checkpoint_bias is not None:
-            adjusted_biases = checkpoint_bias[:num_classes_module].to(device)
-    else:
-        # Checkpoint has fewer classes: pad with module's initialized weights.
-        adjusted_weights = torch.cat(
-            [
-                checkpoint_weight.to(device),
-                head_module.weight[num_classes_checkpoint:].detach().clone(),  # type: ignore[index]
-            ],
-            dim=0,
-        )
-        if checkpoint_bias is not None:
-            adjusted_biases = torch.cat(
-                [
-                    checkpoint_bias.to(device),
-                    head_module.bias[num_classes_checkpoint:].detach().clone(),  # type: ignore[index]
-                ],
-                dim=0,
-            )
-
-    state_dict[weight_key] = adjusted_weights
-    if checkpoint_bias is not None:
-        state_dict[bias_key] = adjusted_biases
+    state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[union-attr]
+    if bias_key in state_dict:
+        state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[union-attr]
     return True

@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, Callable, Literal, Union, cast
 
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
+from torch.nn import Module, Parameter
 from typing_extensions import Self, override
 
 from lightly_train._export import tensorrt_helpers
@@ -404,6 +405,30 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
     def freeze_backbone(self) -> None:
         self.backbone.eval()
         self.backbone.requires_grad_(False)
+
+    def freeze_all(self) -> None:
+        """Freezes every parameter of the model."""
+        self.eval()
+        self.requires_grad_(False)
+
+    def class_head_modules(self) -> list[Module]:
+        """Returns the modules whose parameters are class-specific.
+
+        These are the only parameters that must be retrained when the class set
+        changes: the query selection score head, the per-decoder-layer score heads,
+        and the denoising class embedding when denoising is enabled.
+        """
+        modules: list[Module] = [self.decoder.enc_score_head]
+        modules.extend(self.decoder.dec_score_head)
+        denoising_class_embed = getattr(self.decoder, "denoising_class_embed", None)
+        if denoising_class_embed is not None:
+            modules.append(denoising_class_embed)
+        return modules
+
+    def class_head_parameters(self) -> Iterator[Parameter]:
+        """Returns the parameters of :meth:`class_head_modules`."""
+        for module in self.class_head_modules():
+            yield from module.parameters()
 
     @property
     def is_deploy_mode(self) -> bool:
