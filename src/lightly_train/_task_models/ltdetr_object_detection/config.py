@@ -814,7 +814,6 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             ),
         ),
         "dinov3/convnext-tiny-ltdetr",
-        "dinov3/convnext-tiny-eupe-ltdetr",
     )
     class DINOv3ConvNeXtTiny(LTDETRBaseConfig.CNNTiny):
         version: Literal["v1"] = "v1"
@@ -828,6 +827,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNeXtTinyNotPretrained(DINOv3ConvNeXtTiny):
         backbone_name: str = "dinov3/convnext-tiny-notpretrained"
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-tiny-eupe-ltdetr")
+    class DINOv3ConvNeXtTinyEUPE(DINOv3ConvNeXtTiny):
+        backbone_name: str = "dinov3/convnext-tiny-eupe"
+
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
             name="dinov3/convnext-small-ltdetr-coco",
@@ -837,7 +840,6 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             ),
         ),
         "dinov3/convnext-small-ltdetr",
-        "dinov3/convnext-small-eupe-ltdetr",
     )
     class DINOv3ConvNeXtSmall(LTDETRBaseConfig.CNNSmall):
         version: Literal["v1"] = "v1"
@@ -851,6 +853,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNeXtSmallNotPretrained(DINOv3ConvNeXtSmall):
         backbone_name: str = "dinov3/convnext-small-notpretrained"
 
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-small-eupe-ltdetr")
+    class DINOv3ConvNeXtSmallEUPE(DINOv3ConvNeXtSmall):
+        backbone_name: str = "dinov3/convnext-small-eupe"
+
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
             name="dinov3/convnext-base-ltdetr-coco",
@@ -860,7 +866,6 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             ),
         ),
         "dinov3/convnext-base-ltdetr",
-        "dinov3/convnext-base-eupe-ltdetr",
     )
     class DINOv3ConvNeXtBase(LTDETRBaseConfig.CNNBase):
         version: Literal["v1"] = "v1"
@@ -873,6 +878,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-base-notpretrained-ltdetr")
     class DINOv3ConvNeXtBaseNotPretrained(DINOv3ConvNeXtBase):
         backbone_name: str = "dinov3/convnext-base-notpretrained"
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/convnext-base-eupe-ltdetr")
+    class DINOv3ConvNeXtBaseEUPE(DINOv3ConvNeXtBase):
+        backbone_name: str = "dinov3/convnext-base-eupe"
 
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
@@ -905,7 +914,6 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             ),
         ),
         "dinov3/vitt16-ltdetr",
-        "dinov3/vitt16-eupe-ltdetr",
     )
     class DINOv3ViTTiny(LTDETRBaseConfig.ViTTiny):
         version: Literal["v1"] = "v1"
@@ -923,6 +931,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitt16-notpretrained-ltdetr")
     class DINOv3ViTTinyNotPretrained(DINOv3ViTTiny):
         backbone_name: str = "dinov3/vitt16-notpretrained"
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitt16-eupe-ltdetr")
+    class DINOv3ViTTinyEUPE(DINOv3ViTTiny):
+        backbone_name: str = "dinov3/vitt16-eupe"
 
     @LTDETR_MODEL_REGISTRY.register(
         ModelAlias(
@@ -960,7 +972,6 @@ class LTDETRConfigRegistry(ConfigsNamespace):
             ),
         ),
         "dinov3/vits16-ltdetr",
-        "dinov3/vits16-eupe-ltdetr",
     )
     class DINOv3ViTSmall(LTDETRBaseConfig.ViTSmall):
         version: Literal["v1"] = "v1"
@@ -979,7 +990,11 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     class DINOv3ViTSmallNotPretrained(DINOv3ViTSmall):
         backbone_name: str = "dinov3/vits16-notpretrained"
 
-    @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr", "dinov3/vitb16-eupe-ltdetr")
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vits16-eupe-ltdetr")
+    class DINOv3ViTSmallEUPE(DINOv3ViTSmall):
+        backbone_name: str = "dinov3/vits16-eupe"
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-ltdetr")
     class DINOv3ViTBase(LTDETRBaseConfig.ViTBase):
         version: Literal["v1"] = "v1"
         backbone_name: str = "dinov3/vitb16"
@@ -996,6 +1011,10 @@ class LTDETRConfigRegistry(ConfigsNamespace):
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-notpretrained-ltdetr")
     class DINOv3ViTBaseNotPretrained(DINOv3ViTBase):
         backbone_name: str = "dinov3/vitb16-notpretrained"
+
+    @LTDETR_MODEL_REGISTRY.register("dinov3/vitb16-eupe-ltdetr")
+    class DINOv3ViTBaseEUPE(DINOv3ViTBase):
+        backbone_name: str = "dinov3/vitb16-eupe"
 
     @LTDETR_MODEL_REGISTRY.register("dinov3/vitl16-ltdetr")
     class DINOv3ViTLarge(LTDETRBaseConfig.ViTLarge):

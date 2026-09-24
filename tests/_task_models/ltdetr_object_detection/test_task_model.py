@@ -423,6 +423,64 @@ def test_notpretrained_ltdetr_alias__resolves_to_distinct_backbone(
 
 
 @pytest.mark.parametrize(
+    ("eupe_alias", "plain_alias", "expected_backbone_name"),
+    [
+        # Regression for https://github.com/lightly-ai/lightly-train/issues/980:
+        # "-eupe-ltdetr" aliases were registered on the plain config class, so they
+        # silently loaded non-EUPE weights despite the name (and docs) promising EUPE.
+        (
+            "dinov3/convnext-tiny-eupe-ltdetr",
+            "dinov3/convnext-tiny-ltdetr",
+            "dinov3/convnext-tiny-eupe",
+        ),
+        (
+            "dinov3/convnext-small-eupe-ltdetr",
+            "dinov3/convnext-small-ltdetr",
+            "dinov3/convnext-small-eupe",
+        ),
+        (
+            "dinov3/convnext-base-eupe-ltdetr",
+            "dinov3/convnext-base-ltdetr",
+            "dinov3/convnext-base-eupe",
+        ),
+        (
+            "dinov3/vitt16-eupe-ltdetr",
+            "dinov3/vitt16-ltdetr",
+            "dinov3/vitt16-eupe",
+        ),
+        (
+            "dinov3/vits16-eupe-ltdetr",
+            "dinov3/vits16-ltdetr",
+            "dinov3/vits16-eupe",
+        ),
+        (
+            "dinov3/vitb16-eupe-ltdetr",
+            "dinov3/vitb16-ltdetr",
+            "dinov3/vitb16-eupe",
+        ),
+    ],
+)
+def test_eupe_ltdetr_alias__resolves_to_distinct_backbone(
+    eupe_alias: str,
+    plain_alias: str,
+    expected_backbone_name: str,
+) -> None:
+    eupe_cls = LTDETR_MODEL_REGISTRY.get(alias=eupe_alias)
+    plain_cls = LTDETR_MODEL_REGISTRY.get(alias=plain_alias)
+
+    assert eupe_cls is not plain_cls
+
+    eupe_config = eupe_cls()
+    assert eupe_config.backbone_name == expected_backbone_name
+    assert eupe_config.backbone_name != plain_cls().backbone_name
+
+    package_name, backbone_name = eupe_config.backbone_name.split("/", 1)
+    assert package_name == "dinov3"
+    assert backbone_name in DINOV3_MODEL_NAME_TO_INFO
+    assert backbone_name.endswith("-eupe")
+
+
+@pytest.mark.parametrize(
     ("model_name", "train_args_cls", "expected_decoder_name"),
     [
         (
