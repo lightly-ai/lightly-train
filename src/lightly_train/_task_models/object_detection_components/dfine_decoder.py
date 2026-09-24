@@ -22,7 +22,8 @@ Copyright (c) 2023 lyuwenyu. All Rights Reserved.
 #  - Registered ``score_head_reuse_or_reinit_hook`` and (when denoising is
 #     enabled) ``denoising_class_embed_reuse_or_reinit_hook`` as
 #     load-state-dict pre-hooks, so pretrained D-FINE checkpoints can be
-#     adapted to a new ``num_classes`` at load time.
+#     loaded with fresh class heads when ``num_classes`` changes. Matching
+#     class counts reuse the pretrained class heads.
 #  - Registered ``anchors`` / ``valid_mask`` for evaluation as non-persistent buffers so they
 #     are not written into checkpoints.
 #  - ``value_op`` returns the flat ``[bs, L, n_head, c]`` tensor that helper expects rather
