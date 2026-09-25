@@ -1,0 +1,97 @@
+name: Auto Approve
+
+# This workflow approves pull requests from the maintainers in the list below. Then these
+# maintainers can use "Enable auto-merge".
+#
+# The approval is the only requirement that this workflow satisfies. All required checks
+# must pass before a merge.
+#
+# A change to this workflow always needs a review from a person. See .github/CODEOWNERS.
+
+on:
+  pull_request_target:
+    # The list does not contain `synchronize`, the event for a new push. An approval
+    # stays valid after a push. A second run can only approve a pull request again after
+    # a person removed the approval.
+    #
+    # Add `synchronize` if the branch ruleset gets `dismiss_stale_reviews_on_push` or
+    # `require_last_push_approval`.
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+
+# The default token gets no permissions. All steps use the App token from the first step.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-approve:
+    name: Auto Approve
+    # This job runs on `pull_request_target` and can read the repository secrets. Do not
+    # check out the code of the pull request. Do not run the code of the pull request.
+    #
+    # Do not add more indentation to the second line of the `if`. In a `>-` block, a line
+    # with more indentation keeps its line break and breaks the expression.
+    if: >-
+      github.event.pull_request.draft == false &&
+      contains(fromJSON('["IgorSusmelj", "mrpositron", "gabrielfruet", "liopeer"]'), github.event.pull_request.user.login)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mint App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          # Organization secrets of the `lightly-fast-track-bot` App. The lightly-studio
+          # repository uses the same App.
+          app-id: ${{ secrets.FAST_TRACK_APP_ID }}
+          private-key: ${{ secrets.FAST_TRACK_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Approve Pull Request
+        uses: actions/github-script@v9
+        env:
+          # The value comes from an environment variable. Do not write `${{ }}` in
+          # `script:`. GitHub puts the value directly into the code.
+          BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const pr = context.payload.pull_request;
+            const botLogin = process.env.BOT_LOGIN;
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              ...context.repo,
+              pull_number: pr.number,
+            });
+            const mine = reviews.filter((r) => r.user?.login === botLogin);
+
+            // No rule dismisses a review automatically. As a result, a dismissed review
+            // means that a person removed the approval. Do not approve a second time.
+            if (mine.some((r) => r.state === "DISMISSED")) {
+              core.info(`An approval by ${botLogin} was dismissed; leaving this pull request to a human.`);
+              return;
+            }
+            // The events `reopened` and `ready_for_review` can occur more than one time
+            // for a pull request. An approval from an earlier run can exist.
+            if (mine.some((r) => r.state === "APPROVED")) {
+              core.info(`Already approved by ${botLogin}; nothing to do.`);
+              return;
+            }
+
+            await github.rest.pulls.createReview({
+              ...context.repo,
+              pull_number: pr.number,
+              commit_id: pr.head.sha,
+              event: "APPROVE",
+              body: [
+                `Approved automatically: @${pr.user.login} is on the auto-approve allowlist in .github/workflows/auto_approve.yml`,
+                "",
+                "This satisfies the approval requirement only. All required status checks still have to pass before this pull request can merge.",
+              ].join("\n"),
+            });
+            core.info(`Approved #${pr.number} at ${pr.head.sha} as ${botLogin}.`);
