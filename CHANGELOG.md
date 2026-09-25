@@ -72,6 +72,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `dinov3/vitt16-notpretrained-linear` and `dinov3/vitt16plus-notpretrained-linear`
   silently loaded pretrained weights, and the remaining DINOv3 sizes had no
   `dinov3/<size>-notpretrained-linear` model name at all.
+- Fix out-of-memory errors during EoMT instance segmentation validation. The predicted
+  masks are now resized to the original image size in query chunks sized to match the
+  training memory footprint, and moved to the CPU before the metric update. Metric
+  values are unchanged.
 
 ### Security
 
