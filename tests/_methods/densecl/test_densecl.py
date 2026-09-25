@@ -10,14 +10,40 @@ from __future__ import annotations
 from typing import Literal
 
 import pytest
+import torch
+from lightly.models.modules.memory_bank import MemoryBankModule
 
-from lightly_train._methods.densecl.densecl import DenseCL, DenseCLArgs, DenseCLSGDArgs
+from lightly_train._methods.densecl.densecl import (
+    DenseCL,
+    DenseCLArgs,
+    DenseCLSGDArgs,
+    _AccumulationMemoryBank,
+)
 from lightly_train._optim.adamw_args import AdamWArgs
 from lightly_train._optim.optimizer_args import OptimizerArgs
 from lightly_train._optim.optimizer_type import OptimizerType
 from lightly_train._scaling import ScalingInfo
 
 from ...helpers import DummyCustomModel
+
+
+@pytest.mark.parametrize("sizes", [(4,), (2, 2), (1, 3)])
+def test_memory_bank_accumulation(sizes: tuple[int, ...]) -> None:
+    bank = MemoryBankModule(size=(8, 3))
+    initial = bank.bank.clone()
+    keys = torch.nn.functional.normalize(torch.arange(12).view(4, 3).float(), dim=-1)
+    staged = _AccumulationMemoryBank(bank)
+    for part in keys.split(sizes):
+        _, negatives = staged(part, update=True)
+        torch.testing.assert_close(negatives, initial.T)
+        torch.testing.assert_close(staged.bank, initial)
+        assert staged.bank_ptr.item() == 0
+    staged.commit()
+    torch.testing.assert_close(staged.bank[:4], keys)
+    torch.testing.assert_close(staged.bank[4:], initial[4:])
+    assert staged.bank_ptr.item() == 4
+    staged.commit()
+    assert staged.bank_ptr.item() == 4
 
 
 class TestDenseCLArgs:
