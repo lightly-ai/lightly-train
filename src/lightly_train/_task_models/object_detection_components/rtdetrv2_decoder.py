@@ -16,7 +16,8 @@
 #  - Registered ``score_head_reuse_or_reinit_hook`` and (when denoising is
 #     enabled) ``denoising_class_embed_reuse_or_reinit_hook`` as
 #     load-state-dict pre-hooks, so pretrained RT-DETR checkpoints can be
-#     adapted to a new ``num_classes`` at load time.
+#     loaded with fresh class heads when ``num_classes`` changes. Matching
+#     class counts reuse the pretrained class heads.
 # - Added FP32 guards around bbox refinement for stability in mixed precision
 from __future__ import annotations
 
