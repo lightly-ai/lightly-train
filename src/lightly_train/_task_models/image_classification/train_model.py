@@ -21,13 +21,18 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationDataArgs,
+    ImageClassificationDataset,
+)
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
 )
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models import image_classification_class_weights
 from lightly_train._task_models.image_classification.task_model import (
     ImageClassification,
 )
@@ -69,6 +74,7 @@ class ImageClassificationTrainArgs(TrainModelArgs):
 
     # Loss
     label_smoothing: float = 0.0
+    class_weights: dict[str, float] | Literal["auto"] | None = None
 
     def resolve_auto(
         self,
@@ -78,6 +84,7 @@ class ImageClassificationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         if self.weight_decay == "auto":
             if self.backbone_freeze:
@@ -94,6 +101,16 @@ class ImageClassificationTrainArgs(TrainModelArgs):
                 self.gradient_clip_val = 0.0
             else:
                 self.gradient_clip_val = 3.0
+        if isinstance(data_args, ImageClassificationDataArgs):
+            self.class_weights = (
+                image_classification_class_weights.resolve_class_weights(
+                    self.class_weights,
+                    data_args,
+                    train_dataset=train_dataset
+                    if isinstance(train_dataset, ImageClassificationDataset)
+                    else None,
+                )
+            )
 
 
 class ImageClassificationTrain(TrainModel):
@@ -143,13 +160,28 @@ class ImageClassificationTrain(TrainModel):
             load_weights=load_weights,
         )
 
+        # Training uses the class weights, validation does not. This keeps val_loss
+        # comparable between weighted and unweighted runs.
         self.criterion: Module
+        self.val_criterion: Module
+        class_weight_tensor = image_classification_class_weights.resolved_to_tensor(
+            model_args.class_weights, data_args
+        )
         if self.model.classification_task == "multiclass":
             self.criterion = CrossEntropyLoss(
+                weight=class_weight_tensor,
+                label_smoothing=model_args.label_smoothing,
+            )
+            self.val_criterion = CrossEntropyLoss(
                 label_smoothing=model_args.label_smoothing
             )
         elif self.model.classification_task == "multilabel":
-            self.criterion = BCEWithLogitsLoss()
+            self.criterion = (
+                image_classification_class_weights.NormalizedBCEWithLogitsLoss(
+                    pos_weight=class_weight_tensor
+                )
+            )
+            self.val_criterion = BCEWithLogitsLoss()
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.model.classification_task}"
@@ -232,12 +264,12 @@ class ImageClassificationTrain(TrainModel):
         logits = self(images)
         if self.model.classification_task == "multiclass":
             targets = torch.concatenate(classes)
-            loss = self.criterion(logits, targets)
+            loss = self.val_criterion(logits, targets)
         elif self.model.classification_task == "multilabel":
             targets = _class_ids_to_multihot(
                 class_ids=classes, num_classes=len(self.model.classes)
             )
-            loss = self.criterion(logits, targets)
+            loss = self.val_criterion(logits, targets)
             targets = targets.int()  # For metrics
         else:
             raise ValueError(

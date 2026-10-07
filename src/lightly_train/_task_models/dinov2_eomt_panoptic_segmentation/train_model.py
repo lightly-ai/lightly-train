@@ -25,6 +25,7 @@ from lightly_train._data.mask_panoptic_segmentation_dataset import (
     MaskPanopticSegmentationDataArgs,
 )
 from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._metrics.panoptic_segmentation.task_metric import (
     PanopticSegmentationTaskMetric,
     PanopticSegmentationTaskMetricArgs,
@@ -123,6 +124,7 @@ class DINOv2EoMTPanopticSegmentationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         if self.num_queries == "auto":
             num_queries = model_init_args.get("num_queries", 200)

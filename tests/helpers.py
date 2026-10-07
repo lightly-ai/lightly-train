@@ -32,6 +32,10 @@ from lightly_train._checkpoint import (
 )
 from lightly_train._commands import extract_video_frames
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationDataArgs,
+    ImageClassificationDataset,
+)
 from lightly_train._methods.dinov2.dinov2 import DINOv2, DINOv2AdamWViTArgs, DINOv2Args
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
@@ -1126,3 +1130,19 @@ def assert_onnx_outputs_close(
             assert np.array_equal(
                 np.sort(onnx_out.ravel()), np.sort(torch_out.numpy().ravel())
             )
+
+
+def get_image_classification_train_dataset(
+    data_args: ImageClassificationDataArgs,
+) -> ImageClassificationDataset:
+    """Build the training dataset for `data_args` without a transform.
+
+    Mirrors what the training command does, which is enough for anything that only
+    reads `image_info`.
+    """
+    dataset_args = data_args.get_train_args()
+    return ImageClassificationDataset(
+        dataset_args=dataset_args,
+        image_info=list(dataset_args.list_image_info()),
+        transform=None,  # type: ignore[arg-type]
+    )

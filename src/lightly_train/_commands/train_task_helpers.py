@@ -793,6 +793,7 @@ def get_train_model_args(
     model_name: str,
     model_init_args: dict[str, Any],
     data_args: TaskDataArgs,
+    train_dataset: TaskDataset | None = None,
 ) -> TrainModelArgs:
     if isinstance(model_args, TrainModelArgs):
         return model_args
@@ -805,6 +806,7 @@ def get_train_model_args(
         model_name=model_name,
         model_init_args=model_init_args,
         data_args=data_args,
+        train_dataset=train_dataset,
     )
     return args
 

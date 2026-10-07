@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import torch
 from lightly.utils.scheduler import CosineWarmupScheduler
@@ -21,7 +21,12 @@ from torch.optim.optimizer import Optimizer
 from torch.optim.sgd import SGD
 
 from lightly_train._configs.validate import no_auto
-from lightly_train._data.image_classification_dataset import ImageClassificationDataArgs
+from lightly_train._data.image_classification_dataset import (
+    ImageClassificationDataArgs,
+    ImageClassificationDataset,
+)
+from lightly_train._data.task_data_args import TaskDataArgs
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     ClassificationTaskMetricArgs,
@@ -30,6 +35,7 @@ from lightly_train._metrics.classification.task_metric import (
 )
 from lightly_train._metrics.multihead_task_metric import MultiheadTaskMetric
 from lightly_train._optim import optimizer_helpers
+from lightly_train._task_models import image_classification_class_weights
 from lightly_train._task_models.image_classification_multihead.task_model import (
     ImageClassificationMultihead,
 )
@@ -50,6 +56,16 @@ from lightly_train.types import ImageClassificationBatch, PathLike
 
 
 class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
+    """Arguments for internal multihead classification benchmarking.
+
+    ``class_weights`` accepts ``None``, ``"auto"``, or a class-name mapping. All
+    heads share the same dataset and class-weight criterion. Multiclass weights
+    are passed to ``CrossEntropyLoss``; multilabel automatic weights use
+    ``num_images_without_class / num_images_with_class`` and preserve the relative
+    positive ``pos_weight`` while normalizing by effective element weights.
+    Validation always uses an unweighted criterion.
+    """
+
     default_batch_size: ClassVar[int] = 128
     default_steps: ClassVar[int] = 100_000
 
@@ -76,6 +92,7 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
 
     # Loss
     label_smoothing: float = 0.0
+    class_weights: dict[str, float] | Literal["auto"] | None = None
 
     @model_validator(mode="after")
     def _convert_lr_to_list(self) -> ImageClassificationMultiheadTrainArgs:
@@ -83,6 +100,27 @@ class ImageClassificationMultiheadTrainArgs(TrainModelArgs):
         if isinstance(self.lr, float):
             self.lr = [self.lr]
         return self
+
+    def resolve_auto(
+        self,
+        total_steps: int,
+        gradient_accumulation_steps: int,
+        train_num_batches: int,
+        model_name: str,
+        model_init_args: dict[str, Any],
+        data_args: TaskDataArgs,
+        train_dataset: TaskDataset | None = None,
+    ) -> None:
+        if isinstance(data_args, ImageClassificationDataArgs):
+            self.class_weights = (
+                image_classification_class_weights.resolve_class_weights(
+                    self.class_weights,
+                    data_args,
+                    train_dataset=train_dataset
+                    if isinstance(train_dataset, ImageClassificationDataset)
+                    else None,
+                )
+            )
 
 
 class ImageClassificationMultiheadTrain(TrainModel):
@@ -135,13 +173,28 @@ class ImageClassificationMultiheadTrain(TrainModel):
             load_weights=load_weights,
         )
 
+        # All heads share the same dataset, so they share one criterion. Training
+        # uses the class weights, validation does not.
         self.criterion: Module
+        self.val_criterion: Module
+        class_weight_tensor = image_classification_class_weights.resolved_to_tensor(
+            model_args.class_weights, data_args
+        )
         if self.classification_task == "multiclass":
             self.criterion = CrossEntropyLoss(
+                weight=class_weight_tensor,
+                label_smoothing=model_args.label_smoothing,
+            )
+            self.val_criterion = CrossEntropyLoss(
                 label_smoothing=model_args.label_smoothing
             )
         elif self.classification_task == "multilabel":
-            self.criterion = BCEWithLogitsLoss()
+            self.criterion = (
+                image_classification_class_weights.NormalizedBCEWithLogitsLoss(
+                    pos_weight=class_weight_tensor
+                )
+            )
+            self.val_criterion = BCEWithLogitsLoss()
         else:
             raise ValueError(
                 f"Unsupported classification task: {self.classification_task}"
@@ -299,7 +352,7 @@ class ImageClassificationMultiheadTrain(TrainModel):
 
         losses: list[Tensor] = []
         for head_name, logits in logits_dict.items():
-            loss = self.criterion(logits, targets)
+            loss = self.val_criterion(logits, targets)
             losses.append(loss)
 
             head_metrics: ClassificationTaskMetric = self.val_metrics.head_metrics[  # type: ignore

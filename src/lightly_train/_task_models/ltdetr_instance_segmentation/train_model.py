@@ -29,6 +29,7 @@ from lightly_train._data.instance_segmentation_dataset import (
     COCOInstanceSegmentationDataArgs,
     YOLOInstanceSegmentationDataArgs,
 )
+from lightly_train._data.task_dataset import TaskDataset
 from lightly_train._distributed import reduce_dict
 from lightly_train._metrics.instance_segmentation.task_metric import (
     InstanceSegmentationTaskMetric,
@@ -190,6 +191,7 @@ class LTDETRInstanceSegmentationTrainArgs(TrainModelArgs):
         model_name: str,
         model_init_args: dict[str, Any],
         data_args: Any,
+        train_dataset: TaskDataset | None = None,
     ) -> None:
         if self.patch_size == "auto":
             patch_size = model_init_args.get("patch_size", None)

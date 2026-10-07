@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add `model_args={"class_weights": ...}` to `train_image_classification` to weight the
+  training loss by class. Use `"auto"` to derive weights from the training split, or
+  pass a dict from class name to weight. Works for multiclass and multilabel. The
+  validation loss stays unweighted so it remains comparable across runs.
 - Add multi-scale feature support to the `torchvision` model package. The ResNet,
   ConvNeXt and ShuffleNetV2 model wrappers now implement the multi-scale feature
   interface, exposing intermediate feature maps for dense prediction tasks. These
