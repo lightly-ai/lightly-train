@@ -110,8 +110,10 @@ The type determines how the version is bumped: `feat` bumps the minor version (0
 a release on their own. While the version is below 1.0.0, breaking changes bump the
 minor version instead of the major version.
 
-Entries in [CHANGELOG.md](./CHANGELOG.md) are still written by hand. See
-[RELEASING.md](./RELEASING.md) for the full release process.
+[CHANGELOG.md](./CHANGELOG.md) is generated from the pull request titles. Write titles
+for users: `feat`, `fix`, `perf`, `refactor` and `revert` pull requests appear in the
+changelog. Don't edit CHANGELOG.md by hand. See [RELEASING.md](./RELEASING.md) for the
+release process.
 
 ### Documentation
 
