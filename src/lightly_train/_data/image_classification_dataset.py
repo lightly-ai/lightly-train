@@ -141,9 +141,15 @@ class ImageClassificationDataArgs(TaskDataArgs):
             self.test = data_helpers.resolve_path(self.test, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
+        train_path = Path(self.train).resolve()
+        train_source = (
+            (train_path, train_path.stat().st_mtime_ns)
+            if train_path.is_file()
+            else train_path
+        )
         return str(
             (
-                Path(self.train).resolve(),
+                train_source,
                 self.classes,
                 self.label_delimiter,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
@@ -155,9 +161,13 @@ class ImageClassificationDataArgs(TaskDataArgs):
         )
 
     def val_data_mmap_hash(self) -> str:
+        val_path = Path(self.val).resolve()
+        val_source = (
+            (val_path, val_path.stat().st_mtime_ns) if val_path.is_file() else val_path
+        )
         return str(
             (
-                Path(self.val).resolve(),
+                val_source,
                 self.classes,
                 self.label_delimiter,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
