@@ -50,6 +50,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Refresh reused image classification metadata when a CSV split is edited, so labels and
+  image paths are not read from an outdated memory-mapped cache.
 - Fix DINOv3 LT-DETR `-eupe` backbone aliases. All six `dinov3/<size>-eupe-ltdetr` model
   names (ConvNeXt-tiny/small/base, ViT-tiny/small/base) now resolve to config classes
   whose `backbone_name` points at the corresponding EUPE weights. Previously each alias
