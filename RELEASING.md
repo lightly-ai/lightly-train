@@ -29,12 +29,64 @@ Release Bot GitHub App, in the `release` environment.
 
 ## Version Bumps
 
-- `feat` bumps the minor version.
-- `fix` and `perf` bump the patch version.
-- Breaking changes (`!`) bump the minor version while the version is below `1.0.0`.
-- Other types are not listed in the changelog and don't cut a release on their own.
+The pull request titles since the last release decide whether a release pull request
+opens and which version it proposes. The largest bump wins.
 
-To force a specific version, add `Release-As: X.Y.Z` to the body of a commit on `main`.
+| Type                                | Changelog section | Cuts a release | Bump below 1.0.0 |
+| ----------------------------------- | ----------------- | -------------- | ---------------- |
+| `feat`                              | Added             | yes            | patch            |
+| `fix`                               | Fixed             | yes            | patch            |
+| `perf`, `revert`                    | Changed           | yes            | patch            |
+| `refactor`, `docs`, `test`, `build` | hidden            | no             | none             |
+| `ci`, `chore`                       | hidden            | no             | none             |
+| any type with `!`                   | Breaking Changes  | yes            | minor            |
+| `Release-As: X.Y.Z` (see below)     | none              | yes            | `X.Y.Z`          |
+
+- Minor versions are story releases. They only happen with a breaking change or with
+  `Release-As`.
+- Hidden types still ship with the next release, they are only not listed.
+- User-facing dependency changes, for example a higher minimum version, use `fix(deps):`
+  or `feat!:`, not `build:`.
+- From `1.0.0` on, `!` bumps the major version and `feat` the minor version.
+
+### Release-As
+
+Forces the version of the next release.
+
+- Add `Release-As: X.Y.Z` as the last line of the squash commit message in the merge
+  dialog, on its own line and without a leading `*`.
+- Applies only to the next release.
+- Check: the release pull request title shows `X.Y.Z`.
+
+## Patch Releases
+
+No manual steps. Merge the release pull request. The changelog consists of the pull
+request titles, so write titles for users.
+
+## Story Releases
+
+For minor versions and `1.0.0`:
+
+1. Open a story pull request on `main`, for example
+   `docs: add news for LightlyTrain 0.19.0`:
+   - Add the entry to "News" in [README.md](./README.md) and
+     [docs/source/index.md](./docs/source/index.md).
+   - Merge it with `Release-As: 0.19.0`.
+1. Wait until the release pull request shows `0.19.0`. When ready to release, stop
+   merging to `main`.
+1. Polish the release pull request:
+   - Push a commit to its branch that rewrites the `0.19.0` section of
+     [CHANGELOG.md](./CHANGELOG.md).
+   - Paste the same text into the pull request description.
+1. Merge the release pull request.
+
+### Editing the Release Pull Request
+
+- The description between the two `---` lines becomes the GitHub release notes and the
+  Discord message.
+- Keep the `## [X.Y.Z](...) (YYYY-MM-DD)` header and both `---` lines. Otherwise
+  release-please creates no release.
+- Every merge to `main` regenerates the branch and the description. Edits are lost.
 
 ## Failures
 
@@ -45,6 +97,8 @@ The tag and the GitHub release exist before the tests run. If a step in
   pull request.
 - **Infrastructure failure:** rerun the `Release` workflow in `lightly-train-private`
   via `workflow_dispatch` with the tag. Steps that are already done are safe to repeat.
+
+The full runbook is `RELEASE.md` in `lightly-train-private`.
 
 ## Configuration
 

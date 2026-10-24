@@ -105,15 +105,15 @@ docs(settings): document nancapture debug utility
 
 Mark breaking changes with a `!` before the colon, for example `feat(train)!: ...`.
 
-The type determines how the version is bumped: `feat` bumps the minor version (0.18.0 →
-0.19.0), `fix` and `perf` bump the patch version, and the remaining types don't trigger
-a release on their own. While the version is below 1.0.0, breaking changes bump the
-minor version instead of the major version.
+The type determines the version bump. While the version is below 1.0.0, `feat`, `fix`,
+`perf` and `revert` bump the patch version (0.18.0 → 0.18.1), breaking changes bump the
+minor version (0.18.0 → 0.19.0), and the remaining types don't trigger a release on
+their own.
 
 [CHANGELOG.md](./CHANGELOG.md) is generated from the pull request titles. Write titles
-for users: `feat`, `fix`, `perf`, `refactor` and `revert` pull requests appear in the
-changelog. Don't edit CHANGELOG.md by hand. See [RELEASING.md](./RELEASING.md) for the
-release process.
+for users: `feat`, `fix`, `perf` and `revert` pull requests appear in the changelog.
+Don't edit CHANGELOG.md by hand. See [RELEASING.md](./RELEASING.md) for the release
+process, version bumps and story releases.
 
 ### Documentation
 
