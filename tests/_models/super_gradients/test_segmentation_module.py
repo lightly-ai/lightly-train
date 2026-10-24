@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import super_gradients  # noqa: F401
+import pytest
 import torch
 
 from lightly_train._models.super_gradients.segmentation_module import (
@@ -15,6 +15,8 @@ from lightly_train._models.super_gradients.segmentation_module import (
 from lightly_train._models.super_gradients.super_gradients_package import (
     SUPER_GRADIENTS_PACKAGE,
 )
+
+pytestmark = pytest.mark.requires("super-gradients")
 
 
 class TestSegmentationModule:

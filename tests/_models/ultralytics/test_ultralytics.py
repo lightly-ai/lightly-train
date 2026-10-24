@@ -9,8 +9,6 @@
 import pytest
 import torch
 from torch.nn import Identity
-from ultralytics import YOLO  # type: ignore[attr-defined]
-from ultralytics.nn.modules.block import SPPF, C2f
 
 from lightly_train._models.ultralytics import ultralytics
 from lightly_train._models.ultralytics.ultralytics import (
@@ -18,12 +16,16 @@ from lightly_train._models.ultralytics.ultralytics import (
     UltralyticsModelWrapper,
 )
 
+pytestmark = pytest.mark.requires("ultralytics")
+
 
 class TestUltralyticsModelWrapper:
     @pytest.mark.parametrize(
         "model_name", ["yolov8s.yaml", "yolov8s.pt", "yolov8s-cls.yaml"]
     )
     def test_init(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO(model_name)
         feature_extractor = UltralyticsModelWrapper(model=model)
         for name, param in feature_extractor.named_parameters():
@@ -37,6 +39,8 @@ class TestUltralyticsModelWrapper:
 
     @pytest.mark.parametrize("model_name", ["yolov8s.yaml", "yolov8s-cls.yaml"])
     def test_feature_dim(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO(model_name)
         feature_extractor = UltralyticsModelWrapper(model=model)
         assert feature_extractor.feature_dim() == 512
@@ -76,6 +80,8 @@ class TestUltralyticsModelWrapper:
         ],
     )
     def test_forward_features(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO(model_name)
         feature_extractor = UltralyticsModelWrapper(model=model)
         x = torch.rand(1, 3, 224, 224)
@@ -84,6 +90,8 @@ class TestUltralyticsModelWrapper:
 
     @pytest.mark.parametrize("model_name", ["yolov8s.yaml", "yolov8s-cls.yaml"])
     def test_forward_pool(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO(model_name)
         feature_extractor = UltralyticsModelWrapper(model=model)
         x = torch.rand(1, 512, 7, 7)
@@ -92,6 +100,8 @@ class TestUltralyticsModelWrapper:
 
     @pytest.mark.parametrize("model_name", ["yolov8s.yaml", "yolov8s-cls.yaml"])
     def test_get_model(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO(model_name)
         feature_extractor = UltralyticsModelWrapper(model=model)
         assert feature_extractor.get_model() is model
@@ -100,6 +110,8 @@ class TestUltralyticsModelWrapper:
         # If this test fails it means the wrapped model doesn't move all required
         # modules to the correct device. This happens if not all required modules
         # are registered as attributes of the class.
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO("yolov8s.yaml")
         wrapped_model = UltralyticsModelWrapper(model=model)
         wrapped_model.to("meta")
@@ -107,6 +119,8 @@ class TestUltralyticsModelWrapper:
 
 
 def test__sppf_skip_cv2_bn_act() -> None:
+    from ultralytics.nn.modules.block import SPPF
+
     sppf = SPPF(128, 5)
     new_sppf = ultralytics._sppf_skip_cv2_bn_act(sppf=sppf)
     assert new_sppf.cv1 is sppf.cv1
@@ -121,6 +135,8 @@ def test__sppf_skip_cv2_bn_act() -> None:
 
 
 def test__c2f_skip_cv2_bn_act() -> None:
+    from ultralytics.nn.modules.block import C2f
+
     c2f = C2f(128, 128)
     new_c2f = ultralytics._c2f_skip_cv2_bn_act(c2f=c2f)
     assert new_c2f.cv1 is c2f.cv1

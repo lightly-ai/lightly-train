@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 import torch
-from rfdetr.detr import RFDETR, RFDETRBase
-from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
 
 from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 from lightly_train._models.rfdetr.rfdetr_package import RFDETRPackage
 
 from ...helpers import DummyCustomModel
+
+pytestmark = pytest.mark.requires("rfdetr")
 
 
 class TestRFDETRPackage:
@@ -39,6 +39,8 @@ class TestRFDETRPackage:
         assert (model_name in model_names) is supported
 
     def test_is_supported_model__model_true(self) -> None:
+        from rfdetr.detr import RFDETRBase
+
         model = RFDETRBase()  # type: ignore[no-untyped-call]
         assert RFDETRPackage.is_supported_model(model=model)
 
@@ -61,15 +63,22 @@ class TestRFDETRPackage:
         ],
     )
     def test_get_model(self, model_name: str) -> None:
+        from rfdetr.detr import RFDETR
+
         model = RFDETRPackage.get_model(model_name=model_name)
         assert isinstance(model, RFDETR)
 
     def test_get_model_wrapper(self) -> None:
+        from rfdetr.detr import RFDETRBase
+
         model = RFDETRBase()  # type: ignore[no-untyped-call]
         fe = RFDETRPackage.get_model_wrapper(model=model)
         assert isinstance(fe, RFDETRModelWrapper)
 
     def test_export_model__model(self, tmp_path: Path) -> None:
+        from rfdetr.detr import RFDETRBase
+        from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
+
         out = tmp_path / "model.pt"
         model = RFDETRBase()  # type: ignore[no-untyped-call]
 
@@ -117,6 +126,8 @@ class TestRFDETRPackage:
                 assert module_exp.training
 
     def test_export_model__wrapped_model(self, tmp_path: Path) -> None:
+        from rfdetr.detr import RFDETRBase
+
         out = tmp_path / "model.pt"
         model = RFDETRBase()  # type: ignore[no-untyped-call]
         wrapped_model = RFDETRModelWrapper(model=model)

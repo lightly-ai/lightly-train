@@ -7,11 +7,6 @@
 #
 
 import pytest
-from super_gradients.training import models
-from super_gradients.training.models import (
-    PPLiteSegT,
-    YoloNAS_S,
-)
 
 from lightly_train._models.super_gradients.customizable_detector import (
     CustomizableDetectorModelWrapper,
@@ -24,6 +19,8 @@ from lightly_train._models.super_gradients.super_gradients_package import (
 )
 
 from ...helpers import DummyCustomModel
+
+pytestmark = pytest.mark.requires("super-gradients")
 
 
 class TestSuperGradientsPackage:
@@ -46,6 +43,8 @@ class TestSuperGradientsPackage:
     def test_is_supported_model__model(
         self, model_name: str, is_supported: bool
     ) -> None:
+        from super_gradients.training import models
+
         model = models.get(model_name, num_classes=2)
         assert SuperGradientsPackage.is_supported_model(model) is is_supported
 
@@ -59,6 +58,8 @@ class TestSuperGradientsPackage:
     def test_is_supported_model__wrapped_model(
         self, model_name: str, is_supported: bool
     ) -> None:
+        from super_gradients.training import models
+
         model = models.get(model_name, num_classes=2)
         wrapped_model = SuperGradientsPackage.get_model_wrapper(model=model)
         assert SuperGradientsPackage.is_supported_model(wrapped_model)
@@ -70,11 +71,13 @@ class TestSuperGradientsPackage:
 
     @pytest.mark.parametrize(
         "model_name, expected_cls",
-        [("yolo_nas_s", YoloNAS_S), ("pp_lite_t_seg50", PPLiteSegT)],
+        [("yolo_nas_s", "YoloNAS_S"), ("pp_lite_t_seg50", "PPLiteSegT")],
     )
-    def test_get_model(self, model_name: str, expected_cls: type) -> None:
+    def test_get_model(self, model_name: str, expected_cls: str) -> None:
+        from super_gradients.training import models
+
         model = SuperGradientsPackage.get_model(model_name)
-        assert isinstance(model, expected_cls)
+        assert isinstance(model, getattr(models, expected_cls))
 
     @pytest.mark.parametrize(
         "model_name, expected_cls",
@@ -84,6 +87,8 @@ class TestSuperGradientsPackage:
         ],
     )
     def test_get_model_wrapper(self, model_name: str, expected_cls: type) -> None:
+        from super_gradients.training import models
+
         model = models.get(model_name, num_classes=2)
         fe = SuperGradientsPackage.get_model_wrapper(model)
         assert isinstance(fe, expected_cls)

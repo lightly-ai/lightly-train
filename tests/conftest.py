@@ -78,21 +78,6 @@ def _is_requirement_met(requirement: str) -> bool:
     return bool(RequirementCache(requirement))
 
 
-# Test directories that import an optional package at module level. Skipped at
-# collection because markers only apply after a module is imported.
-_OPTIONAL_PACKAGE_TEST_DIRS = {
-    "_models/rfdetr/*": "rfdetr",
-    "_models/super_gradients/*": "super-gradients",
-    "_models/timm/*": "timm",
-    "_models/ultralytics/*": "ultralytics",
-}
-collect_ignore_glob = [
-    glob
-    for glob, requirement in _OPTIONAL_PACKAGE_TEST_DIRS.items()
-    if not _is_requirement_met(requirement)
-]
-
-
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     for item in items:
         for marker in item.iter_markers("skip_windows"):

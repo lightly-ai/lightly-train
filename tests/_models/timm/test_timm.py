@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Callable
 
 import pytest
-import timm
 import torch
 from torch import Tensor, testing
 from torch.nn import Module
@@ -18,9 +17,13 @@ from torch.nn import Module
 from lightly_train._models.timm import timm as timm_feature_extractor
 from lightly_train._models.timm.timm import TIMMModelWrapper
 
+pytestmark = pytest.mark.requires("timm")
+
 
 class TestTIMMModelWrapper:
     def test_forward_features(self) -> None:
+        import timm
+
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
@@ -28,6 +31,8 @@ class TestTIMMModelWrapper:
         assert y.shape == (1, 512, 2, 2)
 
     def test_forward_pool(self) -> None:
+        import timm
+
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 32, 2, 2)
@@ -35,11 +40,15 @@ class TestTIMMModelWrapper:
         assert y.shape == (1, 32, 1, 1)
 
     def test_get_model(self) -> None:
+        import timm
+
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         assert extractor.get_model() is model
 
     def test_forward__equality_to_model(self) -> None:
+        import timm
+
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
@@ -50,6 +59,8 @@ class TestTIMMModelWrapper:
         torch.testing.assert_close(predictions, predictions_direct)
 
     def test_forward__resnet18__shape(self) -> None:
+        import timm
+
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
@@ -57,6 +68,8 @@ class TestTIMMModelWrapper:
         assert y.shape == (1, 512, 1, 1)
 
     def test_forward__flexivit_small__shape(self) -> None:
+        import timm
+
         model = timm.create_model("flexivit_small")
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 240, 240)
@@ -67,6 +80,8 @@ class TestTIMMModelWrapper:
         # If this test fails it means the wrapped model doesn't move all required
         # modules to the correct device. This happens if not all required modules
         # are registered as attributes of the class.
+        import timm
+
         model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         extractor.to("meta")
@@ -76,6 +91,8 @@ class TestTIMMModelWrapper:
 # TODO: Do not skip if timm <1.0
 @pytest.mark.skip(reason="Requires timm <1.0")
 def test_get_forward_features_fn__forward_features() -> None:
+    import timm
+
     model = timm.create_model("resnet18")
     assert (
         timm_feature_extractor._get_forward_features_fn(model=model)
@@ -86,6 +103,8 @@ def test_get_forward_features_fn__forward_features() -> None:
 # TODO: Do not skip if timm <1.0 and >=0.9
 @pytest.mark.skip(reason="Requires timm <1.0 and >=0.9")
 def test_get_forward_features_fn__get_intermediate_layers() -> None:
+    import timm
+
     model = timm.create_model("vit_tiny_patch16_224")
     assert (
         timm_feature_extractor._get_forward_features_fn(model=model)
@@ -94,6 +113,8 @@ def test_get_forward_features_fn__get_intermediate_layers() -> None:
 
 
 def test_get_forward_featres_fn__forward_intermediates() -> None:
+    import timm
+
     model = timm.create_model("vit_tiny_patch16_224")
     assert (
         timm_feature_extractor._get_forward_features_fn(model=model)
@@ -117,6 +138,8 @@ def test_get_forward_featres_fn__forward_intermediates() -> None:
 def test__forward_features(
     fn: Callable[[Module, Tensor], Tensor], method_name: str
 ) -> None:
+    import timm
+
     model = timm.create_model("vit_tiny_patch16_224", class_token=True, reg_tokens=2)
     # Not all models and timm versions have forward_intermediates and
     # get_intermediate_layers method defined.
@@ -140,6 +163,8 @@ def test__forward_features(
 def test__drop_prefix_tokens(
     class_token: bool, reg_tokens: int, global_pool: str
 ) -> None:
+    import timm
+
     model = timm.create_model(
         "vit_tiny_patch16_224",
         class_token=class_token,
@@ -173,6 +198,8 @@ def test_architecture_info__all_timm_model_names_match_prefix() -> None:
     This test does not instantiate any models, so it is fast. It ensures no
     model family has been forgotten in _TIMM_ARCH_NAME_PREFIXES.
     """
+    import timm
+
     prefixes = [prefix for prefix, _ in timm_feature_extractor._TIMM_ARCH_NAME_PREFIXES]
     unmatched = [
         name
