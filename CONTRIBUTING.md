@@ -113,7 +113,7 @@ their own.
 [CHANGELOG.md](./CHANGELOG.md) is generated from the pull request titles. Write titles
 for users: `feat`, `fix`, `perf` and `revert` pull requests appear in the changelog.
 Don't edit CHANGELOG.md by hand. See [RELEASING.md](./RELEASING.md) for the release
-process, version bumps and story releases.
+process and version bumps.
 
 ### Documentation
 
