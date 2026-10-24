@@ -5,7 +5,7 @@
   "include-component-in-tag": false,
   "pull-request-title-pattern": "chore(release): LightlyTrain ${version}",
   "pull-request-header": ":rocket: **LightlyTrain release**",
-  "pull-request-footer": "Merging this pull request releases LightlyTrain to PyPI, docs.lightly.ai/train and DockerHub after the full unit tests passed. See [RELEASING.md](https://github.com/lightly-ai/lightly-train/blob/main/RELEASING.md).",
+  "pull-request-footer": "Merging this pull request releases LightlyTrain to PyPI, docs.lightly.ai/train and DockerHub after the unit tests on the built wheel passed. See [RELEASING.md](https://github.com/lightly-ai/lightly-train/blob/main/RELEASING.md).",
   "packages": {
     ".": {
       "release-type": "python",
