@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Callable, Literal
 
@@ -281,9 +280,7 @@ def test_pretrain__custom_model(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
-)
+@pytest.mark.requires("python>=3.10")
 def test_pretrain__parameters() -> None:
     """Tests that pretrain function and TrainConfig have the same parameters and default
     values.

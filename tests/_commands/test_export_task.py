@@ -96,11 +96,7 @@ onnx_export_testset = [
 @pytest.mark.parametrize(
     "batch_size,num_channels,height,width,precision", onnx_export_testset
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
-)
-@pytest.mark.requires("onnx", "onnxruntime", "onnxslim")
+@pytest.mark.requires("python>=3.9", "onnx", "onnxruntime", "onnxslim")
 def test_onnx_export(
     batch_size: int,
     num_channels: int,
@@ -171,11 +167,7 @@ def test_onnx_export(
         )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
-)
-@pytest.mark.requires("onnx", "onnxruntime", "onnxslim")
+@pytest.mark.requires("python>=3.9", "onnx", "onnxruntime", "onnxslim")
 def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
@@ -203,11 +195,7 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
         )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
-)
-@pytest.mark.requires("onnx", "onnxruntime", "onnxslim")
+@pytest.mark.requires("python>=3.9", "onnx", "onnxruntime", "onnxslim")
 def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:

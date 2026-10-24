@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Any, Literal
 
@@ -650,10 +649,7 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
     assert mmap_file.exists()
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Flaky on Python 3.8 due to filelock race condition with concurrent processes.",
-)
+@pytest.mark.requires("python>=3.9")
 @pytest.mark.parametrize(
     "num_increments",
     [

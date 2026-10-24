@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import shutil
 import sys
@@ -17,6 +18,7 @@ from typing import Generator
 
 import pytest
 from lightning_utilities.core.imports import RequirementCache
+from packaging.requirements import Requirement
 from pytest import FixtureRequest, TempPathFactory
 from pytest_mock import MockerFixture
 
@@ -68,13 +70,16 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
-        "requires(*requirements): skip unless all requirements are installed, e.g. "
-        'requires("onnx", "torchvision>=0.23").',
+        "requires(*requirements): skip unless all requirements are met, e.g. "
+        'requires("onnx", "torchvision>=0.23", "python>=3.9").',
     )
 
 
 @lru_cache(maxsize=None)
 def _is_requirement_met(requirement: str) -> bool:
+    req = Requirement(requirement)
+    if req.name == "python":
+        return req.specifier.contains(platform.python_version())
     return bool(RequirementCache(requirement))
 
 

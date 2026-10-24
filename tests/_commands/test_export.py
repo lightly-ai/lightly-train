@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from importlib import util as importlib_util
 from pathlib import Path
 
@@ -220,9 +219,7 @@ def test_export__invalid_format() -> None:
         )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
-)
+@pytest.mark.requires("python>=3.10")
 def test_export__parameters() -> None:
     """Tests that export function and configs have the same parameters and default
     values.
