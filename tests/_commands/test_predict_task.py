@@ -82,10 +82,6 @@ def dinov2_vittest14_eomt_4_channels_checkpoint(
 
 
 @pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Requires Python 3.9 or higher for image preprocessing.",
 )
