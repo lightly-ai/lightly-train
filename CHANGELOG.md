@@ -9,6 +9,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.18.0] - 2026-10-24
+
+### Added
+
+- Add `gradient_accumulation_steps` to `lightly_train.pretrain()` and
+  `lightly_train.train()`. Known limitation: with `gradient_accumulation_steps > 1`, the
+  `dino` and `densecl` pretraining methods update their teacher/key encoder, center, and
+  queues on every micro-batch instead of once per optimizer step.
+- Add opt-in activation checkpointing for DINOv2, DINOv3, and ECViT backbones during
+  pretraining with `activation_checkpoint_args={"enabled": True}`. Reduces peak GPU
+  memory by ~30% on ViT-S/14.
 - Add multi-scale feature support to the `torchvision` model package. The ResNet,
   ConvNeXt and ShuffleNetV2 model wrappers now implement the multi-scale feature
   interface, exposing intermediate feature maps for dense prediction tasks. These
@@ -43,6 +64,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   don't exist yet. Object detection fine-tuning previously ran, but silently ignored the
   `average` and `backend` metric arguments and reported mAP from an outdated
   implementation that does not match COCO eval.
+- Pretraining now raises an error for `trainer_args={"accumulate_grad_batches": ...}`.
+  Use `gradient_accumulation_steps` instead.
+- The [licensing docs](https://docs.lightly.ai/train/stable/licensing.html) and the
+  license notice stored in checkpoints and ONNX exports now state that AGPL-3.0 also
+  covers trained model weights.
 
 ### Deprecated
 
@@ -50,6 +76,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix `data_time`, `batch_time` and `data_wait` to report correct metrics on CUDA.
+- Support the timm model families added in timm 1.0.29 and 1.0.30 (`cpubone`,
+  `lowformer`, `lcnetv2`, `deepseek_vit`, `qwen3_vit`, `iformer`, `efficientvim`).
 - Fix DINOv3 LT-DETR `-eupe` backbone aliases. All six `dinov3/<size>-eupe-ltdetr` model
   names (ConvNeXt-tiny/small/base, ViT-tiny/small/base) now resolve to config classes
   whose `backbone_name` points at the corresponding EUPE weights. Previously each alias
@@ -285,8 +314,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - ONNX export for models that support dynamic batch sizes can now specify if the batch
   size should be dynamic with the `dynamic_batch_size` keyword argument.
 - Explicit support for all YOLO26 variants.
-- Added `gradient_accumulation_steps` to `lightly_train.pretrain()` and
-  `lightly_train.train()`.
 
 ### Changed
 
@@ -296,7 +323,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Fix `data_time`, `batch_time` and `data_wait` to report correct metrics on cuda.
 - Fix ONNX export for DINOv3 EoMT panoptic, semantic, and instance segmentation models
   by switching to dynamo-based export. Requires torch >= 2.5.0.
 - Fix PicoDet fine-tuning with mismatched `num_classes`.
