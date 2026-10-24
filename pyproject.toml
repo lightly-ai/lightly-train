@@ -195,7 +195,6 @@ warn_unused_ignores = false
 [[tool.mypy.overrides]]
 module = [
     "albumentations.*",
-    "faster_coco_eval.*",
     "fsspec.*",
     "lightly.*",
     "matplotlib.*",
