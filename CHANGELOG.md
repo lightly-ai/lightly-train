@@ -23,9 +23,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection with
-  ONNX Runtime (CUDA execution provider) and TensorRT, both with zero-copy GPU
-  input/output.
+- Add
+  [C++ inference recipes](https://github.com/lightly-ai/lightly-train/tree/main/examples/cpp)
+  for LT-DETR object detection with ONNX Runtime (CUDA execution provider) and TensorRT,
+  both with zero-copy GPU input/output.
 - Add export and inference examples for LT-DETR object detection with MIGraphX on AMD
   GPUs.
 - Add multi-scale feature support to torchvision (ResNet, ConvNeXt, ShuffleNetV2) and
