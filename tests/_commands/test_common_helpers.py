@@ -655,20 +655,17 @@ def test_decrement_and_cleanup__reuse(tmp_path: Path, mocker: MockerFixture) -> 
     reason="Flaky on Python 3.8 due to filelock race condition with concurrent processes.",
 )
 @pytest.mark.parametrize(
-    "num_increments,skip_windows",
+    "num_increments",
     [
-        (1, True),  # Single increment
-        (5, True),  # Small concurrency
-        (10, False),  # Medium concurrency
+        1,  # Single increment
+        5,  # Small concurrency
+        10,  # Medium concurrency
     ],
 )
 def test_file_locking_concurrent_increments(
-    tmp_path: Path, num_increments: int, skip_windows: bool
+    tmp_path: Path, num_increments: int
 ) -> None:
     """Test that file locking prevents race conditions."""
-    if skip_windows and sys.platform.startswith("win"):
-        pytest.skip("Skipping test on Windows because it is slow.")
-
     import concurrent.futures
 
     ref_file = tmp_path / "test.ref_count"
@@ -688,12 +685,12 @@ def test_file_locking_concurrent_increments(
 
 
 @pytest.mark.parametrize(
-    "initial_count,num_decrements,should_cleanup,skip_windows",
+    "initial_count,num_decrements,should_cleanup",
     [
-        (10, 3, False, False),  # 10 - 3 = 7, no cleanup
-        (5, 5, True, False),  # 5 - 5 = 0, cleanup
-        (3, 8, True, True),  # 3 - 8 = 0, cleanup
-        (1, 1, True, True),  # 1 - 1 = 0, cleanup
+        (10, 3, False),  # 10 - 3 = 7, no cleanup
+        (5, 5, True),  # 5 - 5 = 0, cleanup
+        (3, 8, True),  # 3 - 8 = 0, cleanup
+        (1, 1, True),  # 1 - 1 = 0, cleanup
     ],
 )
 def test_file_locking_concurrent_decrements(
@@ -701,12 +698,8 @@ def test_file_locking_concurrent_decrements(
     initial_count: int,
     num_decrements: int,
     should_cleanup: bool,
-    skip_windows: bool,
 ) -> None:
     """Test concurrent decrements with various scenarios."""
-    if skip_windows and sys.platform.startswith("win"):
-        pytest.skip("Skipping test on Windows because it is slow.")
-
     import concurrent.futures
 
     mmap_file = tmp_path / "test.mmap"
