@@ -13,7 +13,6 @@ from typing import Any, Literal
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
@@ -949,10 +948,7 @@ def test_predict_sahi_batch__rejects_empty_input() -> None:
         model.predict_sahi_batch([])
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
     import onnx
@@ -986,10 +982,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__checks(tmp_path: Path) -> None:
     # The graph must pass the full ONNX checker, which requires the dynamo
     # shape-annotation repair. It must also not contain a GridSample op: TensorRT
@@ -1015,10 +1008,7 @@ def test_export_onnx__checks(tmp_path: Path) -> None:
     assert "GridSample" not in op_types
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
@@ -1051,13 +1041,7 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(
-    not RequirementCache(module="migraphx"), reason="migraphx not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("migraphx", "onnx", "onnxruntime")
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
@@ -1106,10 +1090,7 @@ def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
     )
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
 def test_export_onnx__fp16(

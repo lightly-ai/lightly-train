@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._export.onnx_helpers import (
     fix_topological_order,
@@ -19,9 +18,7 @@ from lightly_train._export.onnx_helpers import (
     remove_redundant_casts,
 )
 
-pytestmark = pytest.mark.skipif(
-    not RequirementCache("onnx"), reason="onnx not installed"
-)
+pytestmark = pytest.mark.requires("onnx")
 
 
 def _make_model(graph: Any) -> Any:

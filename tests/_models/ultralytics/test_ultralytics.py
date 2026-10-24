@@ -13,10 +13,7 @@ from torch.nn import Identity
 
 from lightly_train._models.ultralytics import ultralytics
 from lightly_train._models.ultralytics.ultralytics import (
-    YOLO26_AVAILABLE,
-    YOLOV11_AVAILABLE,
     YOLOV12_ORIGINAL_AVAILABLE,
-    YOLOV12_ULTRALYTICS_AVAILABLE,
     UltralyticsModelWrapper,
 )
 
@@ -56,24 +53,15 @@ class TestUltralyticsModelWrapper:
             "yolov8s-cls.yaml",
             pytest.param(
                 "yolo11s.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLOV11_AVAILABLE,
-                    reason="YOLOv11 requires ultralytics>=8.3.0",
-                ),
+                marks=pytest.mark.requires("ultralytics>=8.3.0"),
             ),
             pytest.param(
                 "yolo11s-cls.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLOV11_AVAILABLE,
-                    reason="YOLOv11 requires ultralytics>=8.3.0",
-                ),
+                marks=pytest.mark.requires("ultralytics>=8.3.0"),
             ),
             pytest.param(
                 "yolo12s.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLOV12_ULTRALYTICS_AVAILABLE,
-                    reason="YOLOv12 requires ultralytics>=8.3.78 from the official source",
-                ),
+                marks=pytest.mark.requires("ultralytics>=8.3.78"),
             ),
             pytest.param(
                 "yolov12s.yaml",
@@ -84,17 +72,11 @@ class TestUltralyticsModelWrapper:
             ),
             pytest.param(
                 "yolo26s.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLO26_AVAILABLE,
-                    reason="YOLO26 is not available",
-                ),
+                marks=pytest.mark.requires("ultralytics>=8.4.0"),
             ),
             pytest.param(
                 "yolo26s-cls.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLO26_AVAILABLE,
-                    reason="YOLO26 is not available",
-                ),
+                marks=pytest.mark.requires("ultralytics>=8.4.0"),
             ),
         ],
     )

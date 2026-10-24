@@ -103,7 +103,7 @@ def test_export__torchvision(tmp_path: Path) -> None:
     assert torch.equal(loaded_model.conv1.weight, model.conv1.weight)
 
 
-@pytest.mark.skipif(YOLO is None, reason="ultralytics is not installed")
+@pytest.mark.requires("ultralytics")
 def test_export__ultralytics(tmp_path: Path) -> None:
     model = YOLO("yolov8n.yaml")
     ckpt_path, ckpt = _get_checkpoint(
@@ -115,7 +115,7 @@ def test_export__ultralytics(tmp_path: Path) -> None:
     assert isinstance(loaded_model, YOLO)
 
 
-@pytest.mark.skipif(YOLO is None, reason="ultralytics is not installed")
+@pytest.mark.requires("ultralytics")
 def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None:
     model = YOLO("yolov8n.yaml")
     ckpt_path, ckpt = _get_checkpoint(
@@ -138,9 +138,7 @@ def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None
         )
 
 
-@pytest.mark.skipif(
-    super_gradient_models is None, reason="super_gradients is not installed"
-)
+@pytest.mark.requires("super-gradients")
 def test_export__super_gradients(tmp_path: Path) -> None:
     model = super_gradient_models.get(model_name="yolo_nas_s", num_classes=3)
     model.backbone.stem.conv.branch_3x3.conv.weight.data.fill_(1.234)
@@ -170,9 +168,7 @@ def test_export__custom(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(
-    importlib_util.find_spec("timm") is None, reason="timm is not installed"
-)
+@pytest.mark.requires("timm")
 def test_export__timm(tmp_path: Path) -> None:
     import timm
 

@@ -15,7 +15,6 @@ import pytest
 import torch
 import torchvision.tv_tensors as tv_tensors
 from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionCollateFunction,
@@ -132,10 +131,7 @@ PossibleArgsTuple = (
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 
-@pytest.mark.skipif(
-    not RequirementCache("torchvision>=0.23"),
-    reason="torchvision too old for oriented bounding box suport",
-)
+@pytest.mark.requires("torchvision>=0.23")
 class TestOrientedObjectDetectionTransform:
     @pytest.mark.parametrize(
         "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize",

@@ -11,10 +11,12 @@ import os
 import re
 import shutil
 import sys
+from functools import lru_cache
 from pathlib import Path
 from typing import Generator
 
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 from pytest import FixtureRequest, TempPathFactory
 from pytest_mock import MockerFixture
 
@@ -64,6 +66,16 @@ def pytest_configure(config: pytest.Config) -> None:
         "skip_windows(reason): skip on Windows. Only for behavior that differs on "
         "Windows by design, not for slow or failing tests.",
     )
+    config.addinivalue_line(
+        "markers",
+        "requires(*requirements): skip unless all requirements are installed, e.g. "
+        'requires("onnx", "torchvision>=0.23").',
+    )
+
+
+@lru_cache(maxsize=None)
+def _is_requirement_met(requirement: str) -> bool:
+    return bool(RequirementCache(requirement))
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -76,6 +88,16 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                 )
             if sys.platform.startswith("win"):
                 item.add_marker(pytest.mark.skip(reason=reason))
+        for marker in item.iter_markers("requires"):
+            if not marker.args:
+                raise pytest.UsageError(
+                    f"{item.nodeid}: requires needs at least one requirement."
+                )
+            missing = [r for r in marker.args if not _is_requirement_met(r)]
+            if missing:
+                item.add_marker(
+                    pytest.mark.skip(reason=f"Requires {', '.join(missing)}.")
+                )
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests

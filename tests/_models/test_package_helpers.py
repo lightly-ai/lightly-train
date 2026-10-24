@@ -33,20 +33,29 @@ def test_get_package() -> None:
 @pytest.mark.parametrize(
     "package_name, model_name",
     [
-        ("rfdetr", "rfdetr/rf-detr-base"),
-        ("super_gradients", "super_gradients/yolo_nas_s"),
-        ("timm", "timm/resnet18"),
+        pytest.param(
+            "rfdetr", "rfdetr/rf-detr-base", marks=pytest.mark.requires("rfdetr")
+        ),
+        pytest.param(
+            "super_gradients",
+            "super_gradients/yolo_nas_s",
+            marks=pytest.mark.requires("super-gradients"),
+        ),
+        pytest.param("timm", "timm/resnet18", marks=pytest.mark.requires("timm")),
         ("torchvision", "torchvision/resnet18"),
-        ("ultralytics", "ultralytics/yolov8s.yaml"),
+        pytest.param(
+            "ultralytics",
+            "ultralytics/yolov8s.yaml",
+            marks=pytest.mark.requires("ultralytics"),
+        ),
     ],
 )
 def test_list_model_names(package_name: str, model_name: str) -> None:
-    pytest.importorskip(package_name)
     assert model_name in package_helpers.list_model_names()
 
 
+@pytest.mark.requires("rfdetr")
 def test_get_model__rfdetr() -> None:
-    pytest.importorskip("rfdetr")
     from rfdetr.detr import RFDETR
 
     model = package_helpers.get_wrapped_model(
@@ -63,8 +72,8 @@ def test_get_model__torchvision() -> None:
 
 
 @pytest.mark.parametrize("num_input_channels", [3, 4])
+@pytest.mark.requires("timm")
 def test_get_model__timm(num_input_channels: int) -> None:
-    pytest.importorskip("timm")
     from timm.models.resnet import ResNet
 
     model = package_helpers.get_wrapped_model(
@@ -73,8 +82,8 @@ def test_get_model__timm(num_input_channels: int) -> None:
     assert isinstance(model.get_model(), ResNet)
 
 
+@pytest.mark.requires("super-gradients")
 def test_get_model__super_gradients() -> None:
-    pytest.importorskip("super_gradients")
     from super_gradients.training.models import (
         YoloNAS_S,
     )
@@ -85,8 +94,8 @@ def test_get_model__super_gradients() -> None:
     assert isinstance(model.get_model(), YoloNAS_S)
 
 
+@pytest.mark.requires("ultralytics")
 def test_get_model__ultralytics() -> None:
-    pytest.importorskip("ultralytics")
     from ultralytics import YOLO  # type: ignore[attr-defined]
 
     model = package_helpers.get_wrapped_model(
@@ -95,8 +104,8 @@ def test_get_model__ultralytics() -> None:
     assert isinstance(model.get_model(), YOLO)
 
 
+@pytest.mark.requires("timm")
 def test_get_model_wrapper__timm() -> None:
-    pytest.importorskip("timm")
     wrapped_model = package_helpers.get_wrapped_model(
         "timm/resnet18", num_input_channels=3
     )

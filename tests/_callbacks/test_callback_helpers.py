@@ -83,7 +83,7 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
 
 
-@pytest.mark.skipif(mlflow is None, reason="MLFlow is not installed")
+@pytest.mark.requires("mlflow")
 def test_get_callbacks__mlflow(tmp_path: Path) -> None:
     model = DummyCustomModel()
     embedding_model = EmbeddingModel(wrapped_model=model)

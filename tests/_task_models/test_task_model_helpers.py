@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 import pytest
 import torch
-from packaging import version
 from pytest import MonkeyPatch
 from torch.hub import download_url_to_file
 
@@ -40,10 +39,7 @@ from lightly_train._task_models.picodet_object_detection.config import (
 )
 
 
-@pytest.mark.skipif(
-    version.parse(torch.__version__) < version.parse("2.2.0"),
-    reason="Model loading currently fails for PyTorch < 2.2.0. See https://github.com/lightly-ai/lightly-train/issues/323",
-)
+@pytest.mark.requires("torch>=2.2.0")
 def test_load_model__download(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
     model_name = "dinov3/vits16-eomt-coco"

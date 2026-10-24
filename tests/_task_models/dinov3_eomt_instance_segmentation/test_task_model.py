@@ -11,11 +11,9 @@ from pathlib import Path
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
 from lightly_train._export.onnx_helpers import (
-    _TORCH_DYNAMO_AVAILABLE,
     _TORCH_DYNAMO_MIN_VERSION,
 )
 from lightly_train._task_models.dinov3_eomt_instance_segmentation.task_model import (
@@ -102,13 +100,7 @@ def test_predict_batch__composes_stages_in_order(
 
 
 @pytest.mark.parametrize("batch_size", [1, 3])
-@pytest.mark.skipif(
-    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires(f"torch>={_TORCH_DYNAMO_MIN_VERSION}", "onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(
     model: DINOv3EoMTInstanceSegmentation, tmp_path: Path, batch_size: int
 ) -> None:
@@ -140,13 +132,7 @@ def test_export_onnx__dynamic_batch_size(
             assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
-@pytest.mark.skipif(
-    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires(f"torch>={_TORCH_DYNAMO_MIN_VERSION}", "onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(
     model: DINOv3EoMTInstanceSegmentation, tmp_path: Path
 ) -> None:
@@ -156,13 +142,7 @@ def test_export_onnx__static_batch_size(
     )
 
 
-@pytest.mark.skipif(
-    not _TORCH_DYNAMO_AVAILABLE, reason=f"torch >= {_TORCH_DYNAMO_MIN_VERSION} required"
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires(f"torch>={_TORCH_DYNAMO_MIN_VERSION}", "onnx", "onnxruntime")
 def test_export_onnx__custom_height_width(
     model: DINOv3EoMTInstanceSegmentation, tmp_path: Path
 ) -> None:
