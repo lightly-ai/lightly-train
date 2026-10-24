@@ -58,7 +58,12 @@ def build_changelog_html(source_dir: Path) -> None:
     # Adds a `(changelog-<version>)=` target above each version header. This is needed
     # because sphinx otherwise generates generic `id1`, `id2`, etc. targets for the
     # version headers.
-    version_pattern = r"## \\?\[(\d+\.\d+\.\d+)\\?\] - \d+-\d+-\d+\n"
+    # Matches hand-written headers "## [0.17.0] - 2026-07-28" and release-please headers
+    # "## [0.19.0](https://.../compare/v0.18.0...v0.19.0) (2026-10-12)".
+    version_pattern = (
+        r"## \\?\[(\d+\.\d+\.\d+)\\?\]"
+        r"(?: - \d+-\d+-\d+|\([^)\n]*\) \(\d+-\d+-\d+\))\n"
+    )
 
     def add_version_target(match: Match):
         version = match.group(1)
