@@ -65,6 +65,9 @@ To run a specific test file, use:
 uv run --frozen pytest path/to/test_file.py
 ```
 
+Test names use `test_<function_or_method_name>__<case>`. Group method tests in
+`Test<ClassName>` classes; keep function tests at module level.
+
 ### Pull Requests
 
 Pull request titles must follow the
