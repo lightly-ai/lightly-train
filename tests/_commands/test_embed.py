@@ -42,7 +42,7 @@ def test_embed__cpu(tmp_path: Path) -> None:
     assert filenames == ["0.png", "1.png"]
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
 def test_embed(tmp_path: Path, num_workers: int | Literal["auto"]) -> None:
     out = tmp_path / "embeddings.csv"
@@ -64,7 +64,7 @@ def test_embed(tmp_path: Path, num_workers: int | Literal["auto"]) -> None:
     assert filenames == ["0.png", "1.png"]
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_embed__overwrite_true(tmp_path: Path) -> None:
     out = tmp_path / "embeddings.csv"
     out.touch()
@@ -85,7 +85,7 @@ def test_embed__overwrite_true(tmp_path: Path) -> None:
     assert out.read_text()
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_embed__varying_image_resolution(tmp_path: Path) -> None:
     out = tmp_path / "embeddings.csv"
     out.touch()
@@ -111,7 +111,7 @@ def test_embed__varying_image_resolution(tmp_path: Path) -> None:
     assert out.read_text()
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_embed__overwrite_false(tmp_path: Path) -> None:
     out = tmp_path / "embeddings.csv"
     out.touch()
@@ -127,7 +127,7 @@ def test_embed__overwrite_false(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_embed__invalid_format(tmp_path: Path) -> None:
     with pytest.raises(
         ValueError,
@@ -158,7 +158,7 @@ def test_embed__parameters() -> None:
     helpers.assert_same_params(a=EmbedConfig, b=CLIEmbedConfig, assert_type=False)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_embed_from_dictconfig(tmp_path: Path) -> None:
     out = tmp_path / "embeddings.csv"
     data = tmp_path / "data"
@@ -178,7 +178,7 @@ def test_embed_from_dictconfig(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 @pytest.mark.parametrize(
     "image_size, expected",
     [

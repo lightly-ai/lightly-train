@@ -22,9 +22,7 @@ from lightly_train._methods.batch_timing import (
     create_batch_timing_tracker,
 )
 
-requires_cuda = pytest.mark.skipif(
-    not torch.cuda.is_available(), reason="CUDA not available"
-)
+requires_cuda = pytest.mark.gpu
 
 
 class _FakeCudaEvent:
