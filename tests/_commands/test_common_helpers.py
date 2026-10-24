@@ -824,7 +824,7 @@ def test_get_dataset_temp_mmap_path__resume_interrupted_overwrite(
             pass
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="No error on Windows")
+@pytest.mark.skip_windows(reason="No error on Windows")
 def test_get_dataset_temp_mmap_path__error(tmp_path: Path) -> None:
     data_path = tmp_path / "data"
     out_path = tmp_path / "out"
