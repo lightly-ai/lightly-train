@@ -49,6 +49,29 @@ requires a few lines of code using the
 function. See [data](#instance-segmentation-eomt-data) for more details on how to
 prepare your dataset.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+
+```bash
+# The shared image pool, used by all tasks.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
+# The labels and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/instance_segmentation.zip && unzip -q instance_segmentation.zip
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_instance_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitl16-eomt-inst-coco",
+        data="instance_segmentation/config.yaml",
+    )
+```
+
+`data` also accepts a dictionary with the same keys as the yaml file, which is useful if
+you want to set them programmatically:
+
 ```python
 import lightly_train
 
