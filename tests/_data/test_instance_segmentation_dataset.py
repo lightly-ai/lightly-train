@@ -408,9 +408,7 @@ class TestCOCOInstanceSegmentationMmapHash:
         os.utime(annotations_path, (st.st_atime, st.st_mtime + 1))
         assert args.train_data_mmap_hash() != hash_before
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
-    )
+    @pytest.mark.requires("python>=3.9")
     def test_list_image_info__mixed_polygon_and_rle(self, tmp_path: Path) -> None:
         """Test a single image with polygon, compressed RLE, and uncompressed RLE annotations."""
         if sys.version_info >= (3, 9):  # Needed for Mypy
@@ -480,9 +478,7 @@ class TestCOCOInstanceSegmentationMmapHash:
             for bbox in bboxes:
                 assert len(bbox) == 4
 
-    @pytest.mark.skipif(
-        sys.version_info >= (3, 9), reason="Test only applies to Python 3.8"
-    )
+    @pytest.mark.requires("python<3.9")
     def test_list_image_info__rle_fails_on_python38(self, tmp_path: Path) -> None:
         """RLE annotations should raise RuntimeError on Python < 3.9."""
         create_coco_instance_segmentation_dataset(
@@ -516,9 +512,7 @@ class TestCOCOInstanceSegmentationMmapHash:
 
 
 class TestInstanceSegmentationDatasetGetitem:
-    @pytest.mark.skipif(
-        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
-    )
+    @pytest.mark.requires("python>=3.9")
     def test_getitem__rle_segment(self, tmp_path: Path) -> None:
         """RLE segments are decoded to binary masks in __getitem__."""
         if sys.version_info >= (3, 9):  # Needed for Mypy

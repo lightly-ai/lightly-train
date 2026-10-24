@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Literal
 
@@ -97,9 +96,7 @@ def test_extract_video_frames__custom_frame_filename_format(tmp_path: Path) -> N
             assert (out / f"video_{i}" / f"{j:04d}.png").exists()
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
-)
+@pytest.mark.requires("python>=3.10")
 def test_extract_video_frames__parameters() -> None:
     """Tests that extract function and configs have the same parameters and default
     values.

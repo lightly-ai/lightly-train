@@ -70,11 +70,11 @@ uv run --frozen pytest path/to/test_file.py
 Markers are registered in [tests/conftest.py](./tests/conftest.py). Unregistered markers
 fail collection (`--strict-markers`).
 
-| Marker                      | Use for                                        |
-| --------------------------- | ---------------------------------------------- |
-| `requires("pkg", "pkg>=x")` | Tests that need optional packages or versions. |
-| `skip_windows(reason=)`     | Behavior that differs on Windows by design.    |
-| `long_running_test`         | Tests excluded from PR CI, run in nightly CI.  |
+| Marker                      | Use for                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| `requires("pkg", "pkg>=x")` | Tests that need optional packages or versions. Use `"python>=3.x"` for Python versions. |
+| `skip_windows(reason=)`     | Behavior that differs on Windows by design.                                             |
+| `long_running_test`         | Tests excluded from PR CI, run in nightly CI.                                           |
 
 - Windows runs the full test suite. Don't skip tests on Windows because they are slow.
 - Tests that fail on Windows because of a bug:

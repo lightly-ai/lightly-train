@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Literal
 
@@ -147,9 +146,7 @@ def test_embed__invalid_format(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
-)
+@pytest.mark.requires("python>=3.10")
 def test_embed__parameters() -> None:
     """Tests that embed function and configs have the same parameters and default
     values.
