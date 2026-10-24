@@ -63,6 +63,7 @@ dev = [
     "types-pycocotools>=0.1.1; python_version>='3.9'",
     "pytest-examples>=0.0.13,<0.0.16", # 0.0.16 and 0.0.17 (latest to date) will cause the following failure when running pytest: "TypeError: 'ABCMeta' object is not subscriptable"
     "pytest-mock>=3.14.0",
+    "pytest-split>=0.10.0; python_full_version>='3.8.1'",  # Test sharding in CI
     "pytest>=8.0.0",
     "ruff>=0.4.0",
     "types-PyYAML>=6.0.12",
