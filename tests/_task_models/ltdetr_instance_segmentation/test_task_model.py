@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 from torch import nn
 
@@ -283,10 +282,7 @@ def _run_seg_onnx(path: Path, images: object, orig_target_size: object) -> list:
     return outputs
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(
     model: LTDETRInstanceSegmentation, tmp_path: Path
 ) -> None:
@@ -320,10 +316,7 @@ def test_export_onnx__dynamic_batch_size(
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(
     model: LTDETRInstanceSegmentation, tmp_path: Path
 ) -> None:
@@ -339,10 +332,7 @@ def test_export_onnx__static_batch_size(
     assert input_batch_dim.dim_value == 3
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 def test_export_onnx__fp16(model: LTDETRInstanceSegmentation, tmp_path: Path) -> None:
     import onnx
@@ -359,10 +349,7 @@ def test_export_onnx__fp16(model: LTDETRInstanceSegmentation, tmp_path: Path) ->
     assert has_fp16
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__simplify_matches_unsimplified(
     model: LTDETRInstanceSegmentation, tmp_path: Path
 ) -> None:
@@ -387,10 +374,7 @@ def test_export_onnx__simplify_matches_unsimplified(
     )
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 @pytest.mark.parametrize("model_name", LTDETR_V2_SEG_ALIAS_MODEL_NAMES)
 def test_export_onnx__aliases_and_non_square(model_name: str, tmp_path: Path) -> None:
     # Every registered alias (s/m/l/x uses a different encoder/transformer
@@ -422,10 +406,7 @@ def test_export_onnx__aliases_and_non_square(model_name: str, tmp_path: Path) ->
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 @pytest.mark.parametrize("opset_version", [16, 17, 18, 19, 20])
 def test_export_onnx__opset_version(
     model: LTDETRInstanceSegmentation, tmp_path: Path, opset_version: int
@@ -446,10 +427,7 @@ def test_export_onnx__opset_version(
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__matches_predict(
     model: LTDETRInstanceSegmentation, tmp_path: Path
 ) -> None:

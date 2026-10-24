@@ -516,7 +516,7 @@ def test_train_semantic_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.requires("pydicom>=3.0.0")
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
@@ -535,10 +535,8 @@ def test_train_semantic_segmentation__dicom(
     height: int,
     width: int,
 ) -> None:
-    pydicom_examples = pytest.importorskip(
-        "pydicom.examples",
-        reason="pydicom examples not supported",
-    )
+    from pydicom import examples as pydicom_examples
+
     data_path: Path = pydicom_examples.get_path(data_format)
 
     out = tmp_path / "out"

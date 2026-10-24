@@ -145,14 +145,20 @@ def test_get_dataloader(
     )
 
 
-@pytest.mark.parametrize("model_name", REPRESENTATIVE_MODEL_NAMES)
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        pytest.param(name, marks=pytest.mark.requires("timm"))
+        if name.startswith("timm/")
+        else name
+        for name in REPRESENTATIVE_MODEL_NAMES
+    ],
+)
 @pytest.mark.parametrize("embed_dim", [None, 64])
 @pytest.mark.parametrize("model_args", [None, {"num_classes": 42}])
 def test_get_embedding_model(
     model_name: str, embed_dim: int | None, model_args: dict[str, Any] | None
 ) -> None:
-    if model_name.startswith("timm/"):
-        pytest.importorskip("timm")
     x = torch.rand(1, 3, 224, 224)
     model = package_helpers.get_wrapped_model(
         model_name, model_args=model_args, num_input_channels=3

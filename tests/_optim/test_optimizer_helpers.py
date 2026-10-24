@@ -84,10 +84,8 @@ def test_get_optimizer() -> None:
     assert pg1["lr"] == optim_args.lr * 2
 
 
+@pytest.mark.requires("bitsandbytes")
 def test_get_optimizer__adamw8bit() -> None:
-    # Constructs the bitsandbytes 8-bit AdamW when bitsandbytes is importable;
-    # skipped otherwise (the dependency is optional).
-    pytest.importorskip("bitsandbytes")
     from bitsandbytes.optim import AdamW8bit  # type: ignore[attr-defined]
 
     linear1 = Linear(in_features=1, out_features=1)

@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from PIL import Image
 
 from lightly_train._task_models.depth_estimation import task_model
@@ -223,10 +222,7 @@ class TestDepthAnythingDepthEstimation:
         assert depth.shape == (2, 1, 56, 70)
         assert sky.shape == (2, 1, 56, 70)
 
-    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-    @pytest.mark.skipif(
-        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-    )
+    @pytest.mark.requires("onnx", "onnxruntime")
     @pytest.mark.parametrize(
         "use_sky_head, expected_output_names",
         [
@@ -249,10 +245,7 @@ class TestDepthAnythingDepthEstimation:
         onnx_model = onnx.load(out)
         assert [o.name for o in onnx_model.graph.output] == expected_output_names
 
-    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-    @pytest.mark.skipif(
-        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-    )
+    @pytest.mark.requires("onnx", "onnxruntime")
     def test_export_onnx__dynamic_batch_size(self, tmp_path: Path) -> None:
         import numpy as np
         import onnx
@@ -283,10 +276,7 @@ class TestDepthAnythingDepthEstimation:
             )
             assert close.float().mean() > 0.95
 
-    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-    @pytest.mark.skipif(
-        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-    )
+    @pytest.mark.requires("onnx", "onnxruntime")
     def test_export_onnx__static_batch_size(self, tmp_path: Path) -> None:
         import onnx
 
@@ -302,10 +292,7 @@ class TestDepthAnythingDepthEstimation:
         input_batch_dim = onnx_model.graph.input[0].type.tensor_type.shape.dim[0]
         assert input_batch_dim.dim_value == 2
 
-    @pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-    @pytest.mark.skipif(
-        not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-    )
+    @pytest.mark.requires("onnx", "onnxruntime")
     def test_export_onnx__custom_height_width(self, tmp_path: Path) -> None:
         import onnx
 

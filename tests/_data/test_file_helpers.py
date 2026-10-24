@@ -223,7 +223,14 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
         (".webp", "pil", np.uint8, 4, "RGBA"),
         (".tiff", "pil", np.int32, 0, "I"),
         (".tiff", "pil", np.float32, 0, "F"),
-        (".dcm", "pydicom", np.float32, 0, ""),
+        pytest.param(
+            ".dcm",
+            "pydicom",
+            np.float32,
+            0,
+            "",
+            marks=pytest.mark.requires("pydicom>=3.0.0"),
+        ),
     ],
 )
 def test_open_image_tensor(
@@ -236,10 +243,8 @@ def test_open_image_tensor(
     mocker: MockerFixture,
 ) -> None:
     if extension == ".dcm":
-        pydicom_examples = pytest.importorskip(
-            "pydicom.examples",
-            reason="pydicom examples not supported",
-        )
+        from pydicom import examples as pydicom_examples
+
         image_path: Path = pydicom_examples.get_path("mr")
     else:
         image_path = tmp_path / f"image{extension}"
@@ -302,7 +307,14 @@ def test_open_image_tensor(
         (".tiff", "pil", np.int32, 0, "I"),
         (".tiff", "pil", np.uint16, 0, "I;16"),
         (".tiff", "pil", np.float32, 0, "F"),
-        (".dcm", "pydicom", np.float32, 0, ""),
+        pytest.param(
+            ".dcm",
+            "pydicom",
+            np.float32,
+            0,
+            "",
+            marks=pytest.mark.requires("pydicom>=3.0.0"),
+        ),
     ],
 )
 def test_open_image_numpy(
@@ -315,10 +327,8 @@ def test_open_image_numpy(
     mocker: MockerFixture,
 ) -> None:
     if extension == ".dcm":
-        pydicom_examples = pytest.importorskip(
-            "pydicom.examples",
-            reason="pydicom examples not supported",
-        )
+        from pydicom import examples as pydicom_examples
+
         image_path: Path = pydicom_examples.get_path("mr")
     else:
         image_path = tmp_path / f"image{extension}"
@@ -524,15 +534,14 @@ def test_open_yolo_instance_segmentation_label__empty(
         ("jpeg2k", (480, 640, 3), np.uint8),
     ],
 )
+@pytest.mark.requires("pydicom>=3.0.0")
 def test__open_image_numpy__with_pydicom(
     data_format: str,
     expected_shape: tuple[int, ...],
     expected_dtype: DTypeLike,
 ) -> None:
-    pydicom_examples = pytest.importorskip(
-        "pydicom.examples",
-        reason="pydicom examples not supported",
-    )
+    from pydicom import examples as pydicom_examples
+
     image_path: Path = pydicom_examples.get_path(data_format)
 
     result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)

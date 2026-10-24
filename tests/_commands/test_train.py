@@ -14,7 +14,6 @@ from typing import Any, Callable, Literal
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
@@ -389,15 +388,21 @@ def test_pretrain__distillation_different_teachers(
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-@pytest.mark.parametrize("method", method_helpers._list_methods())
+@pytest.mark.parametrize(
+    "method",
+    [
+        pytest.param(method, marks=pytest.mark.requires("albumentations>=2.0.0"))
+        if method == "dinov31"
+        else method
+        for method in method_helpers._list_methods()
+    ],
+)
 @pytest.mark.parametrize(
     "devices", [1]
 )  # TODO(Philipp, 09/24): Add test with 2 devices back.
 def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
     if torch.cuda.device_count() < devices:
         pytest.skip("Test requires more GPUs than available.")
-    if method == "dinov31" and not RequirementCache("albumentations>=2.0.0"):
-        pytest.skip("DINOv31 requires albumentations>=2.0.0.")
 
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -625,11 +630,12 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
     "model, model_args, method, method_args",
     [
         ("dinov2/_vittest14", None, "dinov2", {}),
-        (
+        pytest.param(
             "timm/resnet18",
             {"num_classes": 64},
             "distillation",
             {"teacher": "dinov2/_vittest14"},
+            marks=pytest.mark.requires("timm"),
         ),
     ],
 )
@@ -640,9 +646,6 @@ def test_pretrain__multichannel(
     method: str,
     method_args: dict[str, Any],
 ) -> None:
-    if model.startswith("timm") and not RequirementCache("timm"):
-        pytest.skip("timm is not installed")
-
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10, num_channels=4, mode="RGBA")
@@ -661,7 +664,7 @@ def test_pretrain__multichannel(
     )
 
 
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.requires("pydicom>=3.0.0")
 @pytest.mark.parametrize(
     ("data_format, num_channels"),
     [
@@ -678,10 +681,8 @@ def test_pretrain__dicom(
     data_format: str,
     num_channels: int,
 ) -> None:
-    pydicom_examples = pytest.importorskip(
-        "pydicom.examples",
-        reason="pydicom examples not supported",
-    )
+    from pydicom import examples as pydicom_examples
+
     data_path: Path = pydicom_examples.get_path(data_format)
     data = [str(data_path)] * 8  # Create a list of 8 identical DICOM files.
 

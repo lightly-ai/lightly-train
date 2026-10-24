@@ -12,7 +12,6 @@ import torch
 
 from lightly_train import __version__
 from lightly_train._export.onnx_helpers import (
-    _TORCH_DIM_HINTS_AVAILABLE,
     _TORCH_DIM_HINTS_MIN_VERSION,
 )
 from lightly_train._license import LICENSE_INFO
@@ -32,10 +31,7 @@ def _model() -> LTDETRObjectDetection:
     )
 
 
-@pytest.mark.skipif(
-    not _TORCH_DIM_HINTS_AVAILABLE,
-    reason=f"torch >= {_TORCH_DIM_HINTS_MIN_VERSION} required",
-)
+@pytest.mark.requires(f"torch>={_TORCH_DIM_HINTS_MIN_VERSION}")
 def test_model_input_spec__uses_channels_and_image_size() -> None:
     spec = _model().model_input_spec
     assert list(spec.input_specs) == ["images"]

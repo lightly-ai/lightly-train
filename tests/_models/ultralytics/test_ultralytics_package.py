@@ -13,7 +13,6 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._models.ultralytics.ultralytics import (
-    YOLO26_AVAILABLE,
     UltralyticsModelWrapper,
 )
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
@@ -43,7 +42,7 @@ class TestUltralyticsPackage:
         model_names = UltralyticsPackage.list_model_names()
         assert (model_name in model_names) is supported
 
-    @pytest.mark.skipif(not YOLO26_AVAILABLE, reason="YOLO26 is not available")
+    @pytest.mark.requires("ultralytics>=8.4.0")
     def test_list_model_names__yolo26(self) -> None:
         model_names = set(UltralyticsPackage.list_model_names())
         expected_model_names = {

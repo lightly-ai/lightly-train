@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from torchvision import tv_tensors
 
 from lightly_train._transforms.random_rotate_90 import RandomRotate90
@@ -20,10 +19,7 @@ def dummy_tv_image() -> tv_tensors.Image:
     return tv_tensors.Image(torch.rand(3, 64, 64))
 
 
-@pytest.mark.skipif(
-    not RequirementCache("torchvision>=0.23"),
-    reason="torchvision too old",
-)
+@pytest.mark.requires("torchvision>=0.23")
 class TestRandomRotate90:
     def test_forward_image_shape(self, dummy_tv_image: tv_tensors.Image) -> None:
         transform = RandomRotate90(p=1.0)

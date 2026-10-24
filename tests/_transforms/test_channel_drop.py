@@ -10,7 +10,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from torchvision import tv_tensors
 
 from lightly_train._transforms.channel_drop import ChannelDrop, ChannelDropTV
@@ -83,10 +82,7 @@ class TestChannelDrop:
             )
 
 
-@pytest.mark.skipif(
-    not RequirementCache("torchvision>=0.23"),
-    reason="torchvision too old",
-)
+@pytest.mark.requires("torchvision>=0.23")
 class TestChannelDropTV:
     @pytest.mark.parametrize(
         "num_channels_keep, weight_drop, error",

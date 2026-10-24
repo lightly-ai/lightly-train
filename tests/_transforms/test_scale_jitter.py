@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 import torch
 from albumentations import BboxParams, Compose
-from lightning_utilities.core.imports import RequirementCache
 from torchvision import tv_tensors
 
 from lightly_train._transforms.scale_jitter import ScaleJitter, TorchVisionScaleJitter
@@ -214,10 +213,7 @@ def dummy_tv_obb_small() -> tv_tensors.BoundingBoxes:
     )
 
 
-@pytest.mark.skipif(
-    not RequirementCache("torchvision>=0.23"),
-    reason="torchvision too old for oriented bounding box suport",
-)
+@pytest.mark.requires("torchvision>=0.23")
 class TestTorchVisionScaleJitter:
     def test_single_input(
         self,

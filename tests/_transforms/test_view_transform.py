@@ -14,7 +14,6 @@ from typing import Tuple, Union
 import numpy as np
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -28,12 +27,6 @@ from lightly_train._transforms.transform import (
 )
 from lightly_train._transforms.view_transform import ViewTransform, ViewTransformArgs
 from lightly_train.types import TransformInput
-
-ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
-RECORD_GEOMETRY_SKIP = pytest.mark.skipif(
-    not ALBUMENTATIONS_VERSION_2XX,
-    reason="record_geometry requires albumentations>=2.0.0",
-)
 
 
 def _get_channel_drop_args() -> ChannelDropArgs:
@@ -128,7 +121,7 @@ possible_tuples = _get_possible_view_transform_args_combinations()
 
 
 class TestViewTransform:
-    @RECORD_GEOMETRY_SKIP
+    @pytest.mark.requires("albumentations>=2.0.0")
     def test_record_geometry_attaches_geometry_tensor(self) -> None:
         # record_geometry=True records the crop box and flips applied to a view
         # as an 8-element tensor [x0, y0, x1, y1, image_w, image_h, hflip, vflip].
@@ -163,7 +156,7 @@ class TestViewTransform:
         assert w == image_w and h == image_h
         assert hflip in (0.0, 1.0) and vflip in (0.0, 1.0)
 
-    @RECORD_GEOMETRY_SKIP
+    @pytest.mark.requires("albumentations>=2.0.0")
     def test_record_geometry_reusable_across_views(self) -> None:
         # A single ViewTransform is reused sequentially across views (as the
         # DINO multi-crop transform does). Each call must record its own geometry
@@ -193,7 +186,7 @@ class TestViewTransform:
             assert "applied_transforms" not in out
             assert out["geometry"].shape == (8,)
 
-    @RECORD_GEOMETRY_SKIP
+    @pytest.mark.requires("albumentations>=2.0.0")
     def test_record_geometry_disallowed_with_rotation(self) -> None:
         with pytest.raises(ValueError, match="random_rotation"):
             ViewTransform(
@@ -285,7 +278,7 @@ class TestViewTransform:
         assert out[0, :, 0].max() > center
         assert out[0, :, -1].max() > center
 
-    @RECORD_GEOMETRY_SKIP
+    @pytest.mark.requires("albumentations>=2.0.0")
     def test_record_geometry__no_random_resized_crop(self) -> None:
         view_transform = ViewTransform(
             ViewTransformArgs(

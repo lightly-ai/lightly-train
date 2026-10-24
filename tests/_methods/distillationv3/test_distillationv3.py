@@ -31,10 +31,7 @@ _TIMM_AVAILABLE = RequirementCache("timm")
 _ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics")
 
 
-@pytest.mark.skipif(
-    not _TIMM_AVAILABLE or not _ULTRALYTICS_AVAILABLE,
-    reason="timm and ultralytics must be installed",
-)
+@pytest.mark.requires("timm", "ultralytics")
 @pytest.mark.parametrize(
     "model, expected",
     [
