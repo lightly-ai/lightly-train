@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
+import torch
 from lightning_utilities.core.imports import RequirementCache
 from packaging.requirements import Requirement
 from pytest import FixtureRequest, TempPathFactory
@@ -73,6 +74,10 @@ def pytest_configure(config: pytest.Config) -> None:
         "requires(*requirements): skip unless all requirements are met, e.g. "
         'requires("onnx", "torchvision>=0.23", "python>=3.9").',
     )
+    config.addinivalue_line(
+        "markers",
+        "gpu(n=1): skip unless at least n CUDA devices are available.",
+    )
 
 
 @lru_cache(maxsize=None)
@@ -102,6 +107,12 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             if missing:
                 item.add_marker(
                     pytest.mark.skip(reason=f"Requires {', '.join(missing)}.")
+                )
+        for marker in item.iter_markers("gpu"):
+            n = marker.kwargs.get("n", 1)
+            if torch.cuda.device_count() < n:
+                item.add_marker(
+                    pytest.mark.skip(reason=f"Requires {n} CUDA device(s).")
                 )
 
 

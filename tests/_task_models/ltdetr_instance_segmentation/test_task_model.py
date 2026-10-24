@@ -333,7 +333,7 @@ def test_export_onnx__static_batch_size(
 
 
 @pytest.mark.requires("onnx", "onnxruntime")
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_export_onnx__fp16(model: LTDETRInstanceSegmentation, tmp_path: Path) -> None:
     import onnx
 

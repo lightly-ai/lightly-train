@@ -1042,7 +1042,7 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
 
 
 @pytest.mark.requires("migraphx", "onnx", "onnxruntime")
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
     import migraphx  # type: ignore[import-not-found]
@@ -1091,7 +1091,7 @@ def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
 
 
 @pytest.mark.requires("onnx", "onnxruntime")
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 @pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
 def test_export_onnx__fp16(
     tmp_path: Path, decoder_name: Literal["rtdetrv2", "dfine"]
