@@ -225,9 +225,10 @@ test:
 test-ci-minimal:
 	uv run --frozen --group pinned-torch-minimal pytest tests -v --durations=20 -m "not long_running_test"
 
+# PYTEST_ARGS: extra pytest arguments, e.g. "--splits 3 --group 1" for sharding
 .PHONY: test-ci-maximal
 test-ci-maximal:
-	uv run --frozen --group pinned-torch-maximal pytest tests -v --durations=20 -m "not long_running_test"
+	uv run --frozen --group pinned-torch-maximal pytest tests -v --durations=20 -m "not long_running_test" $(PYTEST_ARGS)
 
 # run tests marked as long running, e.g. tests excluded from test-ci-minimal/test-ci-maximal
 .PHONY: test-slow

@@ -48,14 +48,20 @@ jobs:
               - '!.github/**'
             this-workflow:
               - '.github/workflows/test_unit.yml'
-  test-unit:
-    name: Test Unit
+  test-unit-shard:
+    name: Test Unit Shard (${{ matrix.runner }}, ${{ matrix.group }}/${{ matrix.splits }})
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     strategy:
       matrix:
-        runners: ["ubuntu-latest", "windows-latest"]
-    runs-on: ${{ matrix.runners }}
+        # Splits are balanced by test durations in .test_durations.
+        include:
+          - { runner: ubuntu-latest, splits: 2, group: 1 }
+          - { runner: ubuntu-latest, splits: 2, group: 2 }
+          - { runner: windows-latest, splits: 3, group: 1 }
+          - { runner: windows-latest, splits: 3, group: 2 }
+          - { runner: windows-latest, splits: 3, group: 3 }
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -73,4 +79,51 @@ jobs:
           make install-pinned-3.13
       - name: Run Pytest
         run: |
-          make test-ci-maximal
+          make test-ci-maximal PYTEST_ARGS="--splits ${{ matrix.splits }} --group ${{ matrix.group }}"
+  # TODO: Temporary. Remove once .test_durations is committed.
+  store-test-durations:
+    name: Store Test Durations
+    needs: detect-code-changes
+    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.11.15
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Set Up Environment
+        run: |
+          make install-pinned-3.13
+      - name: Run Pytest
+        run: |
+          make test-ci-maximal PYTEST_ARGS="--store-durations"
+      - name: Upload Test Durations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations
+          path: .test_durations
+          include-hidden-files: true
+  # Keeps the check names required by the main branch ruleset. Each check reports the
+  # result of all shards.
+  test-unit:
+    name: Test Unit (${{ matrix.runner }})
+    needs: [detect-code-changes, test-unit-shard]
+    if: always()
+    strategy:
+      matrix:
+        runner: ["ubuntu-latest", "windows-latest"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Shard Results
+        run: |
+          echo "detect-code-changes: ${{ needs.detect-code-changes.result }}"
+          echo "test-unit-shard: ${{ needs.test-unit-shard.result }}"
+          test "${{ needs.detect-code-changes.result }}" = "success"
+          test "${{ needs.test-unit-shard.result }}" = "success" -o "${{ needs.test-unit-shard.result }}" = "skipped"
