@@ -23,47 +23,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Add `gradient_accumulation_steps` to `lightly_train.pretrain()` and
-  `lightly_train.train()`. Known limitation: with `gradient_accumulation_steps > 1`, the
-  `dino` and `densecl` pretraining methods update their teacher/key encoder, center, and
-  queues on every micro-batch instead of once per optimizer step.
+- Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection with
+  ONNX Runtime (CUDA execution provider) and TensorRT, both with zero-copy GPU
+  input/output.
+- Add export and inference examples for LT-DETR object detection with MIGraphX on AMD
+  GPUs.
+- Add multi-scale feature support to torchvision (ResNet, ConvNeXt, ShuffleNetV2) and
+  ECViT backbones. The torchvision backbones are now available for linear semantic
+  segmentation, for example with `model="torchvision/resnet50-linear"`.
+- Add an optional `faster-coco-eval` backend that makes the object detection mAP
+  computation during validation ~5x faster with identical results. Install it with
+  `pip install "lightly-train[faster-coco-eval]"` and it is used automatically. Select
+  the backend explicitly with `metric_args={"map": {"backend": ...}}`.
+- Add `gradient_accumulation_steps` to `lightly_train.pretrain()`. Known limitation:
+  with `gradient_accumulation_steps > 1`, the `dino` and `densecl` methods update their
+  teacher/key encoder, center, and queues on every micro-batch instead of once per
+  optimizer step.
 - Add opt-in activation checkpointing for DINOv2, DINOv3, and ECViT backbones during
   pretraining with `activation_checkpoint_args={"enabled": True}`. Reduces peak GPU
   memory by ~30% on ViT-S/14.
-- Add multi-scale feature support to the `torchvision` model package. The ResNet,
-  ConvNeXt and ShuffleNetV2 model wrappers now implement the multi-scale feature
-  interface, exposing intermediate feature maps for dense prediction tasks. These
-  backbones are now available for the linear semantic segmentation task, for example
-  with `model="torchvision/resnet50-linear"`.
-- Add [C++ inference recipes](examples/cpp/README.md) for LT-DETR object detection,
-  covering ONNX Runtime's CUDA execution provider and TensorRT directly, both with
-  zero-copy GPU input/output allocation.
-- Add export and inference examples covering LT-DETR object detection for MIGraphX on
-  AMD GPUs.
-- Restore the DINOv3.1 pretraining method now that its LightlySSL dependencies are
-  available from PyPI.
-- The aspect ratio range of the random resized crop can now be configured with
-  `min_ratio` and `max_ratio`, for pretraining via
-  `transform_args={"random_resize": {"min_ratio": ..., "max_ratio": ...}}` and for
-  classification fine-tuning via `transform_args={"random_crop": {...}}`. The defaults
-  are unchanged at `(3 / 4, 4 / 3)`.
-- Add an optional `faster-coco-eval` dependency that speeds up the mAP computation at
-  the end of every validation run by ~5x for object detection. Install it with
-  `pip install "lightly-train[faster-coco-eval]"`; it is then used automatically. Both
-  backends return identical metric values. The backend can be selected explicitly with
-  `metric_args={"map": {"backend": ...}}`.
-- Add multi-scale feature support to the `edgecrafter` model package, exposing the ECViT
-  feature pyramid (strides 8, 16, 32) through the multi-scale feature interface.
+- Make the aspect ratio range of the random resized crop configurable with `min_ratio`
+  and `max_ratio`: `transform_args={"random_resize": {...}}` for pretraining and
+  `transform_args={"random_crop": {...}}` for classification fine-tuning. The default
+  stays `(3 / 4, 4 / 3)`.
+- Restore the DINOv3.1 pretraining method.
 
 ### Changed
 
-- Fine-tuning now requires `torchmetrics>=1.5` and fails with a clear error message if
-  an older version is installed. This happens for example when SuperGradients is
-  installed, as it requires `torchmetrics==0.8`. Classification, segmentation, and
-  panoptic fine-tuning already failed on such versions because the metrics they use
-  don't exist yet. Object detection fine-tuning previously ran, but silently ignored the
-  `average` and `backend` metric arguments and reported mAP from an outdated
-  implementation that does not match COCO eval.
+- Fine-tuning now requires `torchmetrics>=1.5` and fails with a clear error otherwise,
+  for example when SuperGradients is installed. Object detection previously ran on older
+  versions but reported mAP from an outdated implementation that does not match COCO
+  eval.
 - Pretraining now raises an error for `trainer_args={"accumulate_grad_batches": ...}`.
   Use `gradient_accumulation_steps` instead.
 - The [licensing docs](https://docs.lightly.ai/train/stable/licensing.html) and the
@@ -76,31 +66,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- Fix `data_time`, `batch_time` and `data_wait` to report correct metrics on CUDA.
+- Fix DINOv3 `-notpretrained` model names silently loading pretrained weights. Every
+  DINOv3 backbone size now has a working `dinov3/<size>-notpretrained-ltdetr` and
+  `dinov3/<size>-notpretrained-linear` model name. Also add
+  `dinov2/vits14-noreg-notpretrained-ltdetr`.
+- Fix `dinov3/<size>-eupe-ltdetr` model names loading non-EUPE weights.
+- Fix `transform_args={"random_resize": None}` during pretraining still center cropping
+  images that are not roughly square.
+- Fix `data_time`, `batch_time` and `data_wait` metrics on CUDA.
 - Support the timm model families added in timm 1.0.29 and 1.0.30 (`cpubone`,
   `lowformer`, `lcnetv2`, `deepseek_vit`, `qwen3_vit`, `iformer`, `efficientvim`).
-- Fix DINOv3 LT-DETR `-eupe` backbone aliases. All six `dinov3/<size>-eupe-ltdetr` model
-  names (ConvNeXt-tiny/small/base, ViT-tiny/small/base) now resolve to config classes
-  whose `backbone_name` points at the corresponding EUPE weights. Previously each alias
-  was registered on the plain (non-EUPE) config class, so the name promised EUPE weights
-  while non-EUPE weights were loaded. The `-notpretrained-linear` half of #980 was
-  already fixed on main.
-- Setting `transform_args={"random_resize": None}` during pretraining now only resizes
-  images instead of also center cropping them to an aspect ratio between 3:4 and 4:3.
-  Images that are not roughly square were previously cropped even though cropping was
-  disabled.
-- Fix DINOv3 LT-DETR object detection `-notpretrained` backbone aliases. Every DINOv3
-  backbone size (ConvNeXt-tiny/small/base/large, ViT-tiny/tiny+/small/base/large) now
-  has a working `dinov3/<size>-notpretrained-ltdetr` model name that builds a randomly
-  initialized backbone, matching how DINOv2 already works. Previously only
-  `dinov3/vitt16-notpretrained-ltdetr` existed, and it was broken: it silently loaded
-  pretrained weights because it pointed to the same config class as
-  `dinov3/vitt16-ltdetr`. Also add `dinov2/vits14-noreg-notpretrained-ltdetr` for the
-  legacy no-registers DINOv2 backbone.
-- Fix DINOv3 linear semantic segmentation `-notpretrained` backbone aliases.
-  `dinov3/vitt16-notpretrained-linear` and `dinov3/vitt16plus-notpretrained-linear`
-  silently loaded pretrained weights, and the remaining DINOv3 sizes had no
-  `dinov3/<size>-notpretrained-linear` model name at all.
 
 ### Security
 
