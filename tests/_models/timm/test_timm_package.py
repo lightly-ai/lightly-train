@@ -10,19 +10,17 @@ from pathlib import Path
 import pytest
 import torch
 
-try:
-    import timm
-except ImportError:
-    # We do not use pytest.importorskip on module level because it makes mypy unhappy.
-    pytest.skip("timm is not installed", allow_module_level=True)
-
 from lightly_train._models.timm.timm_package import TIMMPackage
 
 from ...helpers import DummyCustomModel
 
+pytestmark = pytest.mark.requires("timm")
+
 
 class TestTIMMPackage:
     def test_is_supported_model__true(self) -> None:
+        import timm
+
         model = timm.create_model("resnet18")
         assert TIMMPackage.is_supported_model(model)
         assert TIMMPackage.is_supported_model(
@@ -35,6 +33,8 @@ class TestTIMMPackage:
         assert not TIMMPackage.is_supported_model(model=model.get_model())
 
     def test_export_model__model_detailed(self, tmp_path: Path) -> None:
+        import timm
+
         out = tmp_path / "model.pt"
         model = timm.create_model("resnet18", pretrained=False)
 
@@ -63,6 +63,8 @@ class TestTIMMPackage:
             assert module_exp.training
 
     def test_export_model__wrapped_model_basic(self, tmp_path: Path) -> None:
+        import timm
+
         out = tmp_path / "model.pt"
         model = timm.create_model("resnet18", pretrained=False)
         wrapped_model = TIMMPackage.get_model_wrapper(model=model)

@@ -5,7 +5,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
 from pathlib import Path
 
 import pytest
@@ -17,10 +16,7 @@ from lightly_train._models.ultralytics.ultralytics import (
 )
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
 
-if importlib_util.find_spec("ultralytics") is None:
-    pytest.skip("ultralytics is not installed", allow_module_level=True)
-
-from ultralytics import YOLO  # type: ignore[attr-defined]
+pytestmark = pytest.mark.requires("ultralytics")
 
 YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
 
@@ -62,6 +58,8 @@ class TestUltralyticsPackage:
         assert expected_model_names.issubset(model_names)
 
     def test_is_supported_model__true(self) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO("yolov8s.yaml")
         assert UltralyticsPackage.is_supported_model(model)
 
@@ -83,15 +81,21 @@ class TestUltralyticsPackage:
         ["yolov8s.pt", "yolov8s.yaml"],
     )
     def test_get_model(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = UltralyticsPackage.get_model(model_name=model_name)
         assert isinstance(model, YOLO)
 
     def test_get_model_wrapper(self) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO("yolov8s.yaml")
         fe = UltralyticsPackage.get_model_wrapper(model=model)
         assert isinstance(fe, UltralyticsModelWrapper)
 
     def test_export_model(self, tmp_path: Path) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         out = tmp_path / "model.pt"
         model = YOLO("yolov8n.yaml")
 

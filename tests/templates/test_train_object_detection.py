@@ -11,15 +11,9 @@ import pytest
 from jinja2 import Environment, FileSystemLoader
 from pytest_mock import MockerFixture
 
-from lightly_train._commands.train_task import TORCHMETRICS_SUPPORTED
+from lightly_train._commands.train_task import TORCHMETRICS_MIN_VERSION
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
-
-# Fine-tuning requires a recent torchmetrics version. An old version can be installed
-# if SuperGradients is present, as it requires torchmetrics==0.8.
-skip_if_old_torchmetrics = pytest.mark.skipif(
-    not TORCHMETRICS_SUPPORTED, reason="Old torchmetrics version"
-)
 
 
 def _render(**kwargs: object) -> str:
@@ -157,7 +151,7 @@ class TestTrainObjectDetectionTemplate:
         compile(result, "<template>", "exec")
 
 
-@skip_if_old_torchmetrics
+@pytest.mark.requires(f"torchmetrics>={TORCHMETRICS_MIN_VERSION}")
 def test_rendered_template_runs_training_with_defaults(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
@@ -232,7 +226,7 @@ def test_rendered_template_runs_training_with_defaults(
     )
 
 
-@skip_if_old_torchmetrics
+@pytest.mark.requires(f"torchmetrics>={TORCHMETRICS_MIN_VERSION}")
 def test_rendered_template_runs_training_with_all_params(
     tmp_path: Path, mocker: MockerFixture
 ) -> None:
