@@ -10,15 +10,10 @@ from __future__ import annotations
 from typing import Callable
 
 import pytest
+import timm
 import torch
 from torch import Tensor, testing
 from torch.nn import Module
-
-try:
-    import timm
-except ImportError:
-    # We do not use pytest.importorskip on module level because it makes mypy unhappy.
-    pytest.skip("timm is not installed", allow_module_level=True)
 
 from lightly_train._models.timm import timm as timm_feature_extractor
 from lightly_train._models.timm.timm import TIMMModelWrapper

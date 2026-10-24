@@ -5,17 +5,12 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
 
 import pytest
 import torch
+from rfdetr.detr import RFDETRBase
 
 from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
-
-if importlib_util.find_spec("rfdetr") is None:
-    pytest.skip("rfdetr is not installed", allow_module_level=True)
-
-from rfdetr.detr import RFDETRBase
 
 
 class TestRFDETRModelWrapper:

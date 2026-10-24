@@ -8,13 +8,8 @@
 from pathlib import Path
 
 import pytest
+import timm
 import torch
-
-try:
-    import timm
-except ImportError:
-    # We do not use pytest.importorskip on module level because it makes mypy unhappy.
-    pytest.skip("timm is not installed", allow_module_level=True)
 
 from lightly_train._models.timm.timm_package import TIMMPackage
 

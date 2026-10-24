@@ -9,13 +9,6 @@
 from __future__ import annotations
 
 import pytest
-from lightning_utilities.core.imports import RequirementCache
-
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-
 
 from lightly_train._metrics.classification.task_metric import (
     MultilabelClassificationTaskMetricArgs,
@@ -24,6 +17,8 @@ from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
 from lightly_train._metrics.task_metric import get_watch_metric_mode
+
+pytestmark = pytest.mark.requires("torchmetrics>=1.5")
 
 
 class TestGetWatchMetricMode:

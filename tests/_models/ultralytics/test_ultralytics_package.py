@@ -5,22 +5,17 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
 from pathlib import Path
 
 import pytest
 import torch
 from lightning_utilities.core.imports import RequirementCache
+from ultralytics import YOLO  # type: ignore[attr-defined]
 
 from lightly_train._models.ultralytics.ultralytics import (
     UltralyticsModelWrapper,
 )
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
-
-if importlib_util.find_spec("ultralytics") is None:
-    pytest.skip("ultralytics is not installed", allow_module_level=True)
-
-from ultralytics import YOLO  # type: ignore[attr-defined]
 
 YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
 

@@ -5,22 +5,17 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
 from pathlib import Path
 
 import pytest
 import torch
+from rfdetr.detr import RFDETR, RFDETRBase
+from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
 
 from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 from lightly_train._models.rfdetr.rfdetr_package import RFDETRPackage
 
 from ...helpers import DummyCustomModel
-
-if importlib_util.find_spec("rfdetr") is None:
-    pytest.skip("rfdetr is not installed", allow_module_level=True)
-
-from rfdetr.detr import RFDETR, RFDETRBase
-from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
 
 
 class TestRFDETRPackage:

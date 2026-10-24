@@ -7,14 +7,31 @@
 #
 from __future__ import annotations
 
+import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
-from lightning_utilities.core.imports import RequirementCache
+import torch
+import yaml
 from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
+import lightly_train
+from lightly_train._commands import train_task
+from lightly_train._commands.train_task import (
+    ImageClassificationMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMultilabelTrainTaskConfig,
+    ImageClassificationMultilabelTrainTaskConfig,
+    InstanceSegmentationTrainTaskConfig,
+    ObjectDetectionTrainTaskConfig,
+    PanopticSegmentationTrainTaskConfig,
+    SemanticSegmentationMultiheadTrainTaskConfig,
+    SemanticSegmentationTrainTaskConfig,
+)
+from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -35,40 +52,13 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
-
-if RequirementCache("albumentations<1.4.0"):
-    # Skip test if albumentations version is too old. This can happen on Python 3.8.
-    pytest.skip("Old albumentations version", allow_module_level=True)
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-if not RequirementCache("transformers"):
-    pytest.skip("Transformers not installed", allow_module_level=True)
-
-import logging
-import sys
-
-import torch
-import yaml
-
-import lightly_train
-from lightly_train._commands import train_task
-from lightly_train._commands.train_task import (
-    ImageClassificationMulticlassTrainTaskConfig,
-    ImageClassificationMultiheadMulticlassTrainTaskConfig,
-    ImageClassificationMultiheadMultilabelTrainTaskConfig,
-    ImageClassificationMultilabelTrainTaskConfig,
-    InstanceSegmentationTrainTaskConfig,
-    ObjectDetectionTrainTaskConfig,
-    PanopticSegmentationTrainTaskConfig,
-    SemanticSegmentationMultiheadTrainTaskConfig,
-    SemanticSegmentationTrainTaskConfig,
-)
-from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train.errors import LightlyTrainError
 
 from .. import helpers
+
+pytestmark = pytest.mark.requires(
+    "albumentations>=1.4.0", "torchmetrics>=1.5", "transformers"
+)
 
 try:
     import pydicom

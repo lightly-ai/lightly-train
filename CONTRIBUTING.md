@@ -81,6 +81,8 @@ fail collection (`--strict-markers`).
   `xfail(sys.platform.startswith("win"), reason=..., strict=True)`.
 - Every marker is consumed by CI or `tests/conftest.py`. No descriptive-only markers.
 - Import optional packages inside the test, not at module level.
+- Test directories for an optional package that import it at module level: add them to
+  `_OPTIONAL_PACKAGE_TEST_DIRS` in `tests/conftest.py`.
 - Skips that depend on a parameter: `pytest.param(..., marks=...)`.
 - Module-wide markers: `pytestmark = ...` at the top of the module.
 

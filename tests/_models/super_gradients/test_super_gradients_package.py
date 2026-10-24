@@ -7,13 +7,7 @@
 #
 
 import pytest
-
-try:
-    from super_gradients.training import models
-except ImportError:
-    # We do not use pytest.importorskip on module level because it makes mypy unhappy.
-    pytest.skip("super_gradients is not installed", allow_module_level=True)
-
+from super_gradients.training import models
 from super_gradients.training.models import (
     PPLiteSegT,
     YoloNAS_S,

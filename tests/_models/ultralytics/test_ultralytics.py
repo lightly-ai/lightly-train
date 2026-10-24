@@ -5,23 +5,18 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
 
 import pytest
 import torch
 from torch.nn import Identity
+from ultralytics import YOLO  # type: ignore[attr-defined]
+from ultralytics.nn.modules.block import SPPF, C2f
 
 from lightly_train._models.ultralytics import ultralytics
 from lightly_train._models.ultralytics.ultralytics import (
     YOLOV12_ORIGINAL_AVAILABLE,
     UltralyticsModelWrapper,
 )
-
-if importlib_util.find_spec("ultralytics") is None:
-    pytest.skip("ultralytics is not installed", allow_module_level=True)
-
-from ultralytics import YOLO  # type: ignore[attr-defined]
-from ultralytics.nn.modules.block import SPPF, C2f
 
 
 class TestUltralyticsModelWrapper:

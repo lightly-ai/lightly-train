@@ -10,29 +10,24 @@ from __future__ import annotations
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
-
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-
-
-from torchmetrics import MetricCollection as TorchmetricsMetricCollection
-from torchmetrics.classification import (  # type: ignore[attr-defined]
-    MulticlassAccuracy as TorchmetricsMulticlassAccuracy,
-)
-from torchmetrics.classification import (  # type: ignore[attr-defined]
-    MulticlassPrecision as TorchmetricsMulticlassPrecision,
-)
 
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
 
+pytestmark = pytest.mark.requires("torchmetrics>=1.5")
+
 
 class TestClasswiseMetricCollection:
     def test_classwise_metric_collection(self) -> None:
+        from torchmetrics import MetricCollection as TorchmetricsMetricCollection
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassAccuracy as TorchmetricsMulticlassAccuracy,
+        )
+        from torchmetrics.classification import (  # type: ignore[attr-defined]
+            MulticlassPrecision as TorchmetricsMulticlassPrecision,
+        )
+
         metrics = TorchmetricsMetricCollection(
             {
                 "accuracy": TorchmetricsMulticlassAccuracy(
