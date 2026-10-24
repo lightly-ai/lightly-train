@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -16,8 +15,6 @@ import pytest
 import lightly_train
 
 from .. import helpers
-
-is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
 
 
 def create_dinov2_vittest14_eomt_test_checkpoint(
