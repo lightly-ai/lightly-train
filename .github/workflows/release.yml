@@ -2,7 +2,7 @@ name: Release
 
 # Runs on every push to main. A regular merge only updates the release pull request that
 # release-please keeps open. Merging the release pull request creates the vX.Y.Z tag and
-# the GitHub release, and starts the release workflow in lightly-train-private: unit
+# the GitHub release, and starts the release workflow in lightly-train-private: wheel
 # tests, PyPI, documentation and DockerHub. See RELEASING.md.
 
 on:

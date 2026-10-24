@@ -14,7 +14,7 @@ flowchart TD
     freeze --> polish["Polish the release pull request<br/>CHANGELOG.md and description"]
     polish --> release["Merge the release pull request"]
     release --> tag["Tag vX.Y.Z and GitHub release"]
-    tag --> private["Release workflow in lightly-train-private<br/>unit tests, PyPI, docs, DockerHub, Discord"]
+    tag --> private["Release workflow in lightly-train-private<br/>wheel tests, PyPI, docs, DockerHub, Discord"]
 ```
 
 ## 1. Release Pull Request
@@ -74,10 +74,14 @@ Merging creates the `vX.Y.Z` tag and the GitHub release, and starts the
 workflow in `lightly-train-private`:
 
 1. Validates that the tag is a published `vX.Y.Z` release.
-1. Runs the full unit tests on the tag.
-1. Publishes to PyPI. Skipped if the version is already on PyPI.
+1. Builds the wheel, runs the quick unit tests on it with the pinned dependencies and
+   publishes exactly that wheel to PyPI. Skipped if the version is already on PyPI.
 1. Publishes the documentation and the DockerHub image in parallel.
+1. Runs the quick unit tests against the package on PyPI with the latest dependencies.
 1. Posts to Discord and to the `#releases` Slack channel.
+
+The full unit tests on GPU are not part of the release. They run nightly in
+`lightly-train-private`.
 
 ## 4. After the Release
 
@@ -109,11 +113,14 @@ opens and which version it proposes. The largest bump wins.
 
 ## Failures
 
-The tag and the GitHub release exist before the unit tests run. A failed release leaves
+The tag and the GitHub release exist before the wheel tests run. A failed release leaves
 them in place. Announce failures in `#dev-train-discuss`. Never publish code to PyPI or
 DockerHub that differs from a GitHub release.
 
-- **Unit tests fail:** nothing is published. Fix forward on `main` and release the next
+- **Wheel tests fail:** nothing is published. Fix forward on `main` and release the next
+  version.
+- **Tests against PyPI fail:** the release is already public. Usually a new upstream
+  release broke LightlyTrain. Cap the dependency or fix the code and release the next
   version.
 - **Infrastructure failure:** rerun
   [Release](https://github.com/lightly-ai/lightly-train-private/actions/workflows/release.yml)
