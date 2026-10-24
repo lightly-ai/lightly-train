@@ -44,6 +44,11 @@ runs inside this container. To run just that test:
 uv run --frozen pytest "tests/_task_models/ltdetr_object_detection/test_task_model.py::test_export_migraphx" -v
 ```
 
+### Code Style
+
+Public classes and functions come first in a module, private helpers (`_name`) go at the
+bottom.
+
 ### Running Checks and Tests
 
 Before committing code, make sure all tests and checks pass:

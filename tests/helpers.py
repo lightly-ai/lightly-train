@@ -1150,6 +1150,104 @@ def normalized_keypoints_for_testing(
     return keypoints, visibility
 
 
+def create_normalized_yolo_keypoint_detection_labels(
+    labels_dir: Path,
+    image_paths: list[Path],
+    num_keypoints: int = 3,
+    num_dims: int = 3,
+    missing_label_indices: list[int] | None = None,
+    empty_label_indices: list[int] | None = None,
+) -> None:
+    """Create YOLO pose label files.
+
+    One line per instance: class_id x_center y_center width height followed by
+    num_keypoints keypoints of num_dims values each.
+    """
+    if missing_label_indices is None:
+        missing_label_indices = []
+    if empty_label_indices is None:
+        empty_label_indices = []
+
+    keypoints, visibility = normalized_keypoints_for_testing(
+        num_keypoints=num_keypoints, num_dims=num_dims
+    )
+    values: list[float] = [0, 0.375, 0.5, 0.25, 0.5]
+    for point, vis in zip(keypoints, visibility):
+        values.extend(point)
+        if num_dims == 3:
+            values.append(vis)
+    line = " ".join(f"{value:g}" for value in values)
+
+    for idx, image_path in enumerate(image_paths):
+        # Skip creating label file for missing label indices.
+        if idx in missing_label_indices:
+            continue
+
+        label_path = labels_dir / f"{image_path.stem}.txt"
+        with open(label_path, "w") as f:
+            # Write empty file for empty label indices.
+            if idx not in empty_label_indices:
+                f.write(f"{line}\n")
+
+
+def create_yolo_keypoint_detection_dataset(
+    tmp_path: Path,
+    split_first: bool,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    num_keypoints: int = 3,
+    num_dims: int = 3,
+    missing_label_indices: list[int] | None = None,
+    empty_label_indices: list[int] | None = None,
+) -> None:
+    """Create a minimal YOLO keypoint detection dataset.
+
+    Args:
+        split_first: If set to True, the dataset will have the "train" and "val"
+            directories at the top level, and the "images" and "labels" directories
+            will be nested within them. If set to False, "images" and "labels" will be
+            at the top.
+        missing_label_indices: List of indices of images that should not have a
+            corresponding label file.
+        empty_label_indices: List of indices of images that should have an empty
+            label file.
+    """
+    # Define directories.
+    if split_first:
+        train_images = tmp_path / "train" / "images"
+        val_images = tmp_path / "val" / "images"
+        train_labels = tmp_path / "train" / "labels"
+        val_labels = tmp_path / "val" / "labels"
+    else:
+        train_images = tmp_path / "images" / "train"
+        val_images = tmp_path / "images" / "val"
+        train_labels = tmp_path / "labels" / "train"
+        val_labels = tmp_path / "labels" / "val"
+
+    # Create directories.
+    for dir in [train_images, val_images, train_labels, val_labels]:
+        dir.mkdir(parents=True, exist_ok=True)
+
+    # Create images.
+    create_images(image_dir=train_images, files=num_files, height=height, width=width)
+    create_images(image_dir=val_images, files=num_files, height=height, width=width)
+
+    # Create labels.
+    for labels_dir, images_dir in [
+        (train_labels, train_images),
+        (val_labels, val_images),
+    ]:
+        create_normalized_yolo_keypoint_detection_labels(
+            labels_dir=labels_dir,
+            image_paths=sorted(images_dir.glob("*.png")),
+            num_keypoints=num_keypoints,
+            num_dims=num_dims,
+            missing_label_indices=missing_label_indices,
+            empty_label_indices=empty_label_indices,
+        )
+
+
 def create_coco_keypoint_detection_dataset(
     tmp_path: Path,
     num_files: int = 2,

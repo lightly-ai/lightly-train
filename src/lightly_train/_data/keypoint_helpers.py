@@ -7,8 +7,37 @@
 #
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
+from enum import IntEnum
 from typing import Any
+
+
+class Visibility(IntEnum):
+    """Keypoint visibility flag, shared by COCO and YOLO pose."""
+
+    UNLABELED = 0
+    OCCLUDED = 1
+    VISIBLE = 2
+
+
+def parse_visibility(visibility: Any) -> Visibility | None:
+    """Returns the visibility flag, or None if the value is not a valid flag.
+
+    Exporters commonly write the flag as a float, e.g. ``2.000000``. A fractional
+    value such as ``1.9`` is not a flag and must not be truncated to one.
+    """
+    if isinstance(visibility, bool) or not isinstance(visibility, (int, float)):
+        return None
+    if not math.isfinite(visibility):
+        return None
+    flag = int(visibility)
+    if flag != visibility:
+        return None
+    try:
+        return Visibility(flag)
+    except ValueError:
+        return None
 
 
 def validate_kpt_shape(kpt_shape: tuple[int, int]) -> tuple[int, int]:
@@ -98,3 +127,30 @@ def get_coco_num_keypoints(
             "No included category in the annotations declares a 'keypoints' field."
         )
     return len(next(iter(distinct)))
+
+
+def bbox_from_keypoints(
+    keypoints_xy: list[list[float]], visibility: list[int]
+) -> list[float] | None:
+    """Returns the tight bounding box around labeled keypoints."""
+    labeled = [
+        point
+        for point, vis in zip(keypoints_xy, visibility)
+        if vis != Visibility.UNLABELED
+    ]
+    if not labeled:
+        return None
+    xs = [point[0] for point in labeled]
+    ys = [point[1] for point in labeled]
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    width = x_max - x_min
+    height = y_max - y_min
+    if width <= 0 or height <= 0:
+        return None
+    return [
+        (x_min + x_max) / 2.0,
+        (y_min + y_max) / 2.0,
+        width,
+        height,
+    ]
