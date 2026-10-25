@@ -34,6 +34,13 @@ visualize your annotations and predictions.
 
 ## News
 
+- \[[0.18.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-18-0)\] -
+  2026-10-24: 🚀 **Deploy LT-DETR anywhere:** New
+  [C++ inference recipes](https://github.com/lightly-ai/lightly-train/tree/main/examples/cpp)
+  for ONNX Runtime and TensorRT with zero-copy GPU I/O, and MIGraphX export for AMD
+  GPUs. Also new: multi-scale features for torchvision and ECViT backbones, gradient
+  accumulation, activation checkpointing, and ~5x faster mAP validation with
+  `faster-coco-eval`.
 - \[[0.17.0](https://docs.lightly.ai/train/stable/changelog.html#changelog-0-17-0)\] -
   2026-07-28: **LTDETRv2 for instance segmentation:** Train state-of-the-art
   [LTDETRv2 instance segmentation](https://docs.lightly.ai/train/stable/instance_segmentation/ltdetrv2.html)

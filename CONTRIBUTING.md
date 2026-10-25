@@ -65,6 +65,21 @@ To run a specific test file, use:
 uv run --frozen pytest path/to/test_file.py
 ```
 
+### Test Markers
+
+Markers are registered in [tests/conftest.py](./tests/conftest.py). Unregistered markers
+fail collection (`--strict-markers`).
+
+| Marker                  | Use for                                       |
+| ----------------------- | --------------------------------------------- |
+| `skip_windows(reason=)` | Behavior that differs on Windows by design.   |
+| `long_running_test`     | Tests excluded from PR CI, run in nightly CI. |
+
+- Windows runs the full test suite. Don't skip tests on Windows because they are slow.
+- Tests that fail on Windows because of a bug:
+  `xfail(sys.platform.startswith("win"), reason=..., strict=True)`.
+- Every marker is consumed by CI or `tests/conftest.py`. No descriptive-only markers.
+
 ### Pull Requests
 
 Pull request titles must follow the
@@ -105,13 +120,15 @@ docs(settings): document nancapture debug utility
 
 Mark breaking changes with a `!` before the colon, for example `feat(train)!: ...`.
 
-The type determines how the version is bumped: `feat` bumps the minor version (0.18.0 →
-0.19.0), `fix` and `perf` bump the patch version, and the remaining types don't trigger
-a release on their own. While the version is below 1.0.0, breaking changes bump the
-minor version instead of the major version.
+The type determines the version bump. While the version is below 1.0.0, `feat`, `fix`,
+`perf` and `revert` bump the patch version (0.18.0 → 0.18.1), breaking changes bump the
+minor version (0.18.0 → 0.19.0), and the remaining types don't trigger a release on
+their own.
 
-Entries in [CHANGELOG.md](./CHANGELOG.md) are still written by hand. See
-[RELEASING.md](./RELEASING.md) for the full release process.
+[CHANGELOG.md](./CHANGELOG.md) is generated from the pull request titles. Write titles
+for users: `feat`, `fix`, `perf` and `revert` pull requests appear in the changelog.
+Don't edit CHANGELOG.md by hand. See [RELEASING.md](./RELEASING.md) for the release
+process and version bumps.
 
 ### Documentation
 
