@@ -34,11 +34,6 @@ if __name__ == "__main__":
 See [Distillation method](#methods-distillation) for more details on pretraining and its
 configuration options.
 
-```{note}
-EdgeCrafter ECViT backbones currently support RGB images only. Multi-channel input is
-not supported.
-```
-
 ## Supported Models
 
 The following ECViT backbone models are supported:

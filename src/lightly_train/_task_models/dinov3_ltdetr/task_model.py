@@ -641,14 +641,19 @@ class _DINOv3LTDETRBase(TaskModel):
 
         self.image_normalize = image_normalize
 
-        # Resolve the backbone's expected input channel count. For the DINOv3
-        # package we follow the same precedence as DINOV3_PACKAGE.get_model:
-        # backbone_args["in_chans"] overrides image_normalize, which overrides
-        # the DINOv3 default of 3. The EdgeCrafter (ECViT) package does not
-        # support multi-channel input, so we always force 3 there.
+        # Resolve the backbone's expected input channel count. We follow the same
+        # precedence as DINOV3_PACKAGE.get_model: backbone_args["in_chans"]
+        # overrides image_normalize, which overrides the default of 3.
         package_name = parsed_name["package_name"]
+        self._expected_input_channels: int
+        if backbone_args is not None and "in_chans" in backbone_args:
+            self._expected_input_channels = backbone_args["in_chans"]
+        elif self.image_normalize is not None:
+            self._expected_input_channels = len(self.image_normalize["mean"])
+        else:
+            self._expected_input_channels = 3
+
         if package_name == EDGE_CRAFTER_PACKAGE.name:
-            self._expected_input_channels: int = 3
             # ECViT only supports patch_size=16 (the ECViT-NN uses a
             # ConvPyramidPatchEmbed that raises NotImplementedError otherwise).
             # We hard-code it here so the decoder's `config.resolve_auto`
@@ -666,12 +671,6 @@ class _DINOv3LTDETRBase(TaskModel):
                     "(or set it to 16) to use this model."
                 )
             patch_size = 16
-        elif backbone_args is not None and "in_chans" in backbone_args:
-            self._expected_input_channels = backbone_args["in_chans"]
-        elif self.image_normalize is not None:
-            self._expected_input_channels = len(self.image_normalize["mean"])
-        else:
-            self._expected_input_channels = 3
 
         # NOTE(Guarin, 08/25): We don't set drop_path_rate=0 here because it is already
         # set by DINOv3.
@@ -696,6 +695,7 @@ class _DINOv3LTDETRBase(TaskModel):
                     model_name=parsed_name["backbone_name"],
                     model_args=None,
                     load_weights=load_weights,
+                    **get_model_kwargs,
                 )
             )
         else:

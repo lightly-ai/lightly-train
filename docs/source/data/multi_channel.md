@@ -40,12 +40,8 @@ The following models support multi-channel image input:
 | ------------ | ---------------- | ------------------ |
 | LightlyTrain | DINOv3           |                    |
 | LightlyTrain | DINOv2           |                    |
+| LightlyTrain | EdgeCrafter      |                    |
 | TIMM         | All models       | [🔗](#models-timm) |
-
-```{note}
-EdgeCrafter ECViT models currently support RGB images only and do not support
-multi-channel input.
-```
 
 ## Transforms
 
