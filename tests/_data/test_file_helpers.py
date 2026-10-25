@@ -540,3 +540,207 @@ def test__open_image_numpy__with_pydicom(
     assert isinstance(result, np.ndarray)
     assert result.shape == expected_shape
     assert result.dtype == expected_dtype
+
+
+@pytest.mark.parametrize("data_format", ["ct", "mr", "overlay"])
+def test__open_image_numpy__with_pydicom__value_range(data_format: str) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    image_path: Path = pydicom_examples.get_path(data_format)
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    assert result.dtype == np.float32
+    assert result.min() >= 0.0
+    assert result.max() <= 1.0
+    # The image must keep its contrast instead of collapsing to a narrow band.
+    assert result.std() > 0.05
+
+
+DX_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.1.1"
+
+
+@pytest.mark.parametrize("with_window", [False, True])
+def test__open_image_numpy__with_pydicom__ct_hounsfield_units(
+    tmp_path: Path, with_window: bool
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    ds = pydicom.dcmread(pydicom_examples.get_path("ct"))
+    if with_window:
+        # The file window of a CT image is ignored.
+        ds.WindowCenter = 40
+        ds.WindowWidth = 400
+    image_path = tmp_path / "ct.dcm"
+    ds.save_as(image_path)
+    hu = ds.pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    expected = np.clip((hu + 1024.0) / 4095.0, 0.0, 1.0)
+    np.testing.assert_allclose(result, expected, atol=1e-6)
+
+
+@pytest.mark.parametrize("case", ["no_rescale", "rescale_type_not_hu"])
+def test__open_image_numpy__with_pydicom__ct_without_hounsfield_units(
+    tmp_path: Path,
+    case: str,
+    caplog: LogCaptureFixture,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    monkeypatch.setattr(file_helpers, "_LOGGED_DICOM_FALLBACKS", set())
+    ds = pydicom.dcmread(pydicom_examples.get_path("ct"))
+    if case == "no_rescale":
+        del ds.RescaleSlope
+        del ds.RescaleIntercept
+        values = ds.pixel_array.astype(np.float64)
+    else:
+        ds.RescaleType = "US"
+        values = ds.pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
+    image_path = tmp_path / "ct.dcm"
+    ds.save_as(image_path)
+
+    with caplog.at_level("WARNING"):
+        result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    # Values that are not Hounsfield units fall back to per-image percentiles.
+    low, high = np.percentile(values, [0.5, 99.5])
+    expected = np.clip((values - low) / (high - low), 0.0, 1.0)
+    np.testing.assert_allclose(result, expected, atol=1e-6)
+    assert "CT images without Hounsfield units" in caplog.text
+
+
+@pytest.mark.parametrize("function", ["LINEAR", "LINEAR_EXACT", "SIGMOID"])
+def test__open_image_numpy__with_pydicom__xray_window(
+    tmp_path: Path, function: str
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
+    ds.file_meta.MediaStorageSOPClassUID = pydicom.uid.UID(DX_SOP_CLASS_UID)
+    ds.VOILUTFunction = function
+    image_path = tmp_path / "dx.dcm"
+    ds.save_as(image_path)
+    values = ds.pixel_array.astype(np.float64)
+    center, width = float(ds.WindowCenter), float(ds.WindowWidth)
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    # Expected values from DICOM PS3.3 C.11.2.1.2.
+    if function == "LINEAR":
+        expected = np.clip((values - (center - 0.5)) / (width - 1) + 0.5, 0.0, 1.0)
+    elif function == "LINEAR_EXACT":
+        expected = np.clip((values - center) / width + 0.5, 0.0, 1.0)
+    else:
+        expected = 1.0 / (1.0 + np.exp(-4.0 * (values - center) / width))
+    np.testing.assert_allclose(result, expected, atol=1e-6)
+
+
+def test__open_image_numpy__with_pydicom__xray_voi_lut_sequence(
+    tmp_path: Path,
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
+    ds.file_meta.MediaStorageSOPClassUID = pydicom.uid.UID(DX_SOP_CLASS_UID)
+    del ds.WindowCenter
+    del ds.WindowWidth
+    values = ds.pixel_array.astype(np.int64)
+    first, size = int(values.min()), int(values.max() - values.min() + 1)
+    # A 12-bit LUT that maps the stored values linearly to [0, 4095].
+    lut = np.round(np.linspace(0, 4095, size)).astype(np.uint16)
+    item = pydicom.Dataset()
+    item.LUTDescriptor = [size, first, 12]
+    item.LUTData = lut.tobytes()
+    ds.VOILUTSequence = pydicom.Sequence([item])
+    image_path = tmp_path / "dx.dcm"
+    ds.save_as(image_path)
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    expected = lut[values - first] / 4095.0
+    np.testing.assert_allclose(result, expected, atol=1e-6)
+
+
+@pytest.mark.parametrize("sop_class_uid", [None, DX_SOP_CLASS_UID])
+def test__open_image_numpy__with_pydicom__percentiles(
+    tmp_path: Path, sop_class_uid: str | None
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
+    if sop_class_uid is None:
+        # An MR image uses percentiles, also when it has a window.
+        assert "WindowCenter" in ds
+    else:
+        # An X-ray image without a window or VOI LUT uses percentiles.
+        ds.file_meta.MediaStorageSOPClassUID = pydicom.uid.UID(sop_class_uid)
+        del ds.WindowCenter
+        del ds.WindowWidth
+    image_path = tmp_path / "image.dcm"
+    ds.save_as(image_path)
+    values = ds.pixel_array.astype(np.float64)
+    low, high = np.percentile(values, (0.5, 99.5))
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    expected = np.clip((values - low) / (high - low), 0.0, 1.0)
+    np.testing.assert_allclose(result, expected, atol=1e-6)
+
+
+def test__open_image_numpy__with_pydicom__percentiles_without_padding(
+    tmp_path: Path,
+) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
+    pixels = ds.pixel_array.copy()
+    pixels[:, :16] = -2000
+    ds.PixelData = pixels.tobytes()
+    ds.add_new(0x00280120, "SS", -2000)  # Pixel Padding Value
+    image_path = tmp_path / "mr.dcm"
+    ds.save_as(image_path)
+    values = pixels.astype(np.float64)
+    low, high = np.percentile(values[:, 16:], (0.5, 99.5))
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    expected = np.clip((values - low) / (high - low), 0.0, 1.0)
+    np.testing.assert_allclose(result, expected, atol=1e-6)
+
+
+def test__open_image_numpy__with_pydicom__monochrome1(tmp_path: Path) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    monochrome2_path = pydicom_examples.get_path("mr")
+    ds = pydicom.dcmread(monochrome2_path)
+    ds.PhotometricInterpretation = "MONOCHROME1"
+    monochrome1_path = tmp_path / "mr.dcm"
+    ds.save_as(monochrome1_path)
+
+    monochrome1 = file_helpers._open_image_numpy__with_pydicom(
+        image_src=monochrome1_path
+    )
+    monochrome2 = file_helpers._open_image_numpy__with_pydicom(
+        image_src=monochrome2_path
+    )
+
+    np.testing.assert_allclose(monochrome1, 1.0 - monochrome2, atol=1e-6)

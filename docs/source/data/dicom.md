@@ -30,6 +30,14 @@ applies the following using `pydicom` functions:
   [`apply_color_lut`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.apply_color_lut.html)
 - rescaling images to HU values via
   [`apply_modality_lut`](https://pydicom.github.io/pydicom/stable/reference/generated/pydicom.pixels.apply_modality_lut.html)
+- scaling grayscale images to `[0, 1]`:
+  - CT images in HU use the fixed HU range `[-1024, 3071]`, also when the file has a
+    window.
+  - X-ray and mammography images use the VOI LUT or the window (`WindowCenter` and
+    `WindowWidth`) of the file.
+  - All other images, and the images above without the needed tags, use their 0.5 and
+    99.5 percentiles. Padding pixels (`PixelPaddingValue`) are not counted.
+  - `MONOCHROME1` images are inverted so that low values are dark.
 
 Please refer to the respective `pydicom` documentation for more details on these
 functions.
