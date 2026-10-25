@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -587,16 +588,12 @@ def test__open_image_numpy__with_pydicom__ct_hounsfield_units(
 
 @pytest.mark.parametrize("case", ["no_rescale", "rescale_type_not_hu"])
 def test__open_image_numpy__with_pydicom__ct_without_hounsfield_units(
-    tmp_path: Path,
-    case: str,
-    caplog: LogCaptureFixture,
-    monkeypatch: MonkeyPatch,
+    tmp_path: Path, case: str
 ) -> None:
     pydicom_examples = pytest.importorskip(
         "pydicom.examples",
         reason="pydicom examples not supported",
     )
-    monkeypatch.setattr(file_helpers, "_LOGGED_DICOM_FALLBACKS", set())
     ds = pydicom.dcmread(pydicom_examples.get_path("ct"))
     if case == "no_rescale":
         del ds.RescaleSlope
@@ -608,27 +605,22 @@ def test__open_image_numpy__with_pydicom__ct_without_hounsfield_units(
     image_path = tmp_path / "ct.dcm"
     ds.save_as(image_path)
 
-    with caplog.at_level("WARNING"):
+    with pytest.warns(UserWarning, match="CT images without Hounsfield units"):
         result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
 
     # Values that are not Hounsfield units fall back to per-image percentiles.
     low, high = np.percentile(values, [0.5, 99.5])
     expected = np.clip((values - low) / (high - low), 0.0, 1.0)
     np.testing.assert_allclose(result, expected, atol=1e-6)
-    assert "CT images without Hounsfield units" in caplog.text
 
 
-@pytest.mark.parametrize("function", ["LINEAR", "LINEAR_EXACT", "SIGMOID"])
-def test__open_image_numpy__with_pydicom__xray_window(
-    tmp_path: Path, function: str
-) -> None:
+def test__open_image_numpy__with_pydicom__xray_window(tmp_path: Path) -> None:
     pydicom_examples = pytest.importorskip(
         "pydicom.examples",
         reason="pydicom examples not supported",
     )
     ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
     ds.file_meta.MediaStorageSOPClassUID = pydicom.uid.UID(DX_SOP_CLASS_UID)
-    ds.VOILUTFunction = function
     image_path = tmp_path / "dx.dcm"
     ds.save_as(image_path)
     values = ds.pixel_array.astype(np.float64)
@@ -636,41 +628,8 @@ def test__open_image_numpy__with_pydicom__xray_window(
 
     result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
 
-    # Expected values from DICOM PS3.3 C.11.2.1.2.
-    if function == "LINEAR":
-        expected = np.clip((values - (center - 0.5)) / (width - 1) + 0.5, 0.0, 1.0)
-    elif function == "LINEAR_EXACT":
-        expected = np.clip((values - center) / width + 0.5, 0.0, 1.0)
-    else:
-        expected = 1.0 / (1.0 + np.exp(-4.0 * (values - center) / width))
-    np.testing.assert_allclose(result, expected, atol=1e-6)
-
-
-def test__open_image_numpy__with_pydicom__xray_voi_lut_sequence(
-    tmp_path: Path,
-) -> None:
-    pydicom_examples = pytest.importorskip(
-        "pydicom.examples",
-        reason="pydicom examples not supported",
-    )
-    ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
-    ds.file_meta.MediaStorageSOPClassUID = pydicom.uid.UID(DX_SOP_CLASS_UID)
-    del ds.WindowCenter
-    del ds.WindowWidth
-    values = ds.pixel_array.astype(np.int64)
-    first, size = int(values.min()), int(values.max() - values.min() + 1)
-    # A 12-bit LUT that maps the stored values linearly to [0, 4095].
-    lut = np.round(np.linspace(0, 4095, size)).astype(np.uint16)
-    item = pydicom.Dataset()
-    item.LUTDescriptor = [size, first, 12]
-    item.LUTData = lut.tobytes()
-    ds.VOILUTSequence = pydicom.Sequence([item])
-    image_path = tmp_path / "dx.dcm"
-    ds.save_as(image_path)
-
-    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
-
-    expected = lut[values - first] / 4095.0
+    # LINEAR window function of DICOM PS3.3 C.11.2.1.2.1.
+    expected = np.clip((values - (center - 0.5)) / (width - 1) + 0.5, 0.0, 1.0)
     np.testing.assert_allclose(result, expected, atol=1e-6)
 
 
@@ -702,25 +661,52 @@ def test__open_image_numpy__with_pydicom__percentiles(
     np.testing.assert_allclose(result, expected, atol=1e-6)
 
 
-def test__open_image_numpy__with_pydicom__percentiles_without_padding(
-    tmp_path: Path,
-) -> None:
+def test__open_image_numpy__with_pydicom__percentiles_sparse(tmp_path: Path) -> None:
     pydicom_examples = pytest.importorskip(
         "pydicom.examples",
         reason="pydicom examples not supported",
     )
     ds = pydicom.dcmread(pydicom_examples.get_path("mr"))
-    pixels = ds.pixel_array.copy()
-    pixels[:, :16] = -2000
+    pixels = np.zeros_like(ds.pixel_array)
+    pixels[:2, :10] = 500  # 20 of 4096 pixels, so both percentiles are 0.
     ds.PixelData = pixels.tobytes()
-    ds.add_new(0x00280120, "SS", -2000)  # Pixel Padding Value
     image_path = tmp_path / "mr.dcm"
     ds.save_as(image_path)
-    values = pixels.astype(np.float64)
-    low, high = np.percentile(values[:, 16:], (0.5, 99.5))
 
     result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
 
+    np.testing.assert_allclose(result, pixels / 500.0, atol=1e-6)
+
+
+def test__open_image_numpy__with_pydicom__enhanced_ct(tmp_path: Path) -> None:
+    pydicom_examples = pytest.importorskip(
+        "pydicom.examples",
+        reason="pydicom examples not supported",
+    )
+    ds = pydicom.dcmread(pydicom_examples.get_path("ct"))
+    # A single-frame Enhanced CT with the rescale only in the functional groups.
+    transform = pydicom.Dataset()
+    transform.RescaleSlope = ds.RescaleSlope
+    transform.RescaleIntercept = ds.RescaleIntercept
+    transform.RescaleType = "HU"
+    group = pydicom.Dataset()
+    group.PixelValueTransformationSequence = pydicom.Sequence([transform])
+    ds.SharedFunctionalGroupsSequence = pydicom.Sequence([group])
+    del ds.RescaleSlope
+    del ds.RescaleIntercept
+    ds.file_meta.MediaStorageSOPClassUID = pydicom.uid.UID(
+        "1.2.840.10008.5.1.4.1.1.2.1"
+    )
+    image_path = tmp_path / "enhanced_ct.dcm"
+    ds.save_as(image_path)
+    values = ds.pixel_array.astype(np.float64)
+    low, high = np.percentile(values, (0.5, 99.5))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    # The loader does not read functional groups, so it uses percentiles silently.
     expected = np.clip((values - low) / (high - low), 0.0, 1.0)
     np.testing.assert_allclose(result, expected, atol=1e-6)
 

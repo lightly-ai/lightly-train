@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from collections.abc import Iterable, Set
 from enum import Enum
 from io import BytesIO
@@ -50,14 +51,11 @@ else:
 
 PYDICOM_GEQ_3_0_0 = RequirementCache("pydicom>=3.0.0")
 
-# SOP Class UIDs of CT images (CT, Enhanced CT, and Legacy Converted Enhanced CT).
-_CT_SOP_CLASS_UIDS = {
-    "1.2.840.10008.5.1.4.1.1.2",
-    "1.2.840.10008.5.1.4.1.1.2.1",
-    "1.2.840.10008.5.1.4.1.1.2.2",
-}
+# SOP Class UID of CT images. Enhanced CT stores its rescale in functional groups, which
+# the loader does not read, so it is not in this set.
+_CT_SOP_CLASS_UIDS = {"1.2.840.10008.5.1.4.1.1.2"}
 # SOP Class UIDs of 2D X-ray images (CR, DX, mammography, intra-oral, XA, RF, and breast
-# projection), which use the window or VOI LUT of the file.
+# projection), which use the window of the file.
 _XRAY_SOP_CLASS_UIDS = {
     "1.2.840.10008.5.1.4.1.1.1",
     "1.2.840.10008.5.1.4.1.1.1.1",
@@ -75,8 +73,6 @@ _XRAY_SOP_CLASS_UIDS = {
 _CT_WINDOW_HU = (-1024.0, 3071.0)
 # Percentiles for per-image scaling of all other grayscale images.
 _DEFAULT_PERCENTILES = (0.5, 99.5)
-# Fallback reasons that were already logged, so that each is logged only once.
-_LOGGED_DICOM_FALLBACKS: set[str] = set()
 
 
 class ImageMode(Enum):
@@ -327,9 +323,7 @@ def _open_image_numpy__with_pydicom(
     rescaled_array = apply_modality_lut(pixel_array, dataset)
 
     if pm in ("MONOCHROME1", "MONOCHROME2"):
-        return _scale_monochrome_dicom(
-            image=rescaled_array, stored=pixel_array, dataset=dataset
-        )
+        return _scale_monochrome_dicom(image=rescaled_array, dataset=dataset)
 
     image_np = (
         rescaled_array.astype(np.float32)
@@ -350,109 +344,46 @@ def _open_image_numpy__with_pydicom(
     return image_np
 
 
-def _scale_monochrome_dicom(
-    image: NDArray[Any], stored: NDArray[Any], dataset: Any
-) -> NDArrayImage:
+def _scale_monochrome_dicom(image: NDArray[Any], dataset: Any) -> NDArrayImage:
     """Scale a grayscale DICOM image to float32 in [0, 1].
 
     CT images in Hounsfield units use a fixed Hounsfield unit range, also when the file
-    has a window. X-ray images use the window or VOI LUT of the file. All other images
-    use per-image percentiles without the padding pixels. MONOCHROME1 images are
-    inverted so that low values are dark.
+    has a window. X-ray images use the window of the file. All other images use
+    per-image percentiles. MONOCHROME1 images are inverted so that low values are dark.
     """
     values = image.astype(np.float64)
-    scaled: NDArray[np.float64] | None = None
     sop_class_uid = _sop_class_uid(dataset=dataset)
-    if sop_class_uid in _CT_SOP_CLASS_UIDS:
-        if _has_hounsfield_units(dataset=dataset):
-            low, high = _CT_WINDOW_HU
-            scaled = np.clip((values - low) / (high - low), 0.0, 1.0)
-        else:
-            _log_dicom_fallback(
-                "CT images without Hounsfield units (missing rescale slope or "
-                "intercept, or a Rescale Type other than HU)"
+    window = _get_dicom_window(dataset=dataset)
+    if sop_class_uid in _CT_SOP_CLASS_UIDS and _has_hounsfield_units(dataset=dataset):
+        low, high = _CT_WINDOW_HU
+    elif sop_class_uid in _XRAY_SOP_CLASS_UIDS and window is not None:
+        center, width = window
+        # LINEAR window function of DICOM PS3.3 C.11.2.1.2.1.
+        low, high = center - 0.5 - (width - 1) / 2, center - 0.5 + (width - 1) / 2
+    else:
+        if sop_class_uid in _CT_SOP_CLASS_UIDS:
+            warnings.warn(
+                "Scaling CT images without Hounsfield units (missing rescale slope or "
+                "intercept, or a Rescale Type other than HU) with per-image "
+                "percentiles."
             )
-    elif sop_class_uid in _XRAY_SOP_CLASS_UIDS:
-        scaled = _apply_dicom_voi(image=image, values=values, dataset=dataset)
-    if scaled is None:
-        scaled = _scale_with_percentiles(
-            values=values, padding=_padding_mask(stored=stored, dataset=dataset)
-        )
+        low, high = _percentile_range(values=values)
+    if high > low:
+        scaled = np.clip((values - low) / (high - low), 0.0, 1.0)
+    else:
+        scaled = np.zeros_like(values)
     if dataset.PhotometricInterpretation == "MONOCHROME1":
         scaled = 1.0 - scaled
     return scaled.astype(np.float32)
 
 
-def _apply_dicom_voi(
-    image: NDArray[Any], values: NDArray[np.float64], dataset: Any
-) -> NDArray[np.float64] | None:
-    """Apply the VOI LUT or the first window of the dataset, or return None."""
-    if "VOILUTSequence" in dataset:
-        if PYDICOM_GEQ_3_0_0:
-            from pydicom.pixels.processing import (  # type: ignore[import-not-found]
-                apply_voi_lut,
-            )
-        else:
-            from pydicom.pixel_data_handlers.util import (  # type: ignore[no-redef]
-                apply_voi_lut,
-            )
-        try:
-            bits = int(dataset.VOILUTSequence[0].LUTDescriptor[2])
-            lut_values: NDArray[np.float64] = np.asarray(
-                apply_voi_lut(image, dataset, prefer_lut=True), dtype=np.float64
-            )
-        except (AttributeError, IndexError, TypeError, ValueError):
-            _log_dicom_fallback("X-ray images with an invalid VOI LUT Sequence")
-            return None
-        return np.clip(lut_values / float((1 << bits) - 1), 0.0, 1.0)
-    window = _get_dicom_window(dataset=dataset)
-    if window is None:
-        if "WindowCenter" in dataset or "WindowWidth" in dataset:
-            _log_dicom_fallback("X-ray images with an invalid window")
-        return None
-    center, width = window
-    function = str(dataset.get("VOILUTFunction", "LINEAR")).upper()
-    return _apply_dicom_window(
-        values=values, center=center, width=width, function=function
-    )
-
-
-def _scale_with_percentiles(
-    values: NDArray[np.float64], padding: NDArray[np.bool_]
-) -> NDArray[np.float64]:
-    """Scale the values to [0, 1] with percentiles of the pixels that are not padding."""
-    image_values = values[~padding]
-    if image_values.size == 0:
-        return np.zeros_like(values)
-    low, high = (float(p) for p in np.percentile(image_values, _DEFAULT_PERCENTILES))
+def _percentile_range(values: NDArray[np.float64]) -> tuple[float, float]:
+    """Return the 0.5 and 99.5 percentiles, or the full range if they are equal."""
+    low, high = (float(p) for p in np.percentile(values, _DEFAULT_PERCENTILES))
     if high <= low:
-        return np.zeros_like(values)
-    return np.clip((values - low) / (high - low), 0.0, 1.0)
-
-
-def _padding_mask(stored: NDArray[Any], dataset: Any) -> NDArray[np.bool_]:
-    """Return the pixels that are padding (DICOM PS3.3 C.7.5.1.1.2).
-
-    Pixel Padding Value and Pixel Padding Range Limit are stored pixel values, so the
-    mask is computed before the modality LUT.
-    """
-    padding_value = dataset.get("PixelPaddingValue")
-    if padding_value is None:
-        return np.zeros(stored.shape, dtype=bool)
-    range_limit = dataset.get("PixelPaddingRangeLimit")
-    if range_limit is None:
-        return np.asarray(stored == padding_value)
-    low, high = sorted((int(padding_value), int(range_limit)))
-    return np.asarray((stored >= low) & (stored <= high))
-
-
-def _log_dicom_fallback(reason: str) -> None:
-    if reason in _LOGGED_DICOM_FALLBACKS:
-        return
-    _LOGGED_DICOM_FALLBACKS.add(reason)
-    logger.warning(
-        f"Scaling {reason} with per-image percentiles. This warning is shown once."
-    )
+        # More than 99.5% of the pixels have one value. The full range keeps the rest.
+        low, high = float(values.min()), float(values.max())
+    return low, high
 
 
 def _get_dicom_window(dataset: Any) -> tuple[float, float] | None:
@@ -470,21 +401,6 @@ def _get_dicom_window(dataset: Any) -> tuple[float, float] | None:
     if width_value <= 1:
         return None
     return center_value, width_value
-
-
-def _apply_dicom_window(
-    values: NDArray[np.float64], center: float, width: float, function: str
-) -> NDArray[np.float64]:
-    """Apply a DICOM VOI window and return values in [0, 1].
-
-    Implements the LINEAR, LINEAR_EXACT, and SIGMOID functions of DICOM PS3.3
-    C.11.2.1.2. Other values are treated as LINEAR, the default.
-    """
-    if function == "SIGMOID":
-        return 1.0 / (1.0 + np.exp(-4.0 * (values - center) / width))
-    if function == "LINEAR_EXACT":
-        return np.clip((values - center) / width + 0.5, 0.0, 1.0)
-    return np.clip((values - (center - 0.5)) / (width - 1.0) + 0.5, 0.0, 1.0)
 
 
 def _has_hounsfield_units(dataset: Any) -> bool:
