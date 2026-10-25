@@ -9,16 +9,18 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from collections.abc import Iterable, Set
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, get_args
+from typing import Any, BinaryIO, get_args
 
 import fsspec
 import numpy as np
 import torch
 from lightning_utilities.core.imports import RequirementCache
+from numpy.typing import NDArray
 from PIL import Image, ImageFile
 from PIL.Image import Image as PILImage
 from torch import Tensor
@@ -48,6 +50,29 @@ else:
     from torchvision.io import read_image as load_image  # type: ignore[no-redef]
 
 PYDICOM_GEQ_3_0_0 = RequirementCache("pydicom>=3.0.0")
+
+# SOP Class UID of CT images. Enhanced CT stores its rescale in functional groups, which
+# the loader does not read, so it is not in this set.
+_CT_SOP_CLASS_UIDS = {"1.2.840.10008.5.1.4.1.1.2"}
+# SOP Class UIDs of 2D X-ray images (CR, DX, mammography, intra-oral, XA, RF, and breast
+# projection), which use the window of the file.
+_XRAY_SOP_CLASS_UIDS = {
+    "1.2.840.10008.5.1.4.1.1.1",
+    "1.2.840.10008.5.1.4.1.1.1.1",
+    "1.2.840.10008.5.1.4.1.1.1.1.1",
+    "1.2.840.10008.5.1.4.1.1.1.2",
+    "1.2.840.10008.5.1.4.1.1.1.2.1",
+    "1.2.840.10008.5.1.4.1.1.1.3",
+    "1.2.840.10008.5.1.4.1.1.1.3.1",
+    "1.2.840.10008.5.1.4.1.1.12.1",
+    "1.2.840.10008.5.1.4.1.1.12.2",
+    "1.2.840.10008.5.1.4.1.1.13.1.4",
+    "1.2.840.10008.5.1.4.1.1.13.1.5",
+}
+# Full 12-bit CT range in Hounsfield units, used for all CT images in Hounsfield units.
+_CT_WINDOW_HU = (-1024.0, 3071.0)
+# Percentiles for per-image scaling of all other grayscale images.
+_DEFAULT_PERCENTILES = (0.5, 99.5)
 
 
 class ImageMode(Enum):
@@ -297,6 +322,9 @@ def _open_image_numpy__with_pydicom(
 
     rescaled_array = apply_modality_lut(pixel_array, dataset)
 
+    if pm in ("MONOCHROME1", "MONOCHROME2"):
+        return _scale_monochrome_dicom(image=rescaled_array, dataset=dataset)
+
     image_np = (
         rescaled_array.astype(np.float32)
         if not np.issubdtype(rescaled_array.dtype, np.integer)
@@ -314,6 +342,83 @@ def _open_image_numpy__with_pydicom(
         image_np = (image_np - float(info.min)) / float(info.max - info.min)
 
     return image_np
+
+
+def _scale_monochrome_dicom(image: NDArray[Any], dataset: Any) -> NDArrayImage:
+    """Scale a grayscale DICOM image to float32 in [0, 1].
+
+    CT images in Hounsfield units use a fixed Hounsfield unit range, also when the file
+    has a window. X-ray images use the window of the file. All other images use
+    per-image percentiles. MONOCHROME1 images are inverted so that low values are dark.
+    """
+    values = image.astype(np.float64)
+    sop_class_uid = _sop_class_uid(dataset=dataset)
+    window = _get_dicom_window(dataset=dataset)
+    if sop_class_uid in _CT_SOP_CLASS_UIDS and _has_hounsfield_units(dataset=dataset):
+        low, high = _CT_WINDOW_HU
+    elif sop_class_uid in _XRAY_SOP_CLASS_UIDS and window is not None:
+        center, width = window
+        # LINEAR window function of DICOM PS3.3 C.11.2.1.2.1.
+        low, high = center - 0.5 - (width - 1) / 2, center - 0.5 + (width - 1) / 2
+    else:
+        if sop_class_uid in _CT_SOP_CLASS_UIDS:
+            warnings.warn(
+                "Scaling CT images without Hounsfield units (missing rescale slope or "
+                "intercept, or a Rescale Type other than HU) with per-image "
+                "percentiles."
+            )
+        low, high = _percentile_range(values=values)
+    if high > low:
+        scaled = np.clip((values - low) / (high - low), 0.0, 1.0)
+    else:
+        scaled = np.zeros_like(values)
+    if dataset.PhotometricInterpretation == "MONOCHROME1":
+        scaled = 1.0 - scaled
+    return scaled.astype(np.float32)
+
+
+def _percentile_range(values: NDArray[np.float64]) -> tuple[float, float]:
+    """Return the 0.5 and 99.5 percentiles, or the full range if they are equal."""
+    low, high = (float(p) for p in np.percentile(values, _DEFAULT_PERCENTILES))
+    if high <= low:
+        # More than 99.5% of the pixels have one value. The full range keeps the rest.
+        low, high = float(values.min()), float(values.max())
+    return low, high
+
+
+def _get_dicom_window(dataset: Any) -> tuple[float, float] | None:
+    """Return the first (center, width) window of the dataset or None."""
+    center = dataset.get("WindowCenter")
+    width = dataset.get("WindowWidth")
+    if center is None or width is None:
+        return None
+    try:
+        # A file can store several windows. The first one is the default.
+        center_value = float(np.ravel(center)[0])
+        width_value = float(np.ravel(width)[0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    if width_value <= 1:
+        return None
+    return center_value, width_value
+
+
+def _has_hounsfield_units(dataset: Any) -> bool:
+    """Return True if the rescaled values of a CT dataset are Hounsfield units.
+
+    This is the case with a rescale slope and intercept, unless Rescale Type names
+    other units (DICOM PS3.3 C.8.2.1).
+    """
+    if "RescaleSlope" not in dataset or "RescaleIntercept" not in dataset:
+        return False
+    return str(dataset.get("RescaleType", "HU")).upper() == "HU"
+
+
+def _sop_class_uid(dataset: Any) -> str:
+    # The dataset only holds the image pixel and file meta elements, so the SOP Class
+    # UID comes from the file meta.
+    file_meta = getattr(dataset, "file_meta", None)
+    return str(None if file_meta is None else file_meta.get("MediaStorageSOPClassUID"))
 
 
 def _open_image_numpy__with_pil(
