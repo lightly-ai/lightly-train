@@ -37,12 +37,12 @@ dependencies = [
     "nvidia-ml-py>=12", # For GPU monitoring
     "pytorch_lightning>=2.1",
     "tensorboard>=2.10.0",
-    "torch>=2.1.0",    
+    "torch>=2.4.0",    
     "torchmetrics[detection]>=0.8",    # Torchmetrics is needed for fine-tuning.
                             # 0.8 is required by SuperGradients
                             # 1.5.2 is the last version that supports Python 3.8
                             # 1.7 is recommended version
-    "torchvision>=0.16.0",  # torchvision 0.15.0 was yanked
+    "torchvision>=0.19.0",
     "transformers>=4.46",   # Transformers is needed for fine-tuning.
                             # 4.46 is last version that supports Python 3.8.
                             # 4.51.3 is the default for EoMT
@@ -94,8 +94,8 @@ dist = [
 # Be careful when making changes on the CI machine as other repositories also depend on
 # the installed CUDA/driver versions.
 minimal-torch = [
-    "torch==2.1.0; python_version<'3.9'",
-    "torchvision==0.16.0; python_version<'3.9'",
+    "torch==2.4.0; python_version<'3.9'",
+    "torchvision==0.19.0; python_version<'3.9'",
 ]
 pinned-torch-minimal = [
     "torch==2.4.0; python_version<'3.9'",

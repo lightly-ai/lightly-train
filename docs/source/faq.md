@@ -43,7 +43,7 @@ For full details see the {ref}`installation page <installation>`.
 LightlyTrain requires:
 - Linux (CUDA & CPU), MacOS (CPU only) or Windows (CUDA & CPU).
 - Python 3.8 or higher
-- PyTorch 2.1 or higher
+- PyTorch 2.4 or higher
 - CUDA-compatible GPU(s) for fast training
 - Sufficient storage for your dataset and model
 
