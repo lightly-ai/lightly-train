@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import typing_extensions
 from albumentations.pytorch.transforms import ToTensorV2
-from numpy.typing import DTypeLike
+from numpy.typing import DTypeLike, NDArray
 from PIL import Image
 from torch import Tensor
 from torch.nn import AdaptiveAvgPool2d, Conv2d, Module
@@ -252,6 +252,35 @@ def create_image(
     assert img.width == width
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path)
+
+
+def create_dicom_image(path: Path, pixels: NDArray[np.uint16]) -> None:
+    """Write a single-frame MONOCHROME2 MR image with 16-bit unsigned pixels."""
+    import pydicom
+    from pydicom.dataset import FileDataset, FileMetaDataset
+
+    file_meta = FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = pydicom.uid.UID("1.2.840.10008.5.1.4.1.1.4")
+    file_meta.MediaStorageSOPInstanceUID = pydicom.uid.generate_uid()
+    file_meta.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
+    dataset = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\0" * 128)
+    dataset.SOPClassUID = file_meta.MediaStorageSOPClassUID
+    dataset.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    dataset.Modality = "MR"
+    dataset.Rows, dataset.Columns = pixels.shape
+    dataset.SamplesPerPixel = 1
+    dataset.PhotometricInterpretation = "MONOCHROME2"
+    dataset.BitsAllocated = 16
+    dataset.BitsStored = 16
+    dataset.HighBit = 15
+    dataset.PixelRepresentation = 0
+    dataset.PixelData = pixels.astype("<u2").tobytes()
+    if int(pydicom.__version__.split(".")[0]) < 3:
+        # pydicom 2.x needs the encoding on the dataset to write it.
+        dataset.is_little_endian = True
+        dataset.is_implicit_VR = False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    dataset.save_as(str(path))
 
 
 def create_images(

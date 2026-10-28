@@ -211,6 +211,22 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+def test__open_image_numpy__with_pydicom__written_file(tmp_path: Path) -> None:
+    # Uses a written file instead of pydicom.examples, which pydicom 2.x lacks.
+    pixels = np.arange(12 * 16, dtype=np.uint16).reshape(12, 16) * 300
+    image_path = tmp_path / "image.dcm"
+    helpers.create_dicom_image(path=image_path, pixels=pixels)
+
+    result = file_helpers._open_image_numpy__with_pydicom(image_src=image_path)
+
+    assert result.shape == pixels.shape
+    assert result.dtype == np.float32
+    # Pixels increase in row-major order, so any monotonic scaling keeps the order.
+    assert np.all(np.diff(result.flatten()) >= 0)
+    assert result.max() > result.min()
+
+
 @pytest.mark.parametrize(
     ("extension", "expected_backend", "dtype", "num_channels", "pil_mode"),
     [
