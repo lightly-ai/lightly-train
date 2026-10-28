@@ -26,8 +26,8 @@ from pytorch_lightning.trainer.connectors.accelerator_connector import (  # type
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
-from lightly_train._activation_checkpointing import ActivationCheckpointingArgs
 from lightly_train import _torch_compile
+from lightly_train._activation_checkpointing import ActivationCheckpointingArgs
 from lightly_train._checkpoint import Checkpoint
 from lightly_train._configs import validate
 from lightly_train._env import Env

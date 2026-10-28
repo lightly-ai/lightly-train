@@ -358,17 +358,15 @@ def train_from_config(config: TrainConfig, called_via_train: bool = False) -> No
     # file has to exist while the dataset is used.
     # TODO(Philipp, 10/24): For training it could make sense to store the
     # file in the output directory and recover it on resume.
-    with (
-        common_helpers.verify_out_dir_equal_on_all_local_ranks(out=out_dir),
-        common_helpers.get_dataset_temp_mmap_path(
-            data=config.data,
-            out=out_dir,
-            resume_interrupted=config.resume_interrupted,
-            overwrite=config.overwrite,
-        ) as mmap_filepath,
-        _float32_matmul_precision.float32_matmul_precision(
-            float32_matmul_precision=config.float32_matmul_precision
-        ),
+    with common_helpers.verify_out_dir_equal_on_all_local_ranks(
+        out=out_dir
+    ), common_helpers.get_dataset_temp_mmap_path(
+        data=config.data,
+        out=out_dir,
+        resume_interrupted=config.resume_interrupted,
+        overwrite=config.overwrite,
+    ) as mmap_filepath, _float32_matmul_precision.float32_matmul_precision(
+        float32_matmul_precision=config.float32_matmul_precision
     ):
         dataset = common_helpers.get_dataset(
             data=config.data,
