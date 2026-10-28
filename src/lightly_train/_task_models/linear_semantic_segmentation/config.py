@@ -279,6 +279,94 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNextBaseEupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-base-eupe"
 
+    # --- LightlyViT (efficiency-sweep variants) ---
+    # The default ``lightlyvit/lightlyvit_s16_v1-linear`` would otherwise hit the
+    # Fallback below (empty backbone_args) and build the shipped reference
+    # variant (DW-conv local + softmax global [3,7,11]). That is correct for the
+    # reference backbone but WRONG for the all_global / global_linear sweep archs:
+    # their exported weights have a different block structure, so loading them
+    # into the default-variant backbone yields missing/unexpected keys and silent
+    # garbage quality. Register explicit per-variant configs so the variant is
+    # selected by model name. See archive/lightlyvit_gate_handoff.md "bug #2".
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_s16_v1-linear")
+    class LightlyViTS16V1(LinearSemanticSegmentationConfig):
+        # Shipped reference: DW-conv local + softmax global [3,7,11] (the
+        # ``lightlyvit_s16_v1`` factory default, no variant args needed).
+        backbone_name: str = "lightlyvit/lightlyvit_s16_v1"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_s16_v1_allglobal-linear")
+    class LightlyViTS16V1AllGlobal(LinearSemanticSegmentationConfig):
+        # all_global control: softmax attention in all 12 blocks.
+        backbone_name: str = "lightlyvit/lightlyvit_s16_v1"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {
+                "global_block_indices": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            }
+        )
+
+    @LINEAR_SEG_MODEL_REGISTRY.register(
+        "lightlyvit/lightlyvit_s16_v1_globallinear-linear"
+    )
+    class LightlyViTS16V1GlobalLinear(LinearSemanticSegmentationConfig):
+        # global_linear candidate: DW-conv local + linear attention in [3,7,11].
+        backbone_name: str = "lightlyvit/lightlyvit_s16_v1"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"global_mixer_kind": "linear"}
+        )
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_m16_v1-linear")
+    class LightlyViTM16V1(LinearSemanticSegmentationConfig):
+        # M/16 portfolio entry (640/16/10): DW-conv local + linear attention in
+        # [3,7,11,15]. The ``lightlyvit_m16_v1`` factory already defaults to the
+        # linear global mixer, so no variant args are needed.
+        backbone_name: str = "lightlyvit/lightlyvit_m16_v1"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_t16_v1-linear")
+    class LightlyViTT16V1(LinearSemanticSegmentationConfig):
+        # T/16 robotics tier (224/12/4): DW-conv local + linear attention in
+        # [3,7,11]. Like M/16, the ``lightlyvit_t16_v1`` factory already defaults
+        # to the linear global mixer, so no variant args are needed.
+        backbone_name: str = "lightlyvit/lightlyvit_t16_v1"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_l16_v1-linear")
+    class LightlyViTL16V1(LinearSemanticSegmentationConfig):
+        # L/16 tier (1024/32/16): DW-conv local + linear attention every fourth
+        # block. The ``lightlyvit_l16_v1`` factory already defaults to the linear
+        # global mixer, so no variant args are needed. Registered so every name
+        # exposed by the lightlyvit package has an explicit config (guard test).
+        backbone_name: str = "lightlyvit/lightlyvit_l16_v1"
+
+    # --- LightlyViT v8 RoPE campaign variants ---
+    # Identical to the learned-pos entries above; only ``pos_encoding``
+    # changes (rotary positions replace the learned patch table, so exported
+    # rope weights load strictly only into these entries, and vice versa).
+    @LINEAR_SEG_MODEL_REGISTRY.register(
+        "lightlyvit/lightlyvit_s16_v1_globallinear_rope-linear"
+    )
+    class LightlyViTS16V1GlobalLinearRope(LinearSemanticSegmentationConfig):
+        # DW-conv local + linear attention in [3,7,11] + rotary positions.
+        backbone_name: str = "lightlyvit/lightlyvit_s16_v1"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {
+                "global_mixer_kind": "linear",
+                "pos_encoding": "rope",
+            }
+        )
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_m16_v1_rope-linear")
+    class LightlyViTM16V1Rope(LinearSemanticSegmentationConfig):
+        backbone_name: str = "lightlyvit/lightlyvit_m16_v1"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"pos_encoding": "rope"}
+        )
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_t16_v1_rope-linear")
+    class LightlyViTT16V1Rope(LinearSemanticSegmentationConfig):
+        backbone_name: str = "lightlyvit/lightlyvit_t16_v1"
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"pos_encoding": "rope"}
+        )
+
     # --- Torchvision (CNN backbones) ---
     @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_tiny-linear")
     class TorchvisionConvNeXtTiny(LinearSemanticSegmentationConfig):

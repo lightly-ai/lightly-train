@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Protocol, cast
+from typing import TYPE_CHECKING, Iterable, Protocol, cast
 
 import pytest
 import torch
@@ -20,6 +20,9 @@ from lightly_train._activation_checkpointing import (
 )
 from lightly_train._models.model_wrapper import SupportsActivationCheckpointing
 from tests import helpers
+
+if TYPE_CHECKING:
+    from lightly_train._models.lightlyvit.lightlyvit import LightlyViT
 
 
 class ActivationCheckpointable(Protocol):
@@ -346,6 +349,91 @@ class TestECViTActivationCheckpointing:
         assert x.grad is not None
 
 
+class TestLightlyViTActivationCheckpointing:
+    def _make_model(self) -> LightlyViT:
+        from lightly_train._models.lightlyvit.lightlyvit import LightlyViT
+
+        return LightlyViT(
+            image_size=64,
+            patch_size=16,
+            embed_dim=64,
+            depth=4,
+            num_heads=4,
+            mlp_ratio=2.0,
+            num_register_tokens=2,
+            global_block_indices=(1, 3),
+        )
+
+    def test_forward_backward(self) -> None:
+        model = self._make_model()
+        enable_checkpointing(model)
+        model.train()
+        x = torch.randn(2, 3, 64, 64, requires_grad=True)
+        out = model.forward_features(x)
+        torch.autograd.backward(out.features.sum())
+        assert x.grad is not None
+
+    def test_every_n_blocks(self) -> None:
+        model = self._make_model()
+        enable_checkpointing(model, every_n_blocks=2)
+        model.train()
+        x = torch.randn(2, 3, 64, 64, requires_grad=True)
+        out = model.forward_features(x)
+        torch.autograd.backward(out.features.sum())
+        assert x.grad is not None
+
+    def test_blocks_recompute_once(self) -> None:
+        """Each block must run exactly twice under checkpointing: forward + recompute."""
+        model = self._make_model()
+        enable_checkpointing(model)
+        model.train()
+        counts: dict[int, int] = {}
+        for idx, block in enumerate(model.blocks):
+            block.register_forward_pre_hook(
+                lambda _m, _i, k=idx: counts.__setitem__(k, counts.get(k, 0) + 1)
+            )
+        x = torch.randn(2, 3, 64, 64, requires_grad=True)
+        torch.autograd.backward(model.forward_features(x).features.sum())
+        assert len(counts) == model.num_blocks
+        # Exactly 2 = one forward plus one recompute.
+        assert max(counts.values()) == 2, counts
+
+    def test_intermediate_feature_paths(self) -> None:
+        """The intermediate-layer loops are checkpointed as well."""
+        model = self._make_model()
+        enable_checkpointing(model)
+        model.train()
+        x = torch.randn(2, 3, 64, 64, requires_grad=True)
+        outs = model.forward_intermediate_features(x, [1, 3])
+        loss = torch.stack([o.features.sum() for o in outs]).sum()
+        torch.autograd.backward(loss)
+        assert x.grad is not None
+
+        x2 = torch.randn(2, 3, 64, 64, requires_grad=True)
+        layers = model.get_intermediate_layers(x2, n=2, reshape=False)
+        loss2 = torch.stack([t.sum() for t in layers]).sum()
+        torch.autograd.backward(loss2)
+        assert x2.grad is not None
+
+    def test_gradient_equivalence(self) -> None:
+        """Checkpointing changes memory use, not the computed gradients."""
+        model = self._make_model()
+        model.train()
+        x = torch.randn(2, 3, 64, 64)
+        x_eager = x.clone().requires_grad_(True)
+        torch.autograd.backward(model.forward_features(x_eager).features.sum())
+        assert x_eager.grad is not None
+        expected = x_eager.grad.clone()
+        for p in model.parameters():
+            p.grad = None
+
+        enable_checkpointing(model)
+        x_ckpt = x.clone().requires_grad_(True)
+        torch.autograd.backward(model.forward_features(x_ckpt).features.sum())
+        assert x_ckpt.grad is not None
+        assert torch.allclose(expected, x_ckpt.grad, atol=1e-5)
+
+
 class TestPretrainActivationCheckpointing:
     def test_pretrain_with_activation_checkpointing(self, tmp_path: Path) -> None:
         from lightly_train._commands import train
@@ -408,11 +496,15 @@ class TestSupportsActivationCheckpointing:
         from lightly_train._models.dinov2_vit.dinov2_vit import DINOv2ViTModelWrapper
         from lightly_train._models.dinov3.dinov3_vit import DINOv3ViTModelWrapper
         from lightly_train._models.ecvit.ecvit import ECViTModelWrapper
+        from lightly_train._models.lightlyvit.lightlyvit_wrapper import (
+            LightlyViTModelWrapper,
+        )
 
         for wrapper_cls in (
             DINOv2ViTModelWrapper,
             DINOv3ViTModelWrapper,
             ECViTModelWrapper,
+            LightlyViTModelWrapper,
         ):
             assert issubclass(wrapper_cls, SupportsActivationCheckpointing)
 
@@ -470,6 +562,29 @@ class TestSupportsActivationCheckpointing:
         backbone = wrapped_model.backbone_model
         assert cast(bool, backbone._activation_checkpointing) is True
         assert cast(int, backbone._activation_checkpointing_every_n_blocks) == 2
+
+    def test_instantiated_lightlyvit_wrapper_is_accepted(self) -> None:
+        from lightly_train._commands import train_helpers
+        from lightly_train._models import package_helpers
+        from lightly_train._models.lightlyvit.lightlyvit import LightlyViT
+        from lightly_train._models.lightlyvit.lightlyvit_wrapper import (
+            LightlyViTModelWrapper,
+        )
+
+        wrapped_model = package_helpers.get_wrapped_model(
+            model="lightlyvit/lightlyvit_s16_v1",
+            num_input_channels=3,
+            load_weights=False,
+        )
+        train_helpers.set_activation_checkpointing(
+            wrapped_model=wrapped_model,
+            args=ActivationCheckpointingArgs(enabled=True, every_n_blocks=2),
+        )
+        assert isinstance(wrapped_model, LightlyViTModelWrapper)
+        backbone = wrapped_model.get_model()
+        assert isinstance(backbone, LightlyViT)
+        assert backbone._activation_checkpointing is True
+        assert backbone._activation_checkpointing_every_n_blocks == 2
 
 
 class TestBlockChunkNotDoubleCheckpointed:
