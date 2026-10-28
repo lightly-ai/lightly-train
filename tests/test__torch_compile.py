@@ -13,6 +13,8 @@ from lightly_train._torch_compile import TorchCompileArgs, try_compile
 
 
 def test_try_compile__runtime_failure_falls_back_once(mocker: MockerFixture) -> None:
+    # Force a non-Windows platform as try_compile skips compilation on Windows.
+    mocker.patch("sys.platform", "linux")
     compiled_mock = mocker.Mock(side_effect=RuntimeError("inductor failed"))
     mocker.patch("torch.compile", return_value=compiled_mock)
 
@@ -27,6 +29,9 @@ def test_try_compile__runtime_failure_falls_back_once(mocker: MockerFixture) -> 
 
 
 def test_try_compile__passes_compile_args(mocker: MockerFixture) -> None:
+    # Force a non-Windows platform as try_compile skips compilation on Windows.
+    mocker.patch("sys.platform", "linux")
+
     def eager(x: int) -> int:
         return x + 1
 
@@ -41,3 +46,16 @@ def test_try_compile__passes_compile_args(mocker: MockerFixture) -> None:
     compile_mock.assert_called_once()
     assert compile_mock.call_args.args[0] is eager
     assert compile_mock.call_args.kwargs["mode"] == "default"
+
+
+def test_try_compile__windows_skips_compilation(mocker: MockerFixture) -> None:
+    mocker.patch("sys.platform", "win32")
+    compile_mock = mocker.patch("torch.compile")
+
+    def eager(x: int) -> int:
+        return x + 1
+
+    fn = try_compile(eager, "test_fn", TorchCompileArgs(disable=False, mode="default"))
+
+    compile_mock.assert_not_called()
+    assert fn(1) == 2
