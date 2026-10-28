@@ -256,7 +256,7 @@ def _open_image_numpy__with_pydicom(
             "pydicom is required to read DICOM images. "
             "Please install it with 'pip install lightly-train[dicom]'."
         )
-    from pydicom import Dataset
+    from pydicom import Dataset, dcmread
 
     if PYDICOM_GEQ_3_0_0:
         from pydicom.pixels import (  # type: ignore[import-not-found]
@@ -277,8 +277,13 @@ def _open_image_numpy__with_pydicom(
 
     image_np: NDArrayImage
 
-    dataset = Dataset()
-    pixel_array = pydicom_utils.pixel_array(image_src, ds_out=dataset)
+    if PYDICOM_GEQ_3_0_0:
+        dataset = Dataset()
+        pixel_array = pydicom_utils.pixel_array(image_src, ds_out=dataset)
+    else:
+        # pydicom 2.x has no pixel_array function, read the full dataset instead.
+        dataset = dcmread(image_src)
+        pixel_array = dataset.pixel_array
 
     num_frames = pydicom_utils.get_nr_frames(dataset)
     if num_frames > 1:
