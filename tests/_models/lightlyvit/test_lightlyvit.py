@@ -21,6 +21,7 @@ from lightly_train._models.lightlyvit import (
     lightlyvit_m16_v1,
     lightlyvit_s16_v1,
 )
+from lightly_train._models.lightlyvit.lightlyvit import LayerScale
 from lightly_train._models.lightlyvit.lightlyvit_mixers import (
     apply_rope_to_qk,
     rope_apply,
@@ -102,7 +103,7 @@ def test_forward_metadata_shapes_gradients(
     assert output.grid_metadata.grid_size == grid
     assert output.valid_token_mask.shape == (2, *grid)
     assert output.valid_token_mask.all()
-    output.features.sum().backward()
+    output.features.sum().backward()  # type: ignore[no-untyped-call]
     assert x.grad is not None
 
 
@@ -142,6 +143,7 @@ def test_intermediate_layers_validate_and_preserve_order() -> None:
 def test_local_spatial_mixer_does_not_touch_special_prefix() -> None:
     model = _tiny_model().eval()
     block = model.blocks[0]
+    assert isinstance(block.ls2, LayerScale)
     block.ls2.gamma.data.zero_()
     tokens = torch.randn(1, 7, 24)
     output = block(tokens, (1, 3), num_special_tokens=4)
@@ -152,6 +154,8 @@ def test_local_spatial_mixer_does_not_touch_special_prefix() -> None:
 def test_global_attention_can_update_special_prefix() -> None:
     model = _tiny_model().eval()
     block = model.blocks[1]
+    assert isinstance(block.ls2, LayerScale)
+    assert isinstance(block.ls1, LayerScale)
     block.ls2.gamma.data.zero_()
     block.ls1.gamma.data.fill_(1.0)
     tokens = torch.randn(1, 7, 24)
