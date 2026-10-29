@@ -327,6 +327,13 @@ class TestGetModelClassToDataInternalClass:
         )
         torch.testing.assert_close(table, torch.tensor([-1, 0]))
 
+    def test_duplicate_data_class_names(self) -> None:
+        with pytest.raises(ValueError, match="'object'"):
+            _get_model_class_to_data_internal_class(
+                model_classes={0: "object"},
+                data_classes={10: "object", 20: "object"},
+            )
+
     def test_data_class_not_in_model(self) -> None:
         with pytest.raises(ValueError, match="'bird'"):
             _get_model_class_to_data_internal_class(

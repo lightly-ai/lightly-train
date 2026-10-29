@@ -474,6 +474,15 @@ def _get_model_class_to_data_internal_class(
     example, COCO checkpoints use ids 0-79 and COCO annotation files use ids 1-90.
     Model classes that are not in the dataset map to -1.
     """
+    data_class_names = list(data_classes.values())
+    duplicates = sorted(
+        {name for name in data_class_names if data_class_names.count(name) > 1}
+    )
+    if duplicates:
+        raise ValueError(
+            f"Dataset class names {duplicates} are not unique. The benchmark matches "
+            "dataset and model classes by name, so dataset class names must be unique."
+        )
     model_class_names = set(model_classes.values())
     missing = [name for name in data_classes.values() if name not in model_class_names]
     if missing:
