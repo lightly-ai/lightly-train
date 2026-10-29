@@ -22,6 +22,7 @@ import lightly_train
 from lightly_train._commands.benchmark_task import (
     _BenchmarkValTransformArgs,
     _create_val_dataloader,
+    _get_model_class_to_data_internal_class,
     _to_cpu,
     benchmark_object_detection,
 )
@@ -78,13 +79,10 @@ class _FakeObjectDetectionModel(TaskModel):
     """Minimal TaskModel subclass that returns fixed predictions."""
 
     model_suffix = ".pt"
-    _PRED = {
-        "labels": torch.tensor([0]),
-        "bboxes": torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
-        "scores": torch.tensor([0.9]),
-    }
 
-    def __init__(self) -> None:
+    def __init__(
+        self, classes: dict[int, str] | None = None, pred_label: int = 0
+    ) -> None:
         super().__init__(
             init_args={
                 "self": self,
@@ -92,6 +90,12 @@ class _FakeObjectDetectionModel(TaskModel):
                 "image_size": (64, 64),
             },
         )
+        self.classes = classes or {0: "class_0", 1: "class_1"}
+        self._pred = {
+            "labels": torch.tensor([pred_label]),
+            "bboxes": torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
+            "scores": torch.tensor([0.9]),
+        }
 
     def preprocess_image(
         self, image: PathLike | PILImage | Tensor
@@ -110,7 +114,7 @@ class _FakeObjectDetectionModel(TaskModel):
         metadata: Sequence[dict[str, Any]],
         **kwargs: Any,
     ) -> list[dict[str, Tensor]]:
-        return [dict(self._PRED) for _ in metadata]
+        return [dict(self._pred) for _ in metadata]
 
 
 class TestValDataloader:
@@ -300,6 +304,37 @@ class TestBenchmarkObjectDetectionConfig:
         assert config.data.names == {0: "class_a"}
 
 
+class TestGetModelClassToDataInternalClass:
+    def test_same_class_ids(self) -> None:
+        table = _get_model_class_to_data_internal_class(
+            model_classes={1: "cat", 2: "dog"},
+            data_classes={1: "cat", 2: "dog"},
+        )
+        torch.testing.assert_close(table, torch.tensor([-1, 0, 1]))
+
+    def test_matches_by_name_across_different_ids(self) -> None:
+        # COCO checkpoints use ids 0..79, COCO annotation files use 1..90.
+        table = _get_model_class_to_data_internal_class(
+            model_classes={0: "person", 1: "bicycle", 2: "car"},
+            data_classes={1: "person", 2: "bicycle", 3: "car"},
+        )
+        torch.testing.assert_close(table, torch.tensor([0, 1, 2]))
+
+    def test_model_class_not_in_data(self) -> None:
+        table = _get_model_class_to_data_internal_class(
+            model_classes={0: "cat", 1: "dog"},
+            data_classes={5: "dog"},
+        )
+        torch.testing.assert_close(table, torch.tensor([-1, 0]))
+
+    def test_data_class_not_in_model(self) -> None:
+        with pytest.raises(ValueError, match="'bird'"):
+            _get_model_class_to_data_internal_class(
+                model_classes={0: "cat"},
+                data_classes={0: "cat", 1: "bird"},
+            )
+
+
 class TestBenchmarkObjectDetectionE2E:
     def test_benchmark_with_fake_model(self, tmp_path: Path) -> None:
         data_dict = _create_coco_data_dict(tmp_path)
@@ -360,6 +395,44 @@ class TestBenchmarkObjectDetectionE2E:
         summary = summary_path.read_text()
         assert "# Benchmark Report" in summary
         assert "mAP" in summary
+
+    def test_benchmark_with_class_ids_starting_at_one(self, tmp_path: Path) -> None:
+        helpers.create_coco_object_detection_dataset(
+            tmp_path / "dataset",
+            num_files=2,
+            height=128,
+            width=128,
+            classes={1: "cat", 2: "dog"},
+            annotations_per_image=[
+                [{"category_id": 1, "bbox": [10, 10, 30, 40]}],
+                [{"category_id": 1, "bbox": [10, 10, 30, 40]}],
+            ],
+        )
+        data_dict = {
+            "format": "coco",
+            "train": {
+                "annotations": str(tmp_path / "dataset" / "train.json"),
+                "images": "train",
+            },
+            "val": {
+                "annotations": str(tmp_path / "dataset" / "val.json"),
+                "images": "val",
+            },
+        }
+        # The model predicts "cat" with its own class id 1. The dataset maps
+        # "cat" to internal class id 0.
+        model = _FakeObjectDetectionModel(classes={1: "cat", 2: "dog"}, pred_label=1)
+
+        result = benchmark_object_detection(
+            out=str(tmp_path / "out"),
+            dataset_name="test-coco",
+            data=data_dict,
+            model=model,
+            batch_size=2,
+            overwrite=True,
+        )
+
+        assert result.metric_values["val_metric/map"] == pytest.approx(1.0)
 
     def test_benchmark_with_yaml_resolves_paths_relative_to_yaml(
         self, tmp_path: Path

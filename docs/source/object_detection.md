@@ -837,6 +837,11 @@ The `model` can be a path to an exported model, a model hosted by LightlyTrain (
 function. The `data` argument accepts the same dictionary or YAML path as
 [`train_object_detection`](#object-detection-data).
 
+The benchmark matches dataset classes to model classes by name. The class ids in the
+dataset do not have to match the class ids of the model. Each dataset class must have a
+model class with the same name. Predictions for model classes that are not in the
+dataset are ignored.
+
 The command returns a `BenchmarkResult` and writes two files to the `out` directory:
 
 - `benchmark_results.json`: the full result as JSON.
