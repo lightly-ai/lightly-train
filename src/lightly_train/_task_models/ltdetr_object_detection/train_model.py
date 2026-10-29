@@ -114,7 +114,8 @@ def _decode_predictions_for_metrics(
     outputs: dict[str, Tensor],
     orig_target_sizes: Tensor,
 ) -> list[dict[str, Tensor]]:
-    labels, boxes, scores = model.postprocessor.decode(
+    # Targets hold internal class ids, so the predictions must too.
+    labels, boxes, scores = model.postprocessor.decode_internal(
         ObjectDetectionOutput(
             logits=outputs["pred_logits"], boxes=outputs["pred_boxes"]
         ),

@@ -99,6 +99,17 @@ class TestObjectDetectionPostprocessor:
         )
         assert scores.shape == (1, 3)
 
+    def test_decode_internal__keeps_internal_class_ids(self) -> None:
+        logits = torch.tensor([[[8.0, -8.0], [1.0, 7.0], [6.0, 0.0]]])
+        boxes = torch.tensor(
+            [[[0.5, 0.5, 0.2, 0.4], [0.25, 0.25, 0.2, 0.2], [0.8, 0.5, 0.1, 0.2]]]
+        )
+        labels, _, _ = _postprocessor().decode_internal(
+            ObjectDetectionOutput(logits=logits, boxes=boxes),
+            torch.tensor([[100, 200]]),
+        )
+        torch.testing.assert_close(labels, torch.tensor([[0, 1, 0]]))
+
     def test_postprocess__filters_by_threshold(self) -> None:
         logits = torch.full((1, 3, 2), -10.0)
         boxes = torch.rand(1, 3, 4)

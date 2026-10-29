@@ -135,6 +135,13 @@ class ObjectDetectionPostprocessor(Module):
     def decode(
         self, raw: ObjectDetectionOutput, orig_target_sizes: Tensor
     ) -> tuple[Tensor, Tensor, Tensor]:
+        labels, boxes, scores = self.decode_internal(raw, orig_target_sizes)
+        return self.internal_class_to_class[labels], boxes, scores
+
+    def decode_internal(
+        self, raw: ObjectDetectionOutput, orig_target_sizes: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Like decode, but returns internal class ids in [0, num_classes - 1]."""
         scores = raw.logits.sigmoid()
         num_classes = scores.shape[-1]
         scores, index = scores.flatten(1).topk(self.num_top_queries, dim=-1)
@@ -143,7 +150,7 @@ class ObjectDetectionPostprocessor(Module):
         boxes = box_convert(raw.boxes, in_fmt="cxcywh", out_fmt="xyxy")
         boxes = boxes.gather(1, query_index.unsqueeze(-1).expand(-1, -1, 4))
         boxes = boxes * orig_target_sizes.repeat(1, 2).unsqueeze(1)
-        return self.internal_class_to_class[labels], boxes, scores
+        return labels, boxes, scores
 
     def postprocess(
         self,
