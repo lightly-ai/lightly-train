@@ -44,6 +44,7 @@ from lightly_train._commands.benchmark_types import (
 )
 from lightly_train._configs import validate
 from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train._data import label_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -163,6 +164,19 @@ def _benchmark_object_detection_from_config(
     # Set up validation data.
     data_arg_helpers.resolve_data_paths(config.data)
     data_args = config.data
+
+    # Match model and dataset classes before loading the dataset, so that a
+    # mismatch fails fast.
+    model_classes = getattr(model, "classes", None)
+    if not isinstance(model_classes, dict):
+        raise ValueError(
+            f"Model of type {type(model).__name__} must have a 'classes' dict "
+            f"attribute, got {type(model_classes).__name__}."
+        )
+    model_class_to_data_internal_class = _get_model_class_to_data_internal_class(
+        model_classes=model_classes, data_classes=data_args.included_classes
+    )
+
     num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers, num_devices_per_node=1
     )
@@ -184,14 +198,6 @@ def _benchmark_object_detection_from_config(
     # Set up metric.
     class_names = list(data_args.included_classes.values())
     metric = _create_metric(class_names=class_names)
-    model_classes = getattr(model, "classes", None)
-    if not isinstance(model_classes, dict):
-        raise ValueError(
-            f"Model of type {type(model).__name__} has no 'classes' attribute."
-        )
-    model_class_to_data_internal_class = _get_model_class_to_data_internal_class(
-        model_classes=model_classes, data_classes=data_args.included_classes
-    )
 
     device = _resolve_device(device=config.device, backend_args=backend_args)
     backend: ObjectDetectionBackend
@@ -491,9 +497,13 @@ def _get_model_class_to_data_internal_class(
             f"{sorted(model_class_names)}. The benchmark matches dataset and model "
             "classes by name."
         )
+    # Use the same mapping as the dataset to get the internal class ids.
+    class_to_internal_class = label_helpers.get_class_id_to_internal_class_id_mapping(
+        class_ids=data_classes.keys(), ignore_classes=None
+    )
     name_to_internal_class = {
-        name: internal_class
-        for internal_class, name in enumerate(data_classes.values())
+        data_classes[class_id]: internal_class
+        for class_id, internal_class in class_to_internal_class.items()
     }
     table = torch.full((max(model_classes) + 1,), -1, dtype=torch.long)
     for class_id, name in model_classes.items():

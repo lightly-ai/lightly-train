@@ -90,7 +90,7 @@ class _FakeObjectDetectionModel(TaskModel):
                 "image_size": (64, 64),
             },
         )
-        self.classes = classes or {0: "class_0", 1: "class_1"}
+        self.classes = classes if classes is not None else {0: "class_0", 1: "class_1"}
         self._pred = {
             "labels": torch.tensor([pred_label]),
             "bboxes": torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
