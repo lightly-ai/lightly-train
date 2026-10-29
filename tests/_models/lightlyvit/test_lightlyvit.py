@@ -71,13 +71,14 @@ def test_public_architecture_medium() -> None:
     assert model.num_heads == 10
     assert model.num_register_tokens == 4
     assert model.global_block_indices == (3, 7, 11, 15)
-    # M/16 uses the linear global mixer with a learned position encoding.
+    # M/16 ships with the linear global mixer and RoPE positions: the recipe
+    # its released checkpoints were trained with.
     assert model.global_mixer_kind == "linear"
-    assert model.pos_encoding == "learned_absolute"
+    assert model.pos_encoding == "rope"
     assert (
-        58_000_000
+        59_800_000
         < sum(parameter.numel() for parameter in model.parameters())
-        < 62_000_000
+        < 60_100_000
     )
 
 

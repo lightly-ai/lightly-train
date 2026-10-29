@@ -1223,9 +1223,9 @@ def lightlyvit_m16(
 
     Identical construction contract to :func:`lightlyvit_s16`: ``image_size``
     only selects the position-encoding base grid, and the token width, depth,
-    heads, register count, and attention schedule are fixed.  The Medium model
-    uses the **linear** global mixer with a learned position encoding: this is
-    the recipe the released M/16 teacher checkpoints were trained with.
+    heads, register count, and attention schedule are fixed.  M/16 ships with
+    the linear global mixer and RoPE position encoding: this is the recipe the
+    released RoboDINO-M checkpoints were trained with.
     """
 
     if num_input_channels is not None:
@@ -1257,7 +1257,7 @@ def lightlyvit_m16(
         num_register_tokens=4,
         global_block_indices=spec.global_block_indices,
         global_mixer_kind="linear",
-        pos_encoding="learned_absolute",
+        pos_encoding="rope",
         drop_path_rate=drop_path_rate,
     )
 

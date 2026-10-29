@@ -9,11 +9,11 @@ resource-constrained hardware. It interleaves cheap depthwise-convolution local 
 with global attention in a small subset of blocks, which makes it fast at high input
 resolutions while keeping strong feature quality for detection and segmentation.
 
-| Variant  | Width | Depth | Heads | Global blocks    | Default recipe                            | Approx. backbone parameters |
-| -------- | ----: | ----: | ----: | ---------------- | ----------------------------------------- | --------------------------: |
-| ViT-T/16 |   224 |    12 |     4 | `[3, 7, 11]`     | linear mixer + RoPE positions             |                        5.7M |
-| ViT-S/16 |   432 |    12 |     9 | `[3, 7, 11]`     | linear mixer + RoPE positions             |                       20.7M |
-| ViT-M/16 |   640 |    16 |    10 | `[3, 7, 11, 15]` | linear mixer + learned absolute positions |                       60.5M |
+| Variant  | Width | Depth | Heads | Global blocks    | Default recipe                | Approx. backbone parameters |
+| -------- | ----: | ----: | ----: | ---------------- | ----------------------------- | --------------------------: |
+| ViT-T/16 |   224 |    12 |     4 | `[3, 7, 11]`     | linear mixer + RoPE positions |                        5.7M |
+| ViT-S/16 |   432 |    12 |     9 | `[3, 7, 11]`     | linear mixer + RoPE positions |                       20.7M |
+| ViT-M/16 |   640 |    16 |    10 | `[3, 7, 11, 15]` | linear mixer + RoPE positions |                       60.0M |
 
 All variants use patch size 16, four register tokens, LayerNorm, GELU, MLP ratio 4,
 LayerScale, and a `7 x 7` depthwise local mixer. Each variant's default recipe is the
@@ -27,9 +27,9 @@ Options beyond the default recipe can be set with `model_args`:
 - `global_mixer_kind`: `"linear"` (default) or `"softmax"` attention in the global
   blocks. Linear attention is faster at high resolutions.
 - `global_block_indices`: which blocks get the global mixer.
-- `pos_encoding`: `"learned_absolute"` or `"rope"` (default on T/16 and S/16). Rotary
-  position embeddings remove the resolution-bound learned position table, which is
-  useful when pretraining and fine-tuning at different resolutions or aspect ratios.
+- `pos_encoding`: `"rope"` (default) or `"learned_absolute"`. Rotary position embeddings
+  remove the resolution-bound learned position table, which is useful when pretraining
+  and fine-tuning at different resolutions or aspect ratios.
 
 ## Pretrain and Fine-tune a LightlyViT Model
 

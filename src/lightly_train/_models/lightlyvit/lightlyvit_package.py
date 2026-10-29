@@ -80,11 +80,10 @@ def _variant_defaults(
 
 # Per-model defaults. Each model name maps to the recipe its released
 # checkpoints were trained with, so weights load without extra model_args:
-# T/16 and S/16 use the linear global mixer with RoPE, M/16 the linear mixer
-# with a learned position encoding. Each value is (factory, constructor
-# defaults) so :meth:`get_model` can either call the strict factory or build a
-# variant by overriding the defaults through ``_VARIANT_KWARGS`` in
-# ``model_args``.
+# all variants use the linear global mixer with RoPE positions. Each value is
+# (factory, constructor defaults) so :meth:`get_model` can either call the
+# strict factory or build a variant by overriding the defaults through
+# ``_VARIANT_KWARGS`` in ``model_args``.
 _MODEL_SPECS: dict[str, tuple[Any, dict[str, Any]]] = {
     "lightlyvit_t16": (
         lightlyvit_t16,
@@ -116,7 +115,7 @@ _MODEL_SPECS: dict[str, tuple[Any, dict[str, Any]]] = {
             num_heads=10,
             global_block_indices=(3, 7, 11, 15),
             global_mixer_kind="linear",
-            pos_encoding="learned_absolute",
+            pos_encoding="rope",
         ),
     ),
 }
