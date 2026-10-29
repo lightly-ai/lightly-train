@@ -572,7 +572,7 @@ class TestSupportsActivationCheckpointing:
         )
 
         wrapped_model = package_helpers.get_wrapped_model(
-            model="lightlyvit/lightlyvit_s16_v1",
+            model="lightlyvit/lightlyvit_s16",
             num_input_channels=3,
             load_weights=False,
         )

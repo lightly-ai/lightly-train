@@ -12,7 +12,7 @@ These mixers live behind the same contracts as the v1 ``DepthwiseConvMixer``
 ``GlobalSelfAttention`` (global: ``(x, attention_mask, rope) -> x`` with an
 optional RoPE table). They are experimental scaffolding for the
 ``archive/lightlyvit_efficiency_sweep.md`` complex-mixer comparison and are
-**not** exposed by the public ``lightlyvit_s16_v1`` factory, which remains the
+**not** exposed by the public ``lightlyvit_s16`` factory, which remains the
 depthwise-conv + softmax-attention reference.
 
 Padding handling is approximate but safe: local mixers zero padded grid cells

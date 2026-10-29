@@ -5,11 +5,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
-#
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
-#
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,9 +20,8 @@ from lightly_train._models.lightlyvit import (
     LIGHTLYVIT_PACKAGE,
     LightlyViT,
     LightlyViTBackboneOutput,
-    lightlyvit_l16_v1,
-    lightlyvit_m16_v1,
-    lightlyvit_s16_v1,
+    lightlyvit_m16,
+    lightlyvit_s16,
 )
 from lightly_train._models.lightlyvit.lightlyvit import LayerScale
 from lightly_train._models.lightlyvit.lightlyvit_mixers import (
@@ -53,13 +47,16 @@ def _tiny_model(
 
 
 def test_public_architecture() -> None:
-    model = lightlyvit_s16_v1()
+    model = lightlyvit_s16()
     assert model.embed_dim == 432
     assert model.num_blocks == 12
     assert model.num_heads == 9
     assert model.num_register_tokens == 4
     assert model.global_block_indices == (3, 7, 11)
-    assert model.global_mixer_kind == "softmax"
+    # S/16 ships with the linear global mixer and RoPE positions: the recipe
+    # its released checkpoints were trained with.
+    assert model.global_mixer_kind == "linear"
+    assert model.pos_encoding == "rope"
     assert (
         20_600_000
         < sum(parameter.numel() for parameter in model.parameters())
@@ -68,31 +65,20 @@ def test_public_architecture() -> None:
 
 
 def test_public_architecture_medium() -> None:
-    model = lightlyvit_m16_v1()
+    model = lightlyvit_m16()
     assert model.embed_dim == 640
     assert model.num_blocks == 16
     assert model.num_heads == 10
     assert model.num_register_tokens == 4
     assert model.global_block_indices == (3, 7, 11, 15)
-    # M/16 defaults to the gate-winning linear global mixer.
+    # M/16 uses the linear global mixer with a learned position encoding.
     assert model.global_mixer_kind == "linear"
+    assert model.pos_encoding == "learned_absolute"
     assert (
         58_000_000
         < sum(parameter.numel() for parameter in model.parameters())
         < 62_000_000
     )
-
-
-def test_public_architecture_large() -> None:
-    model = lightlyvit_l16_v1()
-    assert model.embed_dim == 1024
-    assert model.num_blocks == 32
-    assert model.num_heads == 16
-    assert model.num_register_tokens == 4
-    assert model.global_block_indices == tuple(range(3, 32, 4))
-    assert model.global_mixer_kind == "linear"
-    params = sum(parameter.numel() for parameter in model.parameters())
-    assert 300_000_000 < params < 310_000_000
 
 
 @pytest.mark.parametrize(
@@ -174,10 +160,9 @@ def test_global_attention_can_update_special_prefix() -> None:
 @pytest.mark.parametrize(
     "model_name, embed_dim",
     [
-        ("lightlyvit_t16_v1", 224),
-        ("lightlyvit_s16_v1", 432),
-        ("lightlyvit_m16_v1", 640),
-        ("lightlyvit_l16_v1", 1024),
+        ("lightlyvit_t16", 224),
+        ("lightlyvit_s16", 432),
+        ("lightlyvit_m16", 640),
     ],
 )
 def test_wrapper_discovery_pool_and_state_dict_roundtrip(
@@ -310,10 +295,10 @@ def test_rope_rescale_coords_active_only_in_training() -> None:
 
 
 def test_rope_replaces_patch_pos_embed_table() -> None:
-    learned = lightlyvit_s16_v1()
-    rope = LIGHTLYVIT_PACKAGE.get_model(
-        "lightlyvit_s16_v1",
-        model_args={"pos_encoding": "rope"},
+    rope = lightlyvit_s16()
+    learned = LIGHTLYVIT_PACKAGE.get_model(
+        "lightlyvit_s16",
+        model_args={"pos_encoding": "learned_absolute"},
     )
     learned_params = sum(parameter.numel() for parameter in learned.parameters())
     rope_params = sum(parameter.numel() for parameter in rope.parameters())
@@ -343,8 +328,8 @@ def test_interpolate_pos_encoding_rejected_in_rope_mode() -> None:
 
 def test_rope_package_variant_roundtrip(tmp_path: Path) -> None:
     model = LIGHTLYVIT_PACKAGE.get_model(
-        "lightlyvit_s16_v1",
-        model_args={"image_size": (32, 48), "pos_encoding": "rope"},
+        "lightlyvit_s16",
+        model_args={"image_size": (32, 48)},
     )
     wrapper = LIGHTLYVIT_PACKAGE.get_model_wrapper(model)
     features = wrapper.forward_features(torch.randn(1, 3, 32, 48))
@@ -353,8 +338,8 @@ def test_rope_package_variant_roundtrip(tmp_path: Path) -> None:
     path = tmp_path / "rope.pt"
     LIGHTLYVIT_PACKAGE.export_model(wrapper, path, log_example=False)
     loaded = LIGHTLYVIT_PACKAGE.get_model(
-        "lightlyvit_s16_v1",
-        model_args={"image_size": (32, 48), "pos_encoding": "rope", "weights": path},
+        "lightlyvit_s16",
+        model_args={"image_size": (32, 48), "weights": path},
     )
     for expected, actual in zip(
         model.state_dict().values(), loaded.state_dict().values()
@@ -363,6 +348,10 @@ def test_rope_package_variant_roundtrip(tmp_path: Path) -> None:
     # Cross-scheme loads fail loudly instead of silently dropping keys.
     with pytest.raises(RuntimeError):
         LIGHTLYVIT_PACKAGE.get_model(
-            "lightlyvit_s16_v1",
-            model_args={"image_size": (32, 48), "weights": path},
+            "lightlyvit_s16",
+            model_args={
+                "image_size": (32, 48),
+                "pos_encoding": "learned_absolute",
+                "weights": path,
+            },
         )

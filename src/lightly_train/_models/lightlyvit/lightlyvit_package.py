@@ -5,11 +5,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
-#
-# Copyright (c) Lightly AG and affiliates.
-# All rights reserved.
-#
 """The network-free LightlyViT model package."""
 
 from __future__ import annotations
@@ -23,10 +18,9 @@ import torch
 from lightly_train._models import log_usage_example
 from lightly_train._models.lightlyvit.lightlyvit import (
     LightlyViT,
-    lightlyvit_l16_v1,
-    lightlyvit_m16_v1,
-    lightlyvit_s16_v1,
-    lightlyvit_t16_v1,
+    lightlyvit_m16,
+    lightlyvit_s16,
+    lightlyvit_t16,
 )
 from lightly_train._models.lightlyvit.lightlyvit_wrapper import LightlyViTModelWrapper
 from lightly_train._models.model_wrapper import ModelWrapper
@@ -38,7 +32,7 @@ logger = logging.getLogger(__name__)
 # set) that select an experimental LightlyViT variant for the efficiency sweep.
 # When any of these appear in ``model_args``, :meth:`get_model` builds the variant
 # directly through the ``LightlyViT`` constructor instead of the strict public
-# factory. This keeps ``lightlyvit/lightlyvit_s16_v1`` (no variant args) exactly
+# factory. This keeps ``lightlyvit/lightlyvit_s16`` (no variant args) exactly
 # the shipped model while allowing matched pretraining of the sweep variants
 # (e.g. ``model_args={"global_mixer_kind": "linear"}``).
 _VARIANT_KWARGS: set[str] = {
@@ -65,6 +59,7 @@ def _variant_defaults(
     num_heads: int,
     global_block_indices: tuple[int, ...],
     global_mixer_kind: str,
+    pos_encoding: str,
 ) -> dict[str, Any]:
     """Return the ``LightlyViT`` constructor kwargs for one family variant."""
 
@@ -76,57 +71,52 @@ def _variant_defaults(
         "mixer_kernel_size": 7,
         "local_mixer_kind": "dw_conv",
         "global_mixer_kind": global_mixer_kind,
+        "pos_encoding": pos_encoding,
         "window_size": 7,
         "global_block_indices": global_block_indices,
         "num_register_tokens": 4,
     }
 
 
-# Per-model defaults. S/16 ships with softmax; T/16, M/16 and L/16 default to
-# the gate-winning linear global mixer (T/16 since the 2026-09 v7 robotics
-# campaign — it never had a softmax-only public life). Each value is (factory,
-# constructor defaults) so :meth:`get_model` can either call the strict factory
-# or build a variant by overriding the defaults through ``_VARIANT_KWARGS`` in
+# Per-model defaults. Each model name maps to the recipe its released
+# checkpoints were trained with, so weights load without extra model_args:
+# T/16 and S/16 use the linear global mixer with RoPE, M/16 the linear mixer
+# with a learned position encoding. Each value is (factory, constructor
+# defaults) so :meth:`get_model` can either call the strict factory or build a
+# variant by overriding the defaults through ``_VARIANT_KWARGS`` in
 # ``model_args``.
 _MODEL_SPECS: dict[str, tuple[Any, dict[str, Any]]] = {
-    "lightlyvit_t16_v1": (
-        lightlyvit_t16_v1,
+    "lightlyvit_t16": (
+        lightlyvit_t16,
         _variant_defaults(
             embed_dim=224,
             depth=12,
             num_heads=4,
             global_block_indices=(3, 7, 11),
             global_mixer_kind="linear",
+            pos_encoding="rope",
         ),
     ),
-    "lightlyvit_s16_v1": (
-        lightlyvit_s16_v1,
+    "lightlyvit_s16": (
+        lightlyvit_s16,
         _variant_defaults(
             embed_dim=432,
             depth=12,
             num_heads=9,
             global_block_indices=(3, 7, 11),
-            global_mixer_kind="softmax",
+            global_mixer_kind="linear",
+            pos_encoding="rope",
         ),
     ),
-    "lightlyvit_m16_v1": (
-        lightlyvit_m16_v1,
+    "lightlyvit_m16": (
+        lightlyvit_m16,
         _variant_defaults(
             embed_dim=640,
             depth=16,
             num_heads=10,
             global_block_indices=(3, 7, 11, 15),
             global_mixer_kind="linear",
-        ),
-    ),
-    "lightlyvit_l16_v1": (
-        lightlyvit_l16_v1,
-        _variant_defaults(
-            embed_dim=1024,
-            depth=32,
-            num_heads=16,
-            global_block_indices=tuple(range(3, 32, 4)),
-            global_mixer_kind="linear",
+            pos_encoding="learned_absolute",
         ),
     ),
 }
@@ -239,7 +229,7 @@ class LightlyViTPackage(MultiScaleFeaturePackage):
                 "import torch",
                 "",
                 "# Load the pretrained model",
-                "# Replace <model_name> with the model name used in train. E.g. 'lightlyvit_s16_v1'.",
+                "# Replace <model_name> with the model name used in train. E.g. 'lightlyvit_s16'.",
                 "# If the model was trained with variant kwargs (e.g. global_mixer_kind or",
                 "# pos_encoding), pass the same values as model_args={...}.",
                 "model = LightlyViTPackage.get_model('<model_name>')",

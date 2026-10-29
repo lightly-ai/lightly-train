@@ -133,11 +133,9 @@ class LightlyViTBackboneOutput:
 class _LightlyViTVariantSpec:
     """Frozen family configuration.
 
-    ``S/16`` ships with the conventional softmax global mixer.  ``M/16`` and
-    ``L/16`` are the larger portfolio entries; both default to the gate-winning
-    linear global mixer.  ``T/16`` (public since the 2026-09 v7 robotics
-    campaign) also defaults to the linear mixer so its checkpoints always load
-    into the default-constructed model.
+    All three variants use the linear global mixer.  ``T/16`` and ``S/16``
+    pair it with RoPE position encoding (the recipes their released
+    checkpoints were trained with);  ``M/16`` uses a learned position encoding.
     """
 
     width: int
@@ -146,30 +144,24 @@ class _LightlyViTVariantSpec:
     global_block_indices: tuple[int, ...]
 
 
-_LIGHTLYVIT_T16_V1_SPEC = _LightlyViTVariantSpec(
+_LIGHTLYVIT_T16_SPEC = _LightlyViTVariantSpec(
     width=224,
     depth=12,
     num_heads=4,
     global_block_indices=(3, 7, 11),
 )
-_LIGHTLYVIT_S16_V1_SPEC = _LightlyViTVariantSpec(
+_LIGHTLYVIT_S16_SPEC = _LightlyViTVariantSpec(
     width=432,
     depth=12,
     num_heads=9,
     global_block_indices=(3, 7, 11),
 )
-_LIGHTLYVIT_M16_V1_SPEC = _LightlyViTVariantSpec(
+_LIGHTLYVIT_M16_SPEC = _LightlyViTVariantSpec(
     width=640,
     depth=16,
     num_heads=10,
     # One global block every four, matching the S/16 cadence extended to depth 16.
     global_block_indices=(3, 7, 11, 15),
-)
-_LIGHTLYVIT_L16_V1_SPEC = _LightlyViTVariantSpec(
-    width=1024,
-    depth=32,
-    num_heads=16,
-    global_block_indices=tuple(range(3, 32, 4)),
 )
 
 
@@ -496,7 +488,7 @@ class LightlyViTBlock(nn.Module):
 class LightlyViT(nn.Module):
     """A fixed-family single-scale ViT with periodic global attention.
 
-    ``lightlyvit_s16_v1`` is the supported public construction route.  The
+    ``lightlyvit_s16`` is the supported public construction route.  The
     constructor accepts dimensions to keep unit tests and future frozen family
     variants local to this implementation, but it does not make additional
     package model names public.
@@ -1112,7 +1104,7 @@ class LightlyViT(nn.Module):
         return torch.cat([prefix, valid_token_mask.reshape(tokens.shape[0], -1)], dim=1)
 
 
-def lightlyvit_t16_v1(
+def lightlyvit_t16(
     *,
     in_chans: int = 3,
     num_input_channels: int | None = None,
@@ -1123,7 +1115,7 @@ def lightlyvit_t16_v1(
 ) -> LightlyViT:
     """Construct the public LightlyViT v1 Tiny model, T/16.
 
-    Identical construction contract to :func:`lightlyvit_s16_v1`: ``image_size``
+    Identical construction contract to :func:`lightlyvit_s16`: ``image_size``
     only selects the learned-position base grid, and the token width, depth,
     heads, register count, and attention schedule are fixed. Like M/16, the
     Tiny model defaults to the **linear** global mixer: T/16 is the robotics
@@ -1141,15 +1133,15 @@ def lightlyvit_t16_v1(
         in_chans = num_input_channels
     if patch_size != 16:
         raise ValueError(
-            f"lightlyvit_t16_v1 has a fixed patch size of 16, got {patch_size}."
+            f"lightlyvit_t16 has a fixed patch size of 16, got {patch_size}."
         )
     if kwargs:
         unexpected = ", ".join(sorted(kwargs))
         raise TypeError(
-            "lightlyvit_t16_v1 only accepts image/input-channel/drop-path arguments; "
+            "lightlyvit_t16 only accepts image/input-channel/drop-path arguments; "
             f"unexpected arguments: {unexpected}."
         )
-    spec = _LIGHTLYVIT_T16_V1_SPEC
+    spec = _LIGHTLYVIT_T16_SPEC
     return LightlyViT(
         image_size=image_size,
         patch_size=16,
@@ -1161,11 +1153,12 @@ def lightlyvit_t16_v1(
         num_register_tokens=4,
         global_block_indices=spec.global_block_indices,
         global_mixer_kind="linear",
+        pos_encoding="rope",
         drop_path_rate=drop_path_rate,
     )
 
 
-def lightlyvit_s16_v1(
+def lightlyvit_s16(
     *,
     in_chans: int = 3,
     num_input_channels: int | None = None,
@@ -1174,11 +1167,13 @@ def lightlyvit_s16_v1(
     drop_path_rate: float = 0.0,
     **kwargs: object,
 ) -> LightlyViT:
-    """Construct the sole public LightlyViT v1 model, S/16.
+    """Construct the public LightlyViT Small model, S/16.
 
-    ``image_size`` only selects the learned-position base grid; positions are
+    ``image_size`` only selects the position-encoding base grid; positions are
     interpolated for every actual input shape.  The token width, depth, heads,
-    register count, and attention schedule are deliberately fixed.
+    register count, and attention schedule are deliberately fixed.  S/16 ships
+    with the linear global mixer and RoPE position encoding: this is the
+    recipe the released RoboDINO-S checkpoints were trained with.
     """
 
     if num_input_channels is not None:
@@ -1190,15 +1185,15 @@ def lightlyvit_s16_v1(
         in_chans = num_input_channels
     if patch_size != 16:
         raise ValueError(
-            f"lightlyvit_s16_v1 has a fixed patch size of 16, got {patch_size}."
+            f"lightlyvit_s16 has a fixed patch size of 16, got {patch_size}."
         )
     if kwargs:
         unexpected = ", ".join(sorted(kwargs))
         raise TypeError(
-            "lightlyvit_s16_v1 only accepts image/input-channel/drop-path arguments; "
+            "lightlyvit_s16 only accepts image/input-channel/drop-path arguments; "
             f"unexpected arguments: {unexpected}."
         )
-    spec = _LIGHTLYVIT_S16_V1_SPEC
+    spec = _LIGHTLYVIT_S16_SPEC
     return LightlyViT(
         image_size=image_size,
         patch_size=16,
@@ -1209,11 +1204,13 @@ def lightlyvit_s16_v1(
         mlp_ratio=4.0,
         num_register_tokens=4,
         global_block_indices=spec.global_block_indices,
+        global_mixer_kind="linear",
+        pos_encoding="rope",
         drop_path_rate=drop_path_rate,
     )
 
 
-def lightlyvit_m16_v1(
+def lightlyvit_m16(
     *,
     in_chans: int = 3,
     num_input_channels: int | None = None,
@@ -1222,12 +1219,13 @@ def lightlyvit_m16_v1(
     drop_path_rate: float = 0.0,
     **kwargs: object,
 ) -> LightlyViT:
-    """Construct the public LightlyViT v1 Medium model, M/16.
+    """Construct the public LightlyViT Medium model, M/16.
 
-    Identical construction contract to :func:`lightlyvit_s16_v1`: ``image_size``
-    only selects the learned-position base grid, and the token width, depth,
+    Identical construction contract to :func:`lightlyvit_s16`: ``image_size``
+    only selects the position-encoding base grid, and the token width, depth,
     heads, register count, and attention schedule are fixed.  The Medium model
-    defaults to the gate-winning **linear** global mixer (vs. softmax on S/16).
+    uses the **linear** global mixer with a learned position encoding: this is
+    the recipe the released M/16 teacher checkpoints were trained with.
     """
 
     if num_input_channels is not None:
@@ -1239,15 +1237,15 @@ def lightlyvit_m16_v1(
         in_chans = num_input_channels
     if patch_size != 16:
         raise ValueError(
-            f"lightlyvit_m16_v1 has a fixed patch size of 16, got {patch_size}."
+            f"lightlyvit_m16 has a fixed patch size of 16, got {patch_size}."
         )
     if kwargs:
         unexpected = ", ".join(sorted(kwargs))
         raise TypeError(
-            "lightlyvit_m16_v1 only accepts image/input-channel/drop-path arguments; "
+            "lightlyvit_m16 only accepts image/input-channel/drop-path arguments; "
             f"unexpected arguments: {unexpected}."
         )
-    spec = _LIGHTLYVIT_M16_V1_SPEC
+    spec = _LIGHTLYVIT_M16_SPEC
     return LightlyViT(
         image_size=image_size,
         patch_size=16,
@@ -1259,55 +1257,7 @@ def lightlyvit_m16_v1(
         num_register_tokens=4,
         global_block_indices=spec.global_block_indices,
         global_mixer_kind="linear",
-        drop_path_rate=drop_path_rate,
-    )
-
-
-def lightlyvit_l16_v1(
-    *,
-    in_chans: int = 3,
-    num_input_channels: int | None = None,
-    image_size: int | tuple[int, int] = 224,
-    patch_size: int = 16,
-    drop_path_rate: float = 0.0,
-    **kwargs: object,
-) -> LightlyViT:
-    """Construct the public LightlyViT v1 Large model, L/16.
-
-    Identical construction contract to :func:`lightlyvit_s16_v1`.  Like M/16, the
-    Large model defaults to the **linear** global mixer.  L/16 is currently a
-    backbone-only portfolio entry (no LT-DETR alias or release validation yet).
-    """
-
-    if num_input_channels is not None:
-        if in_chans != 3 and in_chans != num_input_channels:
-            raise ValueError(
-                "in_chans and num_input_channels disagree: "
-                f"{in_chans} != {num_input_channels}."
-            )
-        in_chans = num_input_channels
-    if patch_size != 16:
-        raise ValueError(
-            f"lightlyvit_l16_v1 has a fixed patch size of 16, got {patch_size}."
-        )
-    if kwargs:
-        unexpected = ", ".join(sorted(kwargs))
-        raise TypeError(
-            "lightlyvit_l16_v1 only accepts image/input-channel/drop-path arguments; "
-            f"unexpected arguments: {unexpected}."
-        )
-    spec = _LIGHTLYVIT_L16_V1_SPEC
-    return LightlyViT(
-        image_size=image_size,
-        patch_size=16,
-        in_chans=in_chans,
-        embed_dim=spec.width,
-        depth=spec.depth,
-        num_heads=spec.num_heads,
-        mlp_ratio=4.0,
-        num_register_tokens=4,
-        global_block_indices=spec.global_block_indices,
-        global_mixer_kind="linear",
+        pos_encoding="learned_absolute",
         drop_path_rate=drop_path_rate,
     )
 

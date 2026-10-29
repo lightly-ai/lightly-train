@@ -11,9 +11,8 @@ from lightly_train._models.lightlyvit.lightlyvit import (
     LightlyViT,
     LightlyViTBackboneOutput,
     LightlyViTGridMetadata,
-    lightlyvit_l16_v1,
-    lightlyvit_m16_v1,
-    lightlyvit_s16_v1,
+    lightlyvit_m16,
+    lightlyvit_s16,
 )
 from lightly_train._models.lightlyvit.lightlyvit_package import (
     LIGHTLYVIT_PACKAGE,
@@ -28,7 +27,6 @@ __all__ = [
     "LightlyViTGridMetadata",
     "LightlyViTModelWrapper",
     "LightlyViTPackage",
-    "lightlyvit_l16_v1",
-    "lightlyvit_m16_v1",
-    "lightlyvit_s16_v1",
+    "lightlyvit_m16",
+    "lightlyvit_s16",
 ]
