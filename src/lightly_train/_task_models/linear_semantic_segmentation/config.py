@@ -279,6 +279,28 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNextBaseEupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-base-eupe"
 
+    # --- LightlyViT ---
+    # Each config uses the backbone's default recipe (the one its released
+    # checkpoints were trained with), so no backbone_args are needed. Custom
+    # variants can be built by overriding backbone_args.
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_t16-linear")
+    class LightlyViTT16V1(LinearSemanticSegmentationConfig):
+        # T/16 robotics tier (224/12/4): DW-conv local + linear attention in
+        # [3,7,11] + rotary positions.
+        backbone_name: str = "lightlyvit/lightlyvit_t16"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_s16-linear")
+    class LightlyViTS16V1(LinearSemanticSegmentationConfig):
+        # S/16 (432/12/9): DW-conv local + linear attention in [3,7,11] +
+        # rotary positions.
+        backbone_name: str = "lightlyvit/lightlyvit_s16"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("lightlyvit/lightlyvit_m16-linear")
+    class LightlyViTM16V1(LinearSemanticSegmentationConfig):
+        # M/16 (640/16/10): DW-conv local + linear attention in [3,7,11,15] +
+        # learned positions.
+        backbone_name: str = "lightlyvit/lightlyvit_m16"
+
     # --- Torchvision (CNN backbones) ---
     @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_tiny-linear")
     class TorchvisionConvNeXtTiny(LinearSemanticSegmentationConfig):

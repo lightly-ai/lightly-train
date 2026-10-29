@@ -17,6 +17,7 @@ from lightly_train._models.custom.custom_package import CUSTOM_PACKAGE
 from lightly_train._models.dinov2_vit.dinov2_vit_package import DINOV2_VIT_PACKAGE
 from lightly_train._models.dinov3.dinov3_package import DINOV3_PACKAGE
 from lightly_train._models.ecvit.ecvit_package import EDGE_CRAFTER_PACKAGE
+from lightly_train._models.lightlyvit.lightlyvit_package import LIGHTLYVIT_PACKAGE
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import BasePackage, Package
 from lightly_train._models.rfdetr.rfdetr_package import RFDETR_PACKAGE
@@ -28,7 +29,7 @@ from lightly_train._models.torchvision.torchvision_package import TORCHVISION_PA
 from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PACKAGE
 from lightly_train.errors import UnknownModelError
 
-IMAGENET_NORMALIZED_PACKAGE_NAMES = {"dinov2", "dinov3", "radio"}
+IMAGENET_NORMALIZED_PACKAGE_NAMES = {"dinov2", "dinov3", "radio", "lightlyvit"}
 
 
 def list_base_packages() -> list[BasePackage]:
@@ -42,6 +43,7 @@ def list_base_packages() -> list[BasePackage]:
         DINOV2_VIT_PACKAGE,
         DINOV3_PACKAGE,
         EDGE_CRAFTER_PACKAGE,
+        LIGHTLYVIT_PACKAGE,
         # Custom package must be at end of list because we first want to check if a
         # model is part of one of the other packages. Custom is the last resort.
         CUSTOM_PACKAGE,
