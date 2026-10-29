@@ -9,16 +9,16 @@ resource-constrained hardware. It interleaves cheap depthwise-convolution local 
 with global attention in a small subset of blocks, which makes it fast at high input
 resolutions while keeping strong feature quality for detection and segmentation.
 
-| Variant  | Width | Depth | Heads | Global blocks    | Default recipe                             | Approx. backbone parameters |
-| -------- | ----: | ----: | ----: | ---------------- | ------------------------------------------ | --------------------------: |
-| ViT-T/16 |   224 |    12 |     4 | `[3, 7, 11]`     | linear mixer + RoPE positions              |                        5.7M |
-| ViT-S/16 |   432 |    12 |     9 | `[3, 7, 11]`     | linear mixer + RoPE positions              |                       20.7M |
-| ViT-M/16 |   640 |    16 |    10 | `[3, 7, 11, 15]` | linear mixer + learned absolute positions  |                       60.5M |
+| Variant  | Width | Depth | Heads | Global blocks    | Default recipe                            | Approx. backbone parameters |
+| -------- | ----: | ----: | ----: | ---------------- | ----------------------------------------- | --------------------------: |
+| ViT-T/16 |   224 |    12 |     4 | `[3, 7, 11]`     | linear mixer + RoPE positions             |                        5.7M |
+| ViT-S/16 |   432 |    12 |     9 | `[3, 7, 11]`     | linear mixer + RoPE positions             |                       20.7M |
+| ViT-M/16 |   640 |    16 |    10 | `[3, 7, 11, 15]` | linear mixer + learned absolute positions |                       60.5M |
 
 All variants use patch size 16, four register tokens, LayerNorm, GELU, MLP ratio 4,
 LayerScale, and a `7 x 7` depthwise local mixer. Each variant's default recipe is the
-one its pretrained checkpoints are trained with, so exported weights load into the
-model without extra arguments.
+one its pretrained checkpoints are trained with, so exported weights load into the model
+without extra arguments.
 
 ## Architecture Options
 
