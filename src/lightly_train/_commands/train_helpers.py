@@ -228,11 +228,8 @@ def compile_method_backbones(
     Methods are patched on the CLASS (not the instance) so models stay
     picklable for DDP/Lightning; sentinels prevent double patching.
 
-    Note: ``interpolate_pos_encoding`` is excluded from the compiled graph
-    (bicubic resize is graph-hostile). This assumes the input resolution
-    matches the checkpoint's pos_embed grid; cross-resolution training with a
-    compiled backbone would need load-time pos_embed interpolation, which is
-    not yet supported.
+    Note: Each new input shape can trigger a recompile. This includes the multiple
+    crop sizes used by methods such as DINO and DINOv2.
     """
     if torch_compile_args.disable:
         return
