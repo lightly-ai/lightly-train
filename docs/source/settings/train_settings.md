@@ -979,9 +979,11 @@ Dictionary to configure model compilation with
 All entries in the dictionary are passed directly to `torch.compile`. By default, model
 compilation is disabled for most models.
 
-| Key       | Type   | Description                                                        |
-| --------- | ------ | ------------------------------------------------------------------ |
-| `disable` | `bool` | Disable model compilation. If `True`, `torch.compile` is not used. |
+| Key       | Type   | Description                                                                 |
+| --------- | ------ | --------------------------------------------------------------------------- |
+| `disable` | `bool` | Disable model compilation. If `True`, `torch.compile` is not used.          |
+| `mode`    | `str`  | Compilation mode, e.g. `"max-autotune"`. Cannot be combined with `options`. |
+| `options` | `dict` | Backend options passed to `torch.compile`. Cannot be combined with `mode`.  |
 
 (train-settings-debug)=
 

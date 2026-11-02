@@ -7,10 +7,15 @@
 #
 from __future__ import annotations
 
+import copy
 import logging
+import pickle
+from typing import Any
 
 import pytest
+import torch
 from pytest_mock import MockerFixture
+from torch import Tensor
 from torch._dynamo.exc import TorchDynamoException
 
 from lightly_train._torch_compile import TorchCompileArgs, try_compile
@@ -95,6 +100,51 @@ def test_try_compile__passes_compile_args(mocker: MockerFixture) -> None:
     compile_mock.assert_called_once()
     assert compile_mock.call_args.args[0] is eager
     assert compile_mock.call_args.kwargs["mode"] == "default"
+
+
+class _Model(torch.nn.Module):
+    def forward_features(self, x: Tensor) -> Tensor:
+        return x + 1
+
+
+def test_try_compile__pickle_and_deepcopy_as_original(mocker: MockerFixture) -> None:
+    # Force a non-Windows platform as try_compile skips compilation on Windows.
+    mocker.patch("sys.platform", "linux")
+    model = _Model()
+    setattr(
+        model,
+        "forward_features",
+        try_compile(model.forward_features, "test_fn", TorchCompileArgs(disable=False)),
+    )
+    x = torch.zeros(1)
+    assert model.forward_features(x).item() == 1
+
+    for restored in (pickle.loads(pickle.dumps(model)), copy.deepcopy(model)):
+        fn: Any = restored.forward_features
+        assert fn.__self__ is restored
+        assert fn.__func__ is _Model.forward_features
+        assert fn(x).item() == 1
+
+
+def test_try_compile__binds_self_on_class(mocker: MockerFixture) -> None:
+    # Force a non-Windows platform as try_compile skips compilation on Windows.
+    mocker.patch("sys.platform", "linux")
+    compiled_mock = mocker.Mock(side_effect=lambda model, x: x + 2)
+    mocker.patch("torch.compile", return_value=compiled_mock)
+
+    class Model:
+        def forward_features(self, x: int) -> int:
+            return x + 1
+
+    wrapper = try_compile(
+        Model.forward_features, "test_fn", TorchCompileArgs(disable=False)
+    )
+    setattr(Model, "forward_features", wrapper)
+    model = Model()
+
+    assert Model.forward_features is wrapper
+    assert model.forward_features(1) == 3
+    compiled_mock.assert_called_once_with(model, 1)
 
 
 def test_try_compile__windows_skips_compilation(mocker: MockerFixture) -> None:

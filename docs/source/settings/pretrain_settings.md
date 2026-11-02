@@ -35,6 +35,7 @@ in LightlyTrain. For task-specific fine-tuning options, see the [](train-setting
 | [`loader_args`](#loader_args)                                 | `dict`                        | `None`           | Advanced DataLoader keyword arguments.                                                            |
 | [`trainer_args`](#trainer_args)                               | `dict`                        | `None`           | Additional Lightning Trainer keyword arguments.                                                   |
 | [`model_args`](#model_args)                                   | `dict`                        | `None`           | Arguments forwarded to model construction.                                                        |
+| [`torch_compile_args`](#torch_compile_args)                   | `dict`                        | `None`           | Torch compile configuration dict. `None` disables compilation.                                    |
 
 ```{tip}
 LightlyTrain automatically selects suitable default values based on the chosen
@@ -186,6 +187,20 @@ want to trade precision for speed.
 
 Controls reproducibility for data order, augmentation randomness, and initialization.
 Default is `0`.
+
+### `torch_compile_args`
+
+Dictionary to configure compilation of backbone feature extraction with
+[`torch.compile`](https://docs.pytorch.org/docs/stable/generated/torch.compile.html).
+All entries in the dictionary are passed directly to `torch.compile`. Compilation is
+disabled by default. Each new input shape can trigger a recompile, including the
+multiple crop sizes used by methods such as DINO and DINOv2.
+
+| Key       | Type   | Description                                                                 |
+| --------- | ------ | --------------------------------------------------------------------------- |
+| `disable` | `bool` | Disable compilation. Set to `False` to enable it.                           |
+| `mode`    | `str`  | Compilation mode, e.g. `"max-autotune"`. Cannot be combined with `options`. |
+| `options` | `dict` | Backend options passed to `torch.compile`. Cannot be combined with `mode`.  |
 
 (pretrain-settings-hardware)=
 

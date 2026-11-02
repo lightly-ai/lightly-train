@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import Any, TypeVar, cast
+from types import MethodType
+from typing import Any, Callable, TypeVar
 
 import torch
 from pydantic import ConfigDict
@@ -75,8 +76,8 @@ class TorchCompileArgs(PydanticConfig):
 
 
 def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
-    """Tries to compile a torch model or function and falls back to the uncompiled
-    version if a compilation error occurs."""
+    """Tries to compile a function and falls back to the uncompiled version if a
+    compilation error occurs."""
     if torch_compile_args.disable:
         return fn
     if not hasattr(torch, "compile"):
@@ -84,8 +85,6 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     if sys.platform.startswith("win"):
         # Compilation is currently unstable on Windows.
         return fn
-
-    from torch._dynamo.exc import TorchDynamoException
 
     logger.info(f"Compiling {name} with torch.compile")
     start_time = time.perf_counter()
@@ -99,22 +98,47 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     total_time = time.perf_counter() - start_time
     logger.info(f"Compilation completed in {total_time:.1f} seconds")
 
-    compile_failed = False
+    return _CompiledOrEager(fn, compiled_fn, name)  # type: ignore[arg-type, return-value]
 
-    def _compiled_or_eager(*args: Any, **kwargs: Any) -> Any:
-        nonlocal compile_failed
-        if compile_failed:
-            return fn(*args, **kwargs)  # type: ignore[operator]
+
+def _return_fn(fn: Callable[..., Any]) -> Callable[..., Any]:
+    return fn
+
+
+class _CompiledOrEager:
+    """Calls the compiled function and switches to eager on a compilation error.
+
+    Pickles and copies as the original function.
+    """
+
+    def __init__(
+        self, fn: Callable[..., Any], compiled_fn: Callable[..., Any], name: str
+    ) -> None:
+        self._fn = fn
+        self._compiled_fn = compiled_fn
+        self._name = name
+        self._compile_failed = False
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        from torch._dynamo.exc import TorchDynamoException
+
+        if self._compile_failed:
+            return self._fn(*args, **kwargs)
         try:
-            return compiled_fn(*args, **kwargs)  # type: ignore[misc]
+            return self._compiled_fn(*args, **kwargs)
         # torch.compile is lazy, so compilation errors are raised on call.
         except TorchDynamoException as ex:
-            compile_failed = True
+            self._compile_failed = True
             logger.warning(
-                f"Compilation failed for {name} on rank "
+                f"Compilation failed for {self._name} on rank "
                 f"{_distributed.get_global_rank()}, falling back to eager for "
                 f"subsequent calls. Error: {ex}"
             )
-            return fn(*args, **kwargs)  # type: ignore[operator]
+            return self._fn(*args, **kwargs)
 
-    return cast(_T, _compiled_or_eager)
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        # Binds self like a function when assigned to a class.
+        return self if obj is None else MethodType(self, obj)
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return _return_fn, (self._fn,)
