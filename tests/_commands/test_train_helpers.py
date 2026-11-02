@@ -198,6 +198,28 @@ class DummyInterpolatingModel(DummyCustomModel):
         return x
 
 
+@pytest.fixture
+def restore_compile_patches(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Gives test models unmarked methods and undoes class patches after the test."""
+    forward_features = DummyCustomModel.forward_features
+    interpolate_pos_encoding = DummyInterpolatingModel.interpolate_pos_encoding
+
+    def fresh_forward_features(self: Any, x: Tensor) -> Any:
+        return forward_features(self, x)
+
+    def fresh_interpolate_pos_encoding(self: Any, x: Tensor, w: int, h: int) -> Tensor:
+        return interpolate_pos_encoding(self, x, w, h)
+
+    for cls in (DummyCustomModel, DummyInterpolatingModel):
+        monkeypatch.setattr(cls, "forward_features", fresh_forward_features)
+    monkeypatch.setattr(
+        DummyInterpolatingModel,
+        "interpolate_pos_encoding",
+        fresh_interpolate_pos_encoding,
+    )
+
+
+@pytest.mark.usefixtures("restore_compile_patches")
 def test_compile_method_backbones(mocker: MockerFixture) -> None:
     embedding_model = EmbeddingModel(wrapped_model=DummyCustomModel())
     method = SimCLR(
@@ -224,6 +246,7 @@ def test_compile_method_backbones(mocker: MockerFixture) -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_compile_patches")
 def test_compile_method_backbones__does_not_assign_disabled_method_to_instance(
     mocker: MockerFixture,
 ) -> None:
