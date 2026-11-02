@@ -15,6 +15,7 @@ from typing import Any, TypeVar, cast
 import torch
 from pydantic import ConfigDict
 
+from lightly_train import _distributed
 from lightly_train._configs.config import PydanticConfig
 
 logger = logging.getLogger(__name__)
@@ -63,8 +64,11 @@ class TorchCompileArgs(PydanticConfig):
     disable: bool = True
 
     # Compilation mode passed to torch.compile, e.g. "default", "reduce-overhead"
-    # or "max-autotune".
-    mode: str = "default"
+    # or "max-autotune". Can't be combined with options.
+    mode: str | None = None
+
+    # Backend options passed to torch.compile. Can't be combined with mode.
+    options: dict[str, Any] | None = None
 
     # Allow extra fields as torch.compile accepts many arguments
     model_config = ConfigDict(extra="allow")
@@ -72,7 +76,7 @@ class TorchCompileArgs(PydanticConfig):
 
 def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     """Tries to compile a torch model or function and falls back to the uncompiled
-    version if any error occurs."""
+    version if a compilation error occurs."""
     if torch_compile_args.disable:
         return fn
     if not hasattr(torch, "compile"):
@@ -80,6 +84,8 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     if sys.platform.startswith("win"):
         # Compilation is currently unstable on Windows.
         return fn
+
+    from torch._dynamo.exc import TorchDynamoException
 
     logger.info(f"Compiling {name} with torch.compile")
     start_time = time.perf_counter()
@@ -93,19 +99,21 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     total_time = time.perf_counter() - start_time
     logger.info(f"Compilation completed in {total_time:.1f} seconds")
 
-    compile_failed_at_runtime = False
+    compile_failed = False
 
     def _compiled_or_eager(*args: Any, **kwargs: Any) -> Any:
-        nonlocal compile_failed_at_runtime
-        if compile_failed_at_runtime:
+        nonlocal compile_failed
+        if compile_failed:
             return fn(*args, **kwargs)  # type: ignore[operator]
         try:
             return compiled_fn(*args, **kwargs)  # type: ignore[misc]
-        except Exception as ex:
-            compile_failed_at_runtime = True
+        # torch.compile is lazy, so compilation errors are raised on call.
+        except TorchDynamoException as ex:
+            compile_failed = True
             logger.warning(
-                f"Compiled function {name} failed at runtime, falling back to eager "
-                f"for subsequent calls. Error: {ex}"
+                f"Compilation failed for {name} on rank "
+                f"{_distributed.get_global_rank()}, falling back to eager for "
+                f"subsequent calls. Error: {ex}"
             )
             return fn(*args, **kwargs)  # type: ignore[operator]
 
