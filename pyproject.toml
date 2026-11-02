@@ -93,8 +93,10 @@ dist = [
 # Be careful when making changes on the CI machine as other repositories also depend on
 # the installed CUDA/driver versions.
 pinned-torch-minimal = [
-    "torch==2.1.0; python_version<'3.9'",
-    "torchvision==0.16.0; python_version<'3.9'",
+    "torch==2.1.0+cu118; python_version<'3.9' and sys_platform!='darwin'",
+    "torch==2.1.0; python_version<'3.9' and sys_platform=='darwin'",
+    "torchvision==0.16.0+cu118; python_version<'3.9' and sys_platform!='darwin'",
+    "torchvision==0.16.0; python_version<'3.9' and sys_platform=='darwin'",
 ]
 pinned-torch-maximal = [
     "torch==2.7.0; python_version>='3.9'",
