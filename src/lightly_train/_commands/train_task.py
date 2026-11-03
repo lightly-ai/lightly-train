@@ -82,8 +82,7 @@ logger = logging.getLogger(__name__)
 # allows torchmetrics>=0.8 because SuperGradients pins torchmetrics==0.8, but the task
 # metrics use arguments (e.g. `backend`, `average`) that were only added in later
 # versions. 1.5 is the version the metrics are tested against.
-TORCHMETRICS_MIN_VERSION = "1.5"
-TORCHMETRICS_SUPPORTED = RequirementCache(f"torchmetrics>={TORCHMETRICS_MIN_VERSION}")
+TORCHMETRICS_GEQ_1_5 = RequirementCache("torchmetrics>=1.5")
 
 
 def train_image_classification(
@@ -1281,7 +1280,7 @@ def _raise_if_torchmetrics_unsupported() -> None:
     Without this check, training fails much later with a confusing TypeError about
     unexpected keyword arguments once the metrics are instantiated.
     """
-    if TORCHMETRICS_SUPPORTED:
+    if TORCHMETRICS_GEQ_1_5:
         return
 
     try:
@@ -1292,10 +1291,10 @@ def _raise_if_torchmetrics_unsupported() -> None:
         found = "torchmetrics is not installed."
 
     raise LightlyTrainError(
-        f"Fine-tuning requires torchmetrics>={TORCHMETRICS_MIN_VERSION}. {found} This "
+        f"Fine-tuning requires {TORCHMETRICS_GEQ_1_5.requirement}. {found} This "
         "usually happens when SuperGradients is installed, as it requires "
         "torchmetrics==0.8. Install a newer version with "
-        f"`pip install 'torchmetrics>={TORCHMETRICS_MIN_VERSION}'` or uninstall "
+        f"`pip install '{TORCHMETRICS_GEQ_1_5.requirement}'` or uninstall "
         "SuperGradients."
     )
 

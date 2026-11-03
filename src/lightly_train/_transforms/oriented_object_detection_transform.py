@@ -12,6 +12,7 @@ from typing import Literal
 import torch
 import torchvision.tv_tensors as tv_tensors
 from albumentations import BboxParams
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import ConfigDict
 from torch import Tensor
 from torchvision.transforms import v2
@@ -48,6 +49,10 @@ from lightly_train.types import (
     OrientedObjectDetectionBatch,
     OrientedObjectDetectionDatasetItem,
 )
+
+# Oriented bounding boxes (`BoundingBoxFormat.CXCYWHR`) in torchvision transforms v2.
+# Needed by the oriented object detection pipeline and its torchvision transforms.
+TORCHVISION_GEQ_0_23_0 = RequirementCache("torchvision>=0.23.0")
 
 
 class OrientedObjectDetectionTransformInput(TaskTransformInput):

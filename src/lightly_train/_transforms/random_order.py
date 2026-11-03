@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import numpy as np
 from albumentations import BaseCompose, BasicTransform, SomeOf
-from lightning_utilities.core.imports import RequirementCache
 from numpy.typing import NDArray
 
-ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_21,
+)
 
 if not ALBUMENTATIONS_GEQ_1_4_21:
     from albumentations import random_utils

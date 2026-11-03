@@ -39,6 +39,7 @@ from lightly_train._task_models.picodet_object_detection.config import (
 )
 
 
+# Model loading fails for torch<2.2.0, see https://github.com/lightly-ai/lightly-train/issues/323
 @pytest.mark.requires("torch>=2.2.0")
 def test_load_model__download(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("LIGHTLY_TRAIN_MODEL_CACHE_DIR", str(tmp_path))
