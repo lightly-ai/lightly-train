@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 import torch
 
+from lightly_train._transforms.albumentations_helpers import ALBUMENTATIONS_GEQ_2_0_0
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     ColorJitterArgs,
@@ -121,7 +122,7 @@ possible_tuples = _get_possible_view_transform_args_combinations()
 
 
 class TestViewTransform:
-    @pytest.mark.requires("albumentations>=2.0.0")
+    @pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0)
     def test_record_geometry_attaches_geometry_tensor(self) -> None:
         # record_geometry=True records the crop box and flips applied to a view
         # as an 8-element tensor [x0, y0, x1, y1, image_w, image_h, hflip, vflip].
@@ -156,7 +157,7 @@ class TestViewTransform:
         assert w == image_w and h == image_h
         assert hflip in (0.0, 1.0) and vflip in (0.0, 1.0)
 
-    @pytest.mark.requires("albumentations>=2.0.0")
+    @pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0)
     def test_record_geometry_reusable_across_views(self) -> None:
         # A single ViewTransform is reused sequentially across views (as the
         # DINO multi-crop transform does). Each call must record its own geometry
@@ -186,7 +187,7 @@ class TestViewTransform:
             assert "applied_transforms" not in out
             assert out["geometry"].shape == (8,)
 
-    @pytest.mark.requires("albumentations>=2.0.0")
+    @pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0)
     def test_record_geometry_disallowed_with_rotation(self) -> None:
         with pytest.raises(ValueError, match="random_rotation"):
             ViewTransform(
@@ -278,7 +279,7 @@ class TestViewTransform:
         assert out[0, :, 0].max() > center
         assert out[0, :, -1].max() > center
 
-    @pytest.mark.requires("albumentations>=2.0.0")
+    @pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0)
     def test_record_geometry__no_random_resized_crop(self) -> None:
         view_transform = ViewTransform(
             ViewTransformArgs(

@@ -13,6 +13,9 @@ import torch
 from albumentations import BboxParams, Compose
 from torchvision import tv_tensors
 
+from lightly_train._transforms.oriented_object_detection_transform import (
+    TORCHVISION_GEQ_0_23_0,
+)
 from lightly_train._transforms.scale_jitter import ScaleJitter, TorchVisionScaleJitter
 
 
@@ -213,7 +216,7 @@ def dummy_tv_obb_small() -> tv_tensors.BoundingBoxes:
     )
 
 
-@pytest.mark.requires("torchvision>=0.23")
+@pytest.mark.requires(TORCHVISION_GEQ_0_23_0)
 class TestTorchVisionScaleJitter:
     def test_single_input(
         self,

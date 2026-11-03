@@ -15,7 +15,6 @@ from typing import Any, Literal
 
 import torch
 from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -60,6 +59,10 @@ from lightly_train._task_models.object_detection_components.utils import (
     _yolo_to_xyxy,
 )
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
+)
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionCollateFunction,
     LTDETRObjectDetectionTransform,
@@ -70,9 +73,6 @@ from lightly_train.types import (
     ObjectDetectionDatasetItem,
     PathLike,
 )
-
-_ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
-_ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 def benchmark_object_detection(
@@ -338,8 +338,8 @@ def _make_val_bbox_params() -> BboxParams:
         label_fields=["class_labels"],
         min_width=0.0,
         min_height=0.0,
-        **(dict(filter_invalid_bboxes=True) if _ALBUMENTATIONS_GE_2_0_1 else {}),
-        **(dict(clip=True) if _ALBUMENTATIONS_GE_1_4_5 else {}),
+        **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+        **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
     )
 
 

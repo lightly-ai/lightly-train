@@ -13,6 +13,9 @@ import torch
 from torchvision import tv_tensors
 
 from lightly_train._transforms.channel_drop import ChannelDrop, ChannelDropTV
+from lightly_train._transforms.oriented_object_detection_transform import (
+    TORCHVISION_GEQ_0_23_0,
+)
 
 
 class TestChannelDrop:
@@ -82,7 +85,7 @@ class TestChannelDrop:
             )
 
 
-@pytest.mark.requires("torchvision>=0.23")
+@pytest.mark.requires(TORCHVISION_GEQ_0_23_0)
 class TestChannelDropTV:
     @pytest.mark.parametrize(
         "num_channels_keep, weight_drop, error",

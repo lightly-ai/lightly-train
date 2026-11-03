@@ -18,6 +18,7 @@ from pytest import LogCaptureFixture
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationMulticlassDataArgs,
     ImageClassificationMultilabelDataArgs,
@@ -516,7 +517,7 @@ def test_train_semantic_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.requires("pydicom>=3.0.0")
+@pytest.mark.requires(PYDICOM_GEQ_3_0_0)
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
@@ -1397,10 +1398,17 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
 
 class TestRaiseIfTorchmetricsUnsupported:
     def test_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", True, raising=True)
+        monkeypatch.setattr(
+            train_task, "TORCHMETRICS_GEQ_1_5", RequirementCache("torch"), raising=True
+        )
         train_task._raise_if_torchmetrics_unsupported()
 
     def test_unsupported(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", False, raising=True)
-        with pytest.raises(LightlyTrainError, match="requires torchmetrics>="):
+        monkeypatch.setattr(
+            train_task,
+            "TORCHMETRICS_GEQ_1_5",
+            RequirementCache("torchmetrics>=999"),
+            raising=True,
+        )
+        with pytest.raises(LightlyTrainError, match="requires torchmetrics>=999"):
             train_task._raise_if_torchmetrics_unsupported()
