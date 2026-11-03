@@ -12,7 +12,12 @@ from typing import Any
 
 
 def validate_kpt_shape(kpt_shape: tuple[int, int]) -> tuple[int, int]:
-    """Validates a YOLO ``kpt_shape``."""
+    """Validates a YOLO ``kpt_shape``.
+
+    - ``kpt_shape`` is ``(num_keypoints, num_dims)``.
+    - ``num_dims`` is 2 for (x, y) or 3 for (x, y, visibility).
+    - Example: ``(17, 3)`` for COCO-style human pose.
+    """
     num_keypoints, num_dims = kpt_shape
     if num_keypoints < 1:
         raise ValueError(
@@ -28,7 +33,15 @@ def validate_kpt_shape(kpt_shape: tuple[int, int]) -> tuple[int, int]:
 
 
 def validate_flip_idx(flip_idx: list[int] | None, num_keypoints: int) -> None:
-    """Validates a YOLO keypoint flip mapping."""
+    """Validates a YOLO keypoint flip mapping.
+
+    - ``flip_idx[i]`` is the index keypoint ``i`` takes after a horizontal flip.
+    - Left/right pairs swap, center keypoints map to themselves. Example for
+      ``[nose, left_eye, right_eye]``: ``[0, 2, 1]``.
+    - Must be a permutation that is its own inverse, since flipping twice is the
+      identity.
+    - ``None`` means no mapping; horizontal flips must then be disabled.
+    """
     if flip_idx is None:
         return
     if len(flip_idx) != num_keypoints:
@@ -47,7 +60,11 @@ def validate_flip_idx(flip_idx: list[int] | None, num_keypoints: int) -> None:
 def validate_kpt_names(
     kpt_names: dict[int, list[str]] | None, num_keypoints: int
 ) -> None:
-    """Validates optional YOLO keypoint names."""
+    """Validates optional YOLO keypoint names.
+
+    - Maps class ID to one name per keypoint, e.g. ``{0: ["nose", "left_eye"]}``.
+    - Every list must have ``num_keypoints`` entries.
+    """
     if kpt_names is None:
         return
     for class_id, names in kpt_names.items():
@@ -61,7 +78,13 @@ def validate_kpt_names(
 def validate_kpt_oks_sigmas(
     kpt_oks_sigmas: list[float] | None, num_keypoints: int
 ) -> None:
-    """Validates optional YOLO OKS sigmas."""
+    """Validates optional YOLO OKS sigmas.
+
+    - One positive sigma per keypoint, used by the OKS (object keypoint similarity)
+      metric.
+    - Sigma is the keypoint's localization tolerance: larger is more forgiving.
+      In COCO-17, eyes use 0.025 and hips 0.107.
+    """
     if kpt_oks_sigmas is None:
         return
     if len(kpt_oks_sigmas) != num_keypoints or any(
@@ -76,7 +99,12 @@ def validate_kpt_oks_sigmas(
 def get_coco_num_keypoints(
     categories: list[dict[str, Any]], included_class_ids: Iterable[int]
 ) -> int:
-    """Returns the shared number of COCO keypoints."""
+    """Returns the shared number of COCO keypoints.
+
+    - Read from ``categories[].keypoints`` of the included categories.
+    - All included categories that declare keypoints must declare the same ones.
+    - Ignored categories may differ.
+    """
     included = set(included_class_ids)
     declared = {
         category["id"]: category["keypoints"]

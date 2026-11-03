@@ -28,10 +28,24 @@ def test_validate_flip_idx__valid() -> None:
     keypoint_helpers.validate_flip_idx([0, 2, 1], 3)
 
 
+def test_validate_flip_idx__none() -> None:
+    keypoint_helpers.validate_flip_idx(None, 3)
+
+
 @pytest.mark.parametrize("flip_idx", [[0, 0, 2], [1, 2, 0]])
 def test_validate_flip_idx__invalid(flip_idx: List[int]) -> None:
     with pytest.raises(ValueError, match="flip_idx"):
         keypoint_helpers.validate_flip_idx(flip_idx, 3)
+
+
+def test_validate_kpt_names__valid() -> None:
+    keypoint_helpers.validate_kpt_names(
+        {0: ["nose", "left_eye", "right_eye"], 1: ["a", "b", "c"]}, 3
+    )
+
+
+def test_validate_kpt_names__none() -> None:
+    keypoint_helpers.validate_kpt_names(None, 3)
 
 
 def test_validate_kpt_names__invalid() -> None:
@@ -41,6 +55,10 @@ def test_validate_kpt_names__invalid() -> None:
 
 def test_validate_kpt_oks_sigmas__valid() -> None:
     keypoint_helpers.validate_kpt_oks_sigmas([0.1, 0.2, 0.3], 3)
+
+
+def test_validate_kpt_oks_sigmas__none() -> None:
+    keypoint_helpers.validate_kpt_oks_sigmas(None, 3)
 
 
 def test_validate_kpt_oks_sigmas__invalid() -> None:
