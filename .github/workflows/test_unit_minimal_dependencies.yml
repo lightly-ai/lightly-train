@@ -48,14 +48,17 @@ jobs:
               - '!.github/**'
             this-workflow:
               - '.github/workflows/test_unit_minimal_dependencies.yml'
-  test-unit-minimal-dependencies:
-    name: Test Unit Minimal Dependencies
+  test-unit-minimal-dependencies-shard:
+    name: Test Unit Minimal Dependencies Shard (${{ matrix.dependencies }}, ${{ matrix.group }}/${{ matrix.splits }})
     needs: detect-code-changes
     if: needs.detect-code-changes.outputs.run-tests == 'true'
     runs-on: "ubuntu-latest"
     strategy:
       matrix:
         dependencies: ["minimal", "minimal-extras"]
+        # Splits are balanced by test durations in .test_durations.
+        splits: [2]
+        group: [1, 2]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -73,4 +76,21 @@ jobs:
           make install-${{ matrix.dependencies }}
       - name: Run Pytest
         run: |
-          make test-ci-minimal
+          make test-ci-minimal PYTEST_ARGS="--splits ${{ matrix.splits }} --group ${{ matrix.group }}"
+  # Keeps the check names required by the main branch ruleset. Each check reports the
+  # result of all shards.
+  test-unit-minimal-dependencies:
+    name: Test Unit Minimal Dependencies (${{ matrix.dependencies }})
+    needs: [detect-code-changes, test-unit-minimal-dependencies-shard]
+    if: always()
+    strategy:
+      matrix:
+        dependencies: ["minimal", "minimal-extras"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Shard Results
+        run: |
+          echo "detect-code-changes: ${{ needs.detect-code-changes.result }}"
+          echo "test-unit-minimal-dependencies-shard: ${{ needs.test-unit-minimal-dependencies-shard.result }}"
+          test "${{ needs.detect-code-changes.result }}" = "success"
+          test "${{ needs.test-unit-minimal-dependencies-shard.result }}" = "success" -o "${{ needs.test-unit-minimal-dependencies-shard.result }}" = "skipped"

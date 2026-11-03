@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._models.ecvit import ECVIT_PRESETS, ECViTModelWrapper
 from lightly_train._models.model_wrapper import (
@@ -230,6 +231,10 @@ class TestECViTModelWrapper:
             torch.Size([2, 16, 1, 1]),
         ]
 
+    @pytest.mark.skipif(
+        not RequirementCache("torch>=2.4"),
+        reason="Half precision conv2d on CPU requires newer torch",
+    )
     def test_forward__preserves_rope_dtype_for_half_precision(self) -> None:
         model = ECViTModelWrapper(
             name="ecvitt",
