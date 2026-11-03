@@ -32,6 +32,7 @@ from lightly_train._metrics.instance_segmentation.task_metric import (
     InstanceSegmentationTaskMetricArgs,
 )
 from lightly_train._metrics.mean_average_precision import (
+    FASTER_COCO_EVAL_AVAILABLE,
     MeanAveragePrecisionArgs,
     get_default_backend,
 )
@@ -187,7 +188,7 @@ class TestGetDefaultBackend:
     def test_explicit_backend_is_kept(self, backend: str) -> None:
         assert MeanAveragePrecisionArgs(backend=backend).backend == backend  # type: ignore[arg-type]
 
-    @pytest.mark.requires("faster_coco_eval")
+    @pytest.mark.requires(FASTER_COCO_EVAL_AVAILABLE)
     def test_auto_resolves_on_the_metric(self) -> None:
         """The resolved backend must reach the underlying torchmetrics instance."""
         detection = MeanAveragePrecisionArgs().get_torchmetrics_instances(
@@ -214,7 +215,7 @@ class TestBackendParity:
     These tests guard that switching the backend does not change the reported values.
     """
 
-    @pytest.mark.requires("faster_coco_eval")
+    @pytest.mark.requires(FASTER_COCO_EVAL_AVAILABLE)
     def test_detection(self) -> None:
         pycocotools_values = _detection_metric_values(backend="pycocotools")
         faster_values = _detection_metric_values(backend="faster_coco_eval")
@@ -226,7 +227,7 @@ class TestBackendParity:
         for name, value in pycocotools_values.items():
             assert faster_values[name] == pytest.approx(value, rel=1e-6, abs=1e-6), name
 
-    @pytest.mark.requires("faster_coco_eval")
+    @pytest.mark.requires(FASTER_COCO_EVAL_AVAILABLE)
     def test_instance_segmentation(self) -> None:
         pycocotools_values = _instance_segmentation_metric_values(backend="pycocotools")
         faster_values = _instance_segmentation_metric_values(backend="faster_coco_eval")

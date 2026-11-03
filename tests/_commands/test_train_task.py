@@ -71,11 +71,6 @@ from lightly_train.errors import LightlyTrainError
 
 from .. import helpers
 
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
-
 
 def test_train_image_classification__multiclass(tmp_path: Path) -> None:
     out = tmp_path / "out"
@@ -1398,9 +1393,7 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
 
 class TestRaiseIfTorchmetricsUnsupported:
     def test_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            train_task, "TORCHMETRICS_GEQ_1_5", RequirementCache("torch"), raising=True
-        )
+        monkeypatch.setattr(train_task, "TORCHMETRICS_GEQ_1_5", True, raising=True)
         train_task._raise_if_torchmetrics_unsupported()
 
     def test_unsupported(self, monkeypatch: pytest.MonkeyPatch) -> None:

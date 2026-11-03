@@ -15,11 +15,11 @@ import torch
 from albumentations import BboxParams
 
 from lightly_train._data.yolo_oriented_object_detection_dataset import (
+    TORCHVISION_GEQ_0_23_0,
     YOLOOrientedObjectDetectionDataArgs,
     YOLOOrientedObjectDetectionDataset,
 )
 from lightly_train._transforms.oriented_object_detection_transform import (
-    TORCHVISION_GEQ_0_23_0,
     OrientedObjectDetectionTransform,
     OrientedObjectDetectionTransformArgs,
 )

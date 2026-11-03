@@ -16,8 +16,10 @@ import torch
 import torchvision.tv_tensors as tv_tensors
 from albumentations import BboxParams
 
-from lightly_train._transforms.oriented_object_detection_transform import (
+from lightly_train._data.yolo_oriented_object_detection_dataset import (
     TORCHVISION_GEQ_0_23_0,
+)
+from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionCollateFunction,
     OrientedObjectDetectionTransform,
     OrientedObjectDetectionTransformArgs,

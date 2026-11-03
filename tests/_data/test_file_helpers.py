@@ -45,12 +45,6 @@ numpy_to_torch_dtype_dict = {
 }
 
 
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
-
-
 def test_list_image_filenames_from_iterable(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:

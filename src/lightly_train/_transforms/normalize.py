@@ -17,8 +17,6 @@ from lightly_train._transforms.albumentations_helpers import (
 )
 from lightly_train.types import NDArrayImage
 
-# New inteface for albumentations.Normalize was introduced in v1.4.4
-
 
 class NormalizeDtypeAware(Normalize):  # type: ignore[misc]
     """A normalization transform that is compatible with float inputs.

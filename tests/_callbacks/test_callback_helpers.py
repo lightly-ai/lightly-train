@@ -24,11 +24,6 @@ from lightly_train.errors import ConfigValidationError
 
 from ..helpers import DummyCustomModel
 
-try:
-    import mlflow
-except ImportError:
-    mlflow = None  # type: ignore[assignment]
-
 
 @pytest.mark.parametrize(
     "callback_args, expected_result",

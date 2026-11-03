@@ -38,11 +38,6 @@ from lightly_train._transforms.albumentations_helpers import ALBUMENTATIONS_GEQ_
 from .. import helpers
 from ..helpers import DummyCustomModel
 
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
-
 
 def test_track_training_started_event(mocker: MockerFixture) -> None:
     """Ensure training_started analytics payload stays consistent."""

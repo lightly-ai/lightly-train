@@ -12,10 +12,10 @@ import pytest
 import torch
 from torchvision import tv_tensors
 
-from lightly_train._transforms.channel_drop import ChannelDrop, ChannelDropTV
-from lightly_train._transforms.oriented_object_detection_transform import (
+from lightly_train._data.yolo_oriented_object_detection_dataset import (
     TORCHVISION_GEQ_0_23_0,
 )
+from lightly_train._transforms.channel_drop import ChannelDrop, ChannelDropTV
 
 
 class TestChannelDrop:
