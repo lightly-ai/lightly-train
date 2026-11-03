@@ -11,12 +11,11 @@ from typing import Any, Literal
 
 import numpy as np
 from albumentations import Normalize
-from lightning_utilities.core.imports import RequirementCache
 
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_4,
+)
 from lightly_train.types import NDArrayImage
-
-# New inteface for albumentations.Normalize was introduced in v1.4.4
-ALBUMENTATIONS_GEQ_1_4_4 = RequirementCache("albumentations>=1.4.4")
 
 
 class NormalizeDtypeAware(Normalize):  # type: ignore[misc]

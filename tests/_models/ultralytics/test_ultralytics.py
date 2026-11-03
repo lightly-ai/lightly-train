@@ -13,10 +13,10 @@ from torch.nn import Identity
 
 from lightly_train._models.ultralytics import ultralytics
 from lightly_train._models.ultralytics.ultralytics import (
-    YOLO26_AVAILABLE,
-    YOLOV11_AVAILABLE,
-    YOLOV12_ORIGINAL_AVAILABLE,
-    YOLOV12_ULTRALYTICS_AVAILABLE,
+    ULTRALYTICS_YOLO26_AVAILABLE,
+    ULTRALYTICS_YOLOV11_AVAILABLE,
+    ULTRALYTICS_YOLOV12_AVAILABLE,
+    ULTRALYTICS_YOLOV12_ORIGINAL_AVAILABLE,
     UltralyticsModelWrapper,
 )
 
@@ -56,45 +56,30 @@ class TestUltralyticsModelWrapper:
             "yolov8s-cls.yaml",
             pytest.param(
                 "yolo11s.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLOV11_AVAILABLE,
-                    reason="YOLOv11 requires ultralytics>=8.3.0",
-                ),
+                marks=pytest.mark.requires(ULTRALYTICS_YOLOV11_AVAILABLE),
             ),
             pytest.param(
                 "yolo11s-cls.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLOV11_AVAILABLE,
-                    reason="YOLOv11 requires ultralytics>=8.3.0",
-                ),
+                marks=pytest.mark.requires(ULTRALYTICS_YOLOV11_AVAILABLE),
             ),
             pytest.param(
                 "yolo12s.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLOV12_ULTRALYTICS_AVAILABLE,
-                    reason="YOLOv12 requires ultralytics>=8.3.78 from the official source",
-                ),
+                marks=pytest.mark.requires(ULTRALYTICS_YOLOV12_AVAILABLE),
             ),
             pytest.param(
                 "yolov12s.yaml",
                 marks=pytest.mark.skipif(
-                    not YOLOV12_ORIGINAL_AVAILABLE,
+                    not ULTRALYTICS_YOLOV12_ORIGINAL_AVAILABLE,
                     reason="YOLOv12 from the custom source",
                 ),
             ),
             pytest.param(
                 "yolo26s.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLO26_AVAILABLE,
-                    reason="YOLO26 is not available",
-                ),
+                marks=pytest.mark.requires(ULTRALYTICS_YOLO26_AVAILABLE),
             ),
             pytest.param(
                 "yolo26s-cls.yaml",
-                marks=pytest.mark.skipif(
-                    not YOLO26_AVAILABLE,
-                    reason="YOLO26 is not available",
-                ),
+                marks=pytest.mark.requires(ULTRALYTICS_YOLO26_AVAILABLE),
             ),
         ],
     )

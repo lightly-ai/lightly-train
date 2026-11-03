@@ -24,9 +24,12 @@ from albumentations import (
     VerticalFlip,
 )
 from albumentations.pytorch.transforms import ToTensorV2
-from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_22,
+    ALBUMENTATIONS_GEQ_2_0_0,
+)
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
 from lightly_train._transforms.random_resized_crop import get_random_resized_crop
@@ -46,9 +49,6 @@ from lightly_train.types import (
     TransformOutputSingleView,
 )
 
-ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_22 = RequirementCache("albumentations>=1.4.22")
-
 
 class ViewTransformArgs(PydanticConfig):
     # The size every view is resized to. Comes from MethodTransformArgs.image_size.
@@ -66,7 +66,7 @@ class ViewTransformArgs(PydanticConfig):
 
 
 def _get_Solarize(args: SolarizeArgs) -> Solarize:
-    if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_22:
+    if ALBUMENTATIONS_GEQ_1_4_22:
         return Solarize(
             threshold_range=(args.threshold, args.threshold),
             p=args.prob,
@@ -131,7 +131,7 @@ class ViewTransform:
         # whole configuration in one place.
         self._record_geometry = record_geometry
         if self._record_geometry:
-            if not ALBUMENTATIONS_VERSION_2XX:
+            if not ALBUMENTATIONS_GEQ_2_0_0:
                 raise ValueError("record_geometry=True requires albumentations>=2.0.0.")
             if args.random_rotation is not None:
                 raise ValueError(

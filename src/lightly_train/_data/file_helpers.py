@@ -38,6 +38,7 @@ from lightly_train.types import (
 
 logger = logging.getLogger(__name__)
 
+# `decode_image` accepts str paths and loads uint16 masks.
 TORCHVISION_GEQ_0_20_0 = RequirementCache("torchvision>=0.20.0")
 if TORCHVISION_GEQ_0_20_0:
     # `read_image` is marked as obsolete in torchvision>=0.20.0 in favor of `decode_image`.
@@ -47,6 +48,7 @@ if TORCHVISION_GEQ_0_20_0:
 else:
     from torchvision.io import read_image as load_image  # type: ignore[no-redef]
 
+# Pixel utils moved to `pydicom.pixels`. Also adds `pydicom.examples`.
 PYDICOM_GEQ_3_0_0 = RequirementCache("pydicom>=3.0.0")
 
 

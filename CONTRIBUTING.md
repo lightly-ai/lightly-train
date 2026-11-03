@@ -73,15 +73,28 @@ Test names use `test_<function_or_method_name>__<case>`. Group method tests in
 Markers are registered in [tests/conftest.py](./tests/conftest.py). Unregistered markers
 fail collection (`--strict-markers`).
 
-| Marker                  | Use for                                       |
-| ----------------------- | --------------------------------------------- |
-| `skip_windows(reason=)` | Behavior that differs on Windows by design.   |
-| `long_running_test`     | Tests excluded from PR CI, run in nightly CI. |
+| Marker                       | Use for                                        |
+| ---------------------------- | ---------------------------------------------- |
+| `requires("pkg", PKG_GEQ_X)` | Tests that need optional packages or versions. |
+| `skip_windows(reason=)`      | Behavior that differs on Windows by design.    |
+| `long_running_test`          | Tests excluded from PR CI, run in nightly CI.  |
 
 - Windows runs the full test suite. Don't skip tests on Windows because they are slow.
 - Tests that fail on Windows because of a bug:
   `xfail(sys.platform.startswith("win"), reason=..., strict=True)`.
 - Every marker is consumed by CI or `tests/conftest.py`. No descriptive-only markers.
+- Import optional packages inside the test, not at module level.
+- Skips that depend on a parameter: `pytest.param(..., marks=...)`.
+- Module-wide markers: `pytestmark = ...` at the top of the module.
+- `requires` takes package names (`"onnx"`) or `RequirementCache` constants.
+- Version pins: use the `RequirementCache` constant from the source module that needs
+  the version, not an inline version string.
+  - Feature gate: `<PKG>_<FEATURE>_AVAILABLE`, e.g. `ULTRALYTICS_YOLO26_AVAILABLE`.
+  - API change or minimum supported version: `<PKG>_GEQ_<X_Y_Z>`, e.g.
+    `ALBUMENTATIONS_GEQ_2_0_1`.
+  - Comment each constant with what needs the version.
+- Packages without metadata (e.g. installed with apt):
+  `requires(RequirementCache(module="..."))`.
 
 ### Pull Requests
 
