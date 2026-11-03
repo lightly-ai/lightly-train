@@ -1,0 +1,51 @@
+name: Release
+
+# Runs on every push to main. A regular merge only updates the release pull request that
+# release-please keeps open. Merging the release pull request creates the vX.Y.Z tag and
+# the GitHub release, and starts the release workflow in lightly-train-private: wheel
+# tests, PyPI, documentation and DockerHub. See RELEASING.md.
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+# Never cancel a half-finished release.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Holds the Lightly Release Bot credentials. Restricted to main.
+    environment: release
+    steps:
+      # A GitHub App token instead of GITHUB_TOKEN, so that the release pull request runs
+      # CI and is authored by the Lightly Release Bot.
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: lightly-ai
+          repositories: lightly-train,lightly-train-private
+      - name: Run Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Start Release in lightly-train-private
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          gh api repos/lightly-ai/lightly-train-private/dispatches \
+            -f event_type=release \
+            -f "client_payload[tag]=$TAG"
+          echo "Started release of $TAG: https://github.com/lightly-ai/lightly-train-private/actions/workflows/release.yml"
