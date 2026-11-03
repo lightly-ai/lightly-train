@@ -9,5 +9,5 @@
 # itself. GitHub reads this file from the base branch. As a result, a pull request cannot
 # remove its own protection.
 #
-# Keep this list equal to the allowlist in .github/workflows/auto_approve.yml.
+# Keep this list equal to ALLOWLIST in .github/workflows/auto_approve.yml.
 /.github/   @IgorSusmelj @mrpositron @gabrielfruet @liopeer
