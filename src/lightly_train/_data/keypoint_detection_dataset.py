@@ -77,10 +77,17 @@ class YOLOKeypointDetectionDataArgs(TaskDataArgs):
     flip_idx: list[int] | None = None
     """Optional keypoint mapping for horizontal flips.
 
-    Horizontal flips must be disabled when this is omitted.
+    ``flip_idx[i]`` is the index keypoint ``i`` takes after a flip, e.g. ``[0, 2, 1]``
+    for ``[nose, left_eye, right_eye]``. Horizontal flips must be disabled when this
+    is omitted.
     """
     kpt_names: dict[int, list[str]] | None = None
+    """Optional keypoint names per class ID."""
     kpt_oks_sigmas: list[float] | None = Field(default=None, strict=False)
+    """Optional per-keypoint tolerance for the OKS metric.
+
+    Larger is more forgiving. One positive value per keypoint.
+    """
     ignore_classes: set[int] | None = Field(default=None, strict=False)
     skip_if_label_file_missing: bool = False
 

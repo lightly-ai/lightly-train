@@ -5,12 +5,19 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest
 import torch
 from torchvision import models as torchvision_models
 
+from lightly_train._models.package import MultiScaleFeaturePackage
+from lightly_train._models.torchvision.convnext import ConvNeXtModelWrapper
+from lightly_train._models.torchvision.resnet import ResNetModelWrapper
+from lightly_train._models.torchvision.shufflenet import ShuffleNetV2ModelWrapper
+from lightly_train._models.torchvision.torchvision import TorchvisionModelWrapper
 from lightly_train._models.torchvision.torchvision_package import TorchvisionPackage
 
 from ...helpers import DummyCustomModel
@@ -27,6 +34,25 @@ class TestTorchvisionPackage:
     )
     def test_list_model_names(self, model_name: str) -> None:
         assert model_name in TorchvisionPackage.list_model_names()
+
+    def test__multiscale_feature_package(self) -> None:
+        # All torchvision model wrappers support multi-scale features, which makes the
+        # package available for tasks that require them.
+        assert issubclass(TorchvisionPackage, MultiScaleFeaturePackage)
+
+    @pytest.mark.parametrize(
+        "model_name, wrapper_cls",
+        [
+            ("resnet18", ResNetModelWrapper),
+            ("convnext_tiny", ConvNeXtModelWrapper),
+            ("shufflenet_v2_x0_5", ShuffleNetV2ModelWrapper),
+        ],
+    )
+    def test_get_model_wrapper(
+        self, model_name: str, wrapper_cls: type[TorchvisionModelWrapper]
+    ) -> None:
+        model = torchvision_models.get_model(model_name, weights=None)
+        assert isinstance(TorchvisionPackage.get_model_wrapper(model), wrapper_cls)
 
     def test_is_supported_model__true(self) -> None:
         model = torchvision_models.resnet18()
