@@ -200,7 +200,9 @@ class YOLOKeypointDetectionDatasetArgs(TaskDatasetArgs):
         - Bboxes are (x_center, y_center, width, height), keypoints are (x, y).
         - Both are already normalized by the YOLO format.
         - Keypoints are not clipped to [0, 1]: one annotated outside the frame keeps
-          its position, so transforms can decide what to do with it.
+          its position, so transforms can decide what to do with it. Exception: with
+          ``kpt_shape`` [K, 2] a negative coordinate marks an unlabeled keypoint, as
+          in Ultralytics.
         - Keypoints with visibility 0 sit at (0, 0) and must not be read.
         - Instances with a degenerate bbox get one derived from their labeled
           keypoints. Instances with neither are dropped.
@@ -341,10 +343,15 @@ class COCOKeypointDetectionDataArgs(TaskDataArgs):
         images_dir = file_helpers.resolve_coco_images_dir(
             annotations_path, split.images
         )
+        # Both splits map class IDs with the train categories, so the train labels
+        # file is part of the key for val as well.
+        train_annotations_path = Path(self.train.annotations).resolve()
         return str(
             (
                 annotations_path,
-                annotations_path.stat().st_mtime,
+                annotations_path.stat().st_mtime_ns,
+                train_annotations_path,
+                train_annotations_path.stat().st_mtime_ns,
                 images_dir,
                 self.num_keypoints,
                 sorted(self.ignore_classes) if self.ignore_classes else None,
@@ -446,18 +453,14 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                     if annotation.get("iscrowd", 0) and not self.include_crowd:
                         continue
 
-                    instance_keypoints, instance_visibility = self._parse_keypoints(
-                        annotation=annotation,
-                        num_keypoints=self.num_keypoints,
-                        image_width_pixel=image_width_pixel,
-                        image_height_pixel=image_height_pixel,
-                    )
-                    bbox = self._parse_bbox(
-                        annotation=annotation,
-                        keypoints=instance_keypoints,
-                        visibility=instance_visibility,
-                        image_width_pixel=image_width_pixel,
-                        image_height_pixel=image_height_pixel,
+                    bbox, instance_keypoints, instance_visibility = (
+                        file_helpers.parse_coco_keypoint_annotation(
+                            annotation=annotation,
+                            num_keypoints=self.num_keypoints,
+                            image_width_pixel=image_width_pixel,
+                            image_height_pixel=image_height_pixel,
+                            labels_path=self.labels,
+                        )
                     )
                     if bbox is None:
                         # No usable box and no labeled keypoint, nothing to learn.
@@ -481,89 +484,6 @@ class COCOKeypointDetectionDatasetArgs(TaskDatasetArgs):
                 visibility=visibility,
                 num_keypoints=self.num_keypoints,
             )
-
-    def _parse_keypoints(
-        self,
-        annotation: dict[str, Any],
-        num_keypoints: int,
-        image_width_pixel: float,
-        image_height_pixel: float,
-    ) -> tuple[list[list[float]], list[int]]:
-        """Returns normalized (x, y) keypoints and visibility flags for one annotation.
-
-        An annotation without a ``keypoints`` field has no labeled keypoints. Common in
-        files that mix keypoint and non-keypoint categories, so not an error.
-        """
-        flat = annotation.get("keypoints")
-        if not flat:
-            return (
-                [[0.0, 0.0] for _ in range(num_keypoints)],
-                [keypoint_helpers.Visibility.UNLABELED] * num_keypoints,
-            )
-
-        if len(flat) != 3 * num_keypoints:
-            raise ValueError(
-                f"Expected 'keypoints' of annotation {annotation.get('id')} in "
-                f"'{self.labels}' to have {3 * num_keypoints} values for "
-                f"{num_keypoints} keypoints, got {len(flat)}."
-            )
-
-        keypoints: list[list[float]] = []
-        visibility: list[int] = []
-        for i in range(num_keypoints):
-            x, y = flat[3 * i], flat[3 * i + 1]
-            vis = keypoint_helpers.parse_visibility(flat[3 * i + 2])
-            if vis is None:
-                raise ValueError(
-                    f"Expected keypoint visibility to be one of "
-                    f"{[flag.value for flag in keypoint_helpers.Visibility]}, "
-                    f"got {flat[3 * i + 2]} for keypoint {i} of annotation "
-                    f"{annotation.get('id')} in '{self.labels}'."
-                )
-            if vis == keypoint_helpers.Visibility.UNLABELED:
-                keypoints.append([0.0, 0.0])
-            else:
-                keypoints.append([x / image_width_pixel, y / image_height_pixel])
-            visibility.append(vis)
-
-        # COCO stores the labeled keypoint count, but third-party exports are not
-        # always consistent about it, so the visibility flags win.
-        num_labeled = _count_labeled(visibility)
-        stored = annotation.get("num_keypoints")
-        if stored is not None and stored != num_labeled:
-            logger.debug(
-                f"Annotation {annotation.get('id')} in '{self.labels}' declares "
-                f"num_keypoints={stored} but has {num_labeled} keypoints with a "
-                f"non-zero visibility flag. Using {num_labeled}."
-            )
-        return keypoints, visibility
-
-    def _parse_bbox(
-        self,
-        annotation: dict[str, Any],
-        keypoints: list[list[float]],
-        visibility: list[int],
-        image_width_pixel: float,
-        image_height_pixel: float,
-    ) -> list[float] | None:
-        """Returns the normalized (x_center, y_center, w, h) box for one annotation.
-
-        Falls back to the tight box around the labeled keypoints when the box is
-        missing or degenerate. Returns None if neither is available.
-        """
-        bbox = annotation.get("bbox")
-        if bbox is not None:
-            left_pixel, top_pixel, width_pixel, height_pixel = bbox
-            if width_pixel > 0 and height_pixel > 0:
-                return [
-                    (left_pixel + width_pixel / 2.0) / image_width_pixel,
-                    (top_pixel + height_pixel / 2.0) / image_height_pixel,
-                    width_pixel / image_width_pixel,
-                    height_pixel / image_height_pixel,
-                ]
-        return keypoint_helpers.bbox_from_keypoints(
-            keypoints_xy=keypoints, visibility=visibility
-        )
 
     @staticmethod
     def get_dataset_cls() -> type[KeypointDetectionDataset]:
@@ -639,7 +559,3 @@ def _image_info(
         "keypoints": json.dumps(keypoints),
         "keypoint_visibility": json.dumps(visibility),
     }
-
-
-def _count_labeled(visibility: list[int]) -> int:
-    return sum(1 for vis in visibility if vis != keypoint_helpers.Visibility.UNLABELED)

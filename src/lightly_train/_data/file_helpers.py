@@ -13,7 +13,7 @@ from collections.abc import Iterable, Set
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, get_args
+from typing import Any, BinaryIO, get_args
 
 import fsspec
 import numpy as np
@@ -531,15 +531,11 @@ def open_yolo_keypoint_detection_label(
                     else keypoint_helpers.Visibility.VISIBLE
                 )
             else:
-                parsed_vis = keypoint_helpers.parse_visibility(values[offset + 2])
-                if parsed_vis is None:
-                    raise ValueError(
-                        f"Expected keypoint visibility to be one of "
-                        f"{[flag.value for flag in keypoint_helpers.Visibility]}, "
-                        f"got {values[offset + 2]} for keypoint {i} in "
-                        f"'{label_path}' on line {line_number}."
-                    )
-                vis = parsed_vis
+                vis = _parse_visibility_or_raise(
+                    visibility=values[offset + 2],
+                    index=i,
+                    location=f"'{label_path}' on line {line_number}",
+                )
             if vis == keypoint_helpers.Visibility.UNLABELED:
                 # Unlabeled keypoints carry no position. Make that explicit
                 # instead of passing on whatever the file stored.
@@ -552,18 +548,85 @@ def open_yolo_keypoint_detection_label(
     return bboxes, keypoints, visibility, classes
 
 
-def _suggest_other_num_dims(num_values: int, num_keypoints: int, num_dims: int) -> str:
-    """Returns a hint if the line would fit the other 'kpt_shape' dimensionality.
+def parse_coco_keypoint_annotation(
+    annotation: dict[str, Any],
+    num_keypoints: int,
+    image_width_pixel: float,
+    image_height_pixel: float,
+    labels_path: Path,
+) -> tuple[list[float] | None, list[list[float]], list[int]]:
+    """Parse one COCO keypoint annotation into a box, keypoints and visibility flags.
 
-    Mixing up [K, 2] and [K, 3] is the most common YOLO pose config mistake.
+    - Coordinates are converted from COCO pixels to normalized [0, 1].
+    - Bbox goes from (x, y, width, height) to (x_center, y_center, width, height).
+    - A missing or degenerate bbox falls back to the tight box around the labeled
+      keypoints.
+    - An annotation without a ``keypoints`` field has no labeled keypoints. Common in
+      files that mix keypoint and non-keypoint categories, so not an error.
+
+    Returns:
+        (bbox, keypoints, visibility). Bbox is None if the annotation has neither a
+        usable box nor a labeled keypoint. Keypoints with visibility 0 sit at (0, 0).
     """
-    other_num_dims = 2 if num_dims == 3 else 3
-    if num_values == 5 + num_keypoints * other_num_dims:
-        return (
-            f" The line fits kpt_shape=[{num_keypoints}, {other_num_dims}], did you "
-            f"mean that?"
-        )
-    return ""
+    annotation_id = annotation.get("id")
+    keypoints: list[list[float]] = []
+    visibility: list[int] = []
+    flat = annotation.get("keypoints")
+    if not flat:
+        keypoints = [[0.0, 0.0] for _ in range(num_keypoints)]
+        visibility = [keypoint_helpers.Visibility.UNLABELED] * num_keypoints
+    else:
+        if len(flat) != 3 * num_keypoints:
+            raise ValueError(
+                f"Expected 'keypoints' of annotation {annotation_id} in "
+                f"'{labels_path}' to have {3 * num_keypoints} values for "
+                f"{num_keypoints} keypoints, got {len(flat)}."
+            )
+        for i in range(num_keypoints):
+            x, y = flat[3 * i], flat[3 * i + 1]
+            vis = _parse_visibility_or_raise(
+                visibility=flat[3 * i + 2],
+                index=i,
+                location=f"annotation {annotation_id} in '{labels_path}'",
+            )
+            if vis == keypoint_helpers.Visibility.UNLABELED:
+                keypoints.append([0.0, 0.0])
+            else:
+                keypoints.append([x / image_width_pixel, y / image_height_pixel])
+            visibility.append(vis)
+
+        # COCO stores the labeled keypoint count, but third-party exports are not
+        # always consistent about it, so the visibility flags win.
+        num_labeled = _count_labeled(visibility)
+        stored = annotation.get("num_keypoints")
+        if stored is not None and stored != num_labeled:
+            logger.debug(
+                f"Annotation {annotation_id} in '{labels_path}' declares "
+                f"num_keypoints={stored} but has {num_labeled} keypoints with a "
+                f"non-zero visibility flag. Using {num_labeled}."
+            )
+
+    bbox = annotation.get("bbox")
+    if bbox is not None:
+        left_pixel, top_pixel, width_pixel, height_pixel = bbox
+        if width_pixel > 0 and height_pixel > 0:
+            return (
+                [
+                    (left_pixel + width_pixel / 2.0) / image_width_pixel,
+                    (top_pixel + height_pixel / 2.0) / image_height_pixel,
+                    width_pixel / image_width_pixel,
+                    height_pixel / image_height_pixel,
+                ],
+                keypoints,
+                visibility,
+            )
+    return (
+        keypoint_helpers.bbox_from_keypoints(
+            keypoints_xy=keypoints, visibility=visibility
+        ),
+        keypoints,
+        visibility,
+    )
 
 
 def _bbox_from_polygon(polygon: list[float]) -> list[float]:
@@ -612,3 +675,38 @@ def resolve_coco_images_dir(
     if images_dir is not None:
         result = (result / images_dir).resolve()
     return result
+
+
+def _suggest_other_num_dims(num_values: int, num_keypoints: int, num_dims: int) -> str:
+    """Returns a hint if the line would fit the other 'kpt_shape' dimensionality.
+
+    Mixing up [K, 2] and [K, 3] is the most common YOLO pose config mistake.
+    """
+    other_num_dims = 2 if num_dims == 3 else 3
+    if num_values == 5 + num_keypoints * other_num_dims:
+        return (
+            f" The line fits kpt_shape=[{num_keypoints}, {other_num_dims}], did you "
+            f"mean that?"
+        )
+    return ""
+
+
+def _parse_visibility_or_raise(
+    visibility: Any, index: int, location: str
+) -> keypoint_helpers.Visibility:
+    """Returns the visibility flag of keypoint ``index``, raising if it is invalid.
+
+    ``location`` names where the keypoint comes from, for the error message.
+    """
+    flag = keypoint_helpers.parse_visibility(visibility)
+    if flag is None:
+        raise ValueError(
+            f"Expected keypoint visibility to be one of "
+            f"{[flag.value for flag in keypoint_helpers.Visibility]}, "
+            f"got {visibility!r} for keypoint {index} of {location}."
+        )
+    return flag
+
+
+def _count_labeled(visibility: list[int]) -> int:
+    return sum(1 for vis in visibility if vis != keypoint_helpers.Visibility.UNLABELED)

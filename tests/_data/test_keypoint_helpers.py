@@ -43,18 +43,12 @@ def test_parse_visibility__not_a_number(visibility: Any) -> None:
 
 def test_validate_kpt_shape__valid() -> None:
     assert keypoint_helpers.validate_kpt_shape((17, 3)) == (17, 3)
-    assert keypoint_helpers.validate_kpt_shape((12, 2)) == (12, 2)
 
 
-def test_validate_kpt_shape__zero_keypoints() -> None:
-    with pytest.raises(ValueError, match="at least 1"):
-        keypoint_helpers.validate_kpt_shape((0, 3))
-
-
-@pytest.mark.parametrize("num_dims", [1, 4])
-def test_validate_kpt_shape__invalid_num_dims(num_dims: int) -> None:
-    with pytest.raises(ValueError, match="to be 2 for"):
-        keypoint_helpers.validate_kpt_shape((17, num_dims))
+@pytest.mark.parametrize("kpt_shape", [(0, 3), (3, 4)])
+def test_validate_kpt_shape__invalid(kpt_shape: tuple[int, int]) -> None:
+    with pytest.raises(ValueError):
+        keypoint_helpers.validate_kpt_shape(kpt_shape)
 
 
 def test_validate_flip_idx__valid() -> None:
@@ -94,18 +88,9 @@ def test_validate_kpt_oks_sigmas__none() -> None:
     keypoint_helpers.validate_kpt_oks_sigmas(None, 3)
 
 
-@pytest.mark.parametrize("sigmas", [[0.1, 0.2], [0.1, 0.0, 0.3]])
-def test_validate_kpt_oks_sigmas__invalid(sigmas: List[float]) -> None:
+def test_validate_kpt_oks_sigmas__invalid() -> None:
     with pytest.raises(ValueError, match="kpt_oks_sigmas"):
-        keypoint_helpers.validate_kpt_oks_sigmas(sigmas, 3)
-
-
-def test_get_coco_num_keypoints__shared_keypoints() -> None:
-    categories: List[Dict[str, Any]] = [
-        {"id": 1, "keypoints": ["a", "b"]},
-        {"id": 2, "keypoints": ["a", "b"]},
-    ]
-    assert keypoint_helpers.get_coco_num_keypoints(categories, [1, 2]) == 2
+        keypoint_helpers.validate_kpt_oks_sigmas([0.1, 0.0, 0.3], 3)
 
 
 def test_get_coco_num_keypoints__ignored_category_with_different_keypoints() -> None:

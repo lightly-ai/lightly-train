@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -730,4 +731,82 @@ def test_open_yolo_keypoint_detection_label__fractional_visibility_raises(
     with pytest.raises(ValueError, match="visibility to be one of"):
         file_helpers.open_yolo_keypoint_detection_label(
             label_path=label_path, num_keypoints=3, num_dims=3
+        )
+
+
+def _parse_coco_keypoint_annotation(
+    annotation: dict[str, Any], num_keypoints: int = 3
+) -> tuple[list[float] | None, list[list[float]], list[int]]:
+    return file_helpers.parse_coco_keypoint_annotation(
+        annotation=annotation,
+        num_keypoints=num_keypoints,
+        image_width_pixel=100,
+        image_height_pixel=200,
+        labels_path=Path("labels.json"),
+    )
+
+
+def test_parse_coco_keypoint_annotation() -> None:
+    bbox, keypoints, visibility = _parse_coco_keypoint_annotation(
+        {
+            "id": 1,
+            "bbox": [10, 20, 30, 40],
+            "keypoints": [10, 20, 2, 50, 100, 1, 7, 7, 0],
+        }
+    )
+    assert bbox == pytest.approx([0.25, 0.2, 0.3, 0.2])
+    # The unlabeled keypoint is zeroed, whatever the file stored.
+    assert keypoints == [[0.1, 0.1], [0.5, 0.5], [0.0, 0.0]]
+    assert visibility == [2, 1, 0]
+
+
+def test_parse_coco_keypoint_annotation__float_visibility_flags() -> None:
+    _, _, visibility = _parse_coco_keypoint_annotation(
+        {"id": 1, "bbox": [10, 20, 30, 40], "keypoints": [10, 20, 2.0, 0, 0, 0.0]},
+        num_keypoints=2,
+    )
+    assert visibility == [2, 0]
+
+
+def test_parse_coco_keypoint_annotation__no_keypoints_field() -> None:
+    bbox, keypoints, visibility = _parse_coco_keypoint_annotation(
+        {"id": 1, "bbox": [10, 20, 30, 40]}
+    )
+    assert bbox == pytest.approx([0.25, 0.2, 0.3, 0.2])
+    assert keypoints == [[0.0, 0.0]] * 3
+    assert visibility == [0, 0, 0]
+
+
+@pytest.mark.parametrize("bbox", [None, [10, 20, 0, 40]])
+def test_parse_coco_keypoint_annotation__bbox_from_keypoints(
+    bbox: list[float] | None,
+) -> None:
+    annotation: dict[str, Any] = {
+        "id": 1,
+        "keypoints": [10, 20, 2, 50, 100, 1, 0, 0, 0],
+    }
+    if bbox is not None:
+        annotation["bbox"] = bbox
+    result, _, _ = _parse_coco_keypoint_annotation(annotation)
+    assert result == pytest.approx([0.3, 0.3, 0.4, 0.4])
+
+
+def test_parse_coco_keypoint_annotation__no_bbox_and_no_keypoints() -> None:
+    bbox, _, _ = _parse_coco_keypoint_annotation({"id": 1, "bbox": [10, 20, 0, 0]})
+    assert bbox is None
+
+
+def test_parse_coco_keypoint_annotation__wrong_length_raises() -> None:
+    with pytest.raises(ValueError, match="to have 9 values for 3 keypoints, got 6"):
+        _parse_coco_keypoint_annotation({"id": 1, "keypoints": [10, 20, 2, 50, 100, 1]})
+
+
+@pytest.mark.parametrize("vis", [3, 1.9, -1])
+def test_parse_coco_keypoint_annotation__invalid_visibility_raises(vis: float) -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"visibility to be one of \[0, 1, 2\].*keypoint 1 of annotation 7 in",
+    ):
+        _parse_coco_keypoint_annotation(
+            {"id": 7, "keypoints": [10, 20, 2, 50, 100, vis, 0, 0, 0]}
         )

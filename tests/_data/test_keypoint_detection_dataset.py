@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Union
 
@@ -221,6 +222,25 @@ class TestCOCOKeypointDetectionDataArgs:
         helpers.create_coco_keypoint_detection_dataset(tmp_path)
         data_args = _coco_data_args(tmp_path)
         assert data_args.train_data_mmap_hash() == data_args.train_data_mmap_hash()
+
+    def test_val_data_mmap_hash__train_categories_changed(self, tmp_path: Path) -> None:
+        # Val class labels are mapped with the train categories, so editing only
+        # train.json must invalidate the val cache.
+        helpers.create_coco_keypoint_detection_dataset(tmp_path)
+        before = _coco_data_args(tmp_path).val_data_mmap_hash()
+        assert _coco_data_args(tmp_path).val_data_mmap_hash() == before
+
+        train_path = tmp_path / "train.json"
+        stat = train_path.stat()
+        with open(train_path) as f:
+            train = json.load(f)
+        train["categories"][0]["name"] = "renamed"
+        with open(train_path, "w") as f:
+            json.dump(train, f)
+        # Same-second rewrites must still change the key, so bump by 1 ns only.
+        os.utime(train_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1))
+
+        assert _coco_data_args(tmp_path).val_data_mmap_hash() != before
 
 
 class TestCOCOKeypointDetectionDatasetArgs:
