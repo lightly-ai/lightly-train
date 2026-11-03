@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Generator
 
@@ -58,6 +59,23 @@ def pytest_configure(config: pytest.Config) -> None:
         "still run by 'make test' and by the unfiltered nightly CI in "
         "lightly-train-private.",
     )
+    config.addinivalue_line(
+        "markers",
+        "skip_windows(reason): skip on Windows. Only for behavior that differs on "
+        "Windows by design, not for slow or failing tests.",
+    )
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        for marker in item.iter_markers("skip_windows"):
+            reason = marker.kwargs.get("reason")
+            if not reason:
+                raise pytest.UsageError(
+                    f"{item.nodeid}: skip_windows requires a reason."
+                )
+            if sys.platform.startswith("win"):
+                item.add_marker(pytest.mark.skip(reason=reason))
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests

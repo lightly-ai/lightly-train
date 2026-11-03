@@ -621,7 +621,6 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     "model, model_args, method, method_args",
     [
@@ -663,7 +662,6 @@ def test_pretrain__multichannel(
 
 
 @pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     ("data_format, num_channels"),
     [

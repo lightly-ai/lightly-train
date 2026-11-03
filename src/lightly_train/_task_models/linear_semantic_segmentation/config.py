@@ -142,19 +142,21 @@ class LinearSegConfigRegistry(ConfigsNamespace):
         freeze_mask_token: bool = True
 
     # --- DINOv3 ViT variants ---
-    @LINEAR_SEG_MODEL_REGISTRY.register(
-        "dinov3/vitt16-linear",
-        "dinov3/vitt16-notpretrained-linear",
-    )
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitt16-linear")
     class DINOv3ViTT16(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16"
 
-    @LINEAR_SEG_MODEL_REGISTRY.register(
-        "dinov3/vitt16plus-linear",
-        "dinov3/vitt16plus-notpretrained-linear",
-    )
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitt16-notpretrained-linear")
+    class DINOv3ViTT16NotPretrained(DINOv3ViTT16):
+        backbone_name: str = "dinov3/vitt16-notpretrained"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitt16plus-linear")
     class DINOv3ViTT16Plus(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitt16plus"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitt16plus-notpretrained-linear")
+    class DINOv3ViTT16PlusNotPretrained(DINOv3ViTT16Plus):
+        backbone_name: str = "dinov3/vitt16plus-notpretrained"
 
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitt16-distillationv1-linear")
     class DINOv3ViTT16Distillationv1(LinearSemanticSegmentationConfig):
@@ -168,6 +170,10 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ViTS16(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vits16"
 
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vits16-notpretrained-linear")
+    class DINOv3ViTS16NotPretrained(DINOv3ViTS16):
+        backbone_name: str = "dinov3/vits16-notpretrained"
+
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vits16plus-linear")
     class DINOv3ViTS16Plus(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vits16plus"
@@ -176,9 +182,17 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ViTB16(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitb16"
 
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitb16-notpretrained-linear")
+    class DINOv3ViTB16NotPretrained(DINOv3ViTB16):
+        backbone_name: str = "dinov3/vitb16-notpretrained"
+
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitl16-linear")
     class DINOv3ViTL16(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/vitl16"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vitl16-notpretrained-linear")
+    class DINOv3ViTL16NotPretrained(DINOv3ViTL16):
+        backbone_name: str = "dinov3/vitl16-notpretrained"
 
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/vith16plus-linear")
     class DINOv3ViTH16Plus(LinearSemanticSegmentationConfig):
@@ -225,17 +239,33 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     class DINOv3ConvNextTiny(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-tiny"
 
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-tiny-notpretrained-linear")
+    class DINOv3ConvNextTinyNotPretrained(DINOv3ConvNextTiny):
+        backbone_name: str = "dinov3/convnext-tiny-notpretrained"
+
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-small-linear")
     class DINOv3ConvNextSmall(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-small"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-small-notpretrained-linear")
+    class DINOv3ConvNextSmallNotPretrained(DINOv3ConvNextSmall):
+        backbone_name: str = "dinov3/convnext-small-notpretrained"
 
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-base-linear")
     class DINOv3ConvNextBase(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-base"
 
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-base-notpretrained-linear")
+    class DINOv3ConvNextBaseNotPretrained(DINOv3ConvNextBase):
+        backbone_name: str = "dinov3/convnext-base-notpretrained"
+
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-large-linear")
     class DINOv3ConvNextLarge(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-large"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-large-notpretrained-linear")
+    class DINOv3ConvNextLargeNotPretrained(DINOv3ConvNextLarge):
+        backbone_name: str = "dinov3/convnext-large-notpretrained"
 
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-tiny-eupe-linear")
     class DINOv3ConvNextTinyEupe(LinearSemanticSegmentationConfig):
@@ -248,6 +278,76 @@ class LinearSegConfigRegistry(ConfigsNamespace):
     @LINEAR_SEG_MODEL_REGISTRY.register("dinov3/convnext-base-eupe-linear")
     class DINOv3ConvNextBaseEupe(LinearSemanticSegmentationConfig):
         backbone_name: str = "dinov3/convnext-base-eupe"
+
+    # --- Torchvision (CNN backbones) ---
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_tiny-linear")
+    class TorchvisionConvNeXtTiny(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_tiny"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_small-linear")
+    class TorchvisionConvNeXtSmall(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_small"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_base-linear")
+    class TorchvisionConvNeXtBase(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_base"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/convnext_large-linear")
+    class TorchvisionConvNeXtLarge(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/convnext_large"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet18-linear")
+    class TorchvisionResNet18(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet18"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet34-linear")
+    class TorchvisionResNet34(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet34"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet50-linear")
+    class TorchvisionResNet50(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet50"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet101-linear")
+    class TorchvisionResNet101(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet101"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/resnet152-linear")
+    class TorchvisionResNet152(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/resnet152"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x0_5-linear")
+    class TorchvisionShuffleNetV2X05(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x0_5"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x1_0-linear")
+    class TorchvisionShuffleNetV2X10(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x1_0"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x1_5-linear")
+    class TorchvisionShuffleNetV2X15(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x1_5"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("torchvision/shufflenet_v2_x2_0-linear")
+    class TorchvisionShuffleNetV2X20(LinearSemanticSegmentationConfig):
+        backbone_name: str = "torchvision/shufflenet_v2_x2_0"
+
+    # --- EdgeCrafter ECViT variants ---
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvitt-linear")
+    class EdgeCrafterECViTT(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvitt"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvittplus-linear")
+    class EdgeCrafterECViTTPlus(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvittplus"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvits-linear")
+    class EdgeCrafterECViTS(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvits"
+
+    @LINEAR_SEG_MODEL_REGISTRY.register("edgecrafter/ecvitsplus-linear")
+    class EdgeCrafterECViTSPlus(LinearSemanticSegmentationConfig):
+        backbone_name: str = "edgecrafter/ecvitsplus"
 
     class Fallback(LinearSemanticSegmentationConfig):
         pass  # backbone_name stays "", parsed from model_name at runtime

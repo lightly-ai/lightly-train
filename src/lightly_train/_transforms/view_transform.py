@@ -17,7 +17,7 @@ from albumentations import (
     Compose,
     GaussianBlur,
     HorizontalFlip,
-    RandomResizedCrop,
+    Resize,
     Rotate,
     Solarize,
     ToGray,
@@ -29,26 +29,33 @@ from lightning_utilities.core.imports import RequirementCache
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._transforms.channel_drop import ChannelDrop
 from lightly_train._transforms.normalize import NormalizeDtypeAware as Normalize
+from lightly_train._transforms.random_resized_crop import get_random_resized_crop
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
     ColorJitterArgs,
     GaussianBlurArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
     RandomResizedCropArgs,
     RandomRotationArgs,
     SolarizeArgs,
 )
-from lightly_train.types import TransformInput, TransformOutputSingleView
+from lightly_train.types import (
+    ImageSizeTuple,
+    TransformInput,
+    TransformOutputSingleView,
+)
 
 ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
 ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_22 = RequirementCache("albumentations>=1.4.22")
 
 
 class ViewTransformArgs(PydanticConfig):
+    # The size every view is resized to. Comes from MethodTransformArgs.image_size.
+    image_size: ImageSizeTuple
     channel_drop: ChannelDropArgs | None
-    random_resized_crop: RandomResizedCropArgs  # only its .scale attribute can be None
+    # None disables the random crop, the view is then only resized to image_size.
+    random_resized_crop: RandomResizedCropArgs | None
     random_flip: RandomFlipArgs | None
     random_rotation: RandomRotationArgs | None
     color_jitter: ColorJitterArgs | None
@@ -56,24 +63,6 @@ class ViewTransformArgs(PydanticConfig):
     gaussian_blur: GaussianBlurArgs | None
     solarize: SolarizeArgs | None
     normalize: NormalizeArgs
-
-
-def _get_RandomResizedCrop(args: RandomResizedCropArgs) -> RandomResizedCrop:
-    # A lot of though went into the choice of interpolation method here.
-    # See details in https://github.com/lightly-ai/lightly-train-old/pull/284
-    assert args.scale is not None
-    if ALBUMENTATIONS_VERSION_2XX:
-        return RandomResizedCrop(
-            size=(args.size[0], args.size[1]),
-            scale=args.scale.as_tuple(),
-            interpolation=cv2.INTER_AREA,
-        )
-    return RandomResizedCrop(
-        height=args.size[0],
-        width=args.size[1],
-        scale=args.scale.as_tuple(),
-        interpolation=cv2.INTER_AREA,
-    )
 
 
 def _get_Solarize(args: SolarizeArgs) -> Solarize:
@@ -160,13 +149,25 @@ class ViewTransform:
                 )
             ]
 
-        # .scale here corresponds to MethodTransformArgs.random_resize and may be None
-        # .size here corresponds to MethodTransformArgs.image_size and may not be None
-        if args.random_resized_crop.scale is None:
-            args.random_resized_crop.scale = RandomResizeArgs(
-                min_scale=1.0, max_scale=1.0
-            )
-        transform += [_get_RandomResizedCrop(args.random_resized_crop)]
+        # Without a random resized crop the view is only resized to image_size. Note
+        # that this is not the same as a random resized crop with scale=(1.0, 1.0):
+        # that one still crops to the aspect ratio range and therefore discards parts
+        # of non-square images.
+        self._has_random_resized_crop = args.random_resized_crop is not None
+        if args.random_resized_crop is not None:
+            transform += [
+                get_random_resized_crop(
+                    size=args.image_size, args=args.random_resized_crop
+                )
+            ]
+        else:
+            transform += [
+                Resize(
+                    height=args.image_size[0],
+                    width=args.image_size[1],
+                    interpolation=cv2.INTER_AREA,
+                )
+            ]
 
         if args.random_flip:
             transform += [
@@ -236,10 +237,13 @@ class ViewTransform:
             elif name == "VerticalFlip":
                 vflip = True
         if crop_coords is None:
-            raise RuntimeError(
-                "record_geometry=True but no crop was applied. This indicates "
-                "an incompatible albumentations version or pipeline."
-            )
+            if self._has_random_resized_crop:
+                raise RuntimeError(
+                    "record_geometry=True but no crop was applied. This indicates "
+                    "an incompatible albumentations version or pipeline."
+                )
+            # The view was only resized, so its geometry covers the whole image.
+            crop_coords = (0, 0, image_w, image_h)
         transformed["geometry"] = torch.tensor(
             [
                 float(crop_coords[0]),
