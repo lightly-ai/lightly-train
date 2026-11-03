@@ -95,7 +95,8 @@ This is checked by the `Lint PR Title` CI job:
 
 Only the pull request title is checked. Pull requests are merged with GitHub's "Squash
 and merge", so the title becomes the commit message on `main`. The individual commits on
-your branch are squashed away and can be named freely.
+your branch are squashed away and can be named freely. Merging goes through the merge
+queue ("Merge when ready"), which also squashes.
 
 Allowed types:
 
