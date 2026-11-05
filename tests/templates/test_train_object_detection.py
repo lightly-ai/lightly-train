@@ -11,7 +11,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader
 from pytest_mock import MockerFixture
 
-from lightly_train._commands.train_task import TORCHMETRICS_GEQ_1_5
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 

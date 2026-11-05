@@ -12,15 +12,8 @@ from typing import Any, Literal
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest import MonkeyPatch
 from torch import Tensor
-
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-
 
 from lightly_train._metrics import mean_average_precision
 from lightly_train._metrics.detection.task_metric import (
@@ -36,6 +29,9 @@ from lightly_train._metrics.mean_average_precision import (
     MeanAveragePrecisionArgs,
     get_default_backend,
 )
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
+
+pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 
 _CANVAS_SIZE = 400
 _LOSS_NAMES = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]

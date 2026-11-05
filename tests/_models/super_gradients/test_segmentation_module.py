@@ -9,19 +9,14 @@
 import pytest
 import torch
 
-try:
-    import super_gradients  # noqa: F401
-except ImportError:
-    # We do not use pytest.importorskip on module level because it makes mypy unhappy.
-    pytest.skip("super_gradients is not installed", allow_module_level=True)
-
-
 from lightly_train._models.super_gradients.segmentation_module import (
     SegmentationModuleModelWrapper,
 )
 from lightly_train._models.super_gradients.super_gradients_package import (
     SUPER_GRADIENTS_PACKAGE,
 )
+
+pytestmark = pytest.mark.requires("super-gradients")
 
 
 class TestSegmentationModule:

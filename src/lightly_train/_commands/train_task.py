@@ -16,7 +16,6 @@ from lightning_fabric import Fabric
 from lightning_fabric.accelerators.accelerator import Accelerator
 from lightning_fabric.connector import _PRECISION_INPUT  # type: ignore[attr-defined]
 from lightning_fabric.strategies.strategy import Strategy
-from lightning_utilities.core.imports import RequirementCache
 from pydantic import ConfigDict, Field, field_validator
 from torch.optim import Optimizer  # type: ignore[attr-defined]
 from typing_extensions import Annotated, override
@@ -65,7 +64,11 @@ from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
 from lightly_train._events import tracker
 from lightly_train._license import LICENSE_INFO
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
+from lightly_train._metrics.task_metric import (
+    TORCHMETRICS_GEQ_1_5,
+    AggregatedMetricValues,
+    TaskMetricArgs,
+)
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._torch_compile import TorchCompileArgs
@@ -77,12 +80,6 @@ from lightly_train.errors import LightlyTrainError
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
-
-# Minimum torchmetrics version required by the task metrics. The package as a whole
-# allows torchmetrics>=0.8 because SuperGradients pins torchmetrics==0.8, but the task
-# metrics use arguments (e.g. `backend`, `average`) that were only added in later
-# versions. 1.5 is the version the metrics are tested against.
-TORCHMETRICS_GEQ_1_5 = RequirementCache("torchmetrics>=1.5")
 
 
 def train_image_classification(
