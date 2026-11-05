@@ -13,7 +13,7 @@ import shutil
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator, Mapping
 
 import pytest
 import torch
@@ -110,6 +110,21 @@ def _missing_requirement(requirement: str | RequirementCache) -> str | None:
     return requirement.requirement or requirement.module
 
 
+@lru_cache(maxsize=None)
+def _cuda_device_count() -> int:
+    return torch.cuda.device_count()
+
+
+def _required_gpus(args: tuple[Any, ...], kwargs: Mapping[str, Any]) -> int:
+    """Return n from gpu(n) or gpu(n=n). Defaults to 1."""
+    if len(args) > 1 or set(kwargs) - {"n"} or (args and kwargs):
+        raise ValueError("gpu takes a single argument n.")
+    n = args[0] if args else kwargs.get("n", 1)
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(f"gpu needs n to be a positive int, got {n!r}.")
+    return n
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     for item in items:
         for marker in item.iter_markers("skip_windows"):
@@ -139,8 +154,11 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                 message = f"{message}: {reason}" if reason else f"{message}."
                 item.add_marker(pytest.mark.skip(reason=message))
         for marker in item.iter_markers("gpu"):
-            n = marker.kwargs.get("n", 1)
-            if torch.cuda.device_count() < n:
+            try:
+                n = _required_gpus(marker.args, marker.kwargs)
+            except ValueError as e:
+                raise pytest.UsageError(f"{item.nodeid}: {e}") from e
+            if _cuda_device_count() < n:
                 item.add_marker(
                     pytest.mark.skip(reason=f"Requires {n} CUDA device(s).")
                 )

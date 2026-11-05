@@ -336,7 +336,6 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     train.pretrain_from_dictconfig(config=config)
 
 
-@pytest.mark.gpu
 @pytest.mark.parametrize(
     "method, teacher",
     [
@@ -360,7 +359,6 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
 def test_pretrain__distillation_different_teachers(
     tmp_path: Path, method: str, teacher: str | Callable[[], Module], devices: int
 ) -> None:
-
     if callable(teacher):
         teacher = teacher()
 
@@ -381,7 +379,6 @@ def test_pretrain__distillation_different_teachers(
     )
 
 
-@pytest.mark.gpu
 @pytest.mark.parametrize(
     "method",
     [
@@ -395,7 +392,6 @@ def test_pretrain__distillation_different_teachers(
     "devices", [pytest.param(1, marks=pytest.mark.gpu(n=1))]
 )  # TODO(Philipp, 09/24): Add test with 2 devices back.
 def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
-
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)

@@ -22,8 +22,6 @@ from lightly_train._methods.batch_timing import (
     create_batch_timing_tracker,
 )
 
-requires_cuda = pytest.mark.gpu
-
 
 class _FakeCudaEvent:
     """Stand-in for ``torch.cuda.Event`` usable without a GPU."""
@@ -70,7 +68,7 @@ def test_cuda_batch_timing_tracker_on_batch_end_without_start_warns() -> None:
     assert metrics == {}
 
 
-@requires_cuda
+@pytest.mark.gpu
 def test_cuda_batch_timing_tracker_on_batch_start_without_end_warns() -> None:
     tracker = CudaBatchTimingTracker()
     tracker.on_batch_start()
@@ -123,7 +121,7 @@ def test_cuda_batch_timing_tracker_resolves_ready_samples_averages_multiple() ->
     assert tracker._resolve_ready_samples() == {}
 
 
-@requires_cuda
+@pytest.mark.gpu
 def test_cuda_batch_timing_tracker_resolves_metrics_in_order() -> None:
     tracker = CudaBatchTimingTracker()
     num_cycles = 3
@@ -146,7 +144,7 @@ def test_cuda_batch_timing_tracker_resolves_metrics_in_order() -> None:
     torch.cuda.synchronize()
 
 
-@requires_cuda
+@pytest.mark.gpu
 def test_cuda_batch_timing_tracker_on_batch_start_does_not_block() -> None:
     tracker = CudaBatchTimingTracker()
 
