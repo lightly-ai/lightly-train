@@ -51,6 +51,9 @@ ULTRALYTICS_RTDETR_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
 ULTRALYTICS_YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
 ULTRALYTICS_YOLOV12_AVAILABLE = RequirementCache("ultralytics>=8.3.78")
 ULTRALYTICS_YOLO26_AVAILABLE = RequirementCache("ultralytics>=8.4.0")
+# YOLO forwards attribute access to the underlying model. Models loaded from
+# checkpoints report `training=False`.
+ULTRALYTICS_GEQ_8_3_39 = RequirementCache("ultralytics>=8.3.39")
 # The original YOLOv12 repository is installed from a URL as the ultralytics package.
 ULTRALYTICS_YOLOV12_ORIGINAL_AVAILABLE = _get_direct_url() is not None
 

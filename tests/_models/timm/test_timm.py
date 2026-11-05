@@ -20,36 +20,31 @@ from lightly_train._models.timm.timm import TIMMModelWrapper
 pytestmark = pytest.mark.requires("timm")
 
 
-class TestTIMMModelWrapper:
-    def test_forward_features(self) -> None:
-        import timm
+@pytest.fixture
+def model() -> Module:
+    import timm
 
-        model = timm.create_model("resnet18")
+    return timm.create_model("resnet18")
+
+
+class TestTIMMModelWrapper:
+    def test_forward_features(self, model: Module) -> None:
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
         y = extractor.forward_features(x)["features"]
         assert y.shape == (1, 512, 2, 2)
 
-    def test_forward_pool(self) -> None:
-        import timm
-
-        model = timm.create_model("resnet18")
+    def test_forward_pool(self, model: Module) -> None:
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 32, 2, 2)
         y = extractor.forward_pool({"features": x})["pooled_features"]
         assert y.shape == (1, 32, 1, 1)
 
-    def test_get_model(self) -> None:
-        import timm
-
-        model = timm.create_model("resnet18")
+    def test_get_model(self, model: Module) -> None:
         extractor = TIMMModelWrapper(model=model)
         assert extractor.get_model() is model
 
-    def test_forward__equality_to_model(self) -> None:
-        import timm
-
-        model = timm.create_model("resnet18")
+    def test_forward__equality_to_model(self, model: Module) -> None:
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
 
@@ -58,10 +53,7 @@ class TestTIMMModelWrapper:
 
         torch.testing.assert_close(predictions, predictions_direct)
 
-    def test_forward__resnet18__shape(self) -> None:
-        import timm
-
-        model = timm.create_model("resnet18")
+    def test_forward__resnet18__shape(self, model: Module) -> None:
         extractor = TIMMModelWrapper(model=model)
         x = torch.rand(1, 3, 64, 64)
         y = extractor.forward_pool(extractor.forward_features(x))["pooled_features"]
@@ -76,13 +68,10 @@ class TestTIMMModelWrapper:
         y = extractor.forward_pool(extractor.forward_features(x))["pooled_features"]
         assert y.shape == (1, 384, 1, 1)
 
-    def test__device(self) -> None:
+    def test__device(self, model: Module) -> None:
         # If this test fails it means the wrapped model doesn't move all required
         # modules to the correct device. This happens if not all required modules
         # are registered as attributes of the class.
-        import timm
-
-        model = timm.create_model("resnet18")
         extractor = TIMMModelWrapper(model=model)
         extractor.to("meta")
         extractor.forward_features(torch.rand(1, 3, 64, 64, device="meta"))

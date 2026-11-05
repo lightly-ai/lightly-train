@@ -11,11 +11,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from lightning_utilities.core.imports import RequirementCache
 from torch.nn import Module
 from torchmetrics import Metric as TorchmetricsMetric
 
 from lightly_train._configs.config import PydanticConfig
 from lightly_train._metrics.metric_args import MetricArgs
+
+# Minimum torchmetrics version required by the task metrics. The package as a whole
+# allows torchmetrics>=0.8 because SuperGradients pins torchmetrics==0.8, but the task
+# metrics use arguments (e.g. `backend`, `average`) that were only added in later
+# versions. 1.5 is the version the metrics are tested against.
+TORCHMETRICS_GEQ_1_5 = RequirementCache("torchmetrics>=1.5")
 
 # ## Metrics Structure Overview
 #

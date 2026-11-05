@@ -5,7 +5,10 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import torch
@@ -15,7 +18,17 @@ from lightly_train._models.rfdetr.rfdetr_package import RFDETRPackage
 
 from ...helpers import DummyCustomModel
 
+if TYPE_CHECKING:
+    from rfdetr.detr import RFDETRBase
+
 pytestmark = pytest.mark.requires("rfdetr")
+
+
+@pytest.fixture
+def model() -> RFDETRBase:
+    from rfdetr.detr import RFDETRBase
+
+    return RFDETRBase()  # type: ignore[no-untyped-call]
 
 
 class TestRFDETRPackage:
@@ -38,10 +51,7 @@ class TestRFDETRPackage:
         model_names = RFDETRPackage.list_model_names()
         assert (model_name in model_names) is supported
 
-    def test_is_supported_model__model_true(self) -> None:
-        from rfdetr.detr import RFDETRBase
-
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+    def test_is_supported_model__model_true(self, model: RFDETRBase) -> None:
         assert RFDETRPackage.is_supported_model(model=model)
 
         wrapped_model = RFDETRModelWrapper(model=model)
@@ -68,19 +78,15 @@ class TestRFDETRPackage:
         model = RFDETRPackage.get_model(model_name=model_name)
         assert isinstance(model, RFDETR)
 
-    def test_get_model_wrapper(self) -> None:
-        from rfdetr.detr import RFDETRBase
-
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+    def test_get_model_wrapper(self, model: RFDETRBase) -> None:
         fe = RFDETRPackage.get_model_wrapper(model=model)
         assert isinstance(fe, RFDETRModelWrapper)
 
-    def test_export_model__model(self, tmp_path: Path) -> None:
+    def test_export_model__model(self, tmp_path: Path, model: RFDETRBase) -> None:
         from rfdetr.detr import RFDETRBase
         from rfdetr.models.backbone.dinov2 import WindowedDinov2WithRegistersBackbone
 
         out = tmp_path / "model.pt"
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
 
         RFDETRPackage.export_model(model=model, out=out)
         model_exported = RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]
@@ -125,11 +131,12 @@ class TestRFDETRPackage:
                 assert module.training
                 assert module_exp.training
 
-    def test_export_model__wrapped_model(self, tmp_path: Path) -> None:
+    def test_export_model__wrapped_model(
+        self, tmp_path: Path, model: RFDETRBase
+    ) -> None:
         from rfdetr.detr import RFDETRBase
 
         out = tmp_path / "model.pt"
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
         wrapped_model = RFDETRModelWrapper(model=model)
         RFDETRPackage.export_model(model=wrapped_model, out=out)
         RFDETRBase(pretrain_weights=out.as_posix())  # type: ignore[no-untyped-call]

@@ -22,7 +22,6 @@ from pytest import LogCaptureFixture
 import lightly_train
 from lightly_train._commands import train_task
 from lightly_train._commands.train_task import (
-    TORCHMETRICS_GEQ_1_5,
     ImageClassificationMulticlassTrainTaskConfig,
     ImageClassificationMultiheadMulticlassTrainTaskConfig,
     ImageClassificationMultiheadMultilabelTrainTaskConfig,
@@ -55,13 +54,13 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
+from lightly_train._transforms.albumentations_helpers import ALBUMENTATIONS_GEQ_2_0_0
 from lightly_train.errors import LightlyTrainError
 
 from .. import helpers
 
-pytestmark = pytest.mark.requires(
-    "albumentations>=1.4.0", TORCHMETRICS_GEQ_1_5, "transformers"
-)
+pytestmark = pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0, TORCHMETRICS_GEQ_1_5)
 
 
 def test_train_image_classification__multiclass(tmp_path: Path) -> None:

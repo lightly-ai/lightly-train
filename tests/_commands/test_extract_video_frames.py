@@ -21,8 +21,9 @@ from lightly_train._commands.extract_video_frames import (
 
 from .. import helpers
 
-if not extract_video_frames.ffmpeg_is_installed():
-    pytest.skip("ffmpeg is not installed.", allow_module_level=True)
+pytestmark = pytest.mark.skipif(
+    not extract_video_frames.ffmpeg_is_installed(), reason="Requires ffmpeg."
+)
 
 
 @pytest.mark.parametrize("overwrite", [False, True])

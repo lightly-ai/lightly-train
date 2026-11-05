@@ -11,10 +11,10 @@ from __future__ import annotations
 import pytest
 import torch
 
-from lightly_train._commands.train_task import TORCHMETRICS_GEQ_1_5
 from lightly_train._metrics.classwise_metric_collection import (
     ClasswiseMetricCollection,
 )
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
 
 pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 

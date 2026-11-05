@@ -15,7 +15,6 @@ import torch
 from pytest import MonkeyPatch
 from torch import Tensor
 
-from lightly_train._commands.train_task import TORCHMETRICS_GEQ_1_5
 from lightly_train._metrics import mean_average_precision
 from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
@@ -30,6 +29,7 @@ from lightly_train._metrics.mean_average_precision import (
     MeanAveragePrecisionArgs,
     get_default_backend,
 )
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
 
 pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 

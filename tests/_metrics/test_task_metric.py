@@ -10,14 +10,16 @@ from __future__ import annotations
 
 import pytest
 
-from lightly_train._commands.train_task import TORCHMETRICS_GEQ_1_5
 from lightly_train._metrics.classification.task_metric import (
     MultilabelClassificationTaskMetricArgs,
 )
 from lightly_train._metrics.semantic_segmentation.task_metric import (
     SemanticSegmentationTaskMetricArgs,
 )
-from lightly_train._metrics.task_metric import get_watch_metric_mode
+from lightly_train._metrics.task_metric import (
+    TORCHMETRICS_GEQ_1_5,
+    get_watch_metric_mode,
+)
 
 pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 

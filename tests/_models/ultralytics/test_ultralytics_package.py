@@ -12,6 +12,7 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._models.ultralytics.ultralytics import (
+    ULTRALYTICS_GEQ_8_3_39,
     ULTRALYTICS_YOLO26_AVAILABLE,
     UltralyticsModelWrapper,
 )
@@ -124,7 +125,7 @@ class TestUltralyticsPackage:
                 # This results in models loaded from checkpoints having the training
                 # attribute set to False as checkpoint loading puts the model in eval
                 # mode, see: https://github.com/ultralytics/ultralytics/blob/c196a82bfae3856aaacde873054778f1e4a5eef3/ultralytics/nn/tasks.py#L923
-                if RequirementCache("ultralytics>=8.3.39"):
+                if ULTRALYTICS_GEQ_8_3_39:
                     assert not module_exp.training
                 else:
                     assert module_exp.training
