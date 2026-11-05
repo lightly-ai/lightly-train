@@ -22,6 +22,7 @@ from torch import Tensor
 from torch.nn import Module, ModuleList
 
 from lightly_train import _torch_helpers
+from lightly_train._task_models import task_model_helpers
 
 logger = logging.getLogger(__name__)
 
@@ -439,24 +440,12 @@ def picodet_gfl_cls_reuse_or_reinit_hook(
     if not isinstance(gfl_cls_module, ModuleList):
         return
 
-    mismatches = 0
-    for idx, head_module in enumerate(gfl_cls_module):
-        if head_module is None:
-            continue
-        weight_key = f"{prefix}gfl_cls.{idx}.weight"
-        bias_key = f"{prefix}gfl_cls.{idx}.bias"
-        weight = state_dict.get(weight_key)
-        if weight is None:
-            continue
-        if weight.shape != head_module.weight.shape:  # type: ignore[operator]
-            state_dict[weight_key] = head_module.weight.detach().clone()  # type: ignore[operator]
-            if bias_key in state_dict:
-                state_dict[bias_key] = head_module.bias.detach().clone()  # type: ignore[operator]
-            mismatches += 1
-
-    if mismatches:
-        logger.info(
-            "Checkpoint provides different number of classes for PicoDet gfl_cls. "
-            "Reinitializing %d heads.",
-            mismatches,
-        )
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict,
+        prefix=prefix,
+        heads={
+            f"gfl_cls.{i}": head
+            for i, head in enumerate(gfl_cls_module)
+            if head is not None
+        },
+    )

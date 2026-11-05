@@ -123,6 +123,31 @@ class TestLinearSemanticSegmentation:
         assert config.freeze_mask_token is True
 
 
+@pytest.mark.parametrize("checkpoint_classes", [1, 2, 3])
+def test_head_reuse_or_reinit_hook(checkpoint_classes: int) -> None:
+    def create_model(num_classes: int) -> LinearSemanticSegmentation:
+        return LinearSemanticSegmentation(
+            model_name="dinov2/_vittest14-linear",
+            classes={i: str(i) for i in range(num_classes)},
+            class_ignore_index=None,
+            backbone_freeze=False,
+            image_size=(14, 14),
+            image_normalize=_IMAGE_NORMALIZE,
+            load_weights=False,
+        )
+
+    source = create_model(num_classes=checkpoint_classes)
+    target = create_model(num_classes=2)
+    initial = {k: v.clone() for k, v in target.state_dict().items()}
+    target.load_state_dict(source.state_dict(), strict=True)
+    checkpoint = source.state_dict()
+    for key, value in target.state_dict().items():
+        if key.startswith("head.") and checkpoint_classes != 2:
+            torch.testing.assert_close(value, initial[key])
+        else:
+            torch.testing.assert_close(value, checkpoint[key])
+
+
 class TestLinearSemanticSegmentationConfig:
     def test_freeze_mask_token__raises_for_non_dinov2(self) -> None:
         from pydantic import ValidationError

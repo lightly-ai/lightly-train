@@ -16,14 +16,16 @@ from typing import Any
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torch.nn import Linear
+from torch.nn import Linear, Module
 from torch.nn import functional as F
 from torchvision.transforms.v2 import functional as transforms_functional
 
+from lightly_train import _torch_helpers
 from lightly_train._data import file_helpers
 from lightly_train._models import package_helpers
 from lightly_train._models.model_wrapper import ModelWrapper
 from lightly_train._models.package import MultiScaleFeaturePackage
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.linear_semantic_segmentation.config import (
     LINEAR_SEG_MODEL_REGISTRY,
     LinearSegConfigRegistry,
@@ -149,6 +151,10 @@ class LinearSemanticSegmentation(TaskModel):
             self.freeze_backbone()
 
         self.head = Linear(embed_dim, len(self.internal_class_to_class))
+
+        _torch_helpers.register_load_state_dict_pre_hook(
+            self, head_reuse_or_reinit_hook
+        )
 
     @classmethod
     def list_model_names(cls) -> list[str]:
@@ -519,3 +525,19 @@ class LinearSemanticSegmentation(TaskModel):
     def freeze_backbone(self) -> None:
         self.backbone.eval()
         self.backbone.requires_grad_(False)
+
+
+def head_reuse_or_reinit_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Reuse or reinitialize head when number of classes changes."""
+    head_module = getattr(module, "head", None)
+    if head_module is None:
+        return
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix=prefix, heads={"head": head_module}
+    )

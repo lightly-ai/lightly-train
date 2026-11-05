@@ -23,6 +23,7 @@ from lightly_train import _logging, _torch_helpers, _torch_testing
 from lightly_train._data import file_helpers
 from lightly_train._export import onnx_helpers, tensorrt_helpers
 from lightly_train._models import package_helpers
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -730,27 +731,9 @@ def class_head_reuse_or_reinit_hook(
     **kwargs: Any,
 ) -> None:
     """Reuse or reinitialize class head when number of classes changes."""
-    class_head_weight_key = f"{prefix}class_head.weight"
-    class_head_bias_key = f"{prefix}class_head.bias"
-    class_head_weight = state_dict.get(class_head_weight_key)
-    if class_head_weight is None:
-        return
-
     class_head_module = getattr(module, "class_head", None)
     if class_head_module is None:
         return
-
-    num_classes_state = class_head_weight.shape[0]
-    num_classes_module = class_head_module.out_features
-    if num_classes_state == num_classes_module:
-        return
-    else:
-        logger.info(
-            f"Checkpoint provides {num_classes_state} classes but module expects "
-            f"{num_classes_module}. Reinitializing class head.",
-        )
-
-        # Keep the module initialization by overwriting the checkpoint weights with the
-        # current parameter tensors.
-        state_dict[class_head_weight_key] = class_head_module.weight.detach().clone()
-        state_dict[class_head_bias_key] = class_head_module.bias.detach().clone()
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix=prefix, heads={"class_head": class_head_module}
+    )
