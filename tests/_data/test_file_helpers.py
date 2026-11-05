@@ -206,7 +206,7 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
+@pytest.mark.requires("pydicom")
 def test__open_image_numpy__with_pydicom__written_file(tmp_path: Path) -> None:
     # Uses a written file instead of pydicom.examples, which pydicom 2.x lacks.
     pixels = np.arange(12 * 16, dtype=np.uint16).reshape(12, 16) * 300
