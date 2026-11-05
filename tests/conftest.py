@@ -112,6 +112,8 @@ def _missing_requirement(requirement: str | RequirementCache) -> str | None:
 
 @lru_cache(maxsize=None)
 def _cuda_device_count() -> int:
+    if not torch.cuda.is_available():
+        return 0
     return torch.cuda.device_count()
 
 
