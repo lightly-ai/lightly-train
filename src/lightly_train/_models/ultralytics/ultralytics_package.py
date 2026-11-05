@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 from lightly_train._models import log_usage_example
 from lightly_train._models.model_wrapper import ModelWrapper
-from lightly_train._models.package import Package
+from lightly_train._models.package import MultiScaleFeaturePackage
 from lightly_train._models.ultralytics.ultralytics import (
     UltralyticsModelWrapper,
 )
@@ -28,7 +28,7 @@ from lightly_train._models.ultralytics.ultralytics import (
 logger = logging.getLogger(__name__)
 
 
-class UltralyticsPackage(Package):
+class UltralyticsPackage(MultiScaleFeaturePackage):
     name = "ultralytics"
 
     @classmethod
