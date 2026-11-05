@@ -13,14 +13,14 @@ from typing import Any
 
 import numpy as np
 from albumentations.augmentations.crops.transforms import RandomCrop
-from lightning_utilities.core.imports import RequirementCache
 from numpy.typing import NDArray
 
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_11,
+    ALBUMENTATIONS_GEQ_1_4_15,
+    ALBUMENTATIONS_GEQ_1_4_21,
+)
 from lightly_train.types import NDArrayBBoxes, NDArrayImage
-
-ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
-ALBUMENTATIONS_GEQ_1_4_15 = RequirementCache("albumentations>=1.4.15")
-ALBUMENTATIONS_GEQ_1_4_11 = RequirementCache("albumentations>=1.4.11")
 
 if not ALBUMENTATIONS_GEQ_1_4_21:
     import albumentations.augmentations.crops.functional as F

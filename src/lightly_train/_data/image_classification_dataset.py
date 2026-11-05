@@ -141,23 +141,22 @@ class ImageClassificationDataArgs(TaskDataArgs):
             self.test = data_helpers.resolve_path(self.test, base_dir=base_dir)
 
     def train_data_mmap_hash(self) -> str:
-        return str(
-            (
-                Path(self.train).resolve(),
-                self.classes,
-                self.label_delimiter,
-                sorted(self.ignore_classes) if self.ignore_classes else None,
-                self.classification_task,
-                self.csv_image_column,
-                self.csv_label_column,
-                self.csv_label_type,
-            )
-        )
+        return self._data_mmap_hash(self.train)
 
     def val_data_mmap_hash(self) -> str:
+        return self._data_mmap_hash(self.val)
+
+    def _data_mmap_hash(self, path: PathLike) -> str:
+        resolved_path = Path(path).resolve()
+        # Include the CSV modification time so that edits invalidate the cache.
+        source = (
+            (resolved_path, resolved_path.stat().st_mtime_ns)
+            if resolved_path.is_file()
+            else resolved_path
+        )
         return str(
             (
-                Path(self.val).resolve(),
+                source,
                 self.classes,
                 self.label_delimiter,
                 sorted(self.ignore_classes) if self.ignore_classes else None,

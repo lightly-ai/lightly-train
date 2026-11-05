@@ -11,10 +11,12 @@ import os
 import re
 import shutil
 import sys
+from functools import lru_cache
 from pathlib import Path
 from typing import Generator
 
 import pytest
+from lightning_utilities.core.imports import RequirementCache
 from pytest import FixtureRequest, TempPathFactory
 from pytest_mock import MockerFixture
 
@@ -64,6 +66,26 @@ def pytest_configure(config: pytest.Config) -> None:
         "skip_windows(reason): skip on Windows. Only for behavior that differs on "
         "Windows by design, not for slow or failing tests.",
     )
+    config.addinivalue_line(
+        "markers",
+        "requires(*requirements): skip unless all requirements are met. Takes "
+        "requirement strings or RequirementCache constants, e.g. "
+        'requires("onnx", TORCH_DIM_HINTS_AVAILABLE).',
+    )
+
+
+@lru_cache(maxsize=None)
+def _requirement_cache(requirement: str) -> RequirementCache:
+    return RequirementCache(requirement)
+
+
+def _missing_requirement(requirement: str | RequirementCache) -> str | None:
+    """Return the requirement name if it is not met, otherwise None."""
+    if isinstance(requirement, str):
+        requirement = _requirement_cache(requirement)
+    if requirement:
+        return None
+    return requirement.requirement or requirement.module
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -76,6 +98,20 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                 )
             if sys.platform.startswith("win"):
                 item.add_marker(pytest.mark.skip(reason=reason))
+        for marker in item.iter_markers("requires"):
+            if not marker.args:
+                raise pytest.UsageError(
+                    f"{item.nodeid}: requires needs at least one requirement."
+                )
+            missing = [
+                name
+                for name in (_missing_requirement(r) for r in marker.args)
+                if name is not None
+            ]
+            if missing:
+                item.add_marker(
+                    pytest.mark.skip(reason=f"Requires {', '.join(missing)}.")
+                )
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests

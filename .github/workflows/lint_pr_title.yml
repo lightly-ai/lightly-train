@@ -14,6 +14,8 @@ on:
       - reopened
       - edited
       - synchronize
+  # Lint PR Title is a required check, so it must also report in the merge queue.
+  merge_group:
 
 permissions:
   pull-requests: read
@@ -21,6 +23,9 @@ permissions:
 jobs:
   lint-pr-title:
     name: Lint PR Title
+    # Skipped in the merge queue: the title was already linted on the pull request,
+    # and a skipped job counts as a passing required check.
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       # Runs on `pull_request_target` so that the check also works for pull requests from

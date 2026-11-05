@@ -15,7 +15,6 @@ from typing import Any, Literal
 
 import torch
 from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -44,6 +43,7 @@ from lightly_train._commands.benchmark_types import (
 )
 from lightly_train._configs import validate
 from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train._data import label_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -60,6 +60,10 @@ from lightly_train._task_models.object_detection_components.utils import (
     _yolo_to_xyxy,
 )
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
+)
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionCollateFunction,
     LTDETRObjectDetectionTransform,
@@ -70,9 +74,6 @@ from lightly_train.types import (
     ObjectDetectionDatasetItem,
     PathLike,
 )
-
-_ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
-_ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 def benchmark_object_detection(
@@ -163,6 +164,19 @@ def _benchmark_object_detection_from_config(
     # Set up validation data.
     data_arg_helpers.resolve_data_paths(config.data)
     data_args = config.data
+
+    # Match model and dataset classes before loading the dataset, so that a
+    # mismatch fails fast.
+    model_classes = getattr(model, "classes", None)
+    if not isinstance(model_classes, dict):
+        raise ValueError(
+            f"Model of type {type(model).__name__} must have a 'classes' dict "
+            f"attribute, got {type(model_classes).__name__}."
+        )
+    model_class_to_data_internal_class = _get_model_class_to_data_internal_class(
+        model_classes=model_classes, data_classes=data_args.included_classes
+    )
+
     num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers, num_devices_per_node=1
     )
@@ -252,15 +266,20 @@ def _benchmark_object_detection_from_config(
             batch_times.append(t_infer)
             predictions_cpu = _to_cpu(predictions)
 
-            # Convert predictions from "bboxes" to "boxes" for torchmetrics.
-            metric_preds: list[dict[str, Tensor]] = [
-                {
-                    "boxes": p["bboxes"],
-                    "scores": p["scores"],
-                    "labels": p["labels"],
-                }
-                for p in predictions_cpu
-            ]
+            # Convert predictions from "bboxes" to "boxes" for torchmetrics and
+            # map labels to internal dataset class ids. Drop predictions for model
+            # classes that are not in the dataset.
+            metric_preds: list[dict[str, Tensor]] = []
+            for p in predictions_cpu:
+                labels = model_class_to_data_internal_class[p["labels"]]
+                keep = labels >= 0
+                metric_preds.append(
+                    {
+                        "boxes": p["bboxes"][keep],
+                        "scores": p["scores"][keep],
+                        "labels": labels[keep],
+                    }
+                )
             # Convert ground truth boxes from YOLO format to denormalized xyxy.
             boxes_xyxy = _yolo_to_xyxy(batch["bboxes"])
             boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, batch["original_size"])
@@ -338,8 +357,8 @@ def _make_val_bbox_params() -> BboxParams:
         label_fields=["class_labels"],
         min_width=0.0,
         min_height=0.0,
-        **(dict(filter_invalid_bboxes=True) if _ALBUMENTATIONS_GE_2_0_1 else {}),
-        **(dict(clip=True) if _ALBUMENTATIONS_GE_1_4_5 else {}),
+        **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+        **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
     )
 
 
@@ -448,6 +467,48 @@ def _to_cpu(
     predictions: list[ObjectDetectionPrediction],
 ) -> list[ObjectDetectionPrediction]:
     return [{k: v.detach().cpu() for k, v in p.items()} for p in predictions]  # type: ignore[attr-defined,misc]
+
+
+def _get_model_class_to_data_internal_class(
+    model_classes: dict[int, str], data_classes: dict[int, str]
+) -> Tensor:
+    """Returns a lookup table from model class id to internal dataset class id.
+
+    Predictions hold the model's class ids, while targets hold internal dataset
+    class ids in [0, num_data_classes - 1]. Classes are matched by name because
+    the model and the dataset can use different ids for the same class. For
+    example, COCO checkpoints use ids 0-79 and COCO annotation files use ids 1-90.
+    Model classes that are not in the dataset map to -1.
+    """
+    data_class_names = list(data_classes.values())
+    duplicates = sorted(
+        {name for name in data_class_names if data_class_names.count(name) > 1}
+    )
+    if duplicates:
+        raise ValueError(
+            f"Dataset class names {duplicates} are not unique. The benchmark matches "
+            "dataset and model classes by name, so dataset class names must be unique."
+        )
+    model_class_names = set(model_classes.values())
+    missing = [name for name in data_classes.values() if name not in model_class_names]
+    if missing:
+        raise ValueError(
+            f"Dataset classes {missing} are not in the model classes "
+            f"{sorted(model_class_names)}. The benchmark matches dataset and model "
+            "classes by name."
+        )
+    # Use the same mapping as the dataset to get the internal class ids.
+    class_to_internal_class = label_helpers.get_class_id_to_internal_class_id_mapping(
+        class_ids=data_classes.keys(), ignore_classes=None
+    )
+    name_to_internal_class = {
+        data_classes[class_id]: internal_class
+        for class_id, internal_class in class_to_internal_class.items()
+    }
+    table = torch.full((max(model_classes) + 1,), -1, dtype=torch.long)
+    for class_id, name in model_classes.items():
+        table[class_id] = name_to_internal_class.get(name, -1)
+    return table
 
 
 def _create_metric(
