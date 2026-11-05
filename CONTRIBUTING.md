@@ -76,6 +76,7 @@ fail collection (`--strict-markers`).
 | Marker                                | Use for                                                                                                   |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `requires("pkg", PKG_GEQ_X, reason=)` | Tests that need optional packages or versions. Use `"python>=3.x"` or `"python<3.x"` for Python versions. |
+| `gpu(n=1)`                            | Tests that need at least `n` CUDA devices.                                                                |
 | `skip_windows(reason=)`               | Behavior that differs on Windows by design.                                                               |
 | `long_running_test`                   | Tests excluded from PR CI, run in nightly CI.                                                             |
 

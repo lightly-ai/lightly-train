@@ -12,7 +12,7 @@ import sys
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.conftest import _missing_requirement
+from tests.conftest import _missing_requirement, _required_gpus
 
 
 @pytest.mark.parametrize(
@@ -63,3 +63,35 @@ def test__missing_requirement__package_with_python_prefix() -> None:
         _missing_requirement("python-not-installed-package")
         == "python-not-installed-package"
     )
+
+
+@pytest.mark.parametrize(
+    "args, kwargs, expected",
+    [
+        ((), {}, 1),
+        ((2,), {}, 2),
+        ((), {"n": 2}, 2),
+    ],
+)
+def test__required_gpus(
+    args: tuple[int, ...], kwargs: dict[str, int], expected: int
+) -> None:
+    assert _required_gpus(args, kwargs) == expected
+
+
+@pytest.mark.parametrize(
+    "args, kwargs",
+    [
+        ((0,), {}),
+        ((True,), {}),
+        ((), {"n": "2"}),
+        ((1, 2), {}),
+        ((1,), {"n": 1}),
+        ((), {"count": 2}),
+    ],
+)
+def test__required_gpus__invalid(
+    args: tuple[object, ...], kwargs: dict[str, object]
+) -> None:
+    with pytest.raises(ValueError, match="gpu"):
+        _required_gpus(args, kwargs)

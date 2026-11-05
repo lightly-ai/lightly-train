@@ -304,8 +304,14 @@ _DDP_STRATEGY = DDPStrategy()
         ("auto", "cpu", "auto", "auto"),  # CPU should not use DDP by default
         ("auto", "cpu", 1, "auto"),
         ("auto", "cpu", 2, "ddp_find_unused_parameters_true"),
-        ("auto", "gpu", 1, "auto"),
-        ("auto", "gpu", 2, "ddp_find_unused_parameters_true"),
+        pytest.param("auto", "gpu", 1, "auto", marks=pytest.mark.gpu(n=1)),
+        pytest.param(
+            "auto",
+            "gpu",
+            2,
+            "ddp_find_unused_parameters_true",
+            marks=pytest.mark.gpu(n=2),
+        ),
     ],
 )
 def test_get_strategy(
@@ -314,13 +320,6 @@ def test_get_strategy(
     devices: str | int,
     expected: str | DDPStrategy,
 ) -> None:
-    if accelerator == "gpu":
-        if not torch.cuda.is_available():
-            pytest.skip("No GPU available.")
-        assert isinstance(devices, int)
-        if devices > torch.cuda.device_count():
-            pytest.skip("Not enough GPUs available.")
-
     assert (
         train_helpers.get_strategy(
             strategy=strategy, accelerator=accelerator, devices=devices

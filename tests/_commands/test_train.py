@@ -134,7 +134,7 @@ def test_pretrain__batch_sizes_for_gradient_accumulation(
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
 def test_pretrain(
     tmp_path: Path, caplog: LogCaptureFixture, num_workers: int | Literal["auto"]
@@ -201,7 +201,7 @@ def test_pretrain(
         assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__overwrite_true(tmp_path: Path) -> None:
     """Test that overwrite=True allows training with an existing output directory that
     contains files."""
@@ -224,7 +224,7 @@ def test_pretrain__overwrite_true(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__overwrite_false(tmp_path: Path) -> None:
     (tmp_path / "file.txt").touch()
 
@@ -240,7 +240,7 @@ def test_pretrain__overwrite_false(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__embed_dim(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -259,7 +259,7 @@ def test_pretrain__embed_dim(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__custom_model(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -292,7 +292,7 @@ def test_pretrain__parameters() -> None:
     helpers.assert_same_params(a=TrainConfig, b=CLITrainConfig, assert_type=False)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__zero_epochs(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -310,7 +310,7 @@ def test_pretrain__zero_epochs(tmp_path: Path) -> None:
     assert (out / "checkpoints" / "last.ckpt").exists()
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_train_from_dictconfig(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -336,7 +336,6 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     train.pretrain_from_dictconfig(config=config)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize(
     "method, teacher",
     [
@@ -355,14 +354,11 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     ],
 )
 @pytest.mark.parametrize(
-    "devices", [1]
+    "devices", [pytest.param(1, marks=pytest.mark.gpu(n=1))]
 )  # TODO(Lionel, 10/25): Add test with 2 devices back.
 def test_pretrain__distillation_different_teachers(
     tmp_path: Path, method: str, teacher: str | Callable[[], Module], devices: int
 ) -> None:
-    if torch.cuda.device_count() < devices:
-        pytest.skip("Test requires more GPUs than available.")
-
     if callable(teacher):
         teacher = teacher()
 
@@ -383,7 +379,6 @@ def test_pretrain__distillation_different_teachers(
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize(
     "method",
     [
@@ -394,12 +389,9 @@ def test_pretrain__distillation_different_teachers(
     ],
 )
 @pytest.mark.parametrize(
-    "devices", [1]
+    "devices", [pytest.param(1, marks=pytest.mark.gpu(n=1))]
 )  # TODO(Philipp, 09/24): Add test with 2 devices back.
 def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
-    if torch.cuda.device_count() < devices:
-        pytest.skip("Test requires more GPUs than available.")
-
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
@@ -430,7 +422,7 @@ def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__checkpoint_gradients(tmp_path: Path) -> None:
     """Test that checkpoints saved during training do not have disabled gradients.
 
