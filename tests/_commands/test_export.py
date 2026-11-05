@@ -214,7 +214,9 @@ def test_export__invalid_format() -> None:
         )
 
 
-@pytest.mark.requires("python>=3.10")
+@pytest.mark.requires(
+    "python>=3.10", reason="Requires Python 3.10 or higher for typing."
+)
 def test_export__parameters() -> None:
     """Tests that export function and configs have the same parameters and default
     values.

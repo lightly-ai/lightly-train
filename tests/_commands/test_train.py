@@ -277,7 +277,9 @@ def test_pretrain__custom_model(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.requires("python>=3.10")
+@pytest.mark.requires(
+    "python>=3.10", reason="Requires Python 3.10 or higher for typing."
+)
 def test_pretrain__parameters() -> None:
     """Tests that pretrain function and TrainConfig have the same parameters and default
     values.
