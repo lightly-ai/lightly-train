@@ -19,13 +19,15 @@ from lightly_train._task_models.ltdetr_instance_segmentation.schedule import (
 from lightly_train._task_models.object_detection_components.ltdetr_schedule import (
     resolve_ltdetr_step_schedule,
 )
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
+)
 from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
     LTDETRInstanceSegmentationTransform,
     LTDETRInstanceSegmentationTransformArgs,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
-    ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5,
-    ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1,
     resolve_image_size_for_patch_size,
     resolve_ltdetr_step_schedule_for_augmentation,
 )
@@ -199,12 +201,8 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
             min_area=1.0,
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
@@ -307,12 +305,8 @@ class LTDETRInstanceSegmentationValTransformArgs(
             label_fields=["class_labels", "indices"],
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"

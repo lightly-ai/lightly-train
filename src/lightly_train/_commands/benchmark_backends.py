@@ -106,7 +106,7 @@ class TorchBackend(ObjectDetectionBackend):
         start_predict = time.perf_counter()
         with torch.autocast(
             device_type=self.device.type,
-            dtype=autocast_dtype or torch.float16,
+            dtype=autocast_dtype,
             enabled=autocast_dtype is not None,
         ):
             raw_outputs = self.model.forward_backend(images)

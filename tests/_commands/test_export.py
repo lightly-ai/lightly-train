@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import re
-from importlib import util as importlib_util
 from pathlib import Path
 
 import pytest
@@ -29,16 +28,6 @@ from lightly_train._models.torchvision.torchvision_package import TORCHVISION_PA
 from lightly_train._models.ultralytics.ultralytics_package import ULTRALYTICS_PACKAGE
 
 from .. import helpers
-
-if importlib_util.find_spec("ultralytics") is not None:
-    from ultralytics import YOLO  # type: ignore[attr-defined]
-else:
-    YOLO = None  # type: ignore
-
-if importlib_util.find_spec("super_gradients") is not None:
-    from super_gradients.training import models as super_gradient_models
-else:
-    super_gradient_models = None
 
 
 def test_export__torch_state_dict(tmp_path: Path) -> None:
@@ -104,6 +93,8 @@ def test_export__torchvision(tmp_path: Path) -> None:
 
 @pytest.mark.requires("ultralytics")
 def test_export__ultralytics(tmp_path: Path) -> None:
+    from ultralytics import YOLO  # type: ignore[attr-defined]
+
     model = YOLO("yolov8n.yaml")
     ckpt_path, ckpt = _get_checkpoint(
         tmp_path=tmp_path, wrapped_model=ULTRALYTICS_PACKAGE.get_model_wrapper(model)
@@ -116,6 +107,8 @@ def test_export__ultralytics(tmp_path: Path) -> None:
 
 @pytest.mark.requires("ultralytics")
 def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None:
+    from ultralytics import YOLO  # type: ignore[attr-defined]
+
     model = YOLO("yolov8n.yaml")
     ckpt_path, ckpt = _get_checkpoint(
         tmp_path=tmp_path, wrapped_model=ULTRALYTICS_PACKAGE.get_model_wrapper(model)
@@ -139,6 +132,8 @@ def test_export__ultralytics_option__deprecation_warning(tmp_path: Path) -> None
 
 @pytest.mark.requires("super-gradients")
 def test_export__super_gradients(tmp_path: Path) -> None:
+    from super_gradients.training import models as super_gradient_models
+
     model = super_gradient_models.get(model_name="yolo_nas_s", num_classes=3)
     model.backbone.stem.conv.branch_3x3.conv.weight.data.fill_(1.234)
 

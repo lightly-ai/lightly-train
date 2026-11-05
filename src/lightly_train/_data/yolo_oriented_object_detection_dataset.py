@@ -15,6 +15,7 @@ import numpy as np
 import pydantic
 import torch
 import torchvision.tv_tensors as tv_tensors
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
 from lightly_train._data import data_helpers, file_helpers, label_helpers, yolo_helpers
@@ -30,6 +31,9 @@ from lightly_train.types import (
     OrientedObjectDetectionDatasetItem,
     PathLike,
 )
+
+# BoundingBoxFormat.CXCYWHR in torchvision transforms v2.
+TORCHVISION_GEQ_0_23_0 = RequirementCache("torchvision>=0.23.0")
 
 
 def normalized_4corners_to_canvas_4corners(

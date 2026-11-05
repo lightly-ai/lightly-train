@@ -25,16 +25,6 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger, TensorBoardLog
 from lightly_train._loggers.wandb import WandbLogger, WandbLoggerArgs
 from lightly_train.errors import ConfigValidationError
 
-try:
-    import wandb
-except ImportError:
-    wandb = None  # type: ignore[assignment]
-
-try:
-    import mlflow
-except ImportError:
-    mlflow = None  # type: ignore[assignment]
-
 
 @pytest.mark.parametrize(
     "loggers, expected",

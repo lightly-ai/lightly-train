@@ -70,14 +70,14 @@ class TestSuperGradientsPackage:
         assert not SuperGradientsPackage.is_supported_model(model.get_model())
 
     @pytest.mark.parametrize(
-        "model_name, expected_cls",
+        "model_name, expected_cls_name",
         [("yolo_nas_s", "YoloNAS_S"), ("pp_lite_t_seg50", "PPLiteSegT")],
     )
-    def test_get_model(self, model_name: str, expected_cls: str) -> None:
+    def test_get_model(self, model_name: str, expected_cls_name: str) -> None:
         from super_gradients.training import models
 
         model = SuperGradientsPackage.get_model(model_name)
-        assert isinstance(model, getattr(models, expected_cls))
+        assert isinstance(model, getattr(models, expected_cls_name))
 
     @pytest.mark.parametrize(
         "model_name, expected_cls",

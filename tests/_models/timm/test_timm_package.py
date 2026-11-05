@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from torch.nn import Module
 
 from lightly_train._models.timm.timm_package import TIMMPackage
 
@@ -17,11 +18,15 @@ from ...helpers import DummyCustomModel
 pytestmark = pytest.mark.requires("timm")
 
 
-class TestTIMMPackage:
-    def test_is_supported_model__true(self) -> None:
-        import timm
+@pytest.fixture
+def model() -> Module:
+    import timm
 
-        model = timm.create_model("resnet18")
+    return timm.create_model("resnet18")
+
+
+class TestTIMMPackage:
+    def test_is_supported_model__true(self, model: Module) -> None:
         assert TIMMPackage.is_supported_model(model)
         assert TIMMPackage.is_supported_model(
             TIMMPackage.get_model_wrapper(model=model)
@@ -32,11 +37,10 @@ class TestTIMMPackage:
         assert not TIMMPackage.is_supported_model(model=model)
         assert not TIMMPackage.is_supported_model(model=model.get_model())
 
-    def test_export_model__model_detailed(self, tmp_path: Path) -> None:
+    def test_export_model__model_detailed(self, tmp_path: Path, model: Module) -> None:
         import timm
 
         out = tmp_path / "model.pt"
-        model = timm.create_model("resnet18", pretrained=False)
 
         TIMMPackage.export_model(model=model, out=out)
         model_exported = timm.create_model(
@@ -62,11 +66,12 @@ class TestTIMMPackage:
             assert module.training
             assert module_exp.training
 
-    def test_export_model__wrapped_model_basic(self, tmp_path: Path) -> None:
+    def test_export_model__wrapped_model_basic(
+        self, tmp_path: Path, model: Module
+    ) -> None:
         import timm
 
         out = tmp_path / "model.pt"
-        model = timm.create_model("resnet18", pretrained=False)
         wrapped_model = TIMMPackage.get_model_wrapper(model=model)
 
         TIMMPackage.export_model(model=wrapped_model, out=out)

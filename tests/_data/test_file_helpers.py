@@ -20,6 +20,7 @@ from torchvision.transforms.v2 import functional as F
 
 from lightly_train._data import file_helpers
 from lightly_train._data.file_helpers import (
+    PYDICOM_GEQ_3_0_0,
     TORCHVISION_GEQ_0_20_0,
     ImageMode,
 )
@@ -42,12 +43,6 @@ numpy_to_torch_dtype_dict = {
     np.float32: torch.float32,
     np.float64: torch.float64,
 }
-
-
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
 
 
 def test_list_image_filenames_from_iterable(
@@ -229,7 +224,7 @@ def test_list_image_filenames__symlink(tmp_path: Path) -> None:
             np.float32,
             0,
             "",
-            marks=pytest.mark.requires("pydicom>=3.0.0"),
+            marks=pytest.mark.requires(PYDICOM_GEQ_3_0_0),
         ),
     ],
 )
@@ -313,7 +308,7 @@ def test_open_image_tensor(
             np.float32,
             0,
             "",
-            marks=pytest.mark.requires("pydicom>=3.0.0"),
+            marks=pytest.mark.requires(PYDICOM_GEQ_3_0_0),
         ),
     ],
 )
@@ -534,7 +529,7 @@ def test_open_yolo_instance_segmentation_label__empty(
         ("jpeg2k", (480, 640, 3), np.uint8),
     ],
 )
-@pytest.mark.requires("pydicom>=3.0.0")
+@pytest.mark.requires(PYDICOM_GEQ_3_0_0)
 def test__open_image_numpy__with_pydicom(
     data_format: str,
     expected_shape: tuple[int, ...],

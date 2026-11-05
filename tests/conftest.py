@@ -70,17 +70,29 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
-        "requires(*requirements): skip unless all requirements are met, e.g. "
-        'requires("onnx", "torchvision>=0.23", "python>=3.9").',
+        "requires(*requirements): skip unless all requirements are met. Takes "
+        "requirement strings or RequirementCache constants, e.g. "
+        'requires("onnx", TORCH_DIM_HINTS_AVAILABLE, "python>=3.10").',
     )
 
 
 @lru_cache(maxsize=None)
-def _is_requirement_met(requirement: str) -> bool:
-    req = Requirement(requirement)
-    if req.name == "python":
-        return req.specifier.contains(platform.python_version())
-    return bool(RequirementCache(requirement))
+def _requirement_cache(requirement: str) -> RequirementCache:
+    return RequirementCache(requirement)
+
+
+def _missing_requirement(requirement: str | RequirementCache) -> str | None:
+    """Return the requirement name if it is not met, otherwise None."""
+    if isinstance(requirement, str):
+        req = Requirement(requirement)
+        if req.name == "python":
+            if req.specifier.contains(platform.python_version()):
+                return None
+            return requirement
+        requirement = _requirement_cache(requirement)
+    if requirement:
+        return None
+    return requirement.requirement or requirement.module
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -98,7 +110,11 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                 raise pytest.UsageError(
                     f"{item.nodeid}: requires needs at least one requirement."
                 )
-            missing = [r for r in marker.args if not _is_requirement_met(r)]
+            missing = [
+                name
+                for name in (_missing_requirement(r) for r in marker.args)
+                if name is not None
+            ]
             if missing:
                 item.add_marker(
                     pytest.mark.skip(reason=f"Requires {', '.join(missing)}.")
