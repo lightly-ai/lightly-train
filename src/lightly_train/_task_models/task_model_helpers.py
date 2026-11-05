@@ -352,17 +352,36 @@ def reinit_class_heads_on_mismatch(
     prefix: str,
     heads: Mapping[str, Module],
 ) -> None:
-    """Keep the module's own head weights when the checkpoint has a different number
+    """Keep the module's own class heads when the checkpoint has a different number
     of classes.
 
-    Call from a load_state_dict pre-hook.
+    For use in load_state_dict pre-hooks. A head is reinitialized when the number of
+    classes (dim 0 of its weight) differs and all other dims match. Other shape
+    differences are left to load_state_dict, which raises a size-mismatch error.
 
     Args:
         state_dict: State dict being loaded. Modified in place.
-        prefix: State dict prefix of the hook's module.
-        heads: Head modules by name relative to the hook's module, e.g.
-            {"dec_score_head.0": ...}. Each head must have a `weight` with the
-            classes in dim 0 and may have a `bias`.
+        prefix: State dict prefix passed to the hook.
+        heads: Head modules by name relative to the hook's module. Each head needs a
+            `weight` with the classes in dim 0 and may have a `bias`.
+
+    Example:
+        A checkpoint with 80 classes loaded into a model with 3 classes:
+
+        >>> model = Sequential(Linear(4, 4), Linear(4, 3))  # "1" is the class head
+        >>> state_dict = {
+        ...     "model.0.weight": torch.zeros(4, 4),
+        ...     "model.0.bias": torch.zeros(4),
+        ...     "model.1.weight": torch.zeros(80, 4),
+        ...     "model.1.bias": torch.zeros(80),
+        ... }
+        >>> reinit_class_heads_on_mismatch(
+        ...     state_dict=state_dict, prefix="model.", heads={"1": model[1]}
+        ... )
+        >>> state_dict["model.1.weight"].shape  # Replaced by model[1].weight.
+        torch.Size([3, 4])
+        >>> state_dict["model.0.weight"].shape  # Not a head, unchanged.
+        torch.Size([4, 4])
     """
     reinitialized = [
         name
@@ -383,6 +402,11 @@ def _reinit_head_on_class_mismatch(
     key_prefix: str,
     head: Module,
 ) -> bool:
+    """Replace the checkpoint weight and bias of one head with the module's own.
+
+    Returns:
+        True if the head was reinitialized.
+    """
     weight_key = f"{key_prefix}weight"
     checkpoint_weight = state_dict.get(weight_key)
     if checkpoint_weight is None:
@@ -403,10 +427,7 @@ def _reinit_head_on_class_mismatch(
 
 
 def _is_class_mismatch(checkpoint_shape: torch.Size, module_shape: torch.Size) -> bool:
-    """Whether the checkpoint head weight should be replaced by the module's own.
-
-    Dim 0 is the number of classes.
-    """
+    """Whether only dim 0 (number of classes) differs between the shapes."""
     # Other differences mean a different architecture. Let load_state_dict raise.
     return (
         len(checkpoint_shape) == len(module_shape)
