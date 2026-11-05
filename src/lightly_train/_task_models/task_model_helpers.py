@@ -13,9 +13,11 @@ import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal, Mapping, NoReturn
 
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 from lightly_train._commands import common_helpers
 from lightly_train._configs.model_registry import ModelRegistry
@@ -343,3 +345,71 @@ def _resolve_device(device: str | torch.device | None) -> torch.device:
         raise ValueError(
             f"Invalid device: {device}. Must be 'cpu', 'cuda', 'mps', a torch.device, or None."
         )
+
+
+def reinit_class_heads_on_mismatch(
+    state_dict: dict[str, Any],
+    prefix: str,
+    heads: Mapping[str, Module],
+) -> None:
+    """Keep the module's own head weights when the checkpoint has a different number
+    of classes.
+
+    Call from a load_state_dict pre-hook.
+
+    Args:
+        state_dict: State dict being loaded. Modified in place.
+        prefix: State dict prefix of the hook's module.
+        heads: Head modules by name relative to the hook's module, e.g.
+            {"dec_score_head.0": ...}. Each head must have a `weight` with the
+            classes in dim 0 and may have a `bias`.
+    """
+    reinitialized = [
+        name
+        for name, head in heads.items()
+        if _reinit_head_on_class_mismatch(
+            state_dict=state_dict, key_prefix=f"{prefix}{name}.", head=head
+        )
+    ]
+    if reinitialized:
+        logger.info(
+            "Checkpoint has a different number of classes. Reinitializing: "
+            f"{', '.join(reinitialized)}."
+        )
+
+
+def _reinit_head_on_class_mismatch(
+    state_dict: dict[str, Any],
+    key_prefix: str,
+    head: Module,
+) -> bool:
+    weight_key = f"{key_prefix}weight"
+    checkpoint_weight = state_dict.get(weight_key)
+    if checkpoint_weight is None:
+        return False
+    weight = head.weight
+    assert isinstance(weight, Tensor)
+    if not _is_class_mismatch(
+        checkpoint_shape=checkpoint_weight.shape, module_shape=weight.shape
+    ):
+        return False
+
+    state_dict[weight_key] = weight.detach().clone()
+    bias_key = f"{key_prefix}bias"
+    bias = getattr(head, "bias", None)
+    if bias_key in state_dict and bias is not None:
+        state_dict[bias_key] = bias.detach().clone()
+    return True
+
+
+def _is_class_mismatch(checkpoint_shape: torch.Size, module_shape: torch.Size) -> bool:
+    """Whether the checkpoint head weight should be replaced by the module's own.
+
+    Dim 0 is the number of classes.
+    """
+    # Other differences mean a different architecture. Let load_state_dict raise.
+    return (
+        len(checkpoint_shape) == len(module_shape)
+        and checkpoint_shape[0] != module_shape[0]
+        and checkpoint_shape[1:] == module_shape[1:]
+    )

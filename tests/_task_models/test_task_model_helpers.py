@@ -5,6 +5,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+from __future__ import annotations
+
 import re
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +16,7 @@ import torch
 from packaging import version
 from pytest import MonkeyPatch
 from torch.hub import download_url_to_file
+from torch.nn import Conv2d, Embedding, Linear, Module
 
 from lightly_train import load_model
 from lightly_train._task_models import task_model_helpers
@@ -233,3 +236,98 @@ def test_init_model_from_checkpoint__legacy_dinov2_uses_registered_decoder() -> 
     assert isinstance(model.decoder, RTDETRTransformerv2)
     for name, param in model.state_dict().items():
         torch.testing.assert_close(param, reference_model.state_dict()[name])
+
+
+@pytest.mark.parametrize(
+    "checkpoint_classes, expected_reinit", [(2, True), (3, False), (5, True)]
+)
+def test_reinit_class_heads_on_mismatch__num_classes(
+    checkpoint_classes: int, expected_reinit: bool
+) -> None:
+    head = Linear(4, 3)
+    state_dict = {
+        "model.head.weight": torch.full((checkpoint_classes, 4), 0.5),
+        "model.head.bias": torch.full((checkpoint_classes,), 0.5),
+    }
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix="model.", heads={"head": head}
+    )
+    if expected_reinit:
+        torch.testing.assert_close(state_dict["model.head.weight"], head.weight)
+        torch.testing.assert_close(state_dict["model.head.bias"], head.bias)
+    else:
+        assert torch.all(state_dict["model.head.weight"] == 0.5)
+        assert torch.all(state_dict["model.head.bias"] == 0.5)
+
+
+def test_reinit_class_heads_on_mismatch__copy() -> None:
+    head = Linear(4, 3, dtype=torch.float64)
+    state_dict = {"head.weight": torch.zeros(5, 4), "head.bias": torch.zeros(5)}
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix="", heads={"head": head}
+    )
+    weight = state_dict["head.weight"]
+    assert weight.dtype == torch.float64
+    assert not weight.requires_grad
+    assert weight.data_ptr() != head.weight.data_ptr()
+
+
+def test_reinit_class_heads_on_mismatch__module_without_bias() -> None:
+    head = Linear(4, 3, bias=False)
+    state_dict = {"head.weight": torch.zeros(5, 4), "head.bias": torch.zeros(5)}
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix="", heads={"head": head}
+    )
+    torch.testing.assert_close(state_dict["head.weight"], head.weight)
+    # Left as is so that load_state_dict reports the unexpected key.
+    assert state_dict["head.bias"].shape == (5,)
+
+
+@pytest.mark.parametrize(
+    "head, checkpoint_weight_shape",
+    [
+        (Conv2d(4, 3, kernel_size=1), (5, 4, 1, 1)),
+        (Embedding(3, 4), (5, 4)),
+    ],
+)
+def test_reinit_class_heads_on_mismatch__module_types(
+    head: Module, checkpoint_weight_shape: tuple[int, ...]
+) -> None:
+    state_dict = {"head.weight": torch.zeros(checkpoint_weight_shape)}
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix="", heads={"head": head}
+    )
+    torch.testing.assert_close(state_dict["head.weight"], head.weight)
+
+
+def test_reinit_class_heads_on_mismatch__missing_key() -> None:
+    state_dict = {"other.weight": torch.zeros(1)}
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix="", heads={"head": Linear(4, 3)}
+    )
+    assert list(state_dict) == ["other.weight"]
+
+
+def test_reinit_class_heads_on_mismatch__input_dim_differs() -> None:
+    model = torch.nn.Sequential(Linear(4, 3))
+    state_dict = {"0.weight": torch.zeros(5, 8), "0.bias": torch.zeros(5)}
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict, prefix="", heads={"0": model[0]}
+    )
+    assert state_dict["0.weight"].shape == (5, 8)
+    with pytest.raises(RuntimeError, match="size mismatch"):
+        model.load_state_dict(state_dict)
+
+
+def test_reinit_class_heads_on_mismatch__log(caplog: pytest.LogCaptureFixture) -> None:
+    heads = {"head.0": Linear(4, 3), "head.1": Linear(4, 3)}
+    state_dict = {
+        "head.0.weight": torch.zeros(5, 4),
+        "head.1.weight": torch.zeros(5, 4),
+    }
+    with caplog.at_level(level="INFO"):
+        task_model_helpers.reinit_class_heads_on_mismatch(
+            state_dict=state_dict, prefix="", heads=heads
+        )
+    assert len(caplog.records) == 1
+    assert "head.0, head.1" in caplog.records[0].getMessage()

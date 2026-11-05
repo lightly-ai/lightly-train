@@ -17,6 +17,7 @@ from torch.nn import Linear, Module, ModuleDict
 
 from lightly_train import _torch_helpers
 from lightly_train._models import package_helpers
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -236,28 +237,10 @@ def class_heads_reuse_or_reinit_hook(
     class_heads_module = getattr(module, "class_heads", None)
     if class_heads_module is None:
         return
-
-    # Check each head in the module.
-    for head_name, head_module in class_heads_module.items():
-        head_weight_key = f"{prefix}class_heads.{head_name}.weight"
-        head_bias_key = f"{prefix}class_heads.{head_name}.bias"
-        head_weight = state_dict.get(head_weight_key)
-
-        if head_weight is None:
-            continue
-
-        num_classes_state = head_weight.shape[0]
-        num_classes_module = head_module.out_features
-
-        if num_classes_state == num_classes_module:
-            continue
-        else:
-            logger.info(
-                f"Checkpoint provides {num_classes_state} classes but module expects "
-                f"{num_classes_module} for head '{head_name}'. Reinitializing head.",
-            )
-
-            # Keep the module initialization by overwriting the checkpoint weights with
-            # the current parameter tensors.
-            state_dict[head_weight_key] = head_module.weight.detach().clone()
-            state_dict[head_bias_key] = head_module.bias.detach().clone()
+    task_model_helpers.reinit_class_heads_on_mismatch(
+        state_dict=state_dict,
+        prefix=prefix,
+        heads={
+            f"class_heads.{name}": head for name, head in class_heads_module.items()
+        },
+    )

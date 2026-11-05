@@ -125,3 +125,28 @@ def test_export_onnx__custom_height_width(
 ) -> None:
     out = tmp_path / "model.onnx"
     model.export_onnx(out=out, height=28, width=42, simplify=False, verify=True)
+
+
+@pytest.mark.parametrize("checkpoint_classes", [1, 2, 3])
+def test_class_head_reuse_or_reinit_hook(checkpoint_classes: int) -> None:
+    def create_model(num_classes: int) -> ImageClassification:
+        return ImageClassification(
+            model="dinov2/_vittest14",
+            classes={i: str(i) for i in range(num_classes)},
+            classification_task="multiclass",
+            image_size=(14, 14),
+            image_normalize=None,
+            backbone_freeze=False,
+            load_weights=False,
+        )
+
+    source = create_model(num_classes=checkpoint_classes)
+    target = create_model(num_classes=2)
+    initial = {k: v.clone() for k, v in target.state_dict().items()}
+    target.load_state_dict(source.state_dict(), strict=True)
+    checkpoint = source.state_dict()
+    for key, value in target.state_dict().items():
+        if key.startswith("class_head.") and checkpoint_classes != 2:
+            torch.testing.assert_close(value, initial[key])
+        else:
+            torch.testing.assert_close(value, checkpoint[key])
