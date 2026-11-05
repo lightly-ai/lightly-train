@@ -32,6 +32,7 @@ from lightly_train._checkpoint import (
 )
 from lightly_train._commands import extract_video_frames
 from lightly_train._configs.config import PydanticConfig
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._methods.dinov2.dinov2 import DINOv2, DINOv2AdamWViTArgs, DINOv2Args
 from lightly_train._methods.method import Method
 from lightly_train._methods.method_args import MethodArgs
@@ -275,7 +276,7 @@ def create_dicom_image(path: Path, pixels: NDArray[np.uint16]) -> None:
     dataset.HighBit = 15
     dataset.PixelRepresentation = 0
     dataset.PixelData = pixels.astype("<u2").tobytes()
-    if int(pydicom.__version__.split(".")[0]) < 3:
+    if not PYDICOM_GEQ_3_0_0:
         # pydicom 2.x needs the encoding on the dataset to write it.
         dataset.is_little_endian = True
         dataset.is_implicit_VR = False
