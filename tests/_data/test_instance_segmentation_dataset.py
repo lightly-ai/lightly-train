@@ -27,6 +27,10 @@ from lightly_train._data.instance_segmentation_dataset import (
     _normalize_polygon_segments,
     _process_polygon_segmentation,
 )
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
+)
 
 from .. import helpers
 from ..helpers import (
@@ -523,7 +527,6 @@ class TestInstanceSegmentationDatasetGetitem:
         """RLE segments are decoded to binary masks in __getitem__."""
         if sys.version_info >= (3, 9):  # Needed for Mypy
             from albumentations import BboxParams
-            from lightning_utilities.core.imports import RequirementCache
 
             from lightly_train._data.instance_segmentation_dataset import (
                 InstanceSegmentationDataset,
@@ -533,9 +536,6 @@ class TestInstanceSegmentationDatasetGetitem:
                 EoMTInstanceSegmentationTransformArgs,
             )
             from lightly_train._transforms.transform import NormalizeArgs
-
-            ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
-            ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
             # Arrange
             height, width = 128, 128
@@ -584,10 +584,10 @@ class TestInstanceSegmentationDatasetGetitem:
                     label_fields=["class_labels", "indices"],
                     **(
                         dict(filter_invalid_bboxes=True)
-                        if ALBUMENTATIONS_GE_2_0_1
+                        if ALBUMENTATIONS_GEQ_2_0_1
                         else {}
                     ),
-                    **(dict(clip=True) if ALBUMENTATIONS_GE_1_4_5 else {}),
+                    **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
                 ),
             )
             transform = EoMTInstanceSegmentationTransform(transform_args)

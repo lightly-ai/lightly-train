@@ -10,11 +10,14 @@ from __future__ import annotations
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 from pydantic import Field
 
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
+)
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
 )
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionTransform,
@@ -31,9 +34,6 @@ from lightly_train._transforms.transform import (
     ResizeArgs,
     ScaleJitterArgs,
 )
-
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 = RequirementCache("albumentations>=1.4.5")
-ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
 
 def _get_image_size(model_init_args: dict[str, Any]) -> tuple[int, int]:
@@ -131,12 +131,8 @@ class PicoDetObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArg
             min_area=1.0,  # Bbox must have an area of at least 1 pixel.
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
@@ -229,12 +225,8 @@ class PicoDetObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs)
             label_fields=["class_labels"],
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"

@@ -11,13 +11,14 @@ from __future__ import annotations
 import pytest
 import torch
 
+from lightly_train._commands.train_task import TORCHMETRICS_GEQ_1_5
 from lightly_train._metrics.classification.task_metric import (
     ClassificationTaskMetric,
     MulticlassClassificationTaskMetricArgs,
     MultilabelClassificationTaskMetricArgs,
 )
 
-pytestmark = pytest.mark.requires("torchmetrics>=1.5")
+pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 
 
 class TestClassificationTaskMetric:

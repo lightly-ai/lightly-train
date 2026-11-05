@@ -1126,3 +1126,131 @@ def assert_onnx_outputs_close(
             assert np.array_equal(
                 np.sort(onnx_out.ravel()), np.sort(torch_out.numpy().ravel())
             )
+
+
+def normalized_keypoints_for_testing(
+    num_keypoints: int, num_dims: int = 3
+) -> tuple[list[list[float]], list[int]]:
+    """Returns deterministic normalized keypoints and visibility flags for one instance.
+
+    - ``num_dims == 3``: visibility cycles 2, 1, 0 so every case is exercised, and
+      unlabeled keypoints sit at (0, 0) as both real formats store them.
+    - ``num_dims == 2``: the format carries no visibility, so all keypoints are visible.
+    """
+    keypoints = []
+    visibility = []
+    for i in range(num_keypoints):
+        vis = 2 if num_dims == 2 else (2, 1, 0)[i % 3]
+        if vis == 0:
+            keypoints.append([0.0, 0.0])
+        else:
+            # Keep the coordinates inside [0, 1] for any number of keypoints.
+            keypoints.append([0.30 + 0.05 * (i % 8), 0.35 + 0.05 * (i % 8)])
+        visibility.append(vis)
+    return keypoints, visibility
+
+
+def create_coco_keypoint_detection_dataset(
+    tmp_path: Path,
+    num_files: int = 2,
+    height: int = 128,
+    width: int = 128,
+    num_classes: int = 1,
+    classes: dict[int, str] | None = None,
+    num_keypoints: int = 3,
+    keypoint_names: dict[int, list[str]] | None = None,
+    skeleton: dict[int, list[list[int]]] | None = None,
+    annotations_per_image: list[list[dict[str, Any]]] | None = None,
+) -> None:
+    """Create a minimal COCO keypoint detection dataset.
+
+    Args:
+        classes: Category id to category name. None auto-generates
+            {0: "class_0", 1: "class_1", ...} from num_classes.
+        num_keypoints: Keypoints per instance, used for the default keypoint names and
+            annotations.
+        keypoint_names: Category id to that category's keypoint names. None gives every
+            category ["keypoint_0", ...]. An empty list gives no "keypoints" field at
+            all, as in a COCO file mixing keypoint and non-keypoint categories.
+        skeleton: Category id to that category's skeleton, one-based as in COCO. None
+            gives every category with keypoint names a chain [[1, 2], [2, 3], ...].
+        annotations_per_image: Per-image partial annotation dicts, without "id" and
+            "image_id". Must have length num_files. None gives one annotation per image
+            with category_id=0, bbox=[10, 10, 30, 40] and keypoints from num_keypoints.
+    """
+    if classes is None:
+        classes = {i: f"class_{i}" for i in range(num_classes)}
+    if keypoint_names is None:
+        keypoint_names = {
+            class_id: [f"keypoint_{i}" for i in range(num_keypoints)]
+            for class_id in classes
+        }
+    if skeleton is None:
+        skeleton = {
+            class_id: [[i + 1, i + 2] for i in range(len(names) - 1)]
+            for class_id, names in keypoint_names.items()
+            if names
+        }
+    if annotations_per_image is None:
+        keypoints, visibility = normalized_keypoints_for_testing(
+            num_keypoints=num_keypoints
+        )
+        flat_keypoints: list[float] = []
+        for point, vis in zip(keypoints, visibility):
+            # The COCO format stores keypoints in pixels.
+            flat_keypoints.extend(
+                [point[0] * width, point[1] * height, vis] if vis else [0, 0, 0]
+            )
+        num_labeled = sum(1 for vis in visibility if vis)
+        annotations_per_image = [
+            [
+                {
+                    "category_id": 0,
+                    "bbox": [10, 10, 30, 40],
+                    "keypoints": flat_keypoints,
+                    "num_keypoints": num_labeled,
+                    "iscrowd": 0,
+                }
+            ]
+            for _ in range(num_files)
+        ]
+
+    for split in ["train", "val"]:
+        image_dir = tmp_path / split
+        image_dir.mkdir(parents=True, exist_ok=True)
+        create_images(image_dir=image_dir, files=num_files, height=height, width=width)
+
+        image_paths = sorted(image_dir.glob("*.png"))
+        categories: list[dict[str, Any]] = []
+        for class_id, class_name in classes.items():
+            category: dict[str, Any] = {"id": class_id, "name": class_name}
+            if keypoint_names.get(class_id):
+                category["keypoints"] = keypoint_names[class_id]
+                if skeleton.get(class_id):
+                    category["skeleton"] = skeleton[class_id]
+            categories.append(category)
+
+        images = []
+        annotations = []
+        ann_id = 0
+        for idx, img_path in enumerate(image_paths):
+            images.append(
+                {
+                    "id": idx,
+                    "file_name": img_path.name,
+                    "width": width,
+                    "height": height,
+                }
+            )
+            for ann in annotations_per_image[idx]:
+                annotations.append({"id": ann_id, "image_id": idx, **ann})
+                ann_id += 1
+
+        coco_dict = {
+            "images": images,
+            "annotations": annotations,
+            "categories": categories,
+        }
+        annotations_path = tmp_path / f"{split}.json"
+        with open(annotations_path, "w") as f:
+            json.dump(coco_dict, f)

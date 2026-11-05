@@ -16,6 +16,9 @@ import torch
 import torchvision.tv_tensors as tv_tensors
 from albumentations import BboxParams
 
+from lightly_train._data.yolo_oriented_object_detection_dataset import (
+    TORCHVISION_GEQ_0_23_0,
+)
 from lightly_train._transforms.oriented_object_detection_transform import (
     OrientedObjectDetectionCollateFunction,
     OrientedObjectDetectionTransform,
@@ -131,7 +134,7 @@ PossibleArgsTuple = (
 possible_tuples = list(itertools.product(*PossibleArgsTuple))
 
 
-@pytest.mark.requires("torchvision>=0.23")
+@pytest.mark.requires(TORCHVISION_GEQ_0_23_0)
 class TestOrientedObjectDetectionTransform:
     @pytest.mark.parametrize(
         "channel_drop, photometric_distort, random_zoom_out, random_iou_crop, random_flip, random_rotate_90, random_rotate, scale_jitter, resize, normalize",

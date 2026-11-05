@@ -14,7 +14,7 @@ import torch
 from pytest_mock import MockerFixture
 
 from lightly_train._export.onnx_helpers import (
-    _TORCH_DYNAMO_MIN_VERSION,
+    TORCH_ONNX_DYNAMO_AVAILABLE,
 )
 from lightly_train._task_models.dinov3_eomt_panoptic_segmentation.task_model import (
     DINOv3EoMTPanopticSegmentation,
@@ -156,14 +156,14 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
-@pytest.mark.requires(f"torch>={_TORCH_DYNAMO_MIN_VERSION}", "onnx", "onnxruntime")
+@pytest.mark.requires(TORCH_ONNX_DYNAMO_AVAILABLE, "onnx", "onnxruntime")
 def test_export_onnx(model: DINOv3EoMTPanopticSegmentation, tmp_path: Path) -> None:
     out = tmp_path / "model.onnx"
     model.export_onnx(out=out, simplify=False, verify=True)
 
 
 @pytest.mark.long_running_test
-@pytest.mark.requires(f"torch>={_TORCH_DYNAMO_MIN_VERSION}", "onnx", "onnxruntime")
+@pytest.mark.requires(TORCH_ONNX_DYNAMO_AVAILABLE, "onnx", "onnxruntime")
 def test_export_onnx__dynamic_output_shapes(
     tmp_path: Path,
 ) -> None:
@@ -221,7 +221,7 @@ def test_export_onnx__dynamic_output_shapes(
     )
 
 
-@pytest.mark.requires(f"torch>={_TORCH_DYNAMO_MIN_VERSION}", "onnx", "onnxruntime")
+@pytest.mark.requires(TORCH_ONNX_DYNAMO_AVAILABLE, "onnx", "onnxruntime")
 def test_export_onnx__custom_height_width(
     model: DINOv3EoMTPanopticSegmentation, tmp_path: Path
 ) -> None:

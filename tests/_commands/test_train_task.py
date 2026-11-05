@@ -15,12 +15,14 @@ from typing import Any
 import pytest
 import torch
 import yaml
+from lightning_utilities.core.imports import RequirementCache
 from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
 import lightly_train
 from lightly_train._commands import train_task
 from lightly_train._commands.train_task import (
+    TORCHMETRICS_GEQ_1_5,
     ImageClassificationMulticlassTrainTaskConfig,
     ImageClassificationMultiheadMulticlassTrainTaskConfig,
     ImageClassificationMultiheadMultilabelTrainTaskConfig,
@@ -35,6 +37,7 @@ from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationMulticlassDataArgs,
     ImageClassificationMultilabelDataArgs,
@@ -57,13 +60,8 @@ from lightly_train.errors import LightlyTrainError
 from .. import helpers
 
 pytestmark = pytest.mark.requires(
-    "albumentations>=1.4.0", "torchmetrics>=1.5", "transformers"
+    "albumentations>=1.4.0", TORCHMETRICS_GEQ_1_5, "transformers"
 )
-
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
 
 
 def test_train_image_classification__multiclass(tmp_path: Path) -> None:
@@ -506,7 +504,7 @@ def test_train_semantic_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.requires("pydicom>=3.0.0")
+@pytest.mark.requires(PYDICOM_GEQ_3_0_0)
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
@@ -1387,10 +1385,15 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
 
 class TestRaiseIfTorchmetricsUnsupported:
     def test_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", True, raising=True)
+        monkeypatch.setattr(train_task, "TORCHMETRICS_GEQ_1_5", True, raising=True)
         train_task._raise_if_torchmetrics_unsupported()
 
     def test_unsupported(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(train_task, "TORCHMETRICS_SUPPORTED", False, raising=True)
-        with pytest.raises(LightlyTrainError, match="requires torchmetrics>="):
+        monkeypatch.setattr(
+            train_task,
+            "TORCHMETRICS_GEQ_1_5",
+            RequirementCache("torchmetrics>=999"),
+            raising=True,
+        )
+        with pytest.raises(LightlyTrainError, match="requires torchmetrics>=999"):
             train_task._raise_if_torchmetrics_unsupported()
