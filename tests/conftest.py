@@ -68,9 +68,9 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
-        "requires(*requirements): skip unless all requirements are met. Takes "
-        "requirement strings or RequirementCache constants, e.g. "
-        'requires("onnx", TORCH_DIM_HINTS_AVAILABLE).',
+        "requires(*requirements, reason=None): skip unless all requirements are "
+        "met. Takes requirement strings or RequirementCache constants, e.g. "
+        'requires("onnx", TORCH_DIM_HINTS_AVAILABLE, "python>=3.10", reason="...").',
     )
 
 
@@ -79,9 +79,26 @@ def _requirement_cache(requirement: str) -> RequirementCache:
     return RequirementCache(requirement)
 
 
+_PYTHON_REQUIREMENT = re.compile(r"python(>=|<)(\d+)\.(\d+)")
+
+
 def _missing_requirement(requirement: str | RequirementCache) -> str | None:
     """Return the requirement name if it is not met, otherwise None."""
     if isinstance(requirement, str):
+        match = _PYTHON_REQUIREMENT.fullmatch(requirement)
+        if match is not None:
+            operator, major, minor = match.groups()
+            version = (int(major), int(minor))
+            if operator == ">=":
+                met = sys.version_info[:2] >= version
+            else:
+                met = sys.version_info[:2] < version
+            return None if met else requirement
+        if re.match(r"python\s*[<>=!~]", requirement, re.IGNORECASE):
+            raise ValueError(
+                f"Unsupported python requirement {requirement!r}. Use 'python>=X.Y' "
+                "or 'python<X.Y'."
+            )
         requirement = _requirement_cache(requirement)
     if requirement:
         return None
@@ -103,15 +120,19 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
                 raise pytest.UsageError(
                     f"{item.nodeid}: requires needs at least one requirement."
                 )
-            missing = [
-                name
-                for name in (_missing_requirement(r) for r in marker.args)
-                if name is not None
-            ]
+            try:
+                missing = [
+                    name
+                    for name in (_missing_requirement(r) for r in marker.args)
+                    if name is not None
+                ]
+            except ValueError as e:
+                raise pytest.UsageError(f"{item.nodeid}: {e}") from e
             if missing:
-                item.add_marker(
-                    pytest.mark.skip(reason=f"Requires {', '.join(missing)}.")
-                )
+                reason = marker.kwargs.get("reason")
+                message = f"Requires {', '.join(missing)}"
+                message = f"{message}: {reason}" if reason else f"{message}."
+                item.add_marker(pytest.mark.skip(reason=message))
 
 
 @pytest.fixture(autouse=True)  # Apply to all tests
