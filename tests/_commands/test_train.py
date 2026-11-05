@@ -27,18 +27,15 @@ from lightly_train._commands.train import (
     FunctionTrainConfig,
     TrainConfig,
 )
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._loggers.jsonl import JSONLLogger
 from lightly_train._methods import method_helpers
 from lightly_train._methods.dino.dino import DINOAdamWArgs, DINOArgs
 from lightly_train._scaling import ScalingInfo
+from lightly_train._transforms.albumentations_helpers import ALBUMENTATIONS_GEQ_2_0_0
 
 from .. import helpers
 from ..helpers import DummyCustomModel
-
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
 
 
 def test_track_training_started_event(mocker: MockerFixture) -> None:
@@ -280,7 +277,9 @@ def test_pretrain__custom_model(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.requires("python>=3.10")
+@pytest.mark.requires(
+    "python>=3.10", reason="Requires Python 3.10 or higher for typing."
+)
 def test_pretrain__parameters() -> None:
     """Tests that pretrain function and TrainConfig have the same parameters and default
     values.
@@ -386,7 +385,7 @@ def test_pretrain__distillation_different_teachers(
 @pytest.mark.parametrize(
     "method",
     [
-        pytest.param(method, marks=pytest.mark.requires("albumentations>=2.0.0"))
+        pytest.param(method, marks=pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0))
         if method == "dinov31"
         else method
         for method in method_helpers._list_methods()
@@ -657,7 +656,7 @@ def test_pretrain__multichannel(
     )
 
 
-@pytest.mark.requires("pydicom>=3.0.0")
+@pytest.mark.requires(PYDICOM_GEQ_3_0_0)
 @pytest.mark.parametrize(
     ("data_format, num_channels"),
     [

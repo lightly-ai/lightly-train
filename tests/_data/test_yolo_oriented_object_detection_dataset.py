@@ -15,6 +15,7 @@ import torch
 from albumentations import BboxParams
 
 from lightly_train._data.yolo_oriented_object_detection_dataset import (
+    TORCHVISION_GEQ_0_23_0,
     YOLOOrientedObjectDetectionDataArgs,
     YOLOOrientedObjectDetectionDataset,
 )
@@ -38,7 +39,7 @@ from lightly_train.types import ImageSizeTuple
 
 from ..helpers import create_yolo_oriented_object_detection_dataset
 
-pytestmark = pytest.mark.requires("torchvision>=0.23")
+pytestmark = pytest.mark.requires(TORCHVISION_GEQ_0_23_0)
 
 
 class DummyTransformArgs(OrientedObjectDetectionTransformArgs):

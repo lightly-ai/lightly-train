@@ -12,13 +12,13 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._models.ultralytics.ultralytics import (
+    ULTRALYTICS_GEQ_8_3_39,
+    ULTRALYTICS_YOLO26_AVAILABLE,
     UltralyticsModelWrapper,
 )
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
 
 pytestmark = pytest.mark.requires("ultralytics")
-
-YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
 
 
 class TestUltralyticsPackage:
@@ -38,7 +38,7 @@ class TestUltralyticsPackage:
         model_names = UltralyticsPackage.list_model_names()
         assert (model_name in model_names) is supported
 
-    @pytest.mark.requires("ultralytics>=8.4.0")
+    @pytest.mark.requires(ULTRALYTICS_YOLO26_AVAILABLE)
     def test_list_model_names__yolo26(self) -> None:
         model_names = set(UltralyticsPackage.list_model_names())
         expected_model_names = {
@@ -66,10 +66,7 @@ class TestUltralyticsPackage:
         wrapped_model = UltralyticsPackage.get_model_wrapper(model=model)
         assert UltralyticsPackage.is_supported_model(wrapped_model)
 
-    @pytest.mark.skipif(
-        not YOLO_WORLD_AVAILABLE,
-        reason="YOLOWorld is not available",
-    )
+    @pytest.mark.requires(RequirementCache(module="ultralytics.YOLOWorld"))
     def test_is_supported_model__false(self) -> None:
         from ultralytics import YOLOWorld  # type: ignore[attr-defined]
 
@@ -128,7 +125,7 @@ class TestUltralyticsPackage:
                 # This results in models loaded from checkpoints having the training
                 # attribute set to False as checkpoint loading puts the model in eval
                 # mode, see: https://github.com/ultralytics/ultralytics/blob/c196a82bfae3856aaacde873054778f1e4a5eef3/ultralytics/nn/tasks.py#L923
-                if RequirementCache("ultralytics>=8.3.39"):
+                if ULTRALYTICS_GEQ_8_3_39:
                     assert not module_exp.training
                 else:
                     assert module_exp.training

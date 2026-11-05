@@ -20,8 +20,9 @@ from lightly_train._commands.extract_video_frames import (
 
 from .. import helpers
 
-if not extract_video_frames.ffmpeg_is_installed():
-    pytest.skip("ffmpeg is not installed.", allow_module_level=True)
+pytestmark = pytest.mark.skipif(
+    not extract_video_frames.ffmpeg_is_installed(), reason="Requires ffmpeg."
+)
 
 
 @pytest.mark.parametrize("overwrite", [False, True])
@@ -96,7 +97,9 @@ def test_extract_video_frames__custom_frame_filename_format(tmp_path: Path) -> N
             assert (out / f"video_{i}" / f"{j:04d}.png").exists()
 
 
-@pytest.mark.requires("python>=3.10")
+@pytest.mark.requires(
+    "python>=3.10", reason="Requires Python 3.10 or higher for typing."
+)
 def test_extract_video_frames__parameters() -> None:
     """Tests that extract function and configs have the same parameters and default
     values.

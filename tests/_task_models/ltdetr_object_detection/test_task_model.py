@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 import pytest
 import torch
+from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 from torch import nn
 from torch.optim.lr_scheduler import LinearLR
@@ -1041,7 +1042,8 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.requires("migraphx", "onnx", "onnxruntime")
+# migraphx is installed with apt and has no package metadata.
+@pytest.mark.requires(RequirementCache(module="migraphx"), "onnx", "onnxruntime")
 @pytest.mark.gpu
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:

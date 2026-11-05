@@ -15,8 +15,9 @@ from lightly_train._metrics.panoptic_segmentation.task_metric import (
     PanopticSegmentationTaskMetric,
     PanopticSegmentationTaskMetricArgs,
 )
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
 
-pytestmark = pytest.mark.requires("torchmetrics>=1.5")
+pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 
 
 class TestPanopticSegmentationTaskMetric:
