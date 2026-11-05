@@ -154,6 +154,7 @@ _TIMM_ARCH_NAME_PREFIXES: list[tuple[str, ArchitectureInfo]] = [
     ("cs3", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("csat", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("cspdarknet", {"model_type": "convolutional", "norm_type": "batchnorm"}),
+    ("cspnext_", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("cspresnet", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("cspresnext", {"model_type": "convolutional", "norm_type": "batchnorm"}),
     ("darknet", {"model_type": "convolutional", "norm_type": "batchnorm"}),
