@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 from lightly.loss import NTXentLoss
@@ -148,6 +148,35 @@ class DenseCLEncoder(Module):
         return features, global_proj, local_proj, local_proj_pooled
 
 
+class _AccumulationMemoryBank(MemoryBankModule):
+    """Keep negatives fixed until all microbatches have completed backward."""
+
+    def __init__(self, bank: MemoryBankModule) -> None:
+        # Reuse the initialized bank without drawing another random initialization.
+        super().__init__(
+            size=0,
+            gather_distributed=bank.gather_distributed,
+            feature_dim_first=bank.feature_dim_first,
+        )
+        self.size = bank.size
+        self.bank = bank.bank
+        self.bank_ptr = bank.bank_ptr
+        self._pending: list[Tensor] = []
+
+    def forward(
+        self, output: Tensor, labels: Tensor | None = None, update: bool = False
+    ) -> tuple[Tensor, Tensor | None]:
+        if update and self.size[0] > 0:
+            self._pending.append(output.detach())
+        return super().forward(output=output, labels=labels, update=False)
+
+    @torch.no_grad()
+    def commit(self) -> None:
+        if self._pending:
+            super().forward(output=torch.cat(self._pending), update=True)
+            self._pending.clear()
+
+
 class DenseCL(Method):
     """DenseCL based on MoCo v2."""
 
@@ -173,9 +202,11 @@ class DenseCL(Method):
             output_dim=method_args.output_dim,
         )
         self.key_encoder = copy.deepcopy(self.query_encoder)
-        self.memory_bank = MemoryBankModule(
-            size=no_auto(method_args.memory_bank_size),
-            gather_distributed=method_args.gather_distributed,
+        self.memory_bank = _AccumulationMemoryBank(
+            MemoryBankModule(
+                size=no_auto(method_args.memory_bank_size),
+                gather_distributed=method_args.gather_distributed,
+            )
         )
         self.local_criterion = DenseCLLoss(temperature=method_args.temperature)
         self.global_criterion = NTXentLoss(
@@ -186,19 +217,25 @@ class DenseCL(Method):
             ),
             gather_distributed=method_args.gather_distributed,
         )
+        self.global_criterion.memory_bank = _AccumulationMemoryBank(
+            self.global_criterion.memory_bank
+        )
+        self._last_momentum_update_step: int | None = None
 
     def training_step_impl(self, batch: Batch, batch_idx: int) -> TrainingStepResult:
-        momentum = cosine_schedule(
-            step=self.trainer.global_step,
-            max_steps=self.trainer.estimated_stepping_batches,
-            start_value=self.method_args.momentum_start,
-            end_value=self.method_args.momentum_end,
-        )
-        update_momentum(
-            model=self.query_encoder,
-            model_ema=self.key_encoder,
-            m=momentum,
-        )
+        if self._last_momentum_update_step != self.trainer.global_step:
+            momentum = cosine_schedule(
+                step=self.trainer.global_step,
+                max_steps=self.trainer.estimated_stepping_batches,
+                start_value=self.method_args.momentum_start,
+                end_value=self.method_args.momentum_end,
+            )
+            update_momentum(
+                model=self.query_encoder,
+                model_ema=self.key_encoder,
+                m=momentum,
+            )
+            self._last_momentum_update_step = self.trainer.global_step
         views = batch["views"]
         query_features, query_global, query_local, _ = self.query_encoder(views[0])
         query_features = F.normalize(query_features, dim=-1)
@@ -247,6 +284,11 @@ class DenseCL(Method):
         lambda_ = self.method_args.lambda_
         loss = (1 - lambda_) * global_loss + lambda_ * local_loss
         return TrainingStepResult(loss=loss)
+
+    def on_before_optimizer_step(self, optimizer: torch.optim.Optimizer) -> None:
+        super().on_before_optimizer_step(optimizer)
+        self.memory_bank.commit()
+        cast(_AccumulationMemoryBank, self.global_criterion.memory_bank).commit()
 
     @staticmethod
     def method_args_cls() -> type[DenseCLArgs]:
