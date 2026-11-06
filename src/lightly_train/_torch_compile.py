@@ -10,11 +10,13 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import TypeVar
+from types import MethodType
+from typing import Any, Callable, TypeVar
 
 import torch
 from pydantic import ConfigDict
 
+from lightly_train import _distributed
 from lightly_train._configs.config import PydanticConfig
 
 logger = logging.getLogger(__name__)
@@ -62,13 +64,20 @@ class TorchCompileArgs(PydanticConfig):
     # See ImageClassificationTrainModel on how to enable it for a specific model.
     disable: bool = True
 
+    # Compilation mode passed to torch.compile, e.g. "default", "reduce-overhead"
+    # or "max-autotune". Can't be combined with options.
+    mode: str | None = None
+
+    # Backend options passed to torch.compile. Can't be combined with mode.
+    options: dict[str, Any] | None = None
+
     # Allow extra fields as torch.compile accepts many arguments
     model_config = ConfigDict(extra="allow")
 
 
 def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
-    """Tries to compile a torch model or function and falls back to the uncompiled
-    version if any error occurs."""
+    """Tries to compile a function and falls back to the uncompiled version if a
+    compilation error occurs."""
     if torch_compile_args.disable:
         return fn
     if not hasattr(torch, "compile"):
@@ -80,12 +89,56 @@ def try_compile(fn: _T, name: str, torch_compile_args: TorchCompileArgs) -> _T:
     logger.info(f"Compiling {name} with torch.compile")
     start_time = time.perf_counter()
     try:
-        fn = torch.compile(fn, **torch_compile_args.model_dump())  # type: ignore
+        compiled_fn = torch.compile(fn, **torch_compile_args.model_dump())  # type: ignore
     except Exception as ex:
         logger.warning(
-            f"Compilation failed, falling back to uncompiled version. Error: {ex}"
+            f"Compilation failed for {name}, falling back to eager. Error: {ex}"
         )
         return fn
     total_time = time.perf_counter() - start_time
     logger.info(f"Compilation completed in {total_time:.1f} seconds")
+
+    return _CompiledOrEager(fn, compiled_fn, name)  # type: ignore[arg-type, return-value]
+
+
+def _return_fn(fn: Callable[..., Any]) -> Callable[..., Any]:
     return fn
+
+
+class _CompiledOrEager:
+    """Calls the compiled function and switches to eager on a compilation error.
+
+    Pickles and copies as the original function.
+    """
+
+    def __init__(
+        self, fn: Callable[..., Any], compiled_fn: Callable[..., Any], name: str
+    ) -> None:
+        self._fn = fn
+        self._compiled_fn = compiled_fn
+        self._name = name
+        self._compile_failed = False
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        from torch._dynamo.exc import TorchDynamoException
+
+        if self._compile_failed:
+            return self._fn(*args, **kwargs)
+        try:
+            return self._compiled_fn(*args, **kwargs)
+        # torch.compile is lazy, so compilation errors are raised on call.
+        except TorchDynamoException as ex:
+            self._compile_failed = True
+            logger.warning(
+                f"Compilation failed for {self._name} on rank "
+                f"{_distributed.get_global_rank()}, falling back to eager for "
+                f"subsequent calls. Error: {ex}"
+            )
+            return self._fn(*args, **kwargs)
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        # Binds self like a function when assigned to a class.
+        return self if obj is None else MethodType(self, obj)
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return _return_fn, (self._fn,)
