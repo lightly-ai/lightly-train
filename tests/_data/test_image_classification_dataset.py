@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import re
 from pathlib import Path
 from typing import Any, Literal
@@ -15,8 +16,10 @@ from typing import Any, Literal
 import pytest
 import torch
 from lightly.transforms.utils import IMAGENET_NORMALIZE
+from lightning_fabric import Fabric
 from torchvision.transforms import functional as F
 
+from lightly_train._commands import train_task_helpers
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationDataset,
     ImageClassificationMulticlassDataArgs,
@@ -317,6 +320,73 @@ def _get_transform() -> DummyTaskTransform:
 
 
 class TestImageClassificationMmapHash:
+    @pytest.mark.parametrize("split", ["train", "val"])
+    @pytest.mark.parametrize(
+        "args_cls",
+        [ImageClassificationMulticlassDataArgs, ImageClassificationMultilabelDataArgs],
+    )
+    def test_mmap_hash__csv_edits_refresh_reused_labels(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        split: str,
+        args_cls: type[
+            ImageClassificationMulticlassDataArgs
+            | ImageClassificationMultilabelDataArgs
+        ],
+    ) -> None:
+        monkeypatch.setenv("LIGHTLY_TRAIN_MMAP_REUSE_FILE", "1")
+        helpers.create_image(path=tmp_path / "image.png", height=8, width=8)
+        for name in ("train", "val"):
+            (tmp_path / f"{name}.csv").write_text(
+                "image_path,label\nimage.png,class_0\n", encoding="utf-8"
+            )
+        args = args_cls(
+            train=tmp_path / "train.csv",
+            val=tmp_path / "val.csv",
+            classes={0: "class_0", 1: "class_1"},
+        )
+        if split == "train":
+            get_hash = args.train_data_mmap_hash
+            get_dataset_args = args.get_train_args
+            get_other_hash = args.val_data_mmap_hash
+        else:
+            get_hash = args.val_data_mmap_hash
+            get_dataset_args = args.get_val_args
+            get_other_hash = args.train_data_mmap_hash
+
+        fabric = Fabric(accelerator="cpu", devices=1)
+        fabric.launch()
+        original_hash = get_hash()
+        other_hash = get_other_hash()
+        with train_task_helpers.get_dataset_temp_mmap_path(
+            fabric=fabric, data_hash=original_hash, out=tmp_path / "first"
+        ) as original_path:
+            image_info = train_task_helpers.get_dataset_mmap_file(
+                fabric=fabric,
+                items=get_dataset_args().list_image_info(),
+                mmap_filepath=original_path,
+            )
+            assert image_info[0]["class_id"] == "0"
+
+        assert get_hash() == original_hash
+        csv_path = tmp_path / f"{split}.csv"
+        stat = csv_path.stat()
+        csv_path.write_text("image_path,label\nimage.png,class_1\n", encoding="utf-8")
+        os.utime(csv_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))
+
+        with train_task_helpers.get_dataset_temp_mmap_path(
+            fabric=fabric, data_hash=get_hash(), out=tmp_path / "second"
+        ) as updated_path:
+            updated_image_info = train_task_helpers.get_dataset_mmap_file(
+                fabric=fabric,
+                items=get_dataset_args().list_image_info(),
+                mmap_filepath=updated_path,
+            )
+            assert updated_image_info[0]["class_id"] == "1"
+            assert updated_path != original_path
+        assert get_other_hash() == other_hash
+
     def test_mmap_hash_is_deterministic(self, tmp_path: Path) -> None:
         classes = {0: "class_0", 1: "class_1"}
         helpers.create_multiclass_image_classification_dataset(

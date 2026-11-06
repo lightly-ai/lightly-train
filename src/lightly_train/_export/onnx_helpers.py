@@ -24,11 +24,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TORCH_DYNAMO_MIN_VERSION = "2.5.0"
-_TORCH_DYNAMO_AVAILABLE = RequirementCache(f"torch>={_TORCH_DYNAMO_MIN_VERSION}")
-
-_TORCH_DIM_HINTS_MIN_VERSION = "2.6.0"
-_TORCH_DIM_HINTS_AVAILABLE = RequirementCache(f"torch>={_TORCH_DIM_HINTS_MIN_VERSION}")
+# Dynamo-based ONNX export.
+TORCH_ONNX_DYNAMO_AVAILABLE = RequirementCache("torch>=2.5.0")
+# Dim.STATIC and Dim.DYNAMIC hints for dynamic shapes in export.
+TORCH_DIM_HINTS_AVAILABLE = RequirementCache("torch>=2.6.0")
 
 
 @runtime_checkable
@@ -38,18 +37,18 @@ class ONNXExportConvertible(Protocol):
 
 def check_onnx_dynamo_requirements() -> None:
     """Raise if the installed torch version does not support dynamo ONNX export."""
-    if not _TORCH_DYNAMO_AVAILABLE:
+    if not TORCH_ONNX_DYNAMO_AVAILABLE:
         raise RuntimeError(
-            f"ONNX export for this model requires torch >= {_TORCH_DYNAMO_MIN_VERSION} "
+            f"ONNX export for this model requires {TORCH_ONNX_DYNAMO_AVAILABLE.requirement} "
             f"(dynamo export), but found torch {torch.__version__}."
         )
 
 
 def check_model_input_spec_requirements() -> None:
     """Raise if torch lacks the Dim.STATIC/Dim.DYNAMIC hints ModelInputSpec needs."""
-    if not _TORCH_DIM_HINTS_AVAILABLE:
+    if not TORCH_DIM_HINTS_AVAILABLE:
         raise RuntimeError(
-            f"ModelInputSpec requires torch >= {_TORCH_DIM_HINTS_MIN_VERSION} "
+            f"ModelInputSpec requires {TORCH_DIM_HINTS_AVAILABLE.requirement} "
             f"(Dim.STATIC/Dim.DYNAMIC hints), but found torch {torch.__version__}."
         )
 

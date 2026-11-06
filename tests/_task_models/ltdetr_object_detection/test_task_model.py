@@ -423,6 +423,64 @@ def test_notpretrained_ltdetr_alias__resolves_to_distinct_backbone(
 
 
 @pytest.mark.parametrize(
+    ("eupe_alias", "plain_alias", "expected_backbone_name"),
+    [
+        # Regression for https://github.com/lightly-ai/lightly-train/issues/980:
+        # "-eupe-ltdetr" aliases were registered on the plain config class, so they
+        # silently loaded non-EUPE weights despite the name (and docs) promising EUPE.
+        (
+            "dinov3/convnext-tiny-eupe-ltdetr",
+            "dinov3/convnext-tiny-ltdetr",
+            "dinov3/convnext-tiny-eupe",
+        ),
+        (
+            "dinov3/convnext-small-eupe-ltdetr",
+            "dinov3/convnext-small-ltdetr",
+            "dinov3/convnext-small-eupe",
+        ),
+        (
+            "dinov3/convnext-base-eupe-ltdetr",
+            "dinov3/convnext-base-ltdetr",
+            "dinov3/convnext-base-eupe",
+        ),
+        (
+            "dinov3/vitt16-eupe-ltdetr",
+            "dinov3/vitt16-ltdetr",
+            "dinov3/vitt16-eupe",
+        ),
+        (
+            "dinov3/vits16-eupe-ltdetr",
+            "dinov3/vits16-ltdetr",
+            "dinov3/vits16-eupe",
+        ),
+        (
+            "dinov3/vitb16-eupe-ltdetr",
+            "dinov3/vitb16-ltdetr",
+            "dinov3/vitb16-eupe",
+        ),
+    ],
+)
+def test_eupe_ltdetr_alias__resolves_to_distinct_backbone(
+    eupe_alias: str,
+    plain_alias: str,
+    expected_backbone_name: str,
+) -> None:
+    eupe_cls = LTDETR_MODEL_REGISTRY.get(alias=eupe_alias)
+    plain_cls = LTDETR_MODEL_REGISTRY.get(alias=plain_alias)
+
+    assert eupe_cls is not plain_cls
+
+    eupe_config = eupe_cls()
+    assert eupe_config.backbone_name == expected_backbone_name
+    assert eupe_config.backbone_name != plain_cls().backbone_name
+
+    package_name, backbone_name = eupe_config.backbone_name.split("/", 1)
+    assert package_name == "dinov3"
+    assert backbone_name in DINOV3_MODEL_NAME_TO_INFO
+    assert backbone_name.endswith("-eupe")
+
+
+@pytest.mark.parametrize(
     ("model_name", "train_args_cls", "expected_decoder_name"),
     [
         (
@@ -891,10 +949,7 @@ def test_predict_sahi_batch__rejects_empty_input() -> None:
         model.predict_sahi_batch([])
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
     import onnx
@@ -928,10 +983,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__checks(tmp_path: Path) -> None:
     # The graph must pass the full ONNX checker, which requires the dynamo
     # shape-annotation repair. It must also not contain a GridSample op: TensorRT
@@ -957,10 +1009,7 @@ def test_export_onnx__checks(tmp_path: Path) -> None:
     assert "GridSample" not in op_types
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
@@ -993,14 +1042,9 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(
-    not RequirementCache(module="migraphx"), reason="migraphx not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+# migraphx is installed with apt and has no package metadata.
+@pytest.mark.requires(RequirementCache(module="migraphx"), "onnx", "onnxruntime")
+@pytest.mark.gpu
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
     import migraphx  # type: ignore[import-not-found]
@@ -1048,11 +1092,8 @@ def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
     )
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.requires("onnx", "onnxruntime")
+@pytest.mark.gpu
 @pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
 def test_export_onnx__fp16(
     tmp_path: Path, decoder_name: Literal["rtdetrv2", "dfine"]

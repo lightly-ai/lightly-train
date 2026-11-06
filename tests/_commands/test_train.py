@@ -8,13 +8,11 @@
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Callable, Literal
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from omegaconf import OmegaConf
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
@@ -29,18 +27,15 @@ from lightly_train._commands.train import (
     FunctionTrainConfig,
     TrainConfig,
 )
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._loggers.jsonl import JSONLLogger
 from lightly_train._methods import method_helpers
 from lightly_train._methods.dino.dino import DINOAdamWArgs, DINOArgs
 from lightly_train._scaling import ScalingInfo
+from lightly_train._transforms.albumentations_helpers import ALBUMENTATIONS_GEQ_2_0_0
 
 from .. import helpers
 from ..helpers import DummyCustomModel
-
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
 
 
 def test_track_training_started_event(mocker: MockerFixture) -> None:
@@ -139,7 +134,7 @@ def test_pretrain__batch_sizes_for_gradient_accumulation(
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 @pytest.mark.parametrize("num_workers", [0, 2, "auto"])
 def test_pretrain(
     tmp_path: Path, caplog: LogCaptureFixture, num_workers: int | Literal["auto"]
@@ -206,7 +201,7 @@ def test_pretrain(
         assert torch.equal(second_state_dict[key], exported_state_dict[key])
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__overwrite_true(tmp_path: Path) -> None:
     """Test that overwrite=True allows training with an existing output directory that
     contains files."""
@@ -229,7 +224,7 @@ def test_pretrain__overwrite_true(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__overwrite_false(tmp_path: Path) -> None:
     (tmp_path / "file.txt").touch()
 
@@ -245,7 +240,7 @@ def test_pretrain__overwrite_false(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__embed_dim(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -264,7 +259,7 @@ def test_pretrain__embed_dim(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__custom_model(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -282,8 +277,8 @@ def test_pretrain__custom_model(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="Requires Python 3.10 or higher for typing."
+@pytest.mark.requires(
+    "python>=3.10", reason="Requires Python 3.10 or higher for typing."
 )
 def test_pretrain__parameters() -> None:
     """Tests that pretrain function and TrainConfig have the same parameters and default
@@ -297,7 +292,7 @@ def test_pretrain__parameters() -> None:
     helpers.assert_same_params(a=TrainConfig, b=CLITrainConfig, assert_type=False)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__zero_epochs(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -315,7 +310,7 @@ def test_pretrain__zero_epochs(tmp_path: Path) -> None:
     assert (out / "checkpoints" / "last.ckpt").exists()
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_train_from_dictconfig(tmp_path: Path) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
@@ -341,7 +336,6 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     train.pretrain_from_dictconfig(config=config)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
 @pytest.mark.parametrize(
     "method, teacher",
     [
@@ -360,14 +354,11 @@ def test_train_from_dictconfig(tmp_path: Path) -> None:
     ],
 )
 @pytest.mark.parametrize(
-    "devices", [1]
+    "devices", [pytest.param(1, marks=pytest.mark.gpu(n=1))]
 )  # TODO(Lionel, 10/25): Add test with 2 devices back.
 def test_pretrain__distillation_different_teachers(
     tmp_path: Path, method: str, teacher: str | Callable[[], Module], devices: int
 ) -> None:
-    if torch.cuda.device_count() < devices:
-        pytest.skip("Test requires more GPUs than available.")
-
     if callable(teacher):
         teacher = teacher()
 
@@ -388,17 +379,19 @@ def test_pretrain__distillation_different_teachers(
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
-@pytest.mark.parametrize("method", method_helpers._list_methods())
 @pytest.mark.parametrize(
-    "devices", [1]
+    "method",
+    [
+        pytest.param(method, marks=pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0))
+        if method == "dinov31"
+        else method
+        for method in method_helpers._list_methods()
+    ],
+)
+@pytest.mark.parametrize(
+    "devices", [pytest.param(1, marks=pytest.mark.gpu(n=1))]
 )  # TODO(Philipp, 09/24): Add test with 2 devices back.
 def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
-    if torch.cuda.device_count() < devices:
-        pytest.skip("Test requires more GPUs than available.")
-    if method == "dinov31" and not RequirementCache("albumentations>=2.0.0"):
-        pytest.skip("DINOv31 requires albumentations>=2.0.0.")
-
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10)
@@ -429,7 +422,7 @@ def test_pretrain__method(tmp_path: Path, method: str, devices: int) -> None:
     )
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.gpu
 def test_pretrain__checkpoint_gradients(tmp_path: Path) -> None:
     """Test that checkpoints saved during training do not have disabled gradients.
 
@@ -621,16 +614,16 @@ def test_pretrain__checkpoint(mocker: MockerFixture, tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
 @pytest.mark.parametrize(
     "model, model_args, method, method_args",
     [
         ("dinov2/_vittest14", None, "dinov2", {}),
-        (
+        pytest.param(
             "timm/resnet18",
             {"num_classes": 64},
             "distillation",
             {"teacher": "dinov2/_vittest14"},
+            marks=pytest.mark.requires("timm"),
         ),
     ],
 )
@@ -641,9 +634,6 @@ def test_pretrain__multichannel(
     method: str,
     method_args: dict[str, Any],
 ) -> None:
-    if model.startswith("timm") and not RequirementCache("timm"):
-        pytest.skip("timm is not installed")
-
     out = tmp_path / "out"
     data = tmp_path / "data"
     helpers.create_images(image_dir=data, files=10, num_channels=4, mode="RGBA")
@@ -662,8 +652,7 @@ def test_pretrain__multichannel(
     )
 
 
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow")
+@pytest.mark.requires(PYDICOM_GEQ_3_0_0)
 @pytest.mark.parametrize(
     ("data_format, num_channels"),
     [
@@ -680,10 +669,8 @@ def test_pretrain__dicom(
     data_format: str,
     num_channels: int,
 ) -> None:
-    pydicom_examples = pytest.importorskip(
-        "pydicom.examples",
-        reason="pydicom examples not supported",
-    )
+    from pydicom import examples as pydicom_examples
+
     data_path: Path = pydicom_examples.get_path(data_format)
     data = [str(data_path)] * 8  # Create a list of 8 identical DICOM files.
 

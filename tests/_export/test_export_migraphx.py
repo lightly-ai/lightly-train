@@ -26,7 +26,7 @@ from lightly_train._export.export_migraphx import (
 def _write_transpose_resize_model(
     path: Path, *, shared_transpose: bool = False
 ) -> None:
-    onnx = pytest.importorskip("onnx")
+    import onnx
     from onnx import TensorProto, helper, numpy_helper
 
     nodes = [
@@ -65,10 +65,10 @@ def _write_transpose_resize_model(
     onnx.save(model, path)
 
 
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_prepare_onnx_for_migraphx__moves_resize_before_transpose(
     tmp_path: Path,
 ) -> None:
-    pytest.importorskip("onnxruntime")
     import onnx
     import onnxruntime as ort
     from onnx import helper, numpy_helper
@@ -102,10 +102,11 @@ def test_prepare_onnx_for_migraphx__moves_resize_before_transpose(
     np.testing.assert_array_equal(initializers[resize.input[3]], np.array([1, 8, 8, 3]))
 
 
+@pytest.mark.requires("onnx")
 def test_prepare_onnx_for_migraphx__leaves_shared_transpose_in_place(
     tmp_path: Path,
 ) -> None:
-    onnx = pytest.importorskip("onnx")
+    import onnx
 
     path = tmp_path / "model.onnx"
     _write_transpose_resize_model(path, shared_transpose=True)

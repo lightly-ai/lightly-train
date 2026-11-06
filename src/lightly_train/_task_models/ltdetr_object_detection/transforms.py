@@ -15,13 +15,15 @@ from pydantic import Field
 from lightly_train._task_models.object_detection_components.ltdetr_geometry import (
     ltdetr_image_size_divisor,
 )
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
+)
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionTransform,
     LTDETRObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
-    ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5,
-    ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1,
     resolve_image_size_for_patch_size,
     resolve_ltdetr_step_schedule_for_augmentation,
 )
@@ -238,12 +240,8 @@ class LTDETRObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArgs
             min_area=1.0,  # Bbox must have an area of at least 1 pixel.
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
@@ -342,12 +340,8 @@ class LTDETRObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs):
             label_fields=["class_labels"],
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
@@ -633,12 +627,8 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(
             min_area=1.0,  # Bbox must have an area of at least 1 pixel.
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"
@@ -718,12 +708,8 @@ class DINOv2LTDETRObjectDetectionValTransformArgsV2(LTDETRObjectDetectionTransfo
             label_fields=["class_labels"],
             min_width=0.0,
             min_height=0.0,
-            **(
-                dict(filter_invalid_bboxes=True)
-                if ALBUMENTATIONS_VERSION_GREATER_EQUAL_2_0_1
-                else {}
-            ),
-            **(dict(clip=True) if ALBUMENTATIONS_VERSION_GREATER_EQUAL_1_4_5 else {}),
+            **(dict(filter_invalid_bboxes=True) if ALBUMENTATIONS_GEQ_2_0_1 else {}),
+            **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
         ),
     )
     normalize: NormalizeArgs | Literal["auto"] | None = "auto"

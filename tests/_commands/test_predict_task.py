@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -16,8 +15,6 @@ import pytest
 import lightly_train
 
 from .. import helpers
-
-is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
 
 
 def create_dinov2_vittest14_eomt_test_checkpoint(
@@ -81,13 +78,8 @@ def dinov2_vittest14_eomt_4_channels_checkpoint(
     return create_dinov2_vittest14_eomt_test_checkpoint(directory=tmp, num_channels=4)
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
-    reason="Requires Python 3.9 or higher for image preprocessing.",
+@pytest.mark.requires(
+    "python>=3.9", reason="Requires Python 3.9 or higher for image preprocessing."
 )
 @pytest.mark.parametrize("num_channels", [3, 4])
 def test_predict_semantic_segmentation(

@@ -38,6 +38,7 @@ from lightly_train.types import (
 
 logger = logging.getLogger(__name__)
 
+# `decode_image` accepts str paths and loads uint16 masks.
 TORCHVISION_GEQ_0_20_0 = RequirementCache("torchvision>=0.20.0")
 if TORCHVISION_GEQ_0_20_0:
     # `read_image` is marked as obsolete in torchvision>=0.20.0 in favor of `decode_image`.
@@ -47,6 +48,7 @@ if TORCHVISION_GEQ_0_20_0:
 else:
     from torchvision.io import read_image as load_image  # type: ignore[no-redef]
 
+# Pixel utils moved to `pydicom.pixels`. Also adds `pydicom.examples`.
 PYDICOM_GEQ_3_0_0 = RequirementCache("pydicom>=3.0.0")
 
 
@@ -256,7 +258,7 @@ def _open_image_numpy__with_pydicom(
             "pydicom is required to read DICOM images. "
             "Please install it with 'pip install lightly-train[dicom]'."
         )
-    from pydicom import Dataset
+    from pydicom import Dataset, dcmread
 
     if PYDICOM_GEQ_3_0_0:
         from pydicom.pixels import (  # type: ignore[import-not-found]
@@ -277,8 +279,13 @@ def _open_image_numpy__with_pydicom(
 
     image_np: NDArrayImage
 
-    dataset = Dataset()
-    pixel_array = pydicom_utils.pixel_array(image_src, ds_out=dataset)
+    if PYDICOM_GEQ_3_0_0:
+        dataset = Dataset()
+        pixel_array = pydicom_utils.pixel_array(image_src, ds_out=dataset)
+    else:
+        # pydicom 2.x has no pixel_array function, read the full dataset instead.
+        dataset = dcmread(image_src)
+        pixel_array = dataset.pixel_array
 
     num_frames = pydicom_utils.get_nr_frames(dataset)
     if num_frames > 1:

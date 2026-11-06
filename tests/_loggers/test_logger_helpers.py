@@ -25,16 +25,6 @@ from lightly_train._loggers.tensorboard import TensorBoardLogger, TensorBoardLog
 from lightly_train._loggers.wandb import WandbLogger, WandbLoggerArgs
 from lightly_train.errors import ConfigValidationError
 
-try:
-    import wandb
-except ImportError:
-    wandb = None  # type: ignore[assignment]
-
-try:
-    import mlflow
-except ImportError:
-    mlflow = None  # type: ignore[assignment]
-
 
 @pytest.mark.parametrize(
     "loggers, expected",
@@ -129,7 +119,7 @@ def test_get_callbacks__tensorboard_user_config(tmp_path: Path) -> None:
     assert Path(logger.log_dir) == tmp_path / "abc"  # Name is used as subdirectory.
 
 
-@pytest.mark.skipif(wandb is None, reason="Wandb not available")
+@pytest.mark.requires("wandb")
 def test_get_callbacks__wandb_user_config(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
@@ -147,7 +137,7 @@ def test_get_callbacks__wandb_user_config(tmp_path: Path) -> None:
     assert Path(logger.save_dir) == tmp_path  # Cannot check for log_dir as it is None.
 
 
-@pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
+@pytest.mark.requires("mlflow")
 def test_get_callbacks__mlflow_user_config(tmp_path: Path) -> None:
     loggers = logger_helpers.get_loggers(
         logger_args=LoggerArgs(
@@ -205,7 +195,7 @@ def test_log_image_to_loggers__jsonl_skipped(
     log_metrics_spy.assert_not_called()
 
 
-@pytest.mark.skipif(mlflow is None, reason="Mlflow not available")
+@pytest.mark.requires("mlflow")
 def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
     # Verifies the image is written as a PNG artifact with correct pixel content.
     mlflow_logger = MLFlowLogger(
@@ -227,7 +217,7 @@ def test_log_image_to_loggers__mlflow(tmp_path: Path) -> None:
     assert stored.getpixel((0, 0)) == (128, 0, 0)
 
 
-@pytest.mark.skipif(wandb is None, reason="Wandb not available")
+@pytest.mark.requires("wandb")
 def test_log_image_to_loggers__wandb(tmp_path: Path) -> None:
     # Verifies the image is written as a PNG artifact with correct pixel content.
     wandb_logger = WandbLogger(

@@ -13,10 +13,11 @@ from typing import Any
 import cv2
 from albumentations import PadIfNeeded
 from albumentations.augmentations.geometric import functional as fgeometric
-from lightning_utilities.core.imports import RequirementCache
 
-ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
-ALBUMENTATIONS_GEQ_1_4_21 = RequirementCache("albumentations>=1.4.21")
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_21,
+    ALBUMENTATIONS_GEQ_2_0_0,
+)
 
 
 class RandomZoomOutBase(PadIfNeeded):  # type: ignore[misc]
@@ -26,7 +27,7 @@ class RandomZoomOutBase(PadIfNeeded):  # type: ignore[misc]
         side_range: tuple[float, float],
         p: float,
     ):
-        if ALBUMENTATIONS_VERSION_2XX:
+        if ALBUMENTATIONS_GEQ_2_0_0:
             super().__init__(
                 min_height=1,  # Will be ignored and set dynamically based on input image size.
                 min_width=1,  # Will be ignored and set dynamically based on input image size.
