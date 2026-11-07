@@ -108,7 +108,7 @@ def decode(
 ) -> tuple[Tensor, Tensor, Tensor]:
     """Decode raw engine outputs into (boxes_xyxy, scores, labels).
 
-    Mirrors ``ObjectDetectionPostprocessor.decode`` in
+    Mirrors ``decode_object_detection_output`` in
     ``lightly_train._pre_post_processing.object_detection``.
     """
     logits_t = torch.from_numpy(logits)[0]  # (num_queries, num_classes)

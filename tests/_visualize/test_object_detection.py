@@ -14,6 +14,9 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionTorchmetricsPrediction,
+)
 from lightly_train._visualize import object_detection, utils
 from lightly_train.types import ObjectDetectionBatch
 
@@ -65,7 +68,9 @@ def _make_batch_from_image(
     )
 
 
-def _make_empty_results(*, batch_size: int = 1) -> list[dict[str, Tensor]]:
+def _make_empty_results(
+    *, batch_size: int = 1
+) -> list[ObjectDetectionTorchmetricsPrediction]:
     return [
         {
             "boxes": torch.zeros(0, 4),
@@ -256,7 +261,7 @@ class TestPlotObjectDetectionPredictions:
         batch = _make_batch_from_image(
             image=torch.full((2, 3, 64, 64), _BACKGROUND_COLOR)
         )
-        results = [
+        results: list[ObjectDetectionTorchmetricsPrediction] = [
             {
                 "boxes": torch.tensor([[8.0, 8.0, 56.0, 56.0]]),
                 "labels": torch.zeros(1, dtype=torch.long),

@@ -25,6 +25,9 @@ from lightly_train import _logging, _torch_testing
 from lightly_train._commands import _warnings
 from lightly_train._data import file_helpers
 from lightly_train._export import tensorrt_helpers
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionPrediction,
+)
 from lightly_train._task_models.picodet_object_detection.config import (
     PICODET_OBJECT_DETECTION_MODEL_REGISTRY,
 )
@@ -506,7 +509,7 @@ class PicoDetObjectDetection(TaskModel):
         self,
         image: PathLike | PILImage | Tensor,
         threshold: float = 0.6,
-    ) -> dict[str, Tensor]:
+    ) -> ObjectDetectionPrediction:
         """Run inference on a single image.
 
         Args:
@@ -514,10 +517,7 @@ class PicoDetObjectDetection(TaskModel):
             threshold: Score threshold for detections.
 
         Returns:
-            Dictionary with:
-            - labels: Tensor of shape (N,) with class indices.
-            - bboxes: Tensor of shape (N, 4) with boxes in xyxy format.
-            - scores: Tensor of shape (N,) with confidence scores.
+            An :class:`ObjectDetectionPrediction` in original-image coordinates.
         """
         self._track_inference()
         if self.training:
@@ -555,11 +555,7 @@ class PicoDetObjectDetection(TaskModel):
             boxes = boxes[keep]
             scores = scores[keep]
 
-        return {
-            "labels": labels,
-            "bboxes": boxes,
-            "scores": scores,
-        }
+        return ObjectDetectionPrediction(labels=labels, bboxes=boxes, scores=scores)
 
     @torch.no_grad()
     def export_onnx(

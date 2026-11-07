@@ -15,6 +15,9 @@ from PIL.Image import Image as PILImage
 from torch import Tensor
 from torchvision.transforms import functional as torchvision_functional
 
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionTorchmetricsPrediction,
+)
 from lightly_train._visualize import utils
 from lightly_train.types import ObjectDetectionBatch
 
@@ -28,7 +31,7 @@ class ObjectDetectionTaskStepVisualization:
     image_normalize: dict[str, tuple[float, ...]] | None
     max_images: int
     score_threshold: float
-    results: list[dict[str, Tensor]] | None = None
+    results: list[ObjectDetectionTorchmetricsPrediction] | None = None
 
     def create_label_image(self) -> PILImage | None:
         return plot_object_detection_labels(
@@ -107,7 +110,7 @@ def plot_object_detection_labels(
 
 def plot_object_detection_predictions(
     batch: ObjectDetectionBatch,
-    results: list[dict[str, Tensor]],
+    results: list[ObjectDetectionTorchmetricsPrediction],
     class_names: dict[int, str],
     max_images: int,
     score_threshold: float,
@@ -131,8 +134,12 @@ def plot_object_detection_predictions(
         A single PIL image containing up to max_images annotated images arranged
         in a grid.
     """
-    results = [
-        {k: v.cpu() if isinstance(v, Tensor) else v for k, v in r.items()}
+    cpu_results: list[dict[str, Tensor]] = [
+        {
+            "boxes": r["boxes"].cpu(),
+            "labels": r["labels"].cpu(),
+            "scores": r["scores"].cpu(),
+        }
         for r in results
     ]
     gt_images = batch["image"].cpu()
@@ -153,7 +160,7 @@ def plot_object_detection_predictions(
 
         img = torchvision_functional.to_pil_image(image_tensor)
 
-        result = results[i]
+        result = cpu_results[i]
         boxes = result["boxes"]
         class_ids = result["labels"]
         scores = result["scores"]

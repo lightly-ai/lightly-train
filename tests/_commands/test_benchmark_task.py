@@ -111,7 +111,7 @@ class _FakeObjectDetectionModel(TaskModel):
     def postprocess(
         self,
         raw_outputs: Any,
-        metadata: Sequence[dict[str, Any]],
+        metadata: Sequence[object],
         **kwargs: Any,
     ) -> list[dict[str, Tensor]]:
         return [dict(self._pred) for _ in metadata]
