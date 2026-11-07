@@ -15,12 +15,12 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
-from torchvision.ops import box_convert
+from torchvision.ops import box_convert, box_iou, nms
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import NotRequired
 
 from lightly_train._data import file_helpers
-from lightly_train._task_models.object_detection_components import tiling_utils
+from lightly_train._pre_post_processing import tiling
 from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train.types import PathLike
 
@@ -80,7 +80,7 @@ class ObjectDetectionPreprocessor(Module):
         orig_h, orig_w = x.shape[-2:]
         x = self._validate_channels(x)
         x = transforms_functional.to_dtype(x, dtype=dtype, scale=True)
-        tiles, tiles_coordinates = tiling_utils.tile_image(
+        tiles, tiles_coordinates = tiling.tile_image(
             x, overlap=overlap, tile_size=self.image_size
         )
         x_global = transforms_functional.resize(x, self.image_size).unsqueeze(0)
@@ -207,7 +207,7 @@ class ObjectDetectionPostprocessor(Module):
         scores_global, scores_tiles = scores[0].flatten(), scores[1:].flatten()
         keep_global = scores_global > threshold
         keep_tiles = scores_tiles > threshold
-        labels, boxes, scores = tiling_utils.combine_object_detection_tiles(
+        labels, boxes, scores = combine_object_detection_tiles(
             pred_global={
                 "labels": labels_global[keep_global],
                 "bboxes": boxes_global[keep_global],
@@ -222,3 +222,63 @@ class ObjectDetectionPostprocessor(Module):
             global_local_iou_threshold=global_local_iou_threshold,
         )
         return {"labels": labels, "bboxes": boxes, "scores": scores}
+
+
+def combine_object_detection_tiles(
+    pred_global: dict[str, Tensor],
+    pred_tiles: dict[str, Tensor],
+    nms_iou_threshold: float = 0.2,
+    global_local_iou_threshold: float = 0.1,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """
+    Combine predictions from the global view (full image) and local views (image tiles).
+
+    Args:
+        pred_global: dict with keys "labels", "bboxes", "scores".
+        pred_tiles: dict with keys "labels", "bboxes", "scores".
+        nms_iou_threshold: IoU used in NMS of tiles predictions.
+        global_local_iou_threshold: IoU above which a tile box is removed if it matches a global box of same label.
+
+    Returns:
+        Filtered labels, boxes, scores as a tuple.
+    """
+    # Get tiles and global predictions.
+    labels_global = pred_global["labels"]
+    boxes_global = pred_global["bboxes"]
+    scores_global = pred_global["scores"]
+    labels_tiles = pred_tiles["labels"]
+    boxes_tiles = pred_tiles["bboxes"]
+    scores_tiles = pred_tiles["scores"]
+
+    # NMS on tiles predictions is needed due overlapping tiles.
+    if boxes_tiles.numel() > 0:
+        keep = nms(boxes_tiles, scores_tiles, nms_iou_threshold)
+        labels_tiles = labels_tiles[keep]
+        boxes_tiles = boxes_tiles[keep]
+        scores_tiles = scores_tiles[keep]
+
+    # Drop tile boxes that overlap global boxes of same class
+    if boxes_global.numel() > 0 and boxes_tiles.numel() > 0:
+        # Compute overlap between tiles and global predictions.
+        ious = box_iou(boxes_tiles, boxes_global)
+
+        # Only keep tiles predictions that do not overlap above the threshold with
+        # any global prediction of the same class. The same-label check must be
+        # applied before reducing over global predictions: reducing first (e.g.
+        # via the single max-IoU global box) would miss a same-label overlap that
+        # is not the strongest one.
+        same_label = labels_tiles[:, None] == labels_global[None, :]
+        overlaps_same_label = (same_label & (ious > global_local_iou_threshold)).any(
+            dim=1
+        )
+        keep = ~overlaps_same_label
+        labels_tiles = labels_tiles[keep]
+        boxes_tiles = boxes_tiles[keep]
+        scores_tiles = scores_tiles[keep]
+
+    # Concatenate the global and tiles predictions
+    labels = torch.cat([labels_global, labels_tiles], dim=0)
+    boxes = torch.cat([boxes_global, boxes_tiles], dim=0)
+    scores = torch.cat([scores_global, scores_tiles], dim=0)
+
+    return labels, boxes, scores

@@ -14,6 +14,7 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionOutput,
     ObjectDetectionPostprocessor,
     ObjectDetectionPreprocessor,
+    combine_object_detection_tiles,
 )
 
 
@@ -153,3 +154,182 @@ class TestObjectDetectionPostprocessor:
             output["bboxes"],
             torch.tensor([[40.0, 20.0, 60.0, 30.0], [13.0, 11.0, 17.0, 13.0]]),
         )
+
+
+def test_combine_object_detection_tiles() -> None:
+    labels_global = torch.tensor([1])
+    boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])
+    scores_global = torch.tensor([0.8])
+    labels_tiles = torch.tensor([2, 3])
+    boxes_tiles = torch.tensor(
+        [
+            [20.0, 20.0, 30.0, 30.0],
+            [40.0, 40.0, 50.0, 50.0],
+        ]
+    )
+    scores_tiles = torch.tensor([0.7, 0.9])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 3, 2]))
+    torch.testing.assert_close(
+        boxes_out,
+        torch.tensor(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [40.0, 40.0, 50.0, 50.0],
+                [20.0, 20.0, 30.0, 30.0],
+            ]
+        ),
+    )
+    torch.testing.assert_close(scores_out, torch.tensor([0.8, 0.9, 0.7]))
+
+
+def test_combine_object_detection_tiles__suppresses_tile_nms() -> None:
+    labels_tiles = torch.tensor([1, 1, 2])
+    boxes_tiles = torch.tensor(
+        [
+            [0.0, 0.0, 10.0, 10.0],
+            [1.0, 1.0, 11.0, 11.0],
+            [20.0, 20.0, 30.0, 30.0],
+        ]
+    )
+    scores_tiles = torch.tensor([0.8, 0.9, 0.7])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 2]))
+    torch.testing.assert_close(boxes_out, boxes_tiles[[1, 2]])
+    torch.testing.assert_close(scores_out, torch.tensor([0.9, 0.7]))
+
+
+def test_combine_object_detection_tiles__suppresses_same_label_global_overlap() -> None:
+    labels_global = torch.tensor([1])
+    boxes_global = torch.tensor([[0.0, 0.0, 10.0, 10.0]])
+    scores_global = torch.tensor([0.8])
+    labels_tiles = torch.tensor([1, 2, 1])
+    boxes_tiles = torch.tensor(
+        [
+            [1.0, 1.0, 9.0, 9.0],
+            [1.0, 1.0, 9.0, 9.0],
+            [20.0, 20.0, 30.0, 30.0],
+        ]
+    )
+    scores_tiles = torch.tensor([0.9, 0.7, 0.6])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=1.0,
+        global_local_iou_threshold=0.5,
+    )
+
+    torch.testing.assert_close(labels_out, torch.tensor([1, 2, 1]))
+    torch.testing.assert_close(
+        boxes_out,
+        torch.tensor(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [1.0, 1.0, 9.0, 9.0],
+                [20.0, 20.0, 30.0, 30.0],
+            ]
+        ),
+    )
+    torch.testing.assert_close(scores_out, torch.tensor([0.8, 0.7, 0.6]))
+
+
+def test_combine_object_detection_tiles__suppresses_lower_iou_same_label_global() -> (
+    None
+):
+    # The tile box overlaps a different-label global box most strongly, but also
+    # overlaps a same-label global box above the threshold. It must be suppressed
+    # based on the same-label overlap, not the single strongest (different-label)
+    # match.
+    labels_global = torch.tensor([2, 1])
+    boxes_global = torch.tensor(
+        [
+            [1.0, 1.0, 9.0, 9.0],  # different label, IoU == 1.0 with the tile box
+            [0.0, 0.0, 10.0, 10.0],  # same label, IoU == 0.64 with the tile box
+        ]
+    )
+    scores_global = torch.tensor([0.9, 0.8])
+    labels_tiles = torch.tensor([1])
+    boxes_tiles = torch.tensor([[1.0, 1.0, 9.0, 9.0]])
+    scores_tiles = torch.tensor([0.7])
+
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": labels_global,
+            "bboxes": boxes_global,
+            "scores": scores_global,
+        },
+        pred_tiles={
+            "labels": labels_tiles,
+            "bboxes": boxes_tiles,
+            "scores": scores_tiles,
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.5,
+    )
+
+    torch.testing.assert_close(labels_out, labels_global)
+    torch.testing.assert_close(boxes_out, boxes_global)
+    torch.testing.assert_close(scores_out, scores_global)
+
+
+def test_combine_object_detection_tiles__handles_empty_predictions() -> None:
+    labels_out, boxes_out, scores_out = combine_object_detection_tiles(
+        pred_global={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        pred_tiles={
+            "labels": torch.empty(0, dtype=torch.long),
+            "bboxes": torch.empty(0, 4),
+            "scores": torch.empty(0),
+        },
+        nms_iou_threshold=0.5,
+        global_local_iou_threshold=0.1,
+    )
+
+    assert labels_out.shape == (0,)
+    assert boxes_out.shape == (0, 4)
+    assert scores_out.shape == (0,)
+    assert labels_out.dtype == torch.long
+    assert boxes_out.dtype == torch.float32
+    assert scores_out.dtype == torch.float32
