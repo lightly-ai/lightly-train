@@ -383,11 +383,6 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
             logits=raw["pred_logits"], boxes=raw["pred_boxes"]
         )
 
-    def forward_backend(self, x: Tensor) -> ObjectDetectionBatchOutput:
-        # TODO(Lionel, 11/2026): Remove once benchmark_object_detection uses the
-        # preprocessor and postprocessor directly.
-        return self.forward(x)
-
     def _forward_train(self, x: Tensor, targets):  # type: ignore[no-untyped-def]
         x = self.backbone(x)
         x = self.encoder(x)
@@ -397,7 +392,7 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
     def postprocess(  # type: ignore[override]
         self,
         raw_outputs: ObjectDetectionBatchOutput | Mapping[str, Tensor],
-        metadata: Sequence[ObjectDetectionMetadata | Mapping[str, int]],
+        metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[ObjectDetectionPrediction]:
         if isinstance(raw_outputs, ObjectDetectionBatchOutput):
@@ -406,19 +401,8 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
             raw = ObjectDetectionBatchOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
-        # TODO(Lionel, 11/2026): Drop dict metadata once benchmark_object_detection
-        # uses the preprocessor directly.
-        if not all(isinstance(m, ObjectDetectionMetadata) for m in metadata):
-            metadata = [
-                m
-                if isinstance(m, ObjectDetectionMetadata)
-                else ObjectDetectionMetadata(orig_h=m["orig_h"], orig_w=m["orig_w"])
-                for m in metadata
-            ]
         return self.postprocessor.postprocess(
-            raw=raw,
-            metadata=cast(Sequence[ObjectDetectionMetadata], metadata),
-            threshold=threshold,
+            raw=raw, metadata=metadata, threshold=threshold
         )
 
     def freeze_backbone(self) -> None:
