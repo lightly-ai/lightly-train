@@ -84,6 +84,31 @@ on how to prepare your dataset.
 
 ### Train a Semantic Segmentation Model
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+
+```bash
+# The images, masks and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/semantic_segmentation.zip && unzip -q semantic_segmentation.zip
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_semantic_segmentation(
+        out="out/my_experiment",
+        model="dinov2/vitl14-eomt",
+        data="semantic_segmentation/config.yaml",
+        steps=100,  # Small number of steps for demonstration, default is 40_000.
+        batch_size=4,  # Small batch size for demonstration, default is 16.
+    )
+```
+
+`data` also accepts a dictionary with the same keys as the YAML file, which is useful if
+you want to set them programmatically. Relative paths in a dictionary are resolved
+against the current working directory, while relative paths in a YAML file are resolved
+against the folder that contains the YAML file:
+
 ```python
 import lightly_train
 

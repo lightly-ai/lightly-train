@@ -53,6 +53,31 @@ requires a few lines of code using the
 function. See [data](#panoptic-segmentation-data) for more details on how to prepare
 your dataset.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+
+```bash
+# The images, annotations and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/panoptic_segmentation.zip && unzip -q panoptic_segmentation.zip
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_panoptic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitl16-eomt-panoptic-coco",
+        data="panoptic_segmentation/config.yaml",
+        steps=100,  # Small number of steps for demonstration, default is 90_000.
+        batch_size=4,  # Small batch size for demonstration, default is 16.
+    )
+```
+
+`data` also accepts a dictionary with the same keys as the YAML file, which is useful if
+you want to set them programmatically. Relative paths in a dictionary are resolved
+against the current working directory, while relative paths in a YAML file are resolved
+against the folder that contains the YAML file:
+
 ```python
 import lightly_train
 
