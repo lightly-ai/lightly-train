@@ -7,6 +7,7 @@
 #
 from __future__ import annotations
 
+import dataclasses
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -23,6 +24,7 @@ from lightly_train._commands.benchmark_types import (
     TorchBackendArgs,
 )
 from lightly_train._task_models.task_model import TaskModel
+from lightly_train._task_models.task_model_io import BaseModelOutput
 from lightly_train.types import ObjectDetectionBatch
 
 
@@ -81,10 +83,10 @@ class TorchBackend(ObjectDetectionBackend):
         self.backend_args = backend_args
         self.threshold = threshold
 
-        if hasattr(self.model, "deploy"):
-            self.model.deploy()  # type: ignore[operator]
-        else:
-            self.model.eval()
+        # TaskModel.deploy() defaults to a no-op that does not leave training mode,
+        # so eval() has to be explicit.
+        self.model.eval()
+        self.model.deploy()
 
         if backend_args.compile:
             self.model.forward_backend = torch.compile(self.model.forward_backend)  # type: ignore[method-assign]
@@ -110,11 +112,17 @@ class TorchBackend(ObjectDetectionBackend):
             enabled=autocast_dtype is not None,
         ):
             raw_outputs = self.model.forward_backend(images)
+        # CUDA kernels are queued asynchronously, so without this the timer would stop
+        # once the work is submitted rather than once it is done.
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
         time_predict = time.perf_counter() - start_predict
 
-        # postprocess
+        # postprocess in fp32 like the ONNX and TensorRT backends
         return self.model.postprocess(
-            raw_outputs=raw_outputs, metadata=metadata, threshold=self.threshold
+            raw_outputs=_to_float32(raw_outputs),
+            metadata=metadata,
+            threshold=self.threshold,
         ), time_predict
 
 
@@ -395,3 +403,20 @@ class TensorRTBackend(ObjectDetectionBackend):
             threshold=self.threshold,
         )
         return results, time_predict
+
+
+def _to_float32(raw_outputs: Any) -> Any:
+    """Cast floating point tensors in raw model outputs to fp32."""
+    if isinstance(raw_outputs, Tensor):
+        return raw_outputs.float() if raw_outputs.is_floating_point() else raw_outputs
+    if isinstance(raw_outputs, tuple):
+        return tuple(_to_float32(o) for o in raw_outputs)
+    if isinstance(raw_outputs, BaseModelOutput):
+        return dataclasses.replace(
+            raw_outputs,
+            **{
+                f.name: _to_float32(getattr(raw_outputs, f.name))
+                for f in dataclasses.fields(raw_outputs)
+            },
+        )
+    raise TypeError(f"Unsupported raw output type: {type(raw_outputs)}")
