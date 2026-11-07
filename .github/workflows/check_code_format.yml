@@ -77,7 +77,10 @@ jobs:
   type-check:
     name: Type Check
     needs: detect-python-changes
-    if: needs.detect-python-changes.outputs.run-type-check == 'true'
+    # Run if the filter says so, and also if the filter job itself failed: a skipped
+    # job counts as a passing required check, so failing closed would let a change
+    # merge untested.
+    if: ${{ !cancelled() && (needs.detect-python-changes.result != 'success' || needs.detect-python-changes.outputs.run-type-check == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

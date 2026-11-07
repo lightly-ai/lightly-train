@@ -57,7 +57,10 @@ jobs:
   test-documentation:
     name: Test Documentation
     needs: detect-code-changes
-    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    # Run if the filter says so, and also if the filter job itself failed: a skipped
+    # job counts as a passing required check, so failing closed would let a change
+    # merge untested.
+    if: ${{ !cancelled() && (needs.detect-code-changes.result != 'success' || needs.detect-code-changes.outputs.run-tests == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
