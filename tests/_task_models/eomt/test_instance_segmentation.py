@@ -14,29 +14,8 @@ from torch import Tensor
 from lightly_train._task_models.eomt.instance_segmentation import (
     get_chunk_size,
     get_instance_segmentation_prediction,
+    get_labels_masks_scores,
 )
-
-
-def _get_labels_masks_scores(
-    mask_logits: Tensor, class_logits: Tensor
-) -> tuple[Tensor, Tensor, Tensor]:
-    """Mirrors EoMTInstanceSegmentation.get_labels_masks_scores."""
-    scores = class_logits.softmax(dim=-1, dtype=torch.float32)[..., :-1].type_as(
-        class_logits
-    )
-    scores, labels = torch.max(scores, dim=-1)
-    masks = mask_logits > 0
-    mask_logits_fp32 = mask_logits.float()
-    masks_fp32 = masks.float()
-    score_per_query = (
-        mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
-    ).sum(2)
-    mask_pixels_per_query = masks_fp32.flatten(2).sum(2)
-    mask_scores = score_per_query / mask_pixels_per_query
-    mask_scores = torch.where(
-        mask_pixels_per_query > 0, mask_scores, torch.zeros_like(mask_scores)
-    )
-    return labels, masks, (scores * mask_scores).type_as(mask_logits)
 
 
 def _get_reference_prediction(
@@ -53,7 +32,9 @@ def _get_reference_prediction(
     if crop_size is not None:
         logits = logits[..., : crop_size[0], : crop_size[1]]
     logits = F.interpolate(logits, image_size, mode="bilinear")
-    labels, masks, scores = _get_labels_masks_scores(logits, class_logits.unsqueeze(0))
+    labels, masks, scores = get_labels_masks_scores(
+        mask_logits=logits, class_logits=class_logits.unsqueeze(0)
+    )
     return labels[0], masks[0], scores[0]
 
 
@@ -91,13 +72,10 @@ def test_get_instance_segmentation_prediction__matches_reference() -> None:
     resize_size = (6, 8)
     crop_size = (5, 7)
     image_size = (9, 11)
-    chunk_sizes: list[int] = []
-
-    def get_labels_masks_scores(
-        mask_logits: Tensor, class_logits: Tensor
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        chunk_sizes.append(mask_logits.shape[1])
-        return _get_labels_masks_scores(mask_logits, class_logits)
+    assert (
+        get_chunk_size(num_queries=7, resize_size=resize_size, image_size=image_size)
+        == 3
+    )
 
     prediction = get_instance_segmentation_prediction(
         mask_logits=mask_logits,
@@ -105,10 +83,8 @@ def test_get_instance_segmentation_prediction__matches_reference() -> None:
         resize_size=resize_size,
         crop_size=crop_size,
         image_size=image_size,
-        get_labels_masks_scores=get_labels_masks_scores,
     )
 
-    assert chunk_sizes == [3, 3, 1]
     labels, masks, scores = _get_reference_prediction(
         mask_logits=mask_logits,
         class_logits=class_logits,
@@ -130,13 +106,10 @@ def test_get_instance_segmentation_prediction__single_chunk_matches_reference() 
     resize_size = (8, 8)
     crop_size = (8, 6)
     image_size = (4, 4)
-    chunk_sizes: list[int] = []
-
-    def get_labels_masks_scores(
-        mask_logits: Tensor, class_logits: Tensor
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        chunk_sizes.append(mask_logits.shape[1])
-        return _get_labels_masks_scores(mask_logits, class_logits)
+    assert (
+        get_chunk_size(num_queries=4, resize_size=resize_size, image_size=image_size)
+        >= 4
+    )
 
     prediction = get_instance_segmentation_prediction(
         mask_logits=mask_logits,
@@ -144,10 +117,8 @@ def test_get_instance_segmentation_prediction__single_chunk_matches_reference() 
         resize_size=resize_size,
         crop_size=crop_size,
         image_size=image_size,
-        get_labels_masks_scores=get_labels_masks_scores,
     )
 
-    assert chunk_sizes == [4]
     labels, masks, scores = _get_reference_prediction(
         mask_logits=mask_logits,
         class_logits=class_logits,
@@ -175,7 +146,6 @@ def test_get_instance_segmentation_prediction__crops_padded_region() -> None:
         resize_size=resize_size,
         crop_size=crop_size,
         image_size=image_size,
-        get_labels_masks_scores=_get_labels_masks_scores,
     )
 
     _, masks, _ = _get_reference_prediction(
@@ -209,7 +179,6 @@ def test_get_instance_segmentation_prediction__shapes() -> None:
         resize_size=(6, 8),
         crop_size=(5, 7),
         image_size=(9, 11),
-        get_labels_masks_scores=_get_labels_masks_scores,
     )
 
     assert prediction["labels"].shape == (7,)
@@ -228,7 +197,6 @@ def test_get_instance_segmentation_prediction__masks_on_cpu() -> None:
         resize_size=(6, 8),
         crop_size=(5, 7),
         image_size=(9, 11),
-        get_labels_masks_scores=_get_labels_masks_scores,
     )
 
     assert prediction["masks"].device.type == "cpu"

@@ -46,6 +46,7 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.transforms imp
 from lightly_train._task_models.eomt import hooks
 from lightly_train._task_models.eomt.instance_segmentation import (
     get_instance_segmentation_prediction,
+    get_labels_masks_scores,
 )
 from lightly_train._task_models.train_model import (
     TaskStepResult,
@@ -296,7 +297,7 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                 class_logits = class_logits_per_layer[-1]
                 mask_logits = F.interpolate(mask_logits, (H, W), mode="bilinear")
                 # (B, Q), (B, Q, H, W), (B, Q)
-                labels, masks, scores = self.model.get_labels_masks_scores(
+                labels, masks, scores = get_labels_masks_scores(
                     mask_logits=mask_logits, class_logits=class_logits
                 )
             self.train_metrics.update_with_predictions(
@@ -420,7 +421,6 @@ class DINOv3EoMTInstanceSegmentationTrain(TrainModel):
                     ),
                     crop_size=(crop_h, crop_w),
                     image_size=(image_h, image_w),
-                    get_labels_masks_scores=self.model.get_labels_masks_scores,
                 )
             )
 

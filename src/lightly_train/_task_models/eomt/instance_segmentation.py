@@ -7,11 +7,49 @@
 #
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import torch
 import torch.nn.functional as F
 from torch import Tensor
+
+
+def get_labels_masks_scores(
+    mask_logits: Tensor, class_logits: Tensor
+) -> tuple[Tensor, Tensor, Tensor]:
+    # Get score and label for each query.
+    # NOTE(Guarin, 01/26): Calculate softmax always in fp32 for numerical
+    # stability. Otherwise converting a fp32 model to fp16 results in NaNs.
+    scores = class_logits.softmax(dim=-1, dtype=torch.float32)[..., :-1].type_as(
+        class_logits
+    )  # (1, Q, K)
+    scores, labels = torch.max(scores, dim=-1)  # (1, Q), (1, Q)
+
+    # Multiply scores with mask scores.
+    masks = mask_logits > 0  # (1, Q, H, W)
+
+    #### WARNING
+    # Be careful when modifying anything here. These operations
+    # must be kept in FP32 to avoid numerical issues in FP16 models. Test on
+    # TensorRT FP16 when making any changes. You have to force TensorRT to use FP32.
+    # See export_tensorrt in the EoMT instance segmentation task models for details.
+    mask_logits_fp32 = mask_logits.float()
+    masks_fp32 = masks.float()
+
+    # (1, Q)
+    score_per_query = (
+        mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
+    ).sum(2)
+    mask_pixels_per_query = masks_fp32.flatten(2).sum(2)
+    mask_scores = score_per_query / mask_pixels_per_query
+    mask_scores = torch.where(
+        mask_pixels_per_query > 0, mask_scores, torch.zeros_like(mask_scores)
+    )
+
+    scores = scores * mask_scores  # (1, Q)
+    scores = scores.type_as(mask_logits)
+    #####
+
+    # (1, Q), (1, Q, H, W), (1, Q)
+    return labels, masks, scores
 
 
 def get_chunk_size(
@@ -20,13 +58,10 @@ def get_chunk_size(
     resize_size: tuple[int, int],
     image_size: tuple[int, int],
 ) -> int:
-    """Number of queries to score at once.
-
-    Training scores all queries at the model input size. The chunk covers the same
-    number of mask elements at the original image size.
-    """
+    """Number of queries to score at once."""
     resize_pixels = resize_size[0] * resize_size[1]
     image_pixels = image_size[0] * image_size[1]
+    # A chunk covers as many mask elements as training scores at once.
     return max(1, num_queries * resize_pixels // image_pixels)
 
 
@@ -37,12 +72,8 @@ def get_instance_segmentation_prediction(
     resize_size: tuple[int, int],
     crop_size: tuple[int, int],
     image_size: tuple[int, int],
-    get_labels_masks_scores: Callable[[Tensor, Tensor], tuple[Tensor, Tensor, Tensor]],
 ) -> dict[str, Tensor]:
-    """Get the prediction for a single image, scoring the queries in chunks.
-
-    Bilinear interpolation and the mask score reduction act on every query alone, so
-    a chunk boundary does not change the result.
+    """Get the prediction for a single image.
 
     Args:
         mask_logits:
@@ -56,24 +87,27 @@ def get_instance_segmentation_prediction(
             Size of the non-padded region, as returned by resize_and_pad.
         image_size:
             Original image size.
-        get_labels_masks_scores:
-            Called per chunk with batched mask and class logits.
 
     Returns:
         A dict with labels of shape (Q,), masks of shape (Q, H, W) on the CPU and
         scores of shape (Q,).
     """
+    num_queries = mask_logits.shape[0]
     crop_h, crop_w = crop_size
     chunk_size = get_chunk_size(
-        num_queries=mask_logits.shape[0],
+        num_queries=num_queries,
         resize_size=resize_size,
         image_size=image_size,
     )
     labels_chunks: list[Tensor] = []
-    masks_chunks: list[Tensor] = []
     scores_chunks: list[Tensor] = []
+    # The metric and the visualization move the masks to the CPU anyway. Only
+    # labels and scores must stay on the device for the distributed metric sync.
+    masks = torch.empty((num_queries, *image_size), dtype=torch.bool)
 
-    for start in range(0, mask_logits.shape[0], chunk_size):
+    # Interpolation and scoring act on every query alone, so chunking does not
+    # change the result.
+    for start in range(0, num_queries, chunk_size):
         end = start + chunk_size
         logits_chunk = mask_logits[start:end].unsqueeze(0)  # (1, C, H', W')
         class_logits_chunk = class_logits[start:end].unsqueeze(0)  # (1, C, num_classes)
@@ -84,17 +118,15 @@ def get_instance_segmentation_prediction(
         logits_chunk = logits_chunk[..., :crop_h, :crop_w]  # (1, C, crop_h, crop_w)
         logits_chunk = F.interpolate(logits_chunk, image_size, mode="bilinear")
         # (1, C), (1, C, H, W), (1, C)
-        labels, masks, scores = get_labels_masks_scores(
-            logits_chunk, class_logits_chunk
+        labels, masks_chunk, scores = get_labels_masks_scores(
+            mask_logits=logits_chunk, class_logits=class_logits_chunk
         )
         labels_chunks.append(labels[0])
-        # The metric and the visualization move the masks to the CPU anyway. Only
-        # labels and scores must stay on the device for the distributed metric sync.
-        masks_chunks.append(masks[0].cpu())
+        masks[start:end].copy_(masks_chunk[0])
         scores_chunks.append(scores[0])
 
     return {
         "labels": torch.cat(labels_chunks),
-        "masks": torch.cat(masks_chunks),
+        "masks": masks,
         "scores": torch.cat(scores_chunks),
     }
