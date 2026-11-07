@@ -105,9 +105,8 @@ if __name__ == "__main__":
 ```
 
 `data` also accepts a dictionary with the same keys as the YAML file, which is useful if
-you want to set them programmatically. Relative paths in a dictionary are resolved
-against the current working directory, while relative paths in a YAML file are resolved
-against the folder that contains the YAML file:
+you want to set them programmatically. See [Data](#semantic-segmentation-data) for
+details:
 
 ```python
 import lightly_train
@@ -327,8 +326,9 @@ corresponds to a class ID, or multi-channel (e.g., RGB) format.
 
 The `data` argument accepts either a dictionary or a path to a YAML file containing the
 same configuration. When loading from YAML, relative paths are resolved relative to the
-YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
-a validation error. Training uses the `train` and `val` splits.
+YAML file, while relative paths in a dictionary are resolved relative to the current
+working directory. Unknown top-level YAML keys are ignored, but unknown nested keys
+still raise a validation error. Training uses the `train` and `val` splits.
 
 The following image formats are supported:
 

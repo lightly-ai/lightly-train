@@ -75,9 +75,7 @@ if __name__ == "__main__":
 ```
 
 `data` also accepts a dictionary with the same keys as the YAML file, which is useful if
-you want to set them programmatically. Relative paths in a dictionary are resolved
-against the current working directory, while relative paths in a YAML file are resolved
-against the folder that contains the YAML file:
+you want to set them programmatically. See [Data](#object-detection-data) for details:
 
 ```python
 import lightly_train
@@ -316,12 +314,13 @@ lightly_train.train_object_detection(
 )
 ```
 
-Relative paths in YAML-backed configs are resolved relative to the YAML file. Any
-top-level keys in the YAML file that are not part of the configuration are ignored, but
-unknown nested keys still raise a validation error. Training uses the `train` and `val`
-splits; optional `test` entries are accepted by the data config for compatibility but
-are not used during training. The same `data` argument (dictionary or YAML path) is also
-accepted by [`benchmark_object_detection`](#object-detection-benchmark).
+Relative paths in YAML-backed configs are resolved relative to the YAML file, while
+relative paths in a dictionary are resolved relative to the current working directory.
+Any top-level keys in the YAML file that are not part of the configuration are ignored,
+but unknown nested keys still raise a validation error. Training uses the `train` and
+`val` splits; optional `test` entries are accepted by the data config for compatibility
+but are not used during training. The same `data` argument (dictionary or YAML path) is
+also accepted by [`benchmark_object_detection`](#object-detection-benchmark).
 
 If you would like to skip specific classes during training, add their IDs to the
 optional `ignore_classes` list. The trainer omits these classes from loss computation
