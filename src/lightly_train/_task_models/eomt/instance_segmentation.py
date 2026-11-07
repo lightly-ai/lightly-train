@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 
+@torch.no_grad()
 def get_labels_masks_scores(
     mask_logits: Tensor, class_logits: Tensor
 ) -> tuple[Tensor, Tensor, Tensor]:

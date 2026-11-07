@@ -674,7 +674,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
 
         return mask_logits, class_logits
 
-    @torch.no_grad()
     def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
         """Resize and pad image to self.image_size while keeping aspect ratio constant.
 
