@@ -88,7 +88,7 @@ def plot_object_detection_labels(
             )
 
         _, img_height, img_width = image_tensor.shape
-        img = torchvision_functional.to_pil_image(image_tensor)
+        img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
 
         boxes = gt_bboxes[i]
         class_ids = gt_classes[i]
@@ -151,7 +151,7 @@ def plot_object_detection_predictions(
                 std=image_normalize["std"],
             )
 
-        img = torchvision_functional.to_pil_image(image_tensor)
+        img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
 
         result = results[i]
         boxes = result["boxes"]

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Sequence
 
 if TYPE_CHECKING:
     from lightly_train._data.coco_object_detection_dataset import (
@@ -22,11 +22,17 @@ if TYPE_CHECKING:
 import numpy as np
 
 from lightly_train._data import file_helpers
+from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.task_dataset import TaskDataset
+from lightly_train._env import Env
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionCollateFunction,
+    LTDETRObjectDetectionTransform,
 )
-from lightly_train._transforms.task_transform import TaskCollateFunction
+from lightly_train._transforms.task_transform import (
+    TaskCollateFunction,
+    TaskTransform,
+)
 from lightly_train.types import ObjectDetectionDatasetItem
 
 
@@ -38,6 +44,43 @@ class ObjectDetectionDataset(TaskDataset):
         LTDETRObjectDetectionCollateFunction
     )
 
+    def __init__(
+        self,
+        dataset_args: COCOObjectDetectionDatasetArgs | YOLOObjectDetectionDatasetArgs,
+        image_info: Sequence[dict[str, str]],
+        transform: LTDETRObjectDetectionTransform | None = None,
+    ) -> None:
+        super().__init__(
+            transform=transform, dataset_args=dataset_args, image_info=image_info
+        )
+        if transform is not None:
+            self._init_image_mode(transform)
+
+    def set_transform(self, transform: TaskTransform) -> None:
+        super().set_transform(transform)
+        assert isinstance(transform, LTDETRObjectDetectionTransform)
+        self._init_image_mode(transform)
+
+    def _init_image_mode(self, transform: LTDETRObjectDetectionTransform) -> None:
+        image_mode = (
+            None
+            if Env.LIGHTLY_TRAIN_IMAGE_MODE.value is None
+            else ImageMode(Env.LIGHTLY_TRAIN_IMAGE_MODE.value)
+        )
+        if image_mode is None:
+            image_mode = (
+                ImageMode.RGB
+                if transform.transform_args.num_channels == 3
+                else ImageMode.UNCHANGED
+            )
+
+        if image_mode not in (ImageMode.RGB, ImageMode.UNCHANGED):
+            raise ValueError(
+                f"Invalid image mode: '{image_mode}'. "
+                f"Supported modes are '{[ImageMode.RGB.value, ImageMode.UNCHANGED.value]}'."
+            )
+        self.image_mode = image_mode
+
     def __getitem__(self, index: int) -> ObjectDetectionDatasetItem:
         # Load the image.
         image_info = self.image_info[index]
@@ -46,7 +89,9 @@ class ObjectDetectionDataset(TaskDataset):
         if not image_path.exists():
             raise FileNotFoundError(f"Image file {image_path} does not exist.")
 
-        image_np = file_helpers.open_image_numpy(image_path)
+        image_np = file_helpers.open_image_numpy(
+            image_path=image_path, mode=self.image_mode
+        )
         h, w, _ = image_np.shape
 
         bboxes = json.loads(image_info["bboxes"])

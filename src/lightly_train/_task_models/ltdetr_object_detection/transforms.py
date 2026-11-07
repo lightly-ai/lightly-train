@@ -12,6 +12,7 @@ from typing import Any, Literal, Sequence
 from albumentations import BboxParams
 from pydantic import Field
 
+from lightly_train._configs.validate import no_auto
 from lightly_train._task_models.object_detection_components.ltdetr_geometry import (
     ltdetr_image_size_divisor,
 )
@@ -24,8 +25,10 @@ from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionTransformArgs,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
+    disable_rgb_only_transforms,
     resolve_image_size_for_patch_size,
     resolve_ltdetr_step_schedule_for_augmentation,
+    resolve_normalize_num_channels,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -286,6 +289,13 @@ class LTDETRObjectDetectionTrainTransformArgs(LTDETRObjectDetectionTransformArgs
                 else:
                     self.num_channels = len(self.normalize.mean)
 
+        if isinstance(self.normalize, NormalizeArgs):
+            resolve_normalize_num_channels(
+                self.normalize, num_channels=no_auto(self.num_channels)
+            )
+
+        disable_rgb_only_transforms(self, num_channels=no_auto(self.num_channels))
+
         if self.scale_jitter is not None:
             if self.scale_jitter.divisible_by == "auto":
                 if patch_size is not None:
@@ -384,6 +394,11 @@ class LTDETRObjectDetectionValTransformArgs(LTDETRObjectDetectionTransformArgs):
                     self.num_channels = 3
                 else:
                     self.num_channels = len(self.normalize.mean)
+
+        if isinstance(self.normalize, NormalizeArgs):
+            resolve_normalize_num_channels(
+                self.normalize, num_channels=no_auto(self.num_channels)
+            )
 
 
 class LTDETRObjectDetectionTrainTransform(LTDETRObjectDetectionTransform):
@@ -667,6 +682,13 @@ class DINOv2LTDETRObjectDetectionTrainTransformArgsV2(
                 else:
                     self.num_channels = len(self.normalize.mean)
 
+        if isinstance(self.normalize, NormalizeArgs):
+            resolve_normalize_num_channels(
+                self.normalize, num_channels=no_auto(self.num_channels)
+            )
+
+        disable_rgb_only_transforms(self, num_channels=no_auto(self.num_channels))
+
     def resolve_step_schedule(
         self,
         total_steps: int,
@@ -746,6 +768,11 @@ class DINOv2LTDETRObjectDetectionValTransformArgsV2(LTDETRObjectDetectionTransfo
                     self.num_channels = 3
                 else:
                     self.num_channels = len(self.normalize.mean)
+
+        if isinstance(self.normalize, NormalizeArgs):
+            resolve_normalize_num_channels(
+                self.normalize, num_channels=no_auto(self.num_channels)
+            )
 
 
 class DINOv2LTDETRObjectDetectionTrainTransformV2(LTDETRObjectDetectionTransform):

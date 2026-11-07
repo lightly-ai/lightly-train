@@ -7,7 +7,6 @@
 #
 from __future__ import annotations
 
-import logging
 from typing import Any, Literal, Sequence
 
 from albumentations import BboxParams
@@ -28,8 +27,10 @@ from lightly_train._transforms.ltdetr_transforms.instance_segmentation import (
     LTDETRInstanceSegmentationTransformArgs,
 )
 from lightly_train._transforms.ltdetr_transforms.utils import (
+    disable_rgb_only_transforms,
     resolve_image_size_for_patch_size,
     resolve_ltdetr_step_schedule_for_augmentation,
+    resolve_normalize_num_channels,
 )
 from lightly_train._transforms.transform import (
     ChannelDropArgs,
@@ -45,8 +46,6 @@ from lightly_train._transforms.transform import (
     ResizeArgs,
 )
 from lightly_train.types import ImageSizeTuple
-
-logger = logging.getLogger(__name__)
 
 
 class LTDETRInstanceSegmentationRandomPhotometricDistortArgs(
@@ -132,29 +131,6 @@ class LTDETRInstanceSegmentationMosaicArgs(MosaicArgs):
 class LTDETRInstanceSegmentationResizeArgs(ResizeArgs):
     height: int | Literal["auto"] = "auto"
     width: int | Literal["auto"] = "auto"
-
-
-def _resolve_normalize_num_channels(
-    normalize: NormalizeArgs, num_channels: int
-) -> None:
-    if len(normalize.mean) != num_channels:
-        logger.debug(
-            "Adjusting mean of normalize transform to match num_channels. "
-            f"num_channels is {num_channels} but "
-            f"normalize.mean has length {len(normalize.mean)}."
-        )
-        normalize.mean = tuple(
-            normalize.mean[i % len(normalize.mean)] for i in range(num_channels)
-        )
-    if len(normalize.std) != num_channels:
-        logger.debug(
-            "Adjusting std of normalize transform to match num_channels. "
-            f"num_channels is {num_channels} but "
-            f"normalize.std has length {len(normalize.std)}."
-        )
-        normalize.std = tuple(
-            normalize.std[i % len(normalize.std)] for i in range(num_channels)
-        )
 
 
 class LTDETRInstanceSegmentationMixUpArgs(MixUpArgs):
@@ -244,22 +220,9 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
         if not isinstance(self.num_channels, int):
             raise RuntimeError("Expected num_channels to be resolved.")
         if isinstance(self.normalize, NormalizeArgs):
-            _resolve_normalize_num_channels(self.normalize, self.num_channels)
+            resolve_normalize_num_channels(self.normalize, self.num_channels)
 
-        # Photometric distort and mosaic only support 3-channel images.
-        if self.num_channels != 3:
-            if self.photometric_distort is not None:
-                logger.debug(
-                    "Disabling photometric distort transform as it only supports "
-                    f"3-channel images but num_channels is {self.num_channels}."
-                )
-                self.photometric_distort = None
-            if self.mosaic is not None:
-                logger.debug(
-                    "Disabling mosaic transform as it only supports 3-channel "
-                    f"images but num_channels is {self.num_channels}."
-                )
-                self.mosaic = None
+        disable_rgb_only_transforms(self, num_channels=self.num_channels)
 
     def resolve_step_schedule(
         self,
@@ -357,7 +320,7 @@ class LTDETRInstanceSegmentationValTransformArgs(
         if not isinstance(self.num_channels, int):
             raise RuntimeError("Expected num_channels to be resolved.")
         if isinstance(self.normalize, NormalizeArgs):
-            _resolve_normalize_num_channels(self.normalize, self.num_channels)
+            resolve_normalize_num_channels(self.normalize, self.num_channels)
 
 
 class LTDETRInstanceSegmentationTrainTransform(LTDETRInstanceSegmentationTransform):

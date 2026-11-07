@@ -65,7 +65,7 @@ def _resolve_incompatible_eomt(transform_args: Any) -> None:
 
     # Disable color jitter if necessary.
     if transform_args.color_jitter is not None and num_channels != 3:
-        logger.debug(
+        logger.info(
             "Disabling color jitter transform as it only supports 3-channel "
             f"images but num_channels is {num_channels}."
         )

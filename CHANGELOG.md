@@ -5,14 +5,6 @@ All notable changes to Lightly**Train** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- Add multi-channel image support for EdgeCrafter ECViT backbones in pretraining,
-  LT-DETR object detection, and LT-DETR instance segmentation. Pretrained RGB weights
-  are adapted to the number of input channels on load.
-
 ## [0.18.0] - 2026-10-24
 
 ### Added
