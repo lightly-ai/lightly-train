@@ -16,7 +16,9 @@ from torch import Tensor, nn
 from lightly_train._commands import benchmark_backends
 from lightly_train._commands.benchmark_backends import TorchBackend
 from lightly_train._commands.benchmark_types import TorchBackendArgs
-from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
+from lightly_train._pre_post_processing.object_detection import (
+    ObjectDetectionBatchOutput,
+)
 from lightly_train._task_models.task_model import TaskModel
 
 
@@ -34,7 +36,7 @@ class _FakeModel(TaskModel):
     def postprocess(
         self,
         raw_outputs: Any,
-        metadata: Sequence[dict[str, Any]],
+        metadata: Sequence[object],
         **kwargs: Any,
     ) -> list[dict[str, Tensor]]:
         self.postprocess_inputs.append(raw_outputs)
@@ -78,12 +80,12 @@ def test_to_float32__casts_tuple() -> None:
 
 def test_to_float32__casts_model_output() -> None:
     out = benchmark_backends._to_float32(
-        ObjectDetectionOutput(
+        ObjectDetectionBatchOutput(
             logits=torch.zeros(1, 2, 3, dtype=torch.bfloat16),
             boxes=torch.zeros(1, 2, 4, dtype=torch.float16),
         )
     )
 
-    assert isinstance(out, ObjectDetectionOutput)
+    assert isinstance(out, ObjectDetectionBatchOutput)
     assert out.logits.dtype == torch.float32
     assert out.boxes.dtype == torch.float32

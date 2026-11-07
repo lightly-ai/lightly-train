@@ -54,11 +54,11 @@ from lightly_train._metrics.detection.task_metric import (
     ObjectDetectionTaskMetric,
     ObjectDetectionTaskMetricArgs,
 )
-from lightly_train._task_models import task_model_helpers
-from lightly_train._task_models.object_detection_components.utils import (
-    _denormalize_xyxy_boxes,
-    _yolo_to_xyxy,
+from lightly_train._pre_post_processing.object_detection import (
+    denormalize_xyxy_boxes,
+    yolo_to_xyxy,
 )
+from lightly_train._task_models import task_model_helpers
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train._transforms.albumentations_helpers import (
     ALBUMENTATIONS_GEQ_1_4_5,
@@ -281,8 +281,8 @@ def _benchmark_object_detection_from_config(
                     }
                 )
             # Convert ground truth boxes from YOLO format to denormalized xyxy.
-            boxes_xyxy = _yolo_to_xyxy(batch["bboxes"])
-            boxes_denorm = _denormalize_xyxy_boxes(boxes_xyxy, batch["original_size"])
+            boxes_xyxy = yolo_to_xyxy(batch["bboxes"])
+            boxes_denorm = denormalize_xyxy_boxes(boxes_xyxy, batch["original_size"])
             targets = [
                 {"boxes": boxes, "labels": classes}
                 for boxes, classes in zip(boxes_denorm, batch["classes"])

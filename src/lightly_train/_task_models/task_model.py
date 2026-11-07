@@ -129,7 +129,7 @@ class TaskModel(Module):
     def postprocess(
         self,
         raw_outputs: Any,
-        metadata: Sequence[dict[str, Any]],
+        metadata: Sequence[object],
         **kwargs: Any,
     ) -> list[Any]:
         """Map raw outputs and per-image metadata into one result dict per image."""
