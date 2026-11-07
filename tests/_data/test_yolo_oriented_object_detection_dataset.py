@@ -13,9 +13,9 @@ from typing import Literal
 import pytest
 import torch
 from albumentations import BboxParams
-from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._data.yolo_oriented_object_detection_dataset import (
+    TORCHVISION_GEQ_0_23_0,
     YOLOOrientedObjectDetectionDataArgs,
     YOLOOrientedObjectDetectionDataset,
 )
@@ -39,11 +39,7 @@ from lightly_train.types import ImageSizeTuple
 
 from ..helpers import create_yolo_oriented_object_detection_dataset
 
-if not RequirementCache("torchvision>=0.23"):
-    pytest.skip(
-        "torchvision too old for oriented bounding box suport",
-        allow_module_level=True,
-    )
+pytestmark = pytest.mark.requires(TORCHVISION_GEQ_0_23_0)
 
 
 class DummyTransformArgs(OrientedObjectDetectionTransformArgs):

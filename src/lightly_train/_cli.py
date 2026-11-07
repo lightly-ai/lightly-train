@@ -187,6 +187,8 @@ _PRETRAIN_HELP_MSG = f"""
             - transform_args.image_size (int, int)
             - transform_args.random_resize.min_scale (float)
             - transform_args.random_resize.max_scale (float)
+            - transform_args.random_resize.min_ratio (float)
+            - transform_args.random_resize.max_ratio (float)
             - transform_args.random_flip.horizontal_prob (float)
             - transform_args.random_flip.vertical_prob (float)
             - transform_args.random_rotation.prob (float)

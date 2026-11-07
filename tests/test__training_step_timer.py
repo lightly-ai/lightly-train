@@ -10,7 +10,6 @@ from __future__ import annotations
 import time
 
 import pytest
-import torch
 from lightning_fabric import Fabric
 
 from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
@@ -47,7 +46,7 @@ class TestTrainingStepTimer:
         with pytest.raises(ValueError, match="was not started"):
             timer.end_step("nonexistent")
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @pytest.mark.gpu
     def test_gpu_stats__cuda(self) -> None:
         """Test GPU stats tracking when CUDA is available."""
         fabric = Fabric(accelerator="cuda", devices=1, num_nodes=1)
@@ -83,7 +82,7 @@ class TestTrainingStepTimer:
         assert not agg["phase_gpu_utils"]  # Should be empty
         assert not agg["phase_gpu_max_mem"]  # Should be empty
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+    @pytest.mark.gpu
     def test_get_aggregated_metrics__cuda(self) -> None:
         fabric = Fabric(accelerator="cuda", devices=1, num_nodes=1)
         fabric.launch()

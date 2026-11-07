@@ -597,6 +597,10 @@ DINOv3 models are under the
 Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under the
 [FAIR Noncommercial Research License](https://github.com/facebookresearch/EUPE?tab=License-1-ov-file).
 
+Every DINOv2 and DINOv3 backbone also has a `-notpretrained` variant (e.g.
+`dinov3/vits16-notpretrained-ltdetr`) that builds the same architecture with randomly
+initialized backbone weights instead of downloading pretrained weights.
+
 ```{dropdown} DINOv3 ViT backbones
 - `dinov3/vitt16-ltdetr-coco` (pretrained on COCO)
 - `dinov3/vitt16plus-ltdetr-coco` (pretrained on COCO)
@@ -606,6 +610,11 @@ Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under t
 - `dinov3/vits16-ltdetr`
 - `dinov3/vitb16-ltdetr`
 - `dinov3/vitl16-ltdetr`
+- `dinov3/vitt16-notpretrained-ltdetr`
+- `dinov3/vitt16plus-notpretrained-ltdetr`
+- `dinov3/vits16-notpretrained-ltdetr`
+- `dinov3/vitb16-notpretrained-ltdetr`
+- `dinov3/vitl16-notpretrained-ltdetr`
 ```
 
 ```{dropdown} DINOv3 ConvNext backbones
@@ -617,6 +626,10 @@ Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under t
 - `dinov3/convnext-small-ltdetr`
 - `dinov3/convnext-base-ltdetr`
 - `dinov3/convnext-large-ltdetr`
+- `dinov3/convnext-tiny-notpretrained-ltdetr`
+- `dinov3/convnext-small-notpretrained-ltdetr`
+- `dinov3/convnext-base-notpretrained-ltdetr`
+- `dinov3/convnext-large-notpretrained-ltdetr`
 ```
 
 ```{dropdown} DINOv3 ViT backbones with EUPE weights
@@ -637,6 +650,11 @@ Models with [EUPE](https://github.com/facebookresearch/EUPE) weights are under t
 - `dinov2/vitb14-ltdetr`
 - `dinov2/vitl14-ltdetr`
 - `dinov2/vitg14-ltdetr`
+- `dinov2/vits14-noreg-notpretrained-ltdetr`
+- `dinov2/vits14-notpretrained-ltdetr`
+- `dinov2/vitb14-notpretrained-ltdetr`
+- `dinov2/vitl14-notpretrained-ltdetr`
+- `dinov2/vitg14-notpretrained-ltdetr`
 ```
 
 ### PicoDet (beta)
@@ -841,6 +859,11 @@ The `model` can be a path to an exported model, a model hosted by LightlyTrain (
 `"dinov3/vitt16-ltdetr-coco"`), or a model loaded with the `lightly_train.load_model()`
 function. The `data` argument accepts the same dictionary or YAML path as
 [`train_object_detection`](#object-detection-data).
+
+The benchmark matches dataset classes to model classes by name. The class ids in the
+dataset do not have to match the class ids of the model. Each dataset class must have a
+model class with the same name. Predictions for model classes that are not in the
+dataset are ignored.
 
 The command returns a `BenchmarkResult` and writes two files to the `out` directory:
 

@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
 from lightly_train._task_models.image_classification.task_model import (
@@ -66,10 +65,7 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(
     model: ImageClassification, tmp_path: Path
 ) -> None:
@@ -103,10 +99,7 @@ def test_export_onnx__dynamic_batch_size(
             assert (onnx_tensor == torch_out).float().mean() > 0.95
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(
     model: ImageClassification, tmp_path: Path
 ) -> None:
@@ -116,10 +109,7 @@ def test_export_onnx__static_batch_size(
     )
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__custom_height_width(
     model: ImageClassification, tmp_path: Path
 ) -> None:

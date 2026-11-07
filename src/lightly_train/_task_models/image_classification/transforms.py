@@ -20,7 +20,7 @@ from lightly_train._transforms.transform import (
     ColorJitterArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
+    RandomResizedCropArgs,
     RandomRotate90Args,
     RandomRotationArgs,
 )
@@ -36,7 +36,7 @@ class ImageClassificationColorJitterArgs(ColorJitterArgs):
     hue: float = 18.0 / 360.0
 
 
-class ImageClassificationRandomResizeArgs(RandomResizeArgs):
+class ImageClassificationRandomResizedCropArgs(RandomResizedCropArgs):
     min_scale: float = 0.2
     max_scale: float = 1.0
 
@@ -50,8 +50,8 @@ class ImageClassificationTrainTransformArgs(ImageClassificationTransformArgs):
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
-    random_crop: ImageClassificationRandomResizeArgs | None = Field(
-        default_factory=ImageClassificationRandomResizeArgs
+    random_crop: ImageClassificationRandomResizedCropArgs | None = Field(
+        default_factory=ImageClassificationRandomResizedCropArgs
     )
     resize_scale: float | None = None
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
@@ -96,7 +96,7 @@ class ImageClassificationValTransformArgs(ImageClassificationTransformArgs):
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
     normalize: NormalizeArgs | Literal["auto"] = "auto"
-    random_crop: ImageClassificationRandomResizeArgs | None = None
+    random_crop: ImageClassificationRandomResizedCropArgs | None = None
     resize_scale: float | None = 1.143
     random_flip: RandomFlipArgs | None = None
     random_rotate_90: RandomRotate90Args | None = None

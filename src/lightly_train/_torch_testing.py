@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
+
+# Half precision conv2d on CPU.
+TORCH_CPU_HALF_CONV2D_AVAILABLE = RequirementCache("torch>=2.4")
 
 
 def assert_most_equal(

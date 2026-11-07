@@ -46,11 +46,16 @@ def _get_direct_url() -> str | None:
         return None
 
 
-YOLOV12_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.3.78")
-YOLOV12_ORIGINAL_AVAILABLE = _get_direct_url() is not None
-YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
-YOLO26_AVAILABLE = RequirementCache("ultralytics>=8.4.0")
-RTDETR_ULTRALYTICS_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
+# Minimum ultralytics versions that ship each model family.
+ULTRALYTICS_RTDETR_AVAILABLE = RequirementCache("ultralytics>=8.0.140")
+ULTRALYTICS_YOLOV11_AVAILABLE = RequirementCache("ultralytics>=8.3.0")
+ULTRALYTICS_YOLOV12_AVAILABLE = RequirementCache("ultralytics>=8.3.78")
+ULTRALYTICS_YOLO26_AVAILABLE = RequirementCache("ultralytics>=8.4.0")
+# YOLO forwards attribute access to the underlying model. Models loaded from
+# checkpoints report `training=False`.
+ULTRALYTICS_GEQ_8_3_39 = RequirementCache("ultralytics>=8.3.39")
+# The original YOLOv12 repository is installed from a URL as the ultralytics package.
+ULTRALYTICS_YOLOV12_ORIGINAL_AVAILABLE = _get_direct_url() is not None
 
 
 class UltralyticsModelWrapper(Module, ModelWrapper, ArchitectureInfoGettable):
@@ -128,7 +133,7 @@ def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
             feature_dim = last_module.cv2.conv.out_channels  # C2f block
             return backbone, feature_dim
 
-        if RTDETR_ULTRALYTICS_AVAILABLE:
+        if ULTRALYTICS_RTDETR_AVAILABLE:
             from ultralytics.nn.modules.block import (  # type: ignore[attr-defined]
                 Conv,
                 HGBlock,
@@ -140,7 +145,7 @@ def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
 
                 return backbone, feature_dim
 
-        if YOLOV11_AVAILABLE:
+        if ULTRALYTICS_YOLOV11_AVAILABLE:
             from ultralytics.nn.modules.block import (
                 C2PSA,  # type: ignore[attr-defined]
             )
@@ -153,7 +158,7 @@ def _get_backbone(model: YOLO | RTDETR) -> tuple[Sequential, int]:
                 feature_dim = last_module.cv2.conv.out_channels  # C2PSA block
                 return backbone, feature_dim
 
-        if YOLOV12_ULTRALYTICS_AVAILABLE or YOLOV12_ORIGINAL_AVAILABLE:
+        if ULTRALYTICS_YOLOV12_AVAILABLE or ULTRALYTICS_YOLOV12_ORIGINAL_AVAILABLE:
             from ultralytics.nn.modules.block import A2C2f
 
             if type(last_module) is A2C2f and type(module) in (

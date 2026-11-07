@@ -24,11 +24,6 @@ from lightly_train.errors import ConfigValidationError
 
 from ..helpers import DummyCustomModel
 
-try:
-    import mlflow
-except ImportError:
-    mlflow = None  # type: ignore[assignment]
-
 
 @pytest.mark.parametrize(
     "callback_args, expected_result",
@@ -83,7 +78,7 @@ def test_get_callbacks__default(tmp_path: Path) -> None:
     assert str(model_checkpoint.dirpath) == str(tmp_path / "checkpoints")
 
 
-@pytest.mark.skipif(mlflow is None, reason="MLFlow is not installed")
+@pytest.mark.requires("mlflow")
 def test_get_callbacks__mlflow(tmp_path: Path) -> None:
     model = DummyCustomModel()
     embedding_model = EmbeddingModel(wrapped_model=model)

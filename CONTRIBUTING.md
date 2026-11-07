@@ -65,6 +65,39 @@ To run a specific test file, use:
 uv run --frozen pytest path/to/test_file.py
 ```
 
+Test names use `test_<function_or_method_name>__<case>`. Group method tests in
+`Test<ClassName>` classes; keep function tests at module level.
+
+### Test Markers
+
+Markers are registered in [tests/conftest.py](./tests/conftest.py). Unregistered markers
+fail collection (`--strict-markers`).
+
+| Marker                                | Use for                                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `requires("pkg", PKG_GEQ_X, reason=)` | Tests that need optional packages or versions. Use `"python>=3.x"` or `"python<3.x"` for Python versions. |
+| `gpu(n=1)`                            | Tests that need at least `n` CUDA devices.                                                                |
+| `skip_windows(reason=)`               | Behavior that differs on Windows by design.                                                               |
+| `long_running_test`                   | Tests excluded from PR CI, run in nightly CI.                                                             |
+
+- Windows runs the full test suite. Don't skip tests on Windows because they are slow.
+- Tests that fail on Windows because of a bug:
+  `xfail(sys.platform.startswith("win"), reason=..., strict=True)`.
+- Every marker is consumed by CI or `tests/conftest.py`. No descriptive-only markers.
+- Import optional packages inside the test, not at module level.
+- Skips that depend on a parameter: `pytest.param(..., marks=...)`.
+- Module-wide markers: `pytestmark = ...` at the top of the module.
+- `requires` takes package names (`"onnx"`) or `RequirementCache` constants.
+- Version pins: use the `RequirementCache` constant from the source module that needs
+  the version, not an inline version string.
+  - Feature gate: `<PKG>_<FEATURE>_AVAILABLE`, e.g. `ULTRALYTICS_YOLO26_AVAILABLE`.
+  - API change or minimum supported version: `<PKG>_GEQ_<X_Y_Z>`, e.g.
+    `ALBUMENTATIONS_GEQ_2_0_1`.
+  - Comment each constant with what needs the version.
+  - Exception: Python versions use inline `"python>=3.x"` with a `reason=`.
+- Packages without metadata (e.g. installed with apt):
+  `requires(RequirementCache(module="..."))`.
+
 ### Pull Requests
 
 Pull request titles must follow the
@@ -77,7 +110,8 @@ This is checked by the `Lint PR Title` CI job:
 
 Only the pull request title is checked. Pull requests are merged with GitHub's "Squash
 and merge", so the title becomes the commit message on `main`. The individual commits on
-your branch are squashed away and can be named freely.
+your branch are squashed away and can be named freely. Merging goes through the merge
+queue ("Merge when ready"), which also squashes.
 
 Allowed types:
 
@@ -105,13 +139,15 @@ docs(settings): document nancapture debug utility
 
 Mark breaking changes with a `!` before the colon, for example `feat(train)!: ...`.
 
-The type determines how the version is bumped: `feat` bumps the minor version (0.18.0 →
-0.19.0), `fix` and `perf` bump the patch version, and the remaining types don't trigger
-a release on their own. While the version is below 1.0.0, breaking changes bump the
-minor version instead of the major version.
+The type determines the version bump. While the version is below 1.0.0, `feat`, `fix`,
+`perf` and `revert` bump the patch version (0.18.0 → 0.18.1), breaking changes bump the
+minor version (0.18.0 → 0.19.0), and the remaining types don't trigger a release on
+their own.
 
-Entries in [CHANGELOG.md](./CHANGELOG.md) are still written by hand. See
-[RELEASING.md](./RELEASING.md) for the full release process.
+[CHANGELOG.md](./CHANGELOG.md) is generated from the pull request titles. Write titles
+for users: `feat`, `fix`, `perf` and `revert` pull requests appear in the changelog.
+Don't edit CHANGELOG.md by hand. See [RELEASING.md](./RELEASING.md) for the release
+process and version bumps.
 
 ### Documentation
 

@@ -12,15 +12,8 @@ from typing import Any, Literal
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest import MonkeyPatch
 from torch import Tensor
-
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-
 
 from lightly_train._metrics import mean_average_precision
 from lightly_train._metrics.detection.task_metric import (
@@ -32,14 +25,13 @@ from lightly_train._metrics.instance_segmentation.task_metric import (
     InstanceSegmentationTaskMetricArgs,
 )
 from lightly_train._metrics.mean_average_precision import (
+    FASTER_COCO_EVAL_AVAILABLE,
     MeanAveragePrecisionArgs,
     get_default_backend,
 )
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
 
-skip_if_no_faster_coco_eval = pytest.mark.skipif(
-    not mean_average_precision.FASTER_COCO_EVAL_AVAILABLE,
-    reason="faster_coco_eval is not installed",
-)
+pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 
 _CANVAS_SIZE = 400
 _LOSS_NAMES = ["loss", "loss_vfl", "loss_bbox", "loss_giou"]
@@ -192,7 +184,7 @@ class TestGetDefaultBackend:
     def test_explicit_backend_is_kept(self, backend: str) -> None:
         assert MeanAveragePrecisionArgs(backend=backend).backend == backend  # type: ignore[arg-type]
 
-    @skip_if_no_faster_coco_eval
+    @pytest.mark.requires(FASTER_COCO_EVAL_AVAILABLE)
     def test_auto_resolves_on_the_metric(self) -> None:
         """The resolved backend must reach the underlying torchmetrics instance."""
         detection = MeanAveragePrecisionArgs().get_torchmetrics_instances(
@@ -219,7 +211,7 @@ class TestBackendParity:
     These tests guard that switching the backend does not change the reported values.
     """
 
-    @skip_if_no_faster_coco_eval
+    @pytest.mark.requires(FASTER_COCO_EVAL_AVAILABLE)
     def test_detection(self) -> None:
         pycocotools_values = _detection_metric_values(backend="pycocotools")
         faster_values = _detection_metric_values(backend="faster_coco_eval")
@@ -231,7 +223,7 @@ class TestBackendParity:
         for name, value in pycocotools_values.items():
             assert faster_values[name] == pytest.approx(value, rel=1e-6, abs=1e-6), name
 
-    @skip_if_no_faster_coco_eval
+    @pytest.mark.requires(FASTER_COCO_EVAL_AVAILABLE)
     def test_instance_segmentation(self) -> None:
         pycocotools_values = _instance_segmentation_metric_values(backend="pycocotools")
         faster_values = _instance_segmentation_metric_values(backend="faster_coco_eval")

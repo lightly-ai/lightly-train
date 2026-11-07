@@ -63,6 +63,7 @@ dev = [
     "types-pycocotools>=0.1.1; python_version>='3.9'",
     "pytest-examples>=0.0.13,<0.0.16", # 0.0.16 and 0.0.17 (latest to date) will cause the following failure when running pytest: "TypeError: 'ABCMeta' object is not subscriptable"
     "pytest-mock>=3.14.0",
+    "pytest-split>=0.10.0; python_full_version>='3.8.1'",  # Test sharding in CI
     "pytest>=8.0.0",
     "ruff>=0.4.0",
     "types-PyYAML>=6.0.12",
@@ -87,18 +88,15 @@ dist = [
 ]
 
 # Pinned versions for Torch and TorchVision to avoid issues with the CUDA/driver version
-# on the CI machine. These versions are compatible with CUDA 11.4 and Python 3.8.
-# They are the latest versions available before 2024-08-28.
-# Torch 2.5+ is no longer compatible with Python 3.8.
+# on the CI machine.
+# pinned-torch-minimal: minimum supported versions, must match the dependencies above.
 # Be careful when making changes on the CI machine as other repositories also depend on
 # the installed CUDA/driver versions.
-minimal-torch = [
-    "torch==2.1.0; python_version<'3.9'",
-    "torchvision==0.16.0; python_version<'3.9'",
-]
 pinned-torch-minimal = [
-    "torch==2.4.0; python_version<'3.9'",
-    "torchvision==0.19.0; python_version<'3.9'",
+    "torch==2.1.0+cu118; python_version<'3.9' and sys_platform!='darwin'",
+    "torch==2.1.0; python_version<'3.9' and sys_platform=='darwin'",
+    "torchvision==0.16.0+cu118; python_version<'3.9' and sys_platform!='darwin'",
+    "torchvision==0.16.0; python_version<'3.9' and sys_platform=='darwin'",
 ]
 pinned-torch-maximal = [
     "torch==2.7.0; python_version>='3.9'",
@@ -275,7 +273,6 @@ conflicts = [
         { extra = "onnx" },
     ],
     [ # conflicting pinned versions of torch and torchvision for Python 3.8
-        { group = "minimal-torch" },
         { group = "pinned-torch-minimal" },
         { group = "pinned-torch-maximal" },
         { group = "pinned-rocm-torch" },
@@ -286,13 +283,13 @@ conflicts = [
 # The CI versions are pinned to specific indices to make sure that a version
 # compatible with the CUDA driver of CI is installed.
 torch = [
-    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9'" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9' and sys_platform!='darwin'" },
     { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version>='3.9'" },
     { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
     { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
 ]
 torchvision = [
-    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9'" },
+    { index = "pytorch-cu118", group = "pinned-torch-minimal", marker = "python_version<'3.9' and sys_platform!='darwin'" },
     { index = "pytorch-cu118", group = "pinned-torch-maximal", marker = "python_version>='3.9'" },
     { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version<'3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
     { index = "pytorch-rocm-all", group = "pinned-rocm-torch", marker = "python_version>='3.10' and sys_platform=='linux' and platform_machine=='x86_64'" },
@@ -319,3 +316,4 @@ explicit = true
 # detailed assertion errors outside of the test file, for example when using a helper
 # function from `tests/helpers.py`.
 python_files = "tests/*.py tests/**/*.py"
+addopts = "--strict-markers"

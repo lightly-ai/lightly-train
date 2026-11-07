@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from torch import nn
 
 from lightly_train._data.yolo_object_detection_dataset import (
@@ -103,10 +102,7 @@ def test_transform_args_resolve_auto__requires_config_image_size(
         transform_args.resolve_auto(model_init_args={})
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     import onnx
 
@@ -127,10 +123,7 @@ def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     assert "If" not in op_types
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
     import onnx
@@ -168,10 +161,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     assert close_scores.float().mean() > 0.95
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = PicoDetObjectDetection(
         model_name="picodet/s-416",

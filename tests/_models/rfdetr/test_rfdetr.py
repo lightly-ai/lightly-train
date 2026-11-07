@@ -5,22 +5,30 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import pytest
 import torch
 
 from lightly_train._models.rfdetr.rfdetr import RFDETRModelWrapper
 
-if importlib_util.find_spec("rfdetr") is None:
-    pytest.skip("rfdetr is not installed", allow_module_level=True)
+if TYPE_CHECKING:
+    from rfdetr.detr import RFDETRBase
 
-from rfdetr.detr import RFDETRBase
+pytestmark = pytest.mark.requires("rfdetr")
+
+
+@pytest.fixture
+def model() -> RFDETRBase:
+    from rfdetr.detr import RFDETRBase
+
+    return RFDETRBase()  # type: ignore[no-untyped-call]
 
 
 class TestRFDETRModelWrapper:
-    def test_init(self) -> None:
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+    def test_init(self, model: RFDETRBase) -> None:
         wrapped_model = RFDETRModelWrapper(model=model)
 
         for name, param in wrapped_model.named_parameters():
@@ -29,9 +37,7 @@ class TestRFDETRModelWrapper:
         for name, module in wrapped_model.named_modules():
             assert module.training, name
 
-    def test_feature_dim(self) -> None:
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
-
+    def test_feature_dim(self, model: RFDETRBase) -> None:
         wrapped_model = RFDETRModelWrapper(model=model)
 
         assert wrapped_model.feature_dim() == 384
@@ -40,10 +46,7 @@ class TestRFDETRModelWrapper:
     @pytest.mark.skipif(
         torch.backends.mps.is_available(), reason="MPS does not support this test"
     )
-    def test_forward_features(
-        self,
-    ) -> None:
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+    def test_forward_features(self, model: RFDETRBase) -> None:
         device = model.model.device
 
         wrapped_model = RFDETRModelWrapper(model=model)
@@ -60,8 +63,7 @@ class TestRFDETRModelWrapper:
             int(image_size // 14),
         )
 
-    def test_forward_pool(self) -> None:
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+    def test_forward_pool(self, model: RFDETRBase) -> None:
         device = model.model.device
 
         wrapped_model = RFDETRModelWrapper(model=model)
@@ -72,17 +74,15 @@ class TestRFDETRModelWrapper:
 
         assert pool.shape == (1, expected_dim, 1, 1)
 
-    def test_get_model(self) -> None:
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
+    def test_get_model(self, model: RFDETRBase) -> None:
         wrapped_model = RFDETRModelWrapper(model=model)
         model_ = wrapped_model.get_model()
         assert model_ is model
 
-    def test__device(self) -> None:
+    def test__device(self, model: RFDETRBase) -> None:
         # If this test fails it means the wrapped model doesn't move all required
         # modules to the correct device. This happens if not all required modules
         # are registered as attributes of the class.
-        model = RFDETRBase()  # type: ignore[no-untyped-call]
         wrapped_model = RFDETRModelWrapper(model=model)
         wrapped_model.to("meta")
         wrapped_model.forward_features(torch.rand(1, 3, 224, 224, device="meta"))

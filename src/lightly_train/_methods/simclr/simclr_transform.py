@@ -18,7 +18,6 @@ from lightly_train._transforms.transform import (
     MethodTransformArgs,
     NormalizeArgs,
     RandomFlipArgs,
-    RandomResizeArgs,
     RandomResizedCropArgs,
     RandomRotationArgs,
     SolarizeArgs,
@@ -53,7 +52,9 @@ class SimCLRTransformArgs(MethodTransformArgs):
     image_size: ImageSizeTuple = (224, 224)
     channel_drop: ChannelDropArgs | None = None
     num_channels: int | Literal["auto"] = "auto"
-    random_resize: RandomResizeArgs | None = Field(default_factory=RandomResizeArgs)
+    random_resize: RandomResizedCropArgs | None = Field(
+        default_factory=RandomResizedCropArgs
+    )
     random_flip: RandomFlipArgs | None = Field(default_factory=RandomFlipArgs)
     random_rotation: RandomRotationArgs | None = None
     color_jitter: SimCLRColorJitterArgs | None = Field(
@@ -73,11 +74,9 @@ class SimCLRTransform(MethodTransform):
         # Defaults from https://github.com/lightly-ai/lightly/blob/fac3dcb56745d8e5edcc59307866060cf7530bfa/lightly/transforms/simclr_transform.py#L130-L149
         view_transform = ViewTransform(
             ViewTransformArgs(
+                image_size=transform_args.image_size,
                 channel_drop=transform_args.channel_drop,
-                random_resized_crop=RandomResizedCropArgs(
-                    size=transform_args.image_size,
-                    scale=transform_args.random_resize,
-                ),
+                random_resized_crop=transform_args.random_resize,
                 random_flip=transform_args.random_flip,
                 random_rotation=transform_args.random_rotation,
                 color_jitter=transform_args.color_jitter,
