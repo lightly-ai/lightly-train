@@ -20,6 +20,7 @@ from PIL import Image, ImageFont
 from PIL.Image import Image as PILImage
 from PIL.ImageDraw import ImageDraw as PILDraw
 from torch import Tensor
+from torchvision.transforms import functional as torchvision_functional
 
 try:
     _DEFAULT_FONT = ImageFont.load_default(size=20)
@@ -177,6 +178,19 @@ def _denormalize_image(
     denormalized = torch.clamp(denormalized, 0, 1)
 
     return denormalized
+
+
+def _to_rgb_pil(image: Tensor) -> PILImage:
+    """Convert a (C, H, W) image tensor to an RGB PIL image.
+
+    - Images with more than 3 channels are cut to the first 3 channels. PIL does
+      not support more than 4 channels.
+    """
+    # TODO(Lionel, 11/26): Let users choose which channels to visualize.
+    if image.shape[0] > 3:
+        image = image[:3]
+    pil_image: PILImage = torchvision_functional.to_pil_image(image).convert("RGB")
+    return pil_image
 
 
 def _get_class_color(class_id: float) -> tuple[int, int, int]:

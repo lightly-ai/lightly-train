@@ -151,3 +151,32 @@ def test_object_detection_dataset__num_channels(
 
     assert dataset.image_mode == expected_image_mode
     assert dataset[0]["image"].shape[-1] == num_channels
+
+
+def test_object_detection_dataset__grayscale_tiff(tmp_path: Path) -> None:
+    # PIL loads grayscale TIFFs as (H, W) arrays without a channel axis.
+    image_dir = tmp_path / "images"
+    create_images(image_dir=image_dir, files=["0.tif"], num_channels=0, mode="L")
+    image_info = [
+        {
+            "image_path": str(image_dir / "0.tif"),
+            "bboxes": json.dumps([]),
+            "class_labels": json.dumps([]),
+        },
+    ]
+    dataset_args = COCOObjectDetectionDatasetArgs(
+        labels=tmp_path / "annotations.json",
+        data_dir=None,
+        classes={0: "cat"},
+        ignore_classes=None,
+        skip_if_annotations_missing=False,
+    )
+
+    dataset = ObjectDetectionDataset(
+        dataset_args=dataset_args,
+        transform=LTDETRObjectDetectionTransform(DummyTransformArgs(num_channels=1)),
+        image_info=image_info,
+    )
+
+    assert dataset.image_mode == ImageMode.UNCHANGED
+    assert dataset[0]["image"].shape == (128, 128, 1)

@@ -92,6 +92,9 @@ class ObjectDetectionDataset(TaskDataset):
         image_np = file_helpers.open_image_numpy(
             image_path=image_path, mode=self.image_mode
         )
+        # Grayscale images loaded with ImageMode.UNCHANGED have shape (H, W).
+        if image_np.ndim == 2:
+            image_np = image_np[..., None]
         h, w, _ = image_np.shape
 
         bboxes = json.loads(image_info["bboxes"])

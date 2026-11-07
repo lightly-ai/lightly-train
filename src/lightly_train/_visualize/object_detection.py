@@ -13,7 +13,6 @@ from dataclasses import dataclass
 import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
-from torchvision.transforms import functional as torchvision_functional
 
 from lightly_train._visualize import utils
 from lightly_train.types import ObjectDetectionBatch
@@ -88,7 +87,7 @@ def plot_object_detection_labels(
             )
 
         _, img_height, img_width = image_tensor.shape
-        img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
+        img = utils._to_rgb_pil(image_tensor)
 
         boxes = gt_bboxes[i]
         class_ids = gt_classes[i]
@@ -151,7 +150,7 @@ def plot_object_detection_predictions(
                 std=image_normalize["std"],
             )
 
-        img = torchvision_functional.to_pil_image(image_tensor).convert("RGB")
+        img = utils._to_rgb_pil(image_tensor)
 
         result = results[i]
         boxes = result["boxes"]

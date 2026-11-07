@@ -97,8 +97,11 @@ class TestPlotObjectDetectionLabels:
         )
         assert result.size == (32, 16)
 
-    def test_plot_object_detection_labels__multi_channel(self) -> None:
-        batch = _make_batch_from_image(image=torch.rand(1, 4, 16, 16))
+    @pytest.mark.parametrize("num_channels", [1, 2, 4, 6])
+    def test_plot_object_detection_labels__multi_channel(
+        self, num_channels: int
+    ) -> None:
+        batch = _make_batch_from_image(image=torch.rand(1, num_channels, 16, 16))
         result = object_detection.plot_object_detection_labels(
             batch=batch, class_names={}, max_images=1, image_normalize=None
         )
@@ -239,8 +242,11 @@ class TestPlotObjectDetectionPredictions:
         )
         assert result.size == (32, 16)
 
-    def test_plot_object_detection_predictions__multi_channel(self) -> None:
-        batch = _make_batch_from_image(image=torch.rand(1, 4, 16, 16))
+    @pytest.mark.parametrize("num_channels", [1, 2, 4, 6])
+    def test_plot_object_detection_predictions__multi_channel(
+        self, num_channels: int
+    ) -> None:
+        batch = _make_batch_from_image(image=torch.rand(1, num_channels, 16, 16))
         result = object_detection.plot_object_detection_predictions(
             batch=batch,
             results=_make_empty_results(),
