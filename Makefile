@@ -72,6 +72,8 @@ format-check:
 	uv run --frozen pre-commit run --all-files
 
 # run type check
+# Keep paths in sync with the run-type-check filter in
+# .github/workflows/check_code_format.yml.
 .PHONY: type-check
 type-check:
 	uv run --frozen mypy src tests docs/format_code.py inference_benchmarks

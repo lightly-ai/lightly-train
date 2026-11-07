@@ -17,13 +17,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# NOTE: This workflow deliberately has no path filter. Its checks cover the whole
-# repository: mdformat runs on .github, docker, docs, src, tests,
-# inference_benchmarks and the root *.md files, ruff runs on ".", mypy runs on src,
-# tests, docs/format_code.py and inference_benchmarks, and pre-commit runs with
-# --all-files. Skipping it for "non-code" changes would stop catching formatting
-# errors in exactly those files.
 jobs:
+  # NOTE: This job deliberately has no path filter. Its checks cover the whole
+  # repository: mdformat runs on .github, docker, docs, src, tests,
+  # inference_benchmarks and the root *.md files, and ruff runs on ".". Skipping it
+  # for "non-code" changes would stop catching formatting errors in exactly those
+  # files. The type-check job below is filtered: mypy only reads Python paths.
   check-code-format:
     name: Check Code Format
     runs-on: ubuntu-latest
@@ -45,11 +44,59 @@ jobs:
       - name: Run Format Check
         run: |
           make format-check
-      - name: Run Type Check
-        run: |
-          make type-check
       - name: Run Header Check
         run: |
           make add-header
           git diff --name-only .
           git diff --quiet --name-only . || exit -1
+  detect-python-changes:
+    name: Detect Python Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-type-check: ${{ steps.filter.outputs.run-type-check }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          # Allowlist: run only if the change touches a file mypy reads. Keep in sync
+          # with the paths of the type-check target in the Makefile.
+          #
+          # Positive patterns are OR-ed by dorny/paths-filter, so each entry is purely
+          # additive.
+          filters: |
+            run-type-check:
+              - 'src/**'
+              - 'tests/**'
+              - 'docs/format_code.py'
+              - 'inference_benchmarks/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Makefile'
+              - '.github/workflows/check_code_format.yml'
+  type-check:
+    name: Type Check
+    needs: detect-python-changes
+    # Run if the filter says so, and also if the filter job itself failed: a skipped
+    # job counts as a passing required check, so failing closed would let a change
+    # merge untested.
+    if: ${{ !cancelled() && (needs.detect-python-changes.result != 'success' || needs.detect-python-changes.outputs.run-type-check == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Set Up uv
+        uses: astral-sh/setup-uv@v7
+        id: setup-uv
+        with:
+          version: 0.11.15
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Set Up Environment
+        run: |
+          make install-pinned-3.13
+      - name: Run Type Check
+        run: |
+          make type-check
