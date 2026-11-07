@@ -131,6 +131,10 @@ class EdgeCrafterPackage(MultiScaleFeaturePackage):
         args: dict[str, Any] = {"num_input_channels": num_input_channels}
         if model_args is not None:
             args.update(model_args)
+        # Accept the DINOv3-style ``in_chans`` key. Like in DINOv3, it takes
+        # precedence over ``num_input_channels``.
+        if "in_chans" in args:
+            args["num_input_channels"] = args.pop("in_chans")
 
         return ECViTModelWrapper(name=preset_name, weights_path=weights_path, **args)
 

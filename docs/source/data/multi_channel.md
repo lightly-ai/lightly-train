@@ -50,6 +50,7 @@ The following image transforms are disabled for images that do not have 3 channe
 - `ColorJitter`
 - `RandomGrayscale`
 - `Solarize`
+- `RandomPhotometricDistort` and `Mosaic` (LT-DETR instance segmentation)
 
 If any other transform defaults are incompatible with your data, you can disable them by
 setting the corresponding transform argument to `None`. For example, to disable

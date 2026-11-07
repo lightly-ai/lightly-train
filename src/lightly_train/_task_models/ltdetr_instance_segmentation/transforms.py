@@ -243,13 +243,23 @@ class LTDETRInstanceSegmentationTrainTransformArgs(
 
         if not isinstance(self.num_channels, int):
             raise RuntimeError("Expected num_channels to be resolved.")
-        if self.num_channels != 3:
-            raise RuntimeError(
-                "LT-DETR instance segmentation only supports RGB images but "
-                f"num_channels is {self.num_channels}."
-            )
         if isinstance(self.normalize, NormalizeArgs):
             _resolve_normalize_num_channels(self.normalize, self.num_channels)
+
+        # Photometric distort and mosaic only support 3-channel images.
+        if self.num_channels != 3:
+            if self.photometric_distort is not None:
+                logger.debug(
+                    "Disabling photometric distort transform as it only supports "
+                    f"3-channel images but num_channels is {self.num_channels}."
+                )
+                self.photometric_distort = None
+            if self.mosaic is not None:
+                logger.debug(
+                    "Disabling mosaic transform as it only supports 3-channel "
+                    f"images but num_channels is {self.num_channels}."
+                )
+                self.mosaic = None
 
     def resolve_step_schedule(
         self,

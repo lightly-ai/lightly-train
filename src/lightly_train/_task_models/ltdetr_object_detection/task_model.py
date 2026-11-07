@@ -218,9 +218,7 @@ class LTDETRObjectDetection(TaskModel, MIGraphXExportMixin):
         if backbone_weights is not None and not is_dinov2_backbone:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        get_model_kwargs = {
-            "num_input_channels": len(self.image_normalize["mean"]),
-        }
+        get_model_kwargs = {"num_input_channels": self._expected_input_channels}
 
         package = package_helpers.get_package(package_name)
 

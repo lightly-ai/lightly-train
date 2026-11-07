@@ -824,6 +824,8 @@ def create_coco_instance_segmentation_dataset(
     width: int = 128,
     num_classes: int = 2,
     annotations_per_image: list[list[dict[str, Any]]] | None = None,
+    mode: str | None = "RGB",
+    num_channels: int = 3,
 ) -> None:
     """Create a minimal COCO instance segmentation dataset.
 
@@ -849,7 +851,14 @@ def create_coco_instance_segmentation_dataset(
     for split in ["train", "val"]:
         image_dir = tmp_path / split
         image_dir.mkdir(parents=True, exist_ok=True)
-        create_images(image_dir=image_dir, files=num_files, height=height, width=width)
+        create_images(
+            image_dir=image_dir,
+            files=num_files,
+            height=height,
+            width=width,
+            mode=mode,
+            num_channels=num_channels,
+        )
 
         image_paths = sorted(image_dir.glob("*.png"))
         categories = [{"id": k, "name": v} for k, v in classes.items()]

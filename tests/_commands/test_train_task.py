@@ -279,12 +279,14 @@ def test_train_object_detection_yolo(tmp_path: Path, num_workers: int) -> None:
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-def test_train_instance_segmentation(
-    tmp_path: Path,
-) -> None:
+@pytest.mark.parametrize("num_channels", [3, 4])
+def test_train_instance_segmentation(tmp_path: Path, num_channels: int) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
-    helpers.create_coco_instance_segmentation_dataset(data, num_files=4)
+    mode = "RGB" if num_channels == 3 else "RGBA"
+    helpers.create_coco_instance_segmentation_dataset(
+        data, num_files=4, mode=mode, num_channels=num_channels
+    )
 
     # Check training
     lightly_train.train_instance_segmentation(
@@ -301,6 +303,7 @@ def test_train_instance_segmentation(
         batch_size=2,
         num_workers=0,
         steps=2,
+        transform_args={"num_channels": num_channels},
     )
     assert out.exists()
     assert out.is_dir()
@@ -310,7 +313,7 @@ def test_train_instance_segmentation(
     model = lightly_train.load_model(model=out / "exported_models" / "exported_last.pt")
 
     # Check forward pass
-    dummy_input = torch.randn(3, 100, 200)
+    dummy_input = torch.randn(num_channels, 100, 200)
     results = model.predict(dummy_input)
 
     assert results["labels"].ndim == 1

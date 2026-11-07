@@ -682,9 +682,7 @@ class _DINOv3LTDETRBase(TaskModel):
         if backbone_weights is not None:
             backbone_model_args["weights"] = str(backbone_weights)
 
-        get_model_kwargs = {}
-        if self.image_normalize is not None:
-            get_model_kwargs["num_input_channels"] = len(self.image_normalize["mean"])
+        get_model_kwargs = {"num_input_channels": self._expected_input_channels}
 
         # Get the backbone. ECViT lives in its own package and is loaded via
         # EDGE_CRAFTER_PACKAGE.get_model (which uses the preset's pretrained URL
