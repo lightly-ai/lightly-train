@@ -14,6 +14,33 @@ import pytest
 from lightly_train._data import keypoint_helpers
 
 
+@pytest.mark.parametrize(
+    "visibility, expected",
+    [
+        (0, keypoint_helpers.Visibility.UNLABELED),
+        (1, keypoint_helpers.Visibility.OCCLUDED),
+        (2, keypoint_helpers.Visibility.VISIBLE),
+        # Exporters commonly write the flag as a float.
+        (0.0, keypoint_helpers.Visibility.UNLABELED),
+        (2.0, keypoint_helpers.Visibility.VISIBLE),
+    ],
+)
+def test_parse_visibility__valid(
+    visibility: float, expected: keypoint_helpers.Visibility
+) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) is expected
+
+
+@pytest.mark.parametrize("visibility", [1.9, 0.5, -1, 3, 2.5])
+def test_parse_visibility__invalid(visibility: float) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) is None
+
+
+@pytest.mark.parametrize("visibility", [None, "abc", True, float("nan"), float("inf")])
+def test_parse_visibility__not_a_number(visibility: Any) -> None:
+    assert keypoint_helpers.parse_visibility(visibility) is None
+
+
 def test_validate_kpt_shape__valid() -> None:
     assert keypoint_helpers.validate_kpt_shape((17, 3)) == (17, 3)
 
@@ -81,3 +108,39 @@ def test_get_coco_num_keypoints__included_categories_with_different_keypoints() 
     ]
     with pytest.raises(ValueError, match="same keypoints"):
         keypoint_helpers.get_coco_num_keypoints(categories, [1, 2])
+
+
+def test_bbox_from_keypoints__labeled_keypoints() -> None:
+    bbox = keypoint_helpers.bbox_from_keypoints(
+        keypoints_xy=[[0.2, 0.4], [0.6, 0.8], [0.0, 0.0]],
+        visibility=[2, 1, 0],
+    )
+    assert bbox == pytest.approx([0.4, 0.6, 0.4, 0.4])
+
+
+def test_bbox_from_keypoints__no_labeled_keypoints() -> None:
+    assert (
+        keypoint_helpers.bbox_from_keypoints(
+            keypoints_xy=[[0.0, 0.0], [0.0, 0.0]], visibility=[0, 0]
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("keypoints_xy", "visibility"),
+    [
+        ([[0.2, 0.4], [0.0, 0.0]], [2, 0]),
+        ([[0.2, 0.4], [0.2, 0.8]], [2, 2]),
+        ([[0.2, 0.4], [0.6, 0.4]], [2, 1]),
+    ],
+)
+def test_bbox_from_keypoints__no_area(
+    keypoints_xy: List[List[float]], visibility: List[int]
+) -> None:
+    assert (
+        keypoint_helpers.bbox_from_keypoints(
+            keypoints_xy=keypoints_xy, visibility=visibility
+        )
+        is None
+    )
