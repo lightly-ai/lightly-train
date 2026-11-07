@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import cv2
 from albumentations import RandomResizedCrop
-from lightning_utilities.core.imports import RequirementCache
 
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_2_0_0,
+)
 from lightly_train._transforms.transform import RandomResizedCropArgs
 from lightly_train.types import ImageSizeTuple
-
-ALBUMENTATIONS_VERSION_2XX = RequirementCache("albumentations>=2.0.0")
 
 
 def get_random_resized_crop(
@@ -31,7 +31,7 @@ def get_random_resized_crop(
     """
     # A lot of thought went into the choice of interpolation method here.
     # See details in https://github.com/lightly-ai/lightly-train-old/pull/284
-    if ALBUMENTATIONS_VERSION_2XX:
+    if ALBUMENTATIONS_GEQ_2_0_0:
         return RandomResizedCrop(
             size=(size[0], size[1]),
             scale=args.scale_as_tuple(),

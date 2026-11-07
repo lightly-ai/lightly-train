@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 
 from lightly_train._task_models.dinov2_eomt_panoptic_segmentation.task_model import (
@@ -127,10 +126,7 @@ def test_predict_batch__composes_stages_in_order(
     assert result is postprocess_spy.spy_return
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx(model: DINOv2EoMTPanopticSegmentation, tmp_path: Path) -> None:
     import onnx
 

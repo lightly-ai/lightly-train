@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from lightning_utilities.core.imports import RequirementCache
 
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_15,
+)
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
-
-ALBUMENTATIONS_GEQ_1_4_15 = RequirementCache("albumentations>=1.4.15")
 
 
 class TestRandomZoomOut:

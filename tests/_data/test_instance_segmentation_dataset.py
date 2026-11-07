@@ -27,6 +27,10 @@ from lightly_train._data.instance_segmentation_dataset import (
     _normalize_polygon_segments,
     _process_polygon_segmentation,
 )
+from lightly_train._transforms.albumentations_helpers import (
+    ALBUMENTATIONS_GEQ_1_4_5,
+    ALBUMENTATIONS_GEQ_2_0_1,
+)
 
 from .. import helpers
 from ..helpers import (
@@ -408,9 +412,7 @@ class TestCOCOInstanceSegmentationMmapHash:
         os.utime(annotations_path, (st.st_atime, st.st_mtime + 1))
         assert args.train_data_mmap_hash() != hash_before
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
-    )
+    @pytest.mark.requires("pycocotools")
     def test_list_image_info__mixed_polygon_and_rle(self, tmp_path: Path) -> None:
         """Test a single image with polygon, compressed RLE, and uncompressed RLE annotations."""
         if sys.version_info >= (3, 9):  # Needed for Mypy
@@ -480,9 +482,7 @@ class TestCOCOInstanceSegmentationMmapHash:
             for bbox in bboxes:
                 assert len(bbox) == 4
 
-    @pytest.mark.skipif(
-        sys.version_info >= (3, 9), reason="Test only applies to Python 3.8"
-    )
+    @pytest.mark.requires("python<3.9", reason="Test only applies to Python 3.8")
     def test_list_image_info__rle_fails_on_python38(self, tmp_path: Path) -> None:
         """RLE annotations should raise RuntimeError on Python < 3.9."""
         create_coco_instance_segmentation_dataset(
@@ -516,14 +516,11 @@ class TestCOCOInstanceSegmentationMmapHash:
 
 
 class TestInstanceSegmentationDatasetGetitem:
-    @pytest.mark.skipif(
-        sys.version_info < (3, 9), reason="pycocotools requires Python >= 3.9"
-    )
+    @pytest.mark.requires("pycocotools")
     def test_getitem__rle_segment(self, tmp_path: Path) -> None:
         """RLE segments are decoded to binary masks in __getitem__."""
         if sys.version_info >= (3, 9):  # Needed for Mypy
             from albumentations import BboxParams
-            from lightning_utilities.core.imports import RequirementCache
 
             from lightly_train._data.instance_segmentation_dataset import (
                 InstanceSegmentationDataset,
@@ -533,9 +530,6 @@ class TestInstanceSegmentationDatasetGetitem:
                 EoMTInstanceSegmentationTransformArgs,
             )
             from lightly_train._transforms.transform import NormalizeArgs
-
-            ALBUMENTATIONS_GE_1_4_5 = RequirementCache("albumentations>=1.4.5")
-            ALBUMENTATIONS_GE_2_0_1 = RequirementCache("albumentations>=2.0.1")
 
             # Arrange
             height, width = 128, 128
@@ -584,10 +578,10 @@ class TestInstanceSegmentationDatasetGetitem:
                     label_fields=["class_labels", "indices"],
                     **(
                         dict(filter_invalid_bboxes=True)
-                        if ALBUMENTATIONS_GE_2_0_1
+                        if ALBUMENTATIONS_GEQ_2_0_1
                         else {}
                     ),
-                    **(dict(clip=True) if ALBUMENTATIONS_GE_1_4_5 else {}),
+                    **(dict(clip=True) if ALBUMENTATIONS_GEQ_1_4_5 else {}),
                 ),
             )
             transform = EoMTInstanceSegmentationTransform(transform_args)
