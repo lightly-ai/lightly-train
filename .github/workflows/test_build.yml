@@ -22,26 +22,35 @@ jobs:
     name: Detect Code Changes
     runs-on: ubuntu-latest
     outputs:
-      run-tests: ${{ steps.filter.outputs.run-tests }}
+      run-tests: ${{ steps.filter.outputs.run-tests == 'true' || steps.filter.outputs.this-workflow == 'true' }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
-          # Allowlist: run only if the change touches a file this job reads. A new
-          # folder that the job depends on must be added here, otherwise changes to it
-          # silently skip this job.
+          # Run unless the change provably cannot affect this job.
           #
-          # Positive patterns are OR-ed by dorny/paths-filter, so each entry is purely
-          # additive.
+          # Denylist rather than allowlist on purpose: setuptools-scm packages every
+          # git-tracked file into the sdist (NOTICE, licences/, CITATION.cff, ...), so
+          # a new top-level file or directory should run the build by default. Only
+          # directories that cannot break 'make dist' are excluded.
+          #
+          # 'some-with-excludes' and the separate 'this-workflow' filter work as in
+          # test_documentation.yml: exclusions are final, so edits to this workflow are
+          # picked up by 'this-workflow', OR-ed into the job output above.
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             run-tests:
-              - 'src/**'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - 'Makefile'
-              - 'README.md'
-              - 'LICENSE'
+              - '**'
+              - '!docker/**'
+              - '!.github/**'
+              - '!tests/**'
+              - '!docs/**'
+              - '!examples/**'
+              - '!inference_benchmarks/**'
+              - '!dev_tools/**'
+              - '!.devcontainer/**'
+            this-workflow:
               - '.github/workflows/test_build.yml'
   test-build:
     name: Test Build

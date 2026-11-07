@@ -22,7 +22,7 @@ jobs:
   # repository: mdformat runs on .github, docker, docs, src, tests,
   # inference_benchmarks and the root *.md files, and ruff runs on ".". Skipping it
   # for "non-code" changes would stop catching formatting errors in exactly those
-  # files.
+  # files. The type-check job below is filtered: mypy only reads Python paths.
   check-code-format:
     name: Check Code Format
     runs-on: ubuntu-latest
