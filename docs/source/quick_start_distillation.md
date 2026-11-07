@@ -154,12 +154,7 @@ We'll use Lightly**Train**'s built-in fine-tuning for object detection as an exa
 
 A labeled dataset is required for fine-tuning. The `object_detection` dataset you
 downloaded in [Prepare Data](#prepare-data) already contains YOLO labels and a
-`config.yaml` with the dataset paths and the 80 COCO class names. If you skipped that
-section, download it now:
-
-```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/object_detection.zip && unzip -q object_detection.zip
-```
+`config.yaml` with the dataset paths and the 80 COCO class names.
 
 ### Fine-Tune the Pretrained Model
 
