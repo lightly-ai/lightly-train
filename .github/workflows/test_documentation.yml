@@ -47,6 +47,11 @@ jobs:
               - '**'
               - '!docker/**'
               - '!.github/**'
+              - '!tests/**'
+              - '!inference_benchmarks/**'
+              - '!dev_tools/**'
+              - '!.devcontainer/**'
+              - '!CHANGELOG.md'
             this-workflow:
               - '.github/workflows/test_documentation.yml'
   test-documentation:
