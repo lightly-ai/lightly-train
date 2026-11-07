@@ -15,7 +15,7 @@ import torch
 from PIL.Image import Image as PILImage
 from torch import Tensor
 from torch.nn import Module
-from torchvision.ops import box_convert, box_iou, nms
+from torchvision.ops import batched_nms, box_convert, box_iou
 from torchvision.transforms.v2 import functional as transforms_functional
 from typing_extensions import NotRequired
 
@@ -250,9 +250,10 @@ def combine_object_detection_tiles(
     boxes_tiles = pred_tiles["bboxes"]
     scores_tiles = pred_tiles["scores"]
 
-    # NMS on tiles predictions is needed due overlapping tiles.
+    # NMS on tiles predictions is needed due overlapping tiles. Class-aware so a
+    # detection cannot suppress an overlapping detection of another class.
     if boxes_tiles.numel() > 0:
-        keep = nms(boxes_tiles, scores_tiles, nms_iou_threshold)
+        keep = batched_nms(boxes_tiles, scores_tiles, labels_tiles, nms_iou_threshold)
         labels_tiles = labels_tiles[keep]
         boxes_tiles = boxes_tiles[keep]
         scores_tiles = scores_tiles[keep]
