@@ -11,7 +11,7 @@ import logging
 import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
@@ -454,15 +454,10 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             input_size=(int(images.shape[-2]), int(images.shape[-1])),
         )
 
-    def forward_backend(self, x: Tensor) -> ObjectDetectionBatchOutput:
-        # TODO(Lionel, 11/2026): Remove once benchmark_object_detection uses the
-        # preprocessor and postprocessor directly.
-        return self.forward(x)
-
     def postprocess(  # type: ignore[override]
         self,
         raw_outputs: ObjectDetectionBatchOutput | Mapping[str, Tensor],
-        metadata: Sequence[ObjectDetectionMetadata | Mapping[str, int]],
+        metadata: Sequence[ObjectDetectionMetadata],
         threshold: float,
     ) -> list[ObjectDetectionPrediction]:
         """Decode raw outputs into one prediction per image.
@@ -485,19 +480,8 @@ class PicoDetObjectDetection(TaskModel, ONNXExportMixin):
             raw = ObjectDetectionBatchOutput(
                 logits=raw_outputs["pred_logits"], boxes=raw_outputs["pred_boxes"]
             )
-        # TODO(Lionel, 11/2026): Drop dict metadata once benchmark_object_detection
-        # uses the preprocessor directly.
-        if not all(isinstance(m, ObjectDetectionMetadata) for m in metadata):
-            metadata = [
-                m
-                if isinstance(m, ObjectDetectionMetadata)
-                else ObjectDetectionMetadata(orig_h=m["orig_h"], orig_w=m["orig_w"])
-                for m in metadata
-            ]
         return self.postprocessor.postprocess(
-            raw=raw,
-            metadata=cast(Sequence[ObjectDetectionMetadata], metadata),
-            threshold=threshold,
+            raw=raw, metadata=metadata, threshold=threshold
         )
 
     @torch.no_grad()
