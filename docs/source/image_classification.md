@@ -31,29 +31,18 @@ licensed, 10 classes, already organized as class-subfolders):
 git clone https://github.com/alexeygrigorev/clothing-dataset-small
 ```
 
-The dataset looks like this after cloning:
+After cloning, the dataset looks like this:
 
 ```text
-clothing-dataset-small/
+clothing-dataset-small
 ├── train
 │   ├── dress
 │   │   ├── 009b3c31-fb62-45c0-be9a-37a5c238cb88.jpg
-│   │   ├── 041c6bde-e737-46fd-9586-984c1503941f.jpg
 │   │   └── ...
 │   ├── hat
-│   │   ├── 00d94e21-5891-492e-be0e-792e7338c077.jpg
-│   │   └── ...
 │   └── ...
 ├── validation
-│   ├── dress
-│   │   ├── 07cddef1-1fc8-47e4-a28a-613e60912590.jpg
-│   │   └── ...
-│   └── ...
 └── test
-    ├── dress
-    │   ├── 06a00c0f-5f9a-410d-a7da-3881a9df3a71.jpg
-    │   └── ...
-    └── ...
 ```
 
 ```python
@@ -79,32 +68,27 @@ if __name__ == "__main__":
                 9: "t-shirt",
             },
         },
+        steps=100,  # Small number of steps for demonstration, default is 100_000.
+        batch_size=4,  # Small batch size for demonstration, default is 16.
     )
 ```
 
-`data` also accepts a path to a YAML file with the same keys, which reads quicker for
-larger class dictionaries. With your own dataset organized as class-subfolders, the
-minimal example looks like this:
+`data` also accepts a path to a YAML file with the same keys. Relative paths in a YAML
+file are resolved against the folder that contains the YAML file, while relative paths
+in a dictionary are resolved against the current working directory. For example, save
+this as `clothing-dataset-small/config.yaml`:
 
-```python
-import lightly_train
-
-if __name__ == "__main__":
-    lightly_train.train_image_classification(
-        out="out/my_experiment",
-        model="dinov3/vitt16",
-        data={
-            "train": "my_data_dir/train/",
-            "val": "my_data_dir/val/",
-            "classes": {
-                0: "cat",
-                1: "car",
-                2: "dog",
-                # ...
-            },
-        },
-    )
+```yaml
+train: train
+val: validation
+classes:
+  0: dress
+  1: hat
+  # ... 8 more classes
 ```
+
+and pass `data="clothing-dataset-small/config.yaml"`. For your own dataset, replace the
+paths and classes with your own.
 
 During training, both the
 

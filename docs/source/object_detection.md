@@ -57,10 +57,8 @@ requires a few lines of code using the
 If you don't have a dataset at hand, download a small ready-to-use example dataset:
 
 ```bash
-# The shared image pool, used by all tasks.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
-# The labels and the config file for this task.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/object_detection.zip && unzip -q object_detection.zip
+# The images, labels and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/object_detection.zip && unzip -q object_detection.zip
 ```
 
 ```python
@@ -71,11 +69,15 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="ltdetrv2-s-coco",
         data="object_detection/config.yaml",
+        steps=100,  # Small number of steps for demonstration, default is 266_112.
+        batch_size=4,  # Small batch size for demonstration, default is 32.
     )
 ```
 
-`data` also accepts a dictionary with the same keys as the yaml file, which is useful if
-you want to set them programmatically:
+`data` also accepts a dictionary with the same keys as the YAML file, which is useful if
+you want to set them programmatically. Relative paths in a dictionary are resolved
+against the current working directory, while relative paths in a YAML file are resolved
+against the folder that contains the YAML file:
 
 ```python
 import lightly_train

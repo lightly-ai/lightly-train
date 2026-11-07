@@ -48,25 +48,30 @@ be structured in any way, including subdirectories. If you don't have a dataset 
 you can download an example dataset:
 
 ```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/object_detection.zip && unzip -q object_detection.zip
 ```
 
 See the [data guide](pretrain-data) for more information on supported data formats.
 
-In this example, the dataset looks like this:
+The archive also contains labels, which are only needed later for
+[fine-tuning](#fine-tune). Pretraining uses the images in
+`object_detection/images/train2017`:
 
 ```text
-images
-├── train2017
-│   ├── 000000000009.jpg
-│   ├── 000000000025.jpg
-│   ├── ...
-│   └── 000000000650.jpg
-└── val2017
-    ├── 000000000139.jpg
-    ├── 000000000285.jpg
-    ├── ...
-    └── 000000013201.jpg
+object_detection
+├── config.yaml
+├── images
+│   ├── train2017
+│   │   ├── 000000000009.jpg
+│   │   ├── ...
+│   │   └── 000000000650.jpg
+│   └── val2017
+│       ├── 000000000139.jpg
+│       ├── ...
+│       └── 000000013201.jpg
+└── labels
+    ├── train2017
+    └── val2017
 ```
 
 ## Pretrain with Distillation
@@ -79,7 +84,7 @@ import lightly_train
 # Pretrain the model
 lightly_train.pretrain(
     out="out/my_experiment",  # Output directory
-    data="images/train2017",  # Directory with images
+    data="object_detection/images/train2017",  # Directory with images
     model="dinov3/vitt16",  # Model to train
     method="distillation",  # Pretraining method
     method_args={
@@ -111,9 +116,9 @@ Lightly**Train** supports many [popular models](pretrain_distill/models/index.md
 out of the box.
 ```
 
-This pretrains a tiny DINOv3 ViT model using images from `images/train2017`. All
-training logs, model exports, and checkpoints are saved to the output directory at
-`out/my_experiment`.
+This pretrains a tiny DINOv3 ViT model using images from
+`object_detection/images/train2017`. All training logs, model exports, and checkpoints
+are saved to the output directory at `out/my_experiment`.
 
 Once the training is complete, the `out/my_experiment` directory contains the following
 files:
@@ -147,46 +152,13 @@ We'll use Lightly**Train**'s built-in fine-tuning for object detection as an exa
 
 ### Prepare Labeled Data
 
-A labeled dataset is required for fine-tuning. You can download an example dataset from
-here:
+A labeled dataset is required for fine-tuning. The `object_detection` dataset you
+downloaded in [Prepare Data](#prepare-data) already contains YOLO labels and a
+`config.yaml` with the dataset paths and the 80 COCO class names. If you skipped that
+section, download it now:
 
 ```bash
-# The labels and the config file for object detection. This reuses the shared image
-# pool from `images.zip` that you already downloaded above.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/object_detection.zip && unzip -q object_detection.zip
-```
-
-The labels annotate the same shared `images` pool you already downloaded for
-pretraining, so only the labels and the config file are missing. The directory now looks
-like this:
-
-```text
-.
-├── images                          # Shared image pool, from `images.zip`.
-│   ├── train2017
-│   │   ├── 000000000009.jpg
-│   │   ├── 000000000025.jpg
-│   │   ├── ...
-│   │   └── 000000000650.jpg
-│   └── val2017
-│       ├── 000000000139.jpg
-│       ├── 000000000285.jpg
-│       ├── ...
-│       └── 000000013201.jpg
-└── object_detection
-    ├── config.yaml
-    ├── images -> ../images         # Symlink into the shared image pool.
-    └── labels
-        ├── train2017
-        │   ├── 000000000009.txt
-        │   ├── 000000000025.txt
-        │   ├── ...
-        │   └── 000000000659.txt
-        └── val2017
-            ├── 000000000139.txt
-            ├── 000000000285.txt
-            ├── ...
-            └── 000000013201.txt
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/object_detection.zip && unzip -q object_detection.zip
 ```
 
 ### Fine-Tune the Pretrained Model
@@ -209,6 +181,9 @@ lightly_train.train_object_detection(
 )
 ```
 
+`data` also accepts a dictionary with the same keys as the YAML file, see
+[object detection data](object-detection-data) for details.
+
 This will load the pretrained model from
 `out/my_experiment/exported_models/exported_last.pt` and fine-tune it on a subset of the
 labeled COCO dataset for 100 steps.
@@ -227,7 +202,7 @@ import lightly_train
 lightly_train.embed(
     out="my_embeddings.pth",  # Exported embeddings
     checkpoint="out/my_experiment/checkpoints/last.ckpt",  # LightlyTrain checkpoint
-    data="images/train2017",  # Directory with images
+    data="object_detection/images/train2017",  # Directory with images
 )
 ```
 

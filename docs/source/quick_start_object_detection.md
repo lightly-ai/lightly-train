@@ -97,43 +97,33 @@ First download a dataset. The dataset must be in YOLO format, see the
 YOLO format:
 
 ```bash
-# The shared image pool, used by all tasks.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
-# The labels and the config file for object detection.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/object_detection.zip && unzip -q object_detection.zip
+# The images, labels and the config file for object detection.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/object_detection.zip && unzip -q object_detection.zip
 ```
 
-Both archives unzip into the current directory as siblings. The images live once in a
-shared `images` directory that every task in the dataset reuses, while
-`object_detection` holds only the labels and the config file:
+The archive unzips into an `object_detection` directory:
 
 ```text
-.
-├── images                          # Shared image pool.
+object_detection
+├── config.yaml
+├── images
 │   ├── train2017
 │   │   ├── 000000000009.jpg
-│   │   ├── 000000000025.jpg
 │   │   ├── ...
 │   │   └── 000000000650.jpg
 │   └── val2017
 │       ├── 000000000139.jpg
-│       ├── 000000000285.jpg
 │       ├── ...
 │       └── 000000013201.jpg
-└── object_detection
-    ├── config.yaml
-    ├── images -> ../images         # Symlink into the shared image pool.
-    └── labels
-        ├── train2017
-        │   ├── 000000000009.txt
-        │   ├── 000000000025.txt
-        │   ├── ...
-        │   └── 000000000659.txt
-        └── val2017
-            ├── 000000000139.txt
-            ├── 000000000285.txt
-            ├── ...
-            └── 000000013201.txt
+└── labels
+    ├── train2017
+    │   ├── 000000000009.txt
+    │   ├── ...
+    │   └── 000000000650.txt
+    └── val2017
+        ├── 000000000139.txt
+        ├── ...
+        └── 000000013201.txt
 ```
 
 `config.yaml` already has everything `train_object_detection` needs — the dataset paths
@@ -151,8 +141,8 @@ names:
 ```
 
 Paths in the config file are resolved relative to the config file itself, so `path: .`
-points at the `object_detection` directory and `images/train2017` reaches the shared
-pool through the symlink.
+points at the `object_detection` directory. `data` also accepts a dictionary with the
+same keys, see [object detection data](object-detection-data) for details.
 
 ### Start training
 

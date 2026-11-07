@@ -54,10 +54,8 @@ prepare your dataset.
 If you don't have a dataset at hand, download a small ready-to-use example dataset:
 
 ```bash
-# The shared image pool, used by all tasks.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/images.zip && unzip -q images.zip
-# The labels and the config file for this task.
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.2/instance_segmentation.zip && unzip -q instance_segmentation.zip
+# The images, labels and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/instance_segmentation.zip && unzip -q instance_segmentation.zip
 ```
 
 ```python
@@ -68,11 +66,15 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="ltdetrv2-seg-s-coco",
         data="instance_segmentation/config.yaml",
+        steps=100,  # Small number of steps for demonstration, default is 273_504.
+        batch_size=4,  # Small batch size for demonstration, default is 32.
     )
 ```
 
-`data` also accepts a dictionary with the same keys as the yaml file, which is useful if
-you want to set them programmatically:
+`data` also accepts a dictionary with the same keys as the YAML file, which is useful if
+you want to set them programmatically. Relative paths in a dictionary are resolved
+against the current working directory, while relative paths in a YAML file are resolved
+against the folder that contains the YAML file:
 
 ```python
 import lightly_train
