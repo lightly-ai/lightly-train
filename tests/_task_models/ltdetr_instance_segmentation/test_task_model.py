@@ -151,6 +151,25 @@ def test_predict__single_image_returns_prediction_dict(
     assert set(prediction["labels"].tolist()).issubset(set(model.classes))
 
 
+def test_predict__multi_channel() -> None:
+    model = LTDETRInstanceSegmentation(
+        model_name="edgecrafter/_ecvittest-ltdetr-seg",
+        classes={0: "background", 1: "car"},
+        image_size=(64, 64),
+        patch_size=16,
+        image_normalize={"mean": (0.5,) * 4, "std": (0.25,) * 4},
+        backbone_freeze=False,
+        backbone_weights=None,
+        backbone_args=None,
+        load_weights=False,
+    )
+    image = torch.rand(4, 40, 24)
+    prediction = model.predict(image, threshold=0.7)
+
+    assert set(prediction) == {"labels", "bboxes", "masks", "scores"}
+    assert prediction["masks"].shape[-2:] == image.shape[-2:]
+
+
 # ---------------------------------------------------------------------------
 # EdgeCrafter (ECViT) backbone tests
 # ---------------------------------------------------------------------------

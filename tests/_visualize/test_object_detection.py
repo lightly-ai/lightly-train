@@ -97,6 +97,16 @@ class TestPlotObjectDetectionLabels:
         )
         assert result.size == (32, 16)
 
+    @pytest.mark.parametrize("num_channels", [1, 2, 4, 6])
+    def test_plot_object_detection_labels__multi_channel(
+        self, num_channels: int
+    ) -> None:
+        batch = _make_batch_from_image(image=torch.rand(1, num_channels, 16, 16))
+        result = object_detection.plot_object_detection_labels(
+            batch=batch, class_names={}, max_images=1, image_normalize=None
+        )
+        assert result.mode == "RGB"
+
     def test_plot_object_detection_labels_bboxes_drawn(self) -> None:
         # cxcywh [0.25, 0.25, 0.5, 0.5] maps to xyxy [0, 0, 64, 64] on a 128×128 image.
         # The image is large enough that the box interior (center) is clear of both
@@ -231,6 +241,21 @@ class TestPlotObjectDetectionPredictions:
             image_normalize=None,
         )
         assert result.size == (32, 16)
+
+    @pytest.mark.parametrize("num_channels", [1, 2, 4, 6])
+    def test_plot_object_detection_predictions__multi_channel(
+        self, num_channels: int
+    ) -> None:
+        batch = _make_batch_from_image(image=torch.rand(1, num_channels, 16, 16))
+        result = object_detection.plot_object_detection_predictions(
+            batch=batch,
+            results=_make_empty_results(),
+            class_names={},
+            max_images=1,
+            score_threshold=0.5,
+            image_normalize=None,
+        )
+        assert result.mode == "RGB"
 
     def test_plot_object_detection_predictions_empty_boxes_produces_clean_image(
         self,

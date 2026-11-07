@@ -24,6 +24,7 @@ from albumentations import (
 )
 from torch import Tensor
 
+from lightly_train._configs.config import PydanticConfig
 from lightly_train._configs.validate import no_auto
 from lightly_train._task_models.object_detection_components.ltdetr_geometry import (
     ltdetr_image_size_divisor,
@@ -41,7 +42,7 @@ from lightly_train._transforms.random_photometric_distort import (
     RandomPhotometricDistort,
 )
 from lightly_train._transforms.random_zoom_out import RandomZoomOut
-from lightly_train._transforms.transform import ActivationPolicyArgs
+from lightly_train._transforms.transform import ActivationPolicyArgs, NormalizeArgs
 from lightly_train.types import NDArrayBBoxes, NDArrayClasses
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,47 @@ def resolve_image_size_for_patch_size(
         math.ceil(default_image_size[0] / divisor) * divisor,
         math.ceil(default_image_size[1] / divisor) * divisor,
     )
+
+
+def resolve_normalize_num_channels(normalize: NormalizeArgs, num_channels: int) -> None:
+    if len(normalize.mean) != num_channels:
+        logger.debug(
+            "Adjusting mean of normalize transform to match num_channels. "
+            f"num_channels is {num_channels} but "
+            f"normalize.mean has length {len(normalize.mean)}."
+        )
+        normalize.mean = tuple(
+            normalize.mean[i % len(normalize.mean)] for i in range(num_channels)
+        )
+    if len(normalize.std) != num_channels:
+        logger.debug(
+            "Adjusting std of normalize transform to match num_channels. "
+            f"num_channels is {num_channels} but "
+            f"normalize.std has length {len(normalize.std)}."
+        )
+        normalize.std = tuple(
+            normalize.std[i % len(normalize.std)] for i in range(num_channels)
+        )
+
+
+def disable_rgb_only_transforms(
+    transform_args: PydanticConfig, num_channels: int
+) -> None:
+    """Disable LT-DETR transforms that only support 3-channel images.
+
+    - Photometric distort: hue/saturation jitter assumes RGB.
+    - Mosaic: the canvas is built with 3 channels.
+    - Logs at INFO for every transform that gets disabled.
+    """
+    if num_channels == 3:
+        return
+    for field_name in ("photometric_distort", "mosaic"):
+        if getattr(transform_args, field_name) is not None:
+            logger.info(
+                f"Disabling {field_name} transform as it only supports 3-channel "
+                f"images but num_channels is {num_channels}."
+            )
+            setattr(transform_args, field_name, None)
 
 
 def resolve_ltdetr_step_schedule_for_augmentation(

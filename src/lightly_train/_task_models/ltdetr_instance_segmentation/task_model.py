@@ -138,7 +138,9 @@ class LTDETRInstanceSegmentation(TaskModel):
         }
 
         self.image_normalize = image_normalize
-        self._expected_input_channels = 3
+        self._expected_input_channels = (
+            len(image_normalize["mean"]) if image_normalize is not None else 3
+        )
 
         # Build backbone model args: start from config defaults, then apply overrides.
         if backbone_args is not None:
@@ -154,6 +156,7 @@ class LTDETRInstanceSegmentation(TaskModel):
             model_name=short_backbone,
             model_args=None,
             load_weights=load_weights,
+            num_input_channels=self._expected_input_channels,
         )
         assert isinstance(backbone, ECViTModelWrapper)
         self.backbone: ECViTBackboneWrapper = ECViTBackboneWrapper(

@@ -28,6 +28,7 @@ from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
 from lightly_train._models.dinov3.dinov3_package import (
     MODEL_NAME_TO_INFO as DINOV3_MODEL_NAME_TO_INFO,
 )
+from lightly_train._models.ecvit.ecvit import ConvPyramidPatchEmbed, ECViTModelWrapper
 from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
 from lightly_train._task_models.dinov3_ltdetr.task_model import (
     _RTDETRTransformerv2Config,
@@ -1190,6 +1191,40 @@ def test_create_train_model__ecvit(
     assert not hasattr(task_model.backbone, "mask_token")
     # The wrapped ECViTModelWrapper itself must not have a mask_token either.
     assert not hasattr(task_model.backbone.backbone_model, "mask_token")
+
+
+@pytest.mark.parametrize(
+    "image_normalize, backbone_args",
+    [
+        ({"mean": (0.5,) * 4, "std": (0.25,) * 4}, None),
+        (None, {"in_chans": 4}),
+    ],
+)
+def test_task_model__ecvit_multi_channel(
+    image_normalize: dict[str, tuple[float, ...]] | None,
+    backbone_args: dict[str, Any] | None,
+) -> None:
+    model = LTDETRObjectDetection(
+        model_name="_ltdetrv2-s-notpretrained",
+        classes={0: "class_0", 1: "class_1"},
+        image_size=(320, 320),
+        image_normalize=image_normalize,
+        backbone_args=backbone_args,
+        load_weights=False,
+    )
+    assert model._expected_input_channels == 4
+    backbone_model = model.backbone.backbone_model
+    assert isinstance(backbone_model, ECViTModelWrapper)
+    patch_embed = backbone_model.backbone.patch_embed
+    assert isinstance(patch_embed, ConvPyramidPatchEmbed)
+    first_conv = patch_embed.convs[0].conv
+    assert isinstance(first_conv, nn.Conv2d)
+    assert first_conv.in_channels == 4
+
+    model.eval()
+    with torch.no_grad():
+        output = model(torch.randn(1, 4, 320, 320))
+    assert output.logits.shape[-1] == 2
 
 
 # ---------------------------------------------------------------------------

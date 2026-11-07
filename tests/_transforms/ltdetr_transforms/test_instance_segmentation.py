@@ -278,25 +278,6 @@ class TestLTDETRInstanceSegmentationTransform:
         assert tr_output["binary_masks"].shape[0] == tr_output["bboxes"].shape[0]
 
 
-class TestLTDETRInstanceSegmentationTrainTransformArgs:
-    def test_resolve_auto_rejects_non_rgb(self) -> None:
-        transform_args = LTDETRInstanceSegmentationTrainTransformArgs(
-            channel_drop=ChannelDropArgs(
-                num_channels_keep=2,
-                weight_drop=(1.0, 1.0, 0.0, 0.0),
-            ),
-        )
-
-        with pytest.raises(
-            RuntimeError,
-            match=(
-                "LT-DETR instance segmentation only supports RGB images but "
-                "num_channels is 2"
-            ),
-        ):
-            transform_args.resolve_auto(model_init_args={})
-
-
 def _make_dataset_item(
     *,
     image_path: str,

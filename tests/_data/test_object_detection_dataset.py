@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import pytest
 from albumentations import BboxParams
 
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDatasetArgs,
 )
+from lightly_train._data.file_helpers import ImageMode
 from lightly_train._data.object_detection_dataset import ObjectDetectionDataset
 from lightly_train._transforms.ltdetr_transforms.object_detection import (
     LTDETRObjectDetectionTransform,
@@ -113,3 +115,68 @@ def test_object_detection_dataset(tmp_path: Path) -> None:
         sample["bboxes"], [[0.5, 0.5, 0.25, 0.25], [0.3, 0.7, 0.1, 0.2]]
     )
     np.testing.assert_array_equal(sample["classes"], [0, 1])
+
+
+@pytest.mark.parametrize(
+    "num_channels, mode, expected_image_mode",
+    [(3, "RGB", ImageMode.RGB), (4, "RGBA", ImageMode.UNCHANGED)],
+)
+def test_object_detection_dataset__num_channels(
+    tmp_path: Path, num_channels: int, mode: str, expected_image_mode: ImageMode
+) -> None:
+    image_dir = tmp_path / "images"
+    create_images(image_dir=image_dir, files=1, num_channels=num_channels, mode=mode)
+    image_info = [
+        {
+            "image_path": str(next(image_dir.glob("*.png"))),
+            "bboxes": json.dumps([]),
+            "class_labels": json.dumps([]),
+        },
+    ]
+    dataset_args = COCOObjectDetectionDatasetArgs(
+        labels=tmp_path / "annotations.json",
+        data_dir=None,
+        classes={0: "cat"},
+        ignore_classes=None,
+        skip_if_annotations_missing=False,
+    )
+
+    dataset = ObjectDetectionDataset(
+        dataset_args=dataset_args,
+        transform=LTDETRObjectDetectionTransform(
+            DummyTransformArgs(num_channels=num_channels)
+        ),
+        image_info=image_info,
+    )
+
+    assert dataset.image_mode == expected_image_mode
+    assert dataset[0]["image"].shape[-1] == num_channels
+
+
+def test_object_detection_dataset__grayscale_tiff(tmp_path: Path) -> None:
+    # PIL loads grayscale TIFFs as (H, W) arrays without a channel axis.
+    image_dir = tmp_path / "images"
+    create_images(image_dir=image_dir, files=["0.tif"], num_channels=0, mode="L")
+    image_info = [
+        {
+            "image_path": str(image_dir / "0.tif"),
+            "bboxes": json.dumps([]),
+            "class_labels": json.dumps([]),
+        },
+    ]
+    dataset_args = COCOObjectDetectionDatasetArgs(
+        labels=tmp_path / "annotations.json",
+        data_dir=None,
+        classes={0: "cat"},
+        ignore_classes=None,
+        skip_if_annotations_missing=False,
+    )
+
+    dataset = ObjectDetectionDataset(
+        dataset_args=dataset_args,
+        transform=LTDETRObjectDetectionTransform(DummyTransformArgs(num_channels=1)),
+        image_info=image_info,
+    )
+
+    assert dataset.image_mode == ImageMode.UNCHANGED
+    assert dataset[0]["image"].shape == (128, 128, 1)

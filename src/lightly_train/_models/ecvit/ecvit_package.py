@@ -114,15 +114,10 @@ class EdgeCrafterPackage(MultiScaleFeaturePackage):
     ) -> ECViTModelWrapper:
         """Build an :class:`ECViTModelWrapper` for the given preset.
 
-        Multi-channel input is intentionally not supported: ``num_input_channels``
-        must be 3. ECViT also does not accept ``model_args`` overrides.
+        Multi-channel input is supported through ``num_input_channels``: the input
+        convolution is built for that many channels, and pretrained RGB weights are
+        adapted to it on load.
         """
-        if num_input_channels != 3:
-            raise ValueError(
-                "ECViT backbones only support 3 input channels, got "
-                f"num_input_channels={num_input_channels}."
-            )
-
         model_name = cls.parse_model_name(model_name=model_name)
         model_info = MODEL_NAME_TO_INFO[model_name]
         preset_name = model_info["preset_name"]
@@ -133,9 +128,15 @@ class EdgeCrafterPackage(MultiScaleFeaturePackage):
                 preset_name=preset_name, model_info=model_info
             )
 
-        return ECViTModelWrapper(
-            name=preset_name, weights_path=weights_path, **(model_args or {})
-        )
+        args: dict[str, Any] = {"num_input_channels": num_input_channels}
+        if model_args is not None:
+            args.update(model_args)
+        # Accept the DINOv3-style ``in_chans`` key. Like in DINOv3, it takes
+        # precedence over ``num_input_channels``.
+        if "in_chans" in args:
+            args["num_input_channels"] = args.pop("in_chans")
+
+        return ECViTModelWrapper(name=preset_name, weights_path=weights_path, **args)
 
     @classmethod
     def get_model_wrapper(cls, model: ECViTModelWrapper) -> ECViTModelWrapper:

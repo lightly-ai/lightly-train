@@ -40,12 +40,8 @@ The following models support multi-channel image input:
 | ------------ | ---------------- | ------------------ |
 | LightlyTrain | DINOv3           |                    |
 | LightlyTrain | DINOv2           |                    |
+| LightlyTrain | EdgeCrafter      |                    |
 | TIMM         | All models       | [🔗](#models-timm) |
-
-```{note}
-EdgeCrafter ECViT models currently support RGB images only and do not support
-multi-channel input.
-```
 
 ## Transforms
 
@@ -54,6 +50,7 @@ The following image transforms are disabled for images that do not have 3 channe
 - `ColorJitter`
 - `RandomGrayscale`
 - `Solarize`
+- `RandomPhotometricDistort` and `Mosaic` (LT-DETR)
 
 If any other transform defaults are incompatible with your data, you can disable them by
 setting the corresponding transform argument to `None`. For example, to disable

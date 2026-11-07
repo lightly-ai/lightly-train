@@ -18,6 +18,30 @@ from torch.nn import Module
 logger = logging.getLogger(__name__)
 
 
+def adjust_conv_input_channels(weight: Tensor, in_chans: int) -> Tensor:
+    """Adjust a conv weight's input channels to ``in_chans`` (drop or repeat)."""
+    weights_in_chans = weight.shape[1]
+    if weights_in_chans > in_chans:
+        logger.info(
+            f"Loading pretrained weights with {weights_in_chans} input channels, "
+            f"but the model has {in_chans} input channels. Keeping only the first "
+            f"{in_chans} channels of the pretrained weights."
+        )
+        return weight[:, :in_chans, :, :]
+    if weights_in_chans < in_chans:
+        logger.info(
+            f"Loading pretrained weights with {weights_in_chans} input channels, "
+            f"but the model has {in_chans} input channels. Repeating the channels "
+            "of the pretrained weights to initialize the extra channels."
+        )
+        repeat_times = in_chans // weights_in_chans
+        remainder = in_chans % weights_in_chans
+        weight = weight.repeat(1, repeat_times, 1, 1)
+        if remainder > 0:
+            weight = torch.cat([weight, weight[:, :remainder, :, :]], dim=1)
+    return weight
+
+
 def patch_embed_adjust_input_channels_hook(
     module: Module,
     state_dict: dict[str, Any],
@@ -28,35 +52,29 @@ def patch_embed_adjust_input_channels_hook(
     """Hook to adjust the number of channels in the state dict to the number of
     channels in the module.
     """
-    in_chans: Tensor = module.in_chans  # type: ignore
+    in_chans: int = module.in_chans  # type: ignore
     proj_weight_key = f"{prefix}proj.weight"
     proj_weight = state_dict.get(proj_weight_key)
     if proj_weight is not None:
-        weights_in_chans = proj_weight.shape[1]
-        if weights_in_chans > in_chans:
-            # Drop last channels
-            logger.info(
-                f"Loading pretrained weights with {weights_in_chans} input channels, "
-                f"but model has {in_chans} input channels. Keeping only the "
-                f"first {in_chans} channels of the pretrained weights."
-            )
-            proj_weight = proj_weight[:, :in_chans, :, :]
-        elif weights_in_chans < in_chans:
-            # Repeat channels to initialize extra channels
-            logger.info(
-                f"Loading pretrained weights with {weights_in_chans} input channels, "
-                f"but model has {in_chans} input channels. Repeating the "
-                "channels of the pretrained weights to initialize the extra "
-                "channels."
-            )
-            repeat_times = in_chans // weights_in_chans
-            remainder = in_chans % weights_in_chans
-            proj_weight = proj_weight.repeat(1, repeat_times, 1, 1)
-            if remainder > 0:
-                proj_weight = torch.cat(
-                    [proj_weight, proj_weight[:, :remainder, :, :]], dim=1
-                )
-        state_dict[proj_weight_key] = proj_weight
+        state_dict[proj_weight_key] = adjust_conv_input_channels(proj_weight, in_chans)
+
+
+def conv_pyramid_patch_embed_adjust_input_channels_hook(
+    module: Module,
+    state_dict: dict[str, Any],
+    prefix: str,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """Hook to adjust input channels for a conv-pyramid patch embed.
+
+    The input conv is ``convs.0.conv``, not a single ``proj``.
+    """
+    in_chans: int = module.in_chans  # type: ignore
+    conv_weight_key = f"{prefix}convs.0.conv.weight"
+    conv_weight = state_dict.get(conv_weight_key)
+    if conv_weight is not None:
+        state_dict[conv_weight_key] = adjust_conv_input_channels(conv_weight, in_chans)
 
 
 def interpolate_pos_embed_hook(
