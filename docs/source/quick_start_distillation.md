@@ -48,20 +48,30 @@ be structured in any way, including subdirectories. If you don't have a dataset 
 you can download an example dataset:
 
 ```bash
-wget https://github.com/lightly-ai/coco128_unlabeled/releases/download/v0.0.1/coco128_unlabeled.zip && unzip -q coco128_unlabeled.zip
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/object_detection.zip && unzip -q object_detection.zip
 ```
 
 See the [data guide](pretrain-data) for more information on supported data formats.
 
-In this example, the dataset looks like this:
+The archive also contains labels, which are only needed later for
+[fine-tuning](#fine-tune). Pretraining uses the images in
+`object_detection/images/train2017`:
 
 ```text
-coco128_unlabeled
-└── images
-    ├── 000000000009.jpg
-    ├── 000000000025.jpg
-    ├── ...
-    └── 000000000650.jpg
+object_detection
+├── config.yaml
+├── images
+│   ├── train2017
+│   │   ├── 000000000009.jpg
+│   │   ├── ...
+│   │   └── 000000000650.jpg
+│   └── val2017
+│       ├── 000000000139.jpg
+│       ├── ...
+│       └── 000000013201.jpg
+└── labels
+    ├── train2017
+    └── val2017
 ```
 
 ## Pretrain with Distillation
@@ -74,7 +84,7 @@ import lightly_train
 # Pretrain the model
 lightly_train.pretrain(
     out="out/my_experiment",  # Output directory
-    data="coco128_unlabeled",  # Directory with images
+    data="object_detection/images/train2017",  # Directory with images
     model="dinov3/vitt16",  # Model to train
     method="distillation",  # Pretraining method
     method_args={
@@ -106,9 +116,9 @@ Lightly**Train** supports many [popular models](pretrain_distill/models/index.md
 out of the box.
 ```
 
-This pretrains a tiny DINOv3 ViT model using images from `coco128_unlabeled`. All
-training logs, model exports, and checkpoints are saved to the output directory at
-`out/my_experiment`.
+This pretrains a tiny DINOv3 ViT model using images from
+`object_detection/images/train2017`. All training logs, model exports, and checkpoints
+are saved to the output directory at `out/my_experiment`.
 
 Once the training is complete, the `out/my_experiment` directory contains the following
 files:
@@ -142,40 +152,9 @@ We'll use Lightly**Train**'s built-in fine-tuning for object detection as an exa
 
 ### Prepare Labeled Data
 
-A labeled dataset is required for fine-tuning. You can download an example dataset from
-here:
-
-```bash
-wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.1/coco128_yolo.zip && unzip -q coco128_yolo.zip
-```
-
-The dataset looks like this after the download completes:
-
-```text
-coco128_yolo
-├── images
-│   ├── train2017
-│   │   ├── 000000000009.jpg
-│   │   ├── 000000000025.jpg
-│   │   ├── ...
-│   │   └── 000000000650.jpg
-│   └── val2017
-│       ├── 000000000139.jpg
-│       ├── 000000000285.jpg
-│       ├── ...
-│       └── 000000013201.jpg
-└── labels
-    ├── train2017
-    │   ├── 000000000009.txt
-    │   ├── 000000000025.txt
-    │   ├── ...
-    │   └── 000000000659.txt
-    └── val2017
-        ├── 000000000139.txt
-        ├── 000000000285.txt
-        ├── ...
-        └── 000000013201.txt
-```
+A labeled dataset is required for fine-tuning. The `object_detection` dataset you
+downloaded in [Prepare Data](#prepare-data) already contains YOLO labels and a
+`config.yaml` with the dataset paths and the 80 COCO class names.
 
 ### Fine-Tune the Pretrained Model
 
@@ -193,95 +172,12 @@ lightly_train.train_object_detection(
     },
     steps=100,  # Small number of steps for demonstration, default is 90_000.
     batch_size=4,  # Small batch size for demonstration, default is 16.
-    data={
-        "path": "coco128_yolo",
-        "train": "images/train2017",
-        "val": "images/val2017",
-        "names": {
-            0: "person",
-            1: "bicycle",
-            2: "car",
-            3: "motorcycle",
-            4: "airplane",
-            5: "bus",
-            6: "train",
-            7: "truck",
-            8: "boat",
-            9: "traffic light",
-            10: "fire hydrant",
-            11: "stop sign",
-            12: "parking meter",
-            13: "bench",
-            14: "bird",
-            15: "cat",
-            16: "dog",
-            17: "horse",
-            18: "sheep",
-            19: "cow",
-            20: "elephant",
-            21: "bear",
-            22: "zebra",
-            23: "giraffe",
-            24: "backpack",
-            25: "umbrella",
-            26: "handbag",
-            27: "tie",
-            28: "suitcase",
-            29: "frisbee",
-            30: "skis",
-            31: "snowboard",
-            32: "sports ball",
-            33: "kite",
-            34: "baseball bat",
-            35: "baseball glove",
-            36: "skateboard",
-            37: "surfboard",
-            38: "tennis racket",
-            39: "bottle",
-            40: "wine glass",
-            41: "cup",
-            42: "fork",
-            43: "knife",
-            44: "spoon",
-            45: "bowl",
-            46: "banana",
-            47: "apple",
-            48: "sandwich",
-            49: "orange",
-            50: "broccoli",
-            51: "carrot",
-            52: "hot dog",
-            53: "pizza",
-            54: "donut",
-            55: "cake",
-            56: "chair",
-            57: "couch",
-            58: "potted plant",
-            59: "bed",
-            60: "dining table",
-            61: "toilet",
-            62: "tv",
-            63: "laptop",
-            64: "mouse",
-            65: "remote",
-            66: "keyboard",
-            67: "cell phone",
-            68: "microwave",
-            69: "oven",
-            70: "toaster",
-            71: "sink",
-            72: "refrigerator",
-            73: "book",
-            74: "clock",
-            75: "vase",
-            76: "scissors",
-            77: "teddy bear",
-            78: "hair drier",
-            79: "toothbrush",
-        },
-    },
+    data="object_detection/config.yaml",
 )
 ```
+
+`data` also accepts a dictionary with the same keys as the YAML file, see
+[object detection data](object-detection-data) for details.
 
 This will load the pretrained model from
 `out/my_experiment/exported_models/exported_last.pt` and fine-tune it on a subset of the
@@ -301,7 +197,7 @@ import lightly_train
 lightly_train.embed(
     out="my_embeddings.pth",  # Exported embeddings
     checkpoint="out/my_experiment/checkpoints/last.ckpt",  # LightlyTrain checkpoint
-    data="coco128_unlabeled",  # Directory with images
+    data="object_detection/images/train2017",  # Directory with images
 )
 ```
 

@@ -53,6 +53,30 @@ requires a few lines of code using the
 function. See [data](#panoptic-segmentation-data) for more details on how to prepare
 your dataset.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+
+```bash
+# The images, annotations and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/panoptic_segmentation.zip && unzip -q panoptic_segmentation.zip
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_panoptic_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitl16-eomt-panoptic-coco",
+        data="panoptic_segmentation/config.yaml",
+        steps=100,  # Small number of steps for demonstration, default is 90_000.
+        batch_size=4,  # Small batch size for demonstration, default is 16.
+    )
+```
+
+`data` also accepts a dictionary with the same keys as the YAML file, which is useful if
+you want to set them programmatically. See [Data](#panoptic-segmentation-data) for
+details:
+
 ```python
 import lightly_train
 
@@ -190,8 +214,9 @@ details.
 
 The `data` argument accepts either a dictionary or a path to a YAML file containing the
 same configuration. When loading from YAML, relative paths are resolved relative to the
-YAML file. Unknown top-level YAML keys are ignored, but unknown nested keys still raise
-a validation error. Training uses the `train` and `val` splits.
+YAML file, while relative paths in a dictionary are resolved relative to the current
+working directory. Unknown top-level YAML keys are ignored, but unknown nested keys
+still raise a validation error. Training uses the `train` and `val` splits.
 
 The following image formats are supported:
 

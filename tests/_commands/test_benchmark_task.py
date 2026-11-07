@@ -21,6 +21,7 @@ import lightly_train
 from lightly_train._commands.benchmark_backends import TorchBackend
 from lightly_train._commands.benchmark_task import (
     _create_val_dataloader,
+    _get_model_class_to_data_internal_class,
     benchmark_object_detection,
 )
 from lightly_train._commands.benchmark_types import (
@@ -87,10 +88,11 @@ def _create_coco_data_dict(tmp_path: Path) -> dict[str, Any]:
 class _FakeObjectDetectionPostprocessor(ObjectDetectionPostprocessor):
     """Records the metadata it is handed and returns one fixed detection per image."""
 
-    def __init__(self) -> None:
+    def __init__(self, pred_label: int = 0) -> None:
         super().__init__(
             num_top_queries=1, internal_class_to_class=torch.tensor([0, 1])
         )
+        self.pred_label = pred_label
         self.last_metadata: Sequence[ObjectDetectionMetadata] | None = None
 
     def postprocess(  # type: ignore[override]
@@ -102,7 +104,7 @@ class _FakeObjectDetectionPostprocessor(ObjectDetectionPostprocessor):
         self.last_metadata = metadata
         return [
             ObjectDetectionPrediction(
-                labels=torch.tensor([0]),
+                labels=torch.tensor([self.pred_label]),
                 bboxes=torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
                 scores=torch.tensor([0.9]),
             )
@@ -115,7 +117,9 @@ class _FakeObjectDetectionModel(TaskModel):
 
     model_suffix = ".pt"
 
-    def __init__(self) -> None:
+    def __init__(
+        self, classes: dict[int, str] | None = None, pred_label: int = 0
+    ) -> None:
         super().__init__(
             init_args={
                 "self": self,
@@ -123,12 +127,13 @@ class _FakeObjectDetectionModel(TaskModel):
                 "image_size": (64, 64),
             },
         )
+        self.classes = classes if classes is not None else {0: "class_0", 1: "class_1"}
         self.preprocessor = ObjectDetectionPreprocessor(
             image_size=(64, 64),
             image_normalize=None,
             expected_input_channels=3,
         )
-        self.postprocessor = _FakeObjectDetectionPostprocessor()
+        self.postprocessor = _FakeObjectDetectionPostprocessor(pred_label=pred_label)
 
     def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
         # The fake postprocessor ignores the outputs, they only have to be a valid
@@ -137,90 +142,6 @@ class _FakeObjectDetectionModel(TaskModel):
         return ObjectDetectionBatchOutput(
             logits=torch.zeros(num_rows, 1, 2), boxes=torch.zeros(num_rows, 1, 4)
         )
-
-
-class _NonContiguousFakeObjectDetectionPostprocessor(ObjectDetectionPostprocessor):
-    """Like _FakeObjectDetectionPostprocessor, but with a non-identity, non-contiguous
-    internal_class_to_class mapping, and predictions matching the ground truth boxes
-    of _create_non_contiguous_coco_data_dict exactly.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            num_top_queries=1, internal_class_to_class=torch.tensor([5, 12])
-        )
-
-    def postprocess(  # type: ignore[override]
-        self,
-        raw: Any,
-        metadata: Sequence[ObjectDetectionMetadata],
-        threshold: float,
-    ) -> list[ObjectDetectionPrediction]:
-        return [
-            ObjectDetectionPrediction(
-                labels=torch.tensor([5]),
-                bboxes=torch.tensor([[10.0, 10.0, 40.0, 50.0]]),
-                scores=torch.tensor([0.9]),
-            )
-            for _ in metadata
-        ]
-
-
-class _NonContiguousFakeObjectDetectionModel(TaskModel):
-    """Minimal TaskModel subclass whose ground-truth-matching predictions are only
-    correct if targets are mapped from internal to user-facing class ids.
-    """
-
-    model_suffix = ".pt"
-
-    def __init__(self) -> None:
-        super().__init__(
-            init_args={
-                "self": self,
-                "__class__": type(self),
-                "image_size": (64, 64),
-            },
-        )
-        self.preprocessor = ObjectDetectionPreprocessor(
-            image_size=(64, 64),
-            image_normalize=None,
-            expected_input_channels=3,
-        )
-        self.postprocessor = _NonContiguousFakeObjectDetectionPostprocessor()
-
-    def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
-        num_rows = images.shape[0]
-        return ObjectDetectionBatchOutput(
-            logits=torch.zeros(num_rows, 1, 2), boxes=torch.zeros(num_rows, 1, 4)
-        )
-
-
-def _create_non_contiguous_coco_data_dict(tmp_path: Path) -> dict[str, Any]:
-    """Like _create_coco_data_dict, but with non-contiguous category ids so that
-    internal class ids (0, 1, ...) differ from user-facing category ids (5, 12).
-    """
-    helpers.create_coco_object_detection_dataset(
-        tmp_path / "dataset",
-        num_files=2,
-        height=128,
-        width=128,
-        classes={5: "cat", 12: "dog"},
-        annotations_per_image=[
-            [{"category_id": 5, "bbox": [10, 10, 30, 40]}],
-            [{"category_id": 5, "bbox": [10, 10, 30, 40]}],
-        ],
-    )
-    return {
-        "format": "coco",
-        "train": {
-            "annotations": str(tmp_path / "dataset" / "train.json"),
-            "images": "train",
-        },
-        "val": {
-            "annotations": str(tmp_path / "dataset" / "val.json"),
-            "images": "val",
-        },
-    }
 
 
 def _preprocessor() -> ObjectDetectionPreprocessor:
@@ -446,6 +367,44 @@ class TestBenchmarkObjectDetectionConfig:
         assert config.data.names == {0: "class_a"}
 
 
+class TestGetModelClassToDataInternalClass:
+    def test_same_class_ids(self) -> None:
+        table = _get_model_class_to_data_internal_class(
+            model_classes={1: "cat", 2: "dog"},
+            data_classes={1: "cat", 2: "dog"},
+        )
+        torch.testing.assert_close(table, torch.tensor([-1, 0, 1]))
+
+    def test_matches_by_name_across_different_ids(self) -> None:
+        # COCO checkpoints use ids 0..79, COCO annotation files use 1..90.
+        table = _get_model_class_to_data_internal_class(
+            model_classes={0: "person", 1: "bicycle", 2: "car"},
+            data_classes={1: "person", 2: "bicycle", 3: "car"},
+        )
+        torch.testing.assert_close(table, torch.tensor([0, 1, 2]))
+
+    def test_model_class_not_in_data(self) -> None:
+        table = _get_model_class_to_data_internal_class(
+            model_classes={0: "cat", 1: "dog"},
+            data_classes={5: "dog"},
+        )
+        torch.testing.assert_close(table, torch.tensor([-1, 0]))
+
+    def test_duplicate_data_class_names(self) -> None:
+        with pytest.raises(ValueError, match="'object'"):
+            _get_model_class_to_data_internal_class(
+                model_classes={0: "object"},
+                data_classes={10: "object", 20: "object"},
+            )
+
+    def test_data_class_not_in_model(self) -> None:
+        with pytest.raises(ValueError, match="'bird'"):
+            _get_model_class_to_data_internal_class(
+                model_classes={0: "cat"},
+                data_classes={0: "cat", 1: "bird"},
+            )
+
+
 class TestBenchmarkObjectDetectionE2E:
     def test_benchmark_with_fake_model(self, tmp_path: Path) -> None:
         data_dict = _create_coco_data_dict(tmp_path)
@@ -514,24 +473,43 @@ class TestBenchmarkObjectDetectionE2E:
         assert "# Benchmark Report" in summary
         assert "mAP" in summary
 
-    def test_benchmark_with_non_contiguous_class_ids(self, tmp_path: Path) -> None:
-        # Predictions use user-facing class ids (5, 12), mapped from internal ids by
-        # the postprocessor. Targets must be mapped into the same space, otherwise
-        # they never match the predictions and mAP is always 0, even for a model that
-        # predicts the ground truth boxes/classes exactly.
-        data_dict = _create_non_contiguous_coco_data_dict(tmp_path)
-        model = _NonContiguousFakeObjectDetectionModel()
+    def test_benchmark_with_class_ids_starting_at_one(self, tmp_path: Path) -> None:
+        helpers.create_coco_object_detection_dataset(
+            tmp_path / "dataset",
+            num_files=2,
+            height=128,
+            width=128,
+            classes={1: "cat", 2: "dog"},
+            annotations_per_image=[
+                [{"category_id": 1, "bbox": [10, 10, 30, 40]}],
+                [{"category_id": 1, "bbox": [10, 10, 30, 40]}],
+            ],
+        )
+        data_dict = {
+            "format": "coco",
+            "train": {
+                "annotations": str(tmp_path / "dataset" / "train.json"),
+                "images": "train",
+            },
+            "val": {
+                "annotations": str(tmp_path / "dataset" / "val.json"),
+                "images": "val",
+            },
+        }
+        # The model predicts "cat" with its own class id 1. The dataset maps
+        # "cat" to internal class id 0.
+        model = _FakeObjectDetectionModel(classes={1: "cat", 2: "dog"}, pred_label=1)
 
         result = benchmark_object_detection(
             out=str(tmp_path / "out"),
-            dataset_name="test-coco-non-contiguous",
+            dataset_name="test-coco",
             data=data_dict,
             model=model,
             batch_size=2,
             overwrite=True,
         )
 
-        assert result.metric_values["val_metric/map"] > 0.5
+        assert result.metric_values["val_metric/map"] == pytest.approx(1.0)
 
     def test_benchmark_with_yaml_resolves_paths_relative_to_yaml(
         self, tmp_path: Path

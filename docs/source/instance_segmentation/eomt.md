@@ -49,6 +49,30 @@ requires a few lines of code using the
 function. See [data](#instance-segmentation-eomt-data) for more details on how to
 prepare your dataset.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+
+```bash
+# The images, labels and the config file for this task.
+wget https://github.com/lightly-ai/coco128_yolo/releases/download/v0.0.3/instance_segmentation.zip && unzip -q instance_segmentation.zip
+```
+
+```python
+import lightly_train
+
+if __name__ == "__main__":
+    lightly_train.train_instance_segmentation(
+        out="out/my_experiment",
+        model="dinov3/vitl16-eomt-inst-coco",
+        data="instance_segmentation/config.yaml",
+        steps=100,  # Small number of steps for demonstration, default is 90_000.
+        batch_size=4,  # Small batch size for demonstration, default is 16.
+    )
+```
+
+`data` also accepts a dictionary with the same keys as the YAML file, which is useful if
+you want to set them programmatically. See [Data](#instance-segmentation-eomt-data) for
+details:
+
 ```python
 import lightly_train
 
@@ -234,10 +258,11 @@ lightly_train.train_instance_segmentation(
 
 The `format` key is optional and defaults to `"yolo"` if omitted. Instead of a
 dictionary, you can also pass a path to a YAML file containing the same configuration.
-Relative paths in YAML-backed configs are resolved relative to the YAML file. Unknown
-top-level YAML keys are ignored, but unknown nested keys still raise a validation error.
-Training uses the `train` and `val` splits; optional `test` entries are accepted by the
-data config for compatibility but are not used during training.
+Relative paths in YAML-backed configs are resolved relative to the YAML file, while
+relative paths in a dictionary are resolved relative to the current working directory.
+Unknown top-level YAML keys are ignored, but unknown nested keys still raise a
+validation error. Training uses the `train` and `val` splits; optional `test` entries
+are accepted by the data config for compatibility but are not used during training.
 
 If you would like to skip specific classes during training, add their IDs to the
 optional `ignore_classes` list. The trainer omits these classes from loss computation

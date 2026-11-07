@@ -43,6 +43,7 @@ from lightly_train._commands.benchmark_types import (
 )
 from lightly_train._configs import validate
 from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train._data import label_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
@@ -175,6 +176,19 @@ def _benchmark_object_detection_from_config(
     # Set up validation data.
     data_arg_helpers.resolve_data_paths(config.data)
     data_args = config.data
+
+    # Match model and dataset classes before loading the dataset, so that a
+    # mismatch fails fast.
+    model_classes = getattr(model, "classes", None)
+    if not isinstance(model_classes, dict):
+        raise ValueError(
+            f"Model of type {type(model).__name__} must have a 'classes' dict "
+            f"attribute, got {type(model_classes).__name__}."
+        )
+    model_class_to_data_internal_class = _get_model_class_to_data_internal_class(
+        model_classes=model_classes, data_classes=data_args.included_classes
+    )
+
     num_workers = common_helpers.get_num_workers(
         num_workers=config.num_workers, num_devices_per_node=1
     )
@@ -270,18 +284,19 @@ def _benchmark_object_detection_from_config(
             predictions, t_infer = backend.run_batch(batch=batch)
             batch_times.append(t_infer)
 
-            metric_preds = [
-                prediction.to(device="cpu").to_torchmetrics()
-                for prediction in predictions
-            ]
-            # batch["classes"] holds internal, contiguous class ids (see
-            # COCOObjectDetectionDatasetArgs.list_image_info), while predictions are
-            # already mapped to user-facing class ids by the postprocessor. Map targets
-            # into the same space so update_with_predictions compares like with like.
-            internal_class_to_class = postprocessor.internal_class_to_class.cpu()
+            # Map labels to internal dataset class ids. Drop predictions for model
+            # classes that are not in the dataset.
+            metric_preds = []
+            for prediction in predictions:
+                prediction = prediction.to(device="cpu").map_labels(
+                    model_class_to_data_internal_class
+                )
+                metric_preds.append(
+                    prediction[prediction.labels >= 0].to_torchmetrics()
+                )
             targets = targets_to_torchmetrics(
                 bboxes=batch["bboxes"],
-                classes=[internal_class_to_class[c] for c in batch["classes"]],
+                classes=batch["classes"],
                 original_sizes=batch["original_size"],
             )
             metric.update_with_predictions(metric_preds, targets)
@@ -523,6 +538,48 @@ def _create_val_dataloader(
             preprocessor=preprocessor, sahi_config=sahi_config
         ),
     )
+
+
+def _get_model_class_to_data_internal_class(
+    model_classes: dict[int, str], data_classes: dict[int, str]
+) -> Tensor:
+    """Returns a lookup table from model class id to internal dataset class id.
+
+    Predictions hold the model's class ids, while targets hold internal dataset
+    class ids in [0, num_data_classes - 1]. Classes are matched by name because
+    the model and the dataset can use different ids for the same class. For
+    example, COCO checkpoints use ids 0-79 and COCO annotation files use ids 1-90.
+    Model classes that are not in the dataset map to -1.
+    """
+    data_class_names = list(data_classes.values())
+    duplicates = sorted(
+        {name for name in data_class_names if data_class_names.count(name) > 1}
+    )
+    if duplicates:
+        raise ValueError(
+            f"Dataset class names {duplicates} are not unique. The benchmark matches "
+            "dataset and model classes by name, so dataset class names must be unique."
+        )
+    model_class_names = set(model_classes.values())
+    missing = [name for name in data_classes.values() if name not in model_class_names]
+    if missing:
+        raise ValueError(
+            f"Dataset classes {missing} are not in the model classes "
+            f"{sorted(model_class_names)}. The benchmark matches dataset and model "
+            "classes by name."
+        )
+    # Use the same mapping as the dataset to get the internal class ids.
+    class_to_internal_class = label_helpers.get_class_id_to_internal_class_id_mapping(
+        class_ids=data_classes.keys(), ignore_classes=None
+    )
+    name_to_internal_class = {
+        data_classes[class_id]: internal_class
+        for class_id, internal_class in class_to_internal_class.items()
+    }
+    table = torch.full((max(model_classes) + 1,), -1, dtype=torch.long)
+    for class_id, name in model_classes.items():
+        table[class_id] = name_to_internal_class.get(name, -1)
+    return table
 
 
 def _create_metric(

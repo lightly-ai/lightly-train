@@ -14,7 +14,6 @@ from pathlib import Path
 import pytest
 import torch
 from lightning_fabric import Fabric
-from lightning_utilities.core.imports import RequirementCache
 from pytest_mock import MockerFixture
 from torch import nn
 
@@ -22,10 +21,7 @@ from lightly_train import __version__
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
-from lightly_train._export.onnx_helpers import (
-    _TORCH_DIM_HINTS_AVAILABLE,
-    _TORCH_DIM_HINTS_MIN_VERSION,
-)
+from lightly_train._export.onnx_helpers import TORCH_DIM_HINTS_AVAILABLE
 from lightly_train._license import LICENSE_INFO
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
 from lightly_train._pre_post_processing.object_detection import (
@@ -185,10 +181,7 @@ def test_transform_args_resolve_auto__requires_config_image_size(
         transform_args.resolve_auto(model_init_args={})
 
 
-@pytest.mark.skipif(
-    not _TORCH_DIM_HINTS_AVAILABLE,
-    reason=f"torch >= {_TORCH_DIM_HINTS_MIN_VERSION} required",
-)
+@pytest.mark.requires(TORCH_DIM_HINTS_AVAILABLE)
 def test_model_input_spec__uses_channels_and_image_size() -> None:
     model = PicoDetObjectDetection(
         model_name="picodet/s-416",
@@ -235,10 +228,7 @@ def test_onnx_export_metadata() -> None:
     assert "image_size" not in metadata
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     import onnx
 
@@ -259,10 +249,7 @@ def test_export_onnx_has_no_nms(tmp_path: Path) -> None:
     assert "If" not in op_types
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
     import onnx
@@ -308,10 +295,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     assert close_boxes.float().mean() > 0.95
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = PicoDetObjectDetection(
         model_name="picodet/s-416",
@@ -327,10 +311,7 @@ def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
     model = PicoDetObjectDetection(
         model_name="picodet/s-416",

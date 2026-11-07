@@ -10,6 +10,10 @@ from __future__ import annotations
 import pytest
 import torch
 
+from lightly_train._metrics.detection.task_metric import (
+    ObjectDetectionTaskMetric,
+    ObjectDetectionTaskMetricArgs,
+)
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionBatchOutput,
     ObjectDetectionBatchPrediction,
@@ -19,6 +23,7 @@ from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionPreprocessor,
     ObjectDetectionSAHIConfig,
     ObjectDetectionTiling,
+    decode_object_detection_output,
     targets_to_torchmetrics,
     yolo_to_xyxy,
 )
@@ -687,6 +692,59 @@ class TestObjectDetectionBatchPrediction:
 
         assert merged.num_detections == 0
         assert merged.bboxes.shape == (0, 4)
+
+
+@pytest.mark.parametrize(
+    "class_ids",
+    [
+        [0, 1, 2],
+        [1, 2, 3],  # COCO-style ids starting at 1.
+        [0, 2, 5],  # Gapped ids.
+    ],
+)
+def test_decode_object_detection_output__perfect_predictions_give_full_map(
+    class_ids: list[int],
+) -> None:
+    num_classes = len(class_ids)
+    num_queries = 10
+    image_size = 100
+
+    # One ground truth box per class. Targets hold internal class ids, as the
+    # dataset emits them.
+    internal_labels = torch.arange(num_classes)
+    boxes_cxcywh = torch.tensor(
+        [[0.2 + 0.25 * i, 0.5, 0.1, 0.1] for i in range(num_classes)]
+    )
+    boxes_xyxy = torch.cat(
+        [
+            boxes_cxcywh[:, :2] - boxes_cxcywh[:, 2:] / 2,
+            boxes_cxcywh[:, :2] + boxes_cxcywh[:, 2:] / 2,
+        ],
+        dim=1,
+    )
+    targets = [{"boxes": boxes_xyxy * image_size, "labels": internal_labels}]
+
+    # Query i predicts ground truth box i with its class and high confidence.
+    pred_logits = torch.full((1, num_queries, num_classes), -10.0)
+    pred_logits[0, internal_labels, internal_labels] = 10.0
+    pred_boxes = torch.full((1, num_queries, 4), 0.05)
+    pred_boxes[0, :num_classes] = boxes_cxcywh
+
+    results = decode_object_detection_output(
+        raw=ObjectDetectionBatchOutput(logits=pred_logits, boxes=pred_boxes),
+        target_sizes=torch.tensor([[image_size, image_size]]),
+        num_top_queries=num_queries,
+    ).to_torchmetrics_list()
+
+    metric = ObjectDetectionTaskMetric(
+        task_metric_args=ObjectDetectionTaskMetricArgs(),
+        split="val",
+        class_names=[f"class_{class_id}" for class_id in class_ids],
+        box_format="xyxy",
+        loss_names=[],
+    )
+    metric.update_with_predictions(results, targets)
+    assert metric.compute_aggregated_values().watch_metric_value == pytest.approx(1.0)
 
 
 def test_yolo_to_xyxy_accepts_1d_box() -> None:

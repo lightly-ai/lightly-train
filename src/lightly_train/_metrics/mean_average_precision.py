@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal
 
+from lightning_utilities.core.imports import RequirementCache
 from torch import Tensor
 from torchmetrics import Metric as TorchmetricsMetric
 from torchmetrics.detection.mean_ap import (
@@ -19,13 +20,46 @@ from torchmetrics.detection.mean_ap import (
 
 from lightly_train._metrics.metric_args import MetricArgs
 
+# Use the same requirement string as torchmetrics' own _FASTER_COCO_EVAL_AVAILABLE so
+# that our check can never disagree with the backend validation inside torchmetrics.
+FASTER_COCO_EVAL_AVAILABLE = RequirementCache("faster_coco_eval")
+
+
+def get_default_backend(
+    iou_type: Literal["bbox", "segm"] | tuple[Literal["bbox", "segm"], ...],
+) -> Literal["pycocotools", "faster_coco_eval"]:
+    """Returns the mAP backend to use when the backend is set to "auto".
+
+    faster_coco_eval is a C++ reimplementation of COCOeval. Both backends return
+    identical values, but they have very different performance characteristics:
+
+    - The COCOeval part, which runs in a single blocking call at the end of every
+      validation run, is ~5x faster with faster_coco_eval.
+    - The mask RLE encoding, which runs on every update and therefore only matters for
+      iou_type="segm", is ~25% slower with faster_coco_eval.
+
+    For "bbox" there is no mask encoding, so faster_coco_eval is a clear win. For
+    "segm" the encoding dominates the total cost because masks are encoded at full
+    image resolution for every instance, which makes faster_coco_eval a net loss.
+    Hence we only default to it when no mask encoding is involved. Users can still
+    select either backend explicitly.
+    """
+    if not FASTER_COCO_EVAL_AVAILABLE:
+        return "pycocotools"
+    iou_types = (iou_type,) if isinstance(iou_type, str) else tuple(iou_type)
+    if "segm" in iou_types:
+        return "pycocotools"
+    return "faster_coco_eval"
+
 
 class MeanAveragePrecisionArgs(MetricArgs):
     iou_thresholds: list[float] | None = None
     rec_thresholds: list[float] | None = None
     max_detection_thresholds: list[int] | None = None
     average: Literal["macro", "micro"] = "macro"
-    backend: Literal["pycocotools", "faster_coco_eval"] = "pycocotools"
+    # "auto" picks the fastest backend available for the given iou_type, see
+    # get_default_backend.
+    backend: Literal["auto", "pycocotools", "faster_coco_eval"] = "auto"
 
     def get_torchmetrics_instances(
         self,
@@ -56,7 +90,7 @@ class MeanAveragePrecisionArgs(MetricArgs):
             iou_thresholds=self.iou_thresholds,
             rec_thresholds=self.rec_thresholds,
             max_detection_thresholds=self.max_detection_thresholds,
-            backend=self.backend,
+            backend=None if self.backend == "auto" else self.backend,
             average=self.average,
         )
         map_metric.warn_on_many_detections = False  # type: ignore[attr-defined]
@@ -111,9 +145,11 @@ class MeanAveragePrecision(TorchmetricsMeanAveragePrecision):
         class_metrics: bool = False,
         extended_summary: bool = False,
         average: Literal["macro", "micro"] = "macro",
-        backend: Literal["pycocotools", "faster_coco_eval"] = "pycocotools",
+        backend: Literal["pycocotools", "faster_coco_eval"] | None = None,
         **kwargs: Any,
     ) -> None:
+        if backend is None:
+            backend = get_default_backend(iou_type=iou_type)
         super().__init__(
             box_format=box_format,
             iou_type=iou_type,  # type: ignore

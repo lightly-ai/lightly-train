@@ -22,6 +22,12 @@ from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
 from lightly_train._metrics.detection.task_metric import ObjectDetectionTaskMetricArgs
+from lightly_train._models.dinov2_vit.dinov2_vit_src.configs import (
+    MODELS as DINOV2_MODELS,
+)
+from lightly_train._models.dinov3.dinov3_package import (
+    MODEL_NAME_TO_INFO as DINOV3_MODEL_NAME_TO_INFO,
+)
 from lightly_train._pre_post_processing.object_detection import (
     ObjectDetectionBatchOutput,
     ObjectDetectionMetadata,
@@ -328,6 +334,150 @@ def test_resolve_transformer_config__selects_decoder_family(
     )
 
     assert isinstance(transformer_config, expected_config_type)
+
+
+@pytest.mark.parametrize(
+    ("notpretrained_alias", "pretrained_alias", "expected_backbone_name"),
+    [
+        # DINOv3 ConvNeXt sizes: previously had no "-notpretrained-ltdetr" alias at
+        # all. See https://github.com/lightly-ai/lightly-train/issues/933.
+        (
+            "dinov3/convnext-tiny-notpretrained-ltdetr",
+            "dinov3/convnext-tiny-ltdetr",
+            "dinov3/convnext-tiny-notpretrained",
+        ),
+        (
+            "dinov3/convnext-small-notpretrained-ltdetr",
+            "dinov3/convnext-small-ltdetr",
+            "dinov3/convnext-small-notpretrained",
+        ),
+        (
+            "dinov3/convnext-base-notpretrained-ltdetr",
+            "dinov3/convnext-base-ltdetr",
+            "dinov3/convnext-base-notpretrained",
+        ),
+        (
+            "dinov3/convnext-large-notpretrained-ltdetr",
+            "dinov3/convnext-large-ltdetr",
+            "dinov3/convnext-large-notpretrained",
+        ),
+        # DINOv3 ViT-tiny: alias existed but was broken, pointing to the same class
+        # as the pretrained alias (silently still loaded pretrained weights).
+        (
+            "dinov3/vitt16-notpretrained-ltdetr",
+            "dinov3/vitt16-ltdetr",
+            "dinov3/vitt16-notpretrained",
+        ),
+        # DINOv3 ViT-tiny+/small/base/large: previously had no alias at all.
+        (
+            "dinov3/vitt16plus-notpretrained-ltdetr",
+            "dinov3/vitt16plus-ltdetr",
+            "dinov3/vitt16plus-notpretrained",
+        ),
+        (
+            "dinov3/vits16-notpretrained-ltdetr",
+            "dinov3/vits16-ltdetr",
+            "dinov3/vits16-notpretrained",
+        ),
+        (
+            "dinov3/vitb16-notpretrained-ltdetr",
+            "dinov3/vitb16-ltdetr",
+            "dinov3/vitb16-notpretrained",
+        ),
+        (
+            "dinov3/vitl16-notpretrained-ltdetr",
+            "dinov3/vitl16-ltdetr",
+            "dinov3/vitl16-notpretrained",
+        ),
+        # Bonus fix: DINOv2 legacy no-registers variant, requested in the issue.
+        (
+            "dinov2/vits14-noreg-notpretrained-ltdetr",
+            "dinov2/vits14-noreg-ltdetr",
+            "dinov2/vits14-noreg-notpretrained",
+        ),
+    ],
+)
+def test_notpretrained_ltdetr_alias__resolves_to_distinct_backbone(
+    notpretrained_alias: str,
+    pretrained_alias: str,
+    expected_backbone_name: str,
+) -> None:
+    # Regression test for https://github.com/lightly-ai/lightly-train/issues/933:
+    # a "-notpretrained-ltdetr" alias must resolve to its own config class (not the
+    # pretrained class) and that class must point at a backbone entry with no
+    # pretrained weights.
+    notpretrained_cls = LTDETR_MODEL_REGISTRY.get(alias=notpretrained_alias)
+    pretrained_cls = LTDETR_MODEL_REGISTRY.get(alias=pretrained_alias)
+
+    assert notpretrained_cls is not pretrained_cls
+
+    notpretrained_config = notpretrained_cls()
+    assert notpretrained_config.backbone_name == expected_backbone_name
+    assert notpretrained_config.backbone_name != pretrained_cls().backbone_name
+
+    package_name, backbone_name = notpretrained_config.backbone_name.split("/", 1)
+    if package_name == "dinov3":
+        assert DINOV3_MODEL_NAME_TO_INFO[backbone_name]["default_weights"] is None
+    elif package_name == "dinov2":
+        assert DINOV2_MODELS[backbone_name]["url"] == ""
+
+
+@pytest.mark.parametrize(
+    ("eupe_alias", "plain_alias", "expected_backbone_name"),
+    [
+        # Regression for https://github.com/lightly-ai/lightly-train/issues/980:
+        # "-eupe-ltdetr" aliases were registered on the plain config class, so they
+        # silently loaded non-EUPE weights despite the name (and docs) promising EUPE.
+        (
+            "dinov3/convnext-tiny-eupe-ltdetr",
+            "dinov3/convnext-tiny-ltdetr",
+            "dinov3/convnext-tiny-eupe",
+        ),
+        (
+            "dinov3/convnext-small-eupe-ltdetr",
+            "dinov3/convnext-small-ltdetr",
+            "dinov3/convnext-small-eupe",
+        ),
+        (
+            "dinov3/convnext-base-eupe-ltdetr",
+            "dinov3/convnext-base-ltdetr",
+            "dinov3/convnext-base-eupe",
+        ),
+        (
+            "dinov3/vitt16-eupe-ltdetr",
+            "dinov3/vitt16-ltdetr",
+            "dinov3/vitt16-eupe",
+        ),
+        (
+            "dinov3/vits16-eupe-ltdetr",
+            "dinov3/vits16-ltdetr",
+            "dinov3/vits16-eupe",
+        ),
+        (
+            "dinov3/vitb16-eupe-ltdetr",
+            "dinov3/vitb16-ltdetr",
+            "dinov3/vitb16-eupe",
+        ),
+    ],
+)
+def test_eupe_ltdetr_alias__resolves_to_distinct_backbone(
+    eupe_alias: str,
+    plain_alias: str,
+    expected_backbone_name: str,
+) -> None:
+    eupe_cls = LTDETR_MODEL_REGISTRY.get(alias=eupe_alias)
+    plain_cls = LTDETR_MODEL_REGISTRY.get(alias=plain_alias)
+
+    assert eupe_cls is not plain_cls
+
+    eupe_config = eupe_cls()
+    assert eupe_config.backbone_name == expected_backbone_name
+    assert eupe_config.backbone_name != plain_cls().backbone_name
+
+    package_name, backbone_name = eupe_config.backbone_name.split("/", 1)
+    assert package_name == "dinov3"
+    assert backbone_name in DINOV3_MODEL_NAME_TO_INFO
+    assert backbone_name.endswith("-eupe")
 
 
 @pytest.mark.parametrize(
@@ -898,10 +1048,7 @@ def test_predict_sahi_batch__rejects_empty_input() -> None:
         model.predict_sahi_batch([])
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     import numpy as np
     import onnx
@@ -935,10 +1082,7 @@ def test_export_onnx__dynamic_batch_size(tmp_path: Path) -> None:
     assert_onnx_outputs_close(onnx_outputs, torch_outputs)
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__checks(tmp_path: Path) -> None:
     # The graph must pass the full ONNX checker, which requires the dynamo
     # shape-annotation repair. It must also not contain a GridSample op: TensorRT
@@ -964,10 +1108,7 @@ def test_export_onnx__checks(tmp_path: Path) -> None:
     assert "GridSample" not in op_types
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
+@pytest.mark.requires("onnx", "onnxruntime")
 def test_export_onnx__static_batch_size(tmp_path: Path) -> None:
     model = LTDETRObjectDetection(
         model_name="dinov3/vitt16-notpretrained-ltdetr",
@@ -1000,14 +1141,9 @@ def test_export_onnx__rejects_shape_overrides(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.skipif(
-    not RequirementCache(module="migraphx"), reason="migraphx not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+# migraphx is installed with apt and has no package metadata.
+@pytest.mark.requires(RequirementCache(module="migraphx"), "onnx", "onnxruntime")
+@pytest.mark.gpu
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
     import migraphx  # type: ignore[import-not-found]
@@ -1055,11 +1191,8 @@ def test_export_migraphx(tmp_path: Path, batch_size: int) -> None:
     )
 
 
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU.")
+@pytest.mark.requires("onnx", "onnxruntime")
+@pytest.mark.gpu
 @pytest.mark.parametrize("decoder_name", ["rtdetrv2", "dfine"])
 def test_export_onnx__fp16(
     tmp_path: Path, decoder_name: Literal["rtdetrv2", "dfine"]

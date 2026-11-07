@@ -28,16 +28,18 @@ Modified from https://huggingface.co/spaces/Hila/RobustViT/blob/main/ViT/ViT_new
 - Ported the ECViT backbone adapter to Lightly.
 - Removed EdgeCrafter registry/distributed dependencies.
 - Added typed LTDETR-compatible tuple output.
+- Added opt-in activation checkpointing for the transformer blocks.
+- Added a configurable `depth` and a tiny "ecvittest" preset for fast tests.
 """
 
 from __future__ import annotations
 
 import math
 import warnings
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, List, cast
 
 import torch
 import torch.nn as nn
@@ -55,7 +57,7 @@ from lightly_train._models.model_wrapper import (
     ArchitectureInfoGettable,
     ForwardFeaturesOutput,
     ForwardPoolOutput,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
     SupportsActivationCheckpointing,
 )
 from lightly_train._task_models.object_detection_components.hybrid_encoder import (
@@ -74,7 +76,7 @@ ECVIT_PRETRAINED_URLS: dict[str, str] = {
 }
 
 
-ECVIT_PRESETS: dict[str, dict[str, int | None | float]] = {
+ECVIT_PRESETS: dict[str, dict[str, int | None | float | list[int]]] = {
     "ecvitt": {
         "embed_dim": 192,
         "num_heads": 3,
@@ -98,6 +100,17 @@ ECVIT_PRESETS: dict[str, dict[str, int | None | float]] = {
         "num_heads": 6,
         "proj_dim": 256,
         "ffn_ratio": 6.0,
+    },
+    # Genuinely tiny preset for fast tests: small width and depth, unlike the
+    # "-notpretrained" variants of the presets above, which only skip weight
+    # loading and keep the full production-sized architecture.
+    "ecvittest": {
+        "embed_dim": 8,
+        "num_heads": 1,
+        "proj_dim": None,
+        "ffn_ratio": 1.0,
+        "depth": 2,
+        "interaction_indexes": [0, 1],
     },
 }
 
@@ -439,7 +452,7 @@ class VisionTransformer(nn.Module):
 
 class ECViTModelWrapper(
     nn.Module,
-    ModelWrapper,
+    MultiScaleFeatureCNN,
     ArchitectureInfoGettable,
     SupportsActivationCheckpointing,
 ):
@@ -448,6 +461,8 @@ class ECViTModelWrapper(
     The forward path intentionally follows EdgeCrafter's ECViT adapter:
     selected ECViT token outputs are averaged, reshaped to a spatial map,
     interpolated to three levels, projected, and returned as ``(P3, P4, P5)``.
+    The same pyramid is exposed through the multi-scale feature interface via
+    ``forward_multiscale_features``.
     """
 
     def __init__(
@@ -463,6 +478,7 @@ class ECViTModelWrapper(
         embed_layer: str = "ConvPyramidPatchEmbed",
         ffn_layer: str = "mlp",
         ffn_ratio: float | object = _DEFAULT,
+        depth: int | object = _DEFAULT,
         skip_load_backbone: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -504,7 +520,12 @@ class ECViTModelWrapper(
         resolved_ffn_ratio = cast(
             float, preset["ffn_ratio"] if ffn_ratio is _DEFAULT else ffn_ratio
         )
-        resolved_interaction_indexes = interaction_indexes or [10, 11]
+        resolved_depth = cast(
+            int, preset.get("depth", 12) if depth is _DEFAULT else depth
+        )
+        resolved_interaction_indexes = interaction_indexes or cast(
+            List[int], preset.get("interaction_indexes", [10, 11])
+        )
 
         self.name = name
         self.interaction_indexes = resolved_interaction_indexes
@@ -521,6 +542,7 @@ class ECViTModelWrapper(
         self.backbone = VisionTransformer(
             embed_dim=resolved_embed_dim,
             num_heads=resolved_num_heads,
+            depth=resolved_depth,
             return_layers=resolved_interaction_indexes,
             patch_size=patch_size,
             embed_layer=EMBED_LAYER_REGISTRY[embed_layer],
@@ -610,6 +632,25 @@ class ECViTModelWrapper(
 
     def architecture_info(self) -> ArchitectureInfo:
         return {"model_type": "transformer", "norm_type": "layernorm"}
+
+    def multiscale_feature_strides(self) -> list[int]:
+        # Strides of the three pyramid levels relative to the input (see forward).
+        return [self.patch_size // 2, self.patch_size, self.patch_size * 2]
+
+    def multiscale_feature_dims(self) -> list[int]:
+        # All pyramid levels share the same channel dimension.
+        return [self.feature_dim()] * self.num_levels
+
+    def forward_multiscale_features(
+        self, x: Tensor, layer_indices: Sequence[int]
+    ) -> list[ForwardFeaturesOutput]:
+        if any(index < 0 or index >= self.num_levels for index in layer_indices):
+            raise ValueError(
+                f"layer_indices must be in the range [0, {self.num_levels}), but "
+                f"got {list(layer_indices)}."
+            )
+        features = self.forward(x)
+        return [{"features": features[index]} for index in layer_indices]
 
 
 def _load_torch_checkpoint(path: Path) -> object:

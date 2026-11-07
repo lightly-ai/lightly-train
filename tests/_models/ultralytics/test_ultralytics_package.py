@@ -5,7 +5,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-from importlib import util as importlib_util
 from pathlib import Path
 
 import pytest
@@ -13,17 +12,13 @@ import torch
 from lightning_utilities.core.imports import RequirementCache
 
 from lightly_train._models.ultralytics.ultralytics import (
-    YOLO26_AVAILABLE,
+    ULTRALYTICS_GEQ_8_3_39,
+    ULTRALYTICS_YOLO26_AVAILABLE,
     UltralyticsModelWrapper,
 )
 from lightly_train._models.ultralytics.ultralytics_package import UltralyticsPackage
 
-if importlib_util.find_spec("ultralytics") is None:
-    pytest.skip("ultralytics is not installed", allow_module_level=True)
-
-from ultralytics import YOLO  # type: ignore[attr-defined]
-
-YOLO_WORLD_AVAILABLE = RequirementCache(module="ultralytics.YOLOWorld")
+pytestmark = pytest.mark.requires("ultralytics")
 
 
 class TestUltralyticsPackage:
@@ -43,7 +38,7 @@ class TestUltralyticsPackage:
         model_names = UltralyticsPackage.list_model_names()
         assert (model_name in model_names) is supported
 
-    @pytest.mark.skipif(not YOLO26_AVAILABLE, reason="YOLO26 is not available")
+    @pytest.mark.requires(ULTRALYTICS_YOLO26_AVAILABLE)
     def test_list_model_names__yolo26(self) -> None:
         model_names = set(UltralyticsPackage.list_model_names())
         expected_model_names = {
@@ -63,16 +58,15 @@ class TestUltralyticsPackage:
         assert expected_model_names.issubset(model_names)
 
     def test_is_supported_model__true(self) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO("yolov8s.yaml")
         assert UltralyticsPackage.is_supported_model(model)
 
         wrapped_model = UltralyticsPackage.get_model_wrapper(model=model)
         assert UltralyticsPackage.is_supported_model(wrapped_model)
 
-    @pytest.mark.skipif(
-        not YOLO_WORLD_AVAILABLE,
-        reason="YOLOWorld is not available",
-    )
+    @pytest.mark.requires(RequirementCache(module="ultralytics.YOLOWorld"))
     def test_is_supported_model__false(self) -> None:
         from ultralytics import YOLOWorld  # type: ignore[attr-defined]
 
@@ -84,15 +78,21 @@ class TestUltralyticsPackage:
         ["yolov8s.pt", "yolov8s.yaml"],
     )
     def test_get_model(self, model_name: str) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = UltralyticsPackage.get_model(model_name=model_name)
         assert isinstance(model, YOLO)
 
     def test_get_model_wrapper(self) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         model = YOLO("yolov8s.yaml")
         fe = UltralyticsPackage.get_model_wrapper(model=model)
         assert isinstance(fe, UltralyticsModelWrapper)
 
     def test_export_model(self, tmp_path: Path) -> None:
+        from ultralytics import YOLO  # type: ignore[attr-defined]
+
         out = tmp_path / "model.pt"
         model = YOLO("yolov8n.yaml")
 
@@ -125,7 +125,7 @@ class TestUltralyticsPackage:
                 # This results in models loaded from checkpoints having the training
                 # attribute set to False as checkpoint loading puts the model in eval
                 # mode, see: https://github.com/ultralytics/ultralytics/blob/c196a82bfae3856aaacde873054778f1e4a5eef3/ultralytics/nn/tasks.py#L923
-                if RequirementCache("ultralytics>=8.3.39"):
+                if ULTRALYTICS_GEQ_8_3_39:
                     assert not module_exp.training
                 else:
                     assert module_exp.training

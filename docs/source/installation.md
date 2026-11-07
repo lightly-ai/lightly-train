@@ -67,6 +67,11 @@ following dependencies are available:
 - `timm`: For [TIMM](#models-timm) models
 - `ultralytics`: For [Ultralytics](#models-ultralytics) models
 
+### Performance
+
+- `faster-coco-eval`: For faster mAP computation in object detection, see
+  {ref}`speeding-up-validation-metrics`
+
 To install optional dependencies, run:
 
 ```bash

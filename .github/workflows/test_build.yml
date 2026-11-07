@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 env:
@@ -12,28 +13,52 @@ env:
   # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
   UV_SYSTEM_PYTHON: 1
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-code-changes:
     name: Detect Code Changes
     runs-on: ubuntu-latest
     outputs:
-      run-tests: ${{ steps.filter.outputs.run-tests }}
+      run-tests: ${{ steps.filter.outputs.run-tests == 'true' || steps.filter.outputs.this-workflow == 'true' }}
     steps:
       - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
-          list-files: shell
+          # Run unless the change provably cannot affect this job.
+          #
+          # Denylist rather than allowlist on purpose: setuptools-scm packages every
+          # git-tracked file into the sdist (NOTICE, licences/, CITATION.cff, ...), so
+          # a new top-level file or directory should run the build by default. Only
+          # directories that cannot break 'make dist' are excluded.
+          #
+          # 'some-with-excludes' and the separate 'this-workflow' filter work as in
+          # test_documentation.yml: exclusions are final, so edits to this workflow are
+          # picked up by 'this-workflow', OR-ed into the job output above.
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             run-tests:
-              - '!docs/**'
+              - '**'
               - '!docker/**'
               - '!.github/**'
+              - '!tests/**'
+              - '!docs/**'
+              - '!examples/**'
+              - '!inference_benchmarks/**'
+              - '!dev_tools/**'
+              - '!.devcontainer/**'
+            this-workflow:
               - '.github/workflows/test_build.yml'
   test-build:
     name: Test Build
     needs: detect-code-changes
-    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    # Run if the filter says so, and also if the filter job itself failed: a skipped
+    # job counts as a passing required check, so failing closed would let a change
+    # merge untested.
+    if: ${{ !cancelled() && (needs.detect-code-changes.result != 'success' || needs.detect-code-changes.outputs.run-tests == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -44,7 +69,9 @@ jobs:
         with:
           version: 0.11.15
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
       - name: Set Up Environment
         run: |
           make install-dist

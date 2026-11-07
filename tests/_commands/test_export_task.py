@@ -14,7 +14,6 @@ from typing import cast
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
 
 import lightly_train
 from lightly_train._export.onnx_helpers import ONNXPrecision
@@ -94,22 +93,16 @@ onnx_export_testset = [
 ]
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
 @pytest.mark.parametrize(
     "batch_size,num_channels,height,width,precision", onnx_export_testset
 )
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
+@pytest.mark.requires(
+    "python>=3.9",
+    "onnx",
+    "onnxruntime",
+    "onnxslim",
     reason="Requires Python 3.9 or higher for image preprocessing.",
 )
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export(
     batch_size: int,
     num_channels: int,
@@ -180,19 +173,13 @@ def test_onnx_export(
         )
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
+@pytest.mark.requires(
+    "python>=3.9",
+    "onnx",
+    "onnxruntime",
+    "onnxslim",
     reason="Requires Python 3.9 or higher for image preprocessing.",
 )
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export__height_not_patch_size_multiple_fails(
     dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:
@@ -220,19 +207,13 @@ def test_onnx_export__height_not_patch_size_multiple_fails(
         )
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win"),
-    reason=("Fails on Windows because of potential memory issues"),
-)
-@pytest.mark.skipif(
-    sys.version_info < (3, 9),
+@pytest.mark.requires(
+    "python>=3.9",
+    "onnx",
+    "onnxruntime",
+    "onnxslim",
     reason="Requires Python 3.9 or higher for image preprocessing.",
 )
-@pytest.mark.skipif(not RequirementCache("onnx"), reason="onnx not installed")
-@pytest.mark.skipif(
-    not RequirementCache("onnxruntime"), reason="onnxruntime not installed"
-)
-@pytest.mark.skipif(not RequirementCache("onnxslim"), reason="onnxslim not installed")
 def test_onnx_export__width_not_patch_size_multiple_fails(
     dinov2_vittest14_eomt_checkpoint: Path, tmp_path: Path
 ) -> None:

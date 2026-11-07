@@ -879,6 +879,36 @@ lightly_train.train_image_classification(
 )
 ```
 
+#### `backend`
+
+Only available for the `map` metric of object detection and instance segmentation.
+Selects the implementation used to compute mAP. Both implementations return identical
+values but differ in speed.
+
+| Value              | Description                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `auto`             | Default. Uses `faster_coco_eval` where it is faster and installed, otherwise `pycocotools`.            |
+| `pycocotools`      | Always use [pycocotools](https://github.com/ppwwyyxx/cocoapi).                                         |
+| `faster_coco_eval` | Always use [faster-coco-eval](https://github.com/MiXaiLL76/faster_coco_eval). Must be installed first. |
+
+`faster_coco_eval` computes mAP roughly 5x faster, but is only installed with the
+optional `faster-coco-eval` dependency. With `auto` it is used for object detection but
+not for instance segmentation, where it would make validation slower overall. See
+{ref}`speeding-up-validation-metrics` for details.
+
+```python
+import lightly_train
+
+lightly_train.train_object_detection(
+    ...,
+    metric_args={
+        "map": {
+            "backend": "faster_coco_eval",
+        },
+    },
+)
+```
+
 #### `classwise`
 
 If set to `True`, per-class metrics (for example AP per class) are logged in addition to

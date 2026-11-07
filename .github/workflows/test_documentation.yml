@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 env:
@@ -12,27 +13,53 @@ env:
   # Follows: https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
   UV_SYSTEM_PYTHON: 1
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-code-changes:
     name: Detect Code Changes
     runs-on: ubuntu-latest
     outputs:
-      run-tests: ${{ steps.filter.outputs.run-tests }}
+      run-tests: ${{ steps.filter.outputs.run-tests == 'true' || steps.filter.outputs.this-workflow == 'true' }}
     steps:
       - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
-          list-files: shell
+          # Run unless the change provably cannot affect this job.
+          #
+          # 'some-with-excludes' (dorny/paths-filter >= v4.0.3): a file counts if it
+          # matches at least one positive pattern AND no negated pattern. At least one
+          # positive pattern is required, hence the leading '**'.
+          #
+          # Exclusions are final: a file excluded by '!.github/**' cannot be included
+          # back by a later pattern. Edits to this workflow are therefore picked up by
+          # the separate 'this-workflow' filter, OR-ed into the job output above.
+          #
+          # Denylist rather than allowlist on purpose: a new top-level directory should
+          # run CI by default instead of silently skipping it. Unlike the other
+          # workflows, docs/** is deliberately not excluded here.
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             run-tests:
+              - '**'
               - '!docker/**'
               - '!.github/**'
+              - '!tests/**'
+              - '!inference_benchmarks/**'
+              - '!dev_tools/**'
+              - '!.devcontainer/**'
+            this-workflow:
               - '.github/workflows/test_documentation.yml'
   test-documentation:
     name: Test Documentation
     needs: detect-code-changes
-    if: needs.detect-code-changes.outputs.run-tests == 'true'
+    # Run if the filter says so, and also if the filter job itself failed: a skipped
+    # job counts as a passing required check, so failing closed would let a change
+    # merge untested.
+    if: ${{ !cancelled() && (needs.detect-code-changes.result != 'success' || needs.detect-code-changes.outputs.run-tests == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -43,7 +70,9 @@ jobs:
         with:
           version: 0.11.15
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
       - name: Set Up Environment
         run: |
           make install-docs

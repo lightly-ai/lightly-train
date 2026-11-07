@@ -43,6 +43,9 @@ from lightly_train._task_models.dinov3_eomt_instance_segmentation.scale_block im
     ScaleBlock,
 )
 from lightly_train._task_models.eomt import hooks
+from lightly_train._task_models.eomt.instance_segmentation import (
+    get_labels_masks_scores,
+)
 from lightly_train._task_models.task_model import TaskModel
 from lightly_train.types import PathLike
 
@@ -323,7 +326,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
                 mask_logits, size=(orig_h, orig_w), mode="bilinear"
             )
             class_logits = class_logits_batch[i : i + 1]
-            labels, masks, scores = self.get_labels_masks_scores(
+            labels, masks, scores = get_labels_masks_scores(
                 mask_logits=mask_logits, class_logits=class_logits
             )
             labels = self.internal_class_to_class[labels]
@@ -556,7 +559,7 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         # Function used for ONNX export
         # (1, Q, H, W), (1, Q, K+1), Q = num_queries, K = len(self.classes)
         mask_logits, class_logits = self.forward_backend(x)
-        labels, masks, scores = self.get_labels_masks_scores(
+        labels, masks, scores = get_labels_masks_scores(
             mask_logits=mask_logits, class_logits=class_logits
         )
 
@@ -675,46 +678,6 @@ class DINOv3EoMTInstanceSegmentation(TaskModel):
         )
 
         return mask_logits, class_logits
-
-    @torch.no_grad()
-    def get_labels_masks_scores(
-        self, mask_logits: Tensor, class_logits: Tensor
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        # Get score and label for each query.
-        # NOTE(Guarin, 01/26): Calculate softmax always in fp32 for numerical
-        # stability. Otherwise converting a fp32 model to fp16 results in NaNs.
-        scores = class_logits.softmax(dim=-1, dtype=torch.float32)[..., :-1].type_as(
-            class_logits
-        )  # (1, Q, K)
-        scores, labels = torch.max(scores, dim=-1)  # (1, Q), (1, Q)
-
-        # Multiply scores with mask scores.
-        masks = mask_logits > 0  # (1, Q, H, W)
-
-        #### WARNING
-        # Be careful when modifying anything here. These operations
-        # must be kept in FP32 to avoid numerical issues in FP16 models. Test on
-        # TensorRT FP16 when making any changes. You have to force TensorRT to use FP32.
-        # See export_tensorrt in this file for details.
-        mask_logits_fp32 = mask_logits.float()
-        masks_fp32 = masks.float()
-
-        # (1, Q)
-        score_per_query = (
-            mask_logits_fp32.sigmoid().flatten(2) * masks_fp32.flatten(2)
-        ).sum(2)
-        mask_pixels_per_query = masks_fp32.flatten(2).sum(2)
-        mask_scores = score_per_query / mask_pixels_per_query
-        mask_scores = torch.where(
-            mask_pixels_per_query > 0, mask_scores, torch.zeros_like(mask_scores)
-        )
-
-        scores = scores * mask_scores  # (1, Q)
-        scores = scores.type_as(mask_logits)
-        #####
-
-        # (1, Q), (1, Q, H, W), (1, Q)
-        return labels, masks, scores
 
     def resize_and_pad(self, image: Tensor) -> tuple[Tensor, tuple[int, int]]:
         """Resize and pad image to self.image_size while keeping aspect ratio constant.

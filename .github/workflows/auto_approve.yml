@@ -1,0 +1,137 @@
+name: Auto Approve
+
+# This workflow approves pull requests from the maintainers in ALLOWLIST below. Then these
+# maintainers can use "Merge when ready".
+#
+# The approval is the only requirement that this workflow satisfies. All required checks
+# must pass before a merge.
+#
+# A push by a person who is not in ALLOWLIST removes the approval. Then a person must
+# review the pull request.
+#
+# A change to this workflow always needs a review from a person. See .github/CODEOWNERS.
+
+on:
+  pull_request_target:
+    # `synchronize` is the event for a new push. The workflow uses it to remove the
+    # approval after a push by a person who is not in ALLOWLIST.
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - synchronize
+
+# The default token gets no permissions. All steps use the App token from the first step.
+permissions: {}
+
+# No `concurrency` group. A newer run must not cancel or replace a run that removes the
+# approval.
+
+jobs:
+  auto-approve:
+    name: Auto Approve
+    # This job runs on `pull_request_target` and can read the repository secrets. Do not
+    # check out the code of the pull request. Do not run the code of the pull request.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mint App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          # Organization secrets of the `lightly-fast-track-bot` App. The lightly-studio
+          # repository uses the same App.
+          app-id: ${{ secrets.FAST_TRACK_APP_ID }}
+          private-key: ${{ secrets.FAST_TRACK_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Approve Pull Request
+        uses: actions/github-script@v9
+        env:
+          # The value comes from an environment variable. Do not write `${{ }}` in
+          # `script:`. GitHub puts the value directly into the code.
+          BOT_LOGIN: ${{ steps.app-token.outputs.app-slug }}[bot]
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            // GitHub user IDs. A login can be renamed and then registered by a different
+            // person. An ID cannot. Keep the logins equal to .github/CODEOWNERS.
+            const ALLOWLIST = {
+              IgorSusmelj: 1522766,
+              mrpositron: 42044624,
+              gabrielfruet: 90271657,
+              liopeer: 6892187,
+            };
+            const allowedIds = new Set(Object.values(ALLOWLIST));
+
+            const pr = context.payload.pull_request;
+            const sender = context.payload.sender;
+            const botLogin = process.env.BOT_LOGIN;
+
+            if (!allowedIds.has(pr.user.id)) {
+              core.info(`@${pr.user.login} is not in ALLOWLIST; nothing to do.`);
+              return;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              ...context.repo,
+              pull_number: pr.number,
+            });
+            const mine = reviews.filter((r) => r.user?.login === botLogin);
+
+            // A review by the bot that is not APPROVED means that a person must review:
+            // - DISMISSED: a person or this workflow removed the approval.
+            // - COMMENTED: this workflow found a push by a person who is not in ALLOWLIST
+            //   before it approved, for example on a draft.
+            // No branch rule dismisses a review automatically. If the ruleset gets
+            // `dismiss_stale_reviews_on_push`, change this check.
+            if (mine.some((r) => r.state !== "APPROVED")) {
+              core.info(`${botLogin} already withdrew its approval; leaving this pull request to a human.`);
+              return;
+            }
+
+            if (context.payload.action === "synchronize" && !allowedIds.has(sender.id)) {
+              const message = `@${sender.login} pushed to this pull request and is not in ALLOWLIST in .github/workflows/auto_approve.yml. A person must review this pull request.`;
+              for (const review of mine) {
+                await github.rest.pulls.dismissReview({
+                  ...context.repo,
+                  pull_number: pr.number,
+                  review_id: review.id,
+                  message,
+                });
+              }
+              if (mine.length === 0) {
+                await github.rest.pulls.createReview({
+                  ...context.repo,
+                  pull_number: pr.number,
+                  event: "COMMENT",
+                  body: message,
+                });
+              }
+              core.info(`Withdrew the approval of #${pr.number} after a push by @${sender.login}.`);
+              return;
+            }
+
+            if (pr.draft) {
+              core.info(`#${pr.number} is a draft; nothing to do.`);
+              return;
+            }
+            // An approval from an earlier run can exist.
+            if (mine.length > 0) {
+              core.info(`Already approved by ${botLogin}; nothing to do.`);
+              return;
+            }
+
+            await github.rest.pulls.createReview({
+              ...context.repo,
+              pull_number: pr.number,
+              commit_id: pr.head.sha,
+              event: "APPROVE",
+              body: [
+                `Approved automatically: @${pr.user.login} is in ALLOWLIST in .github/workflows/auto_approve.yml`,
+                "",
+                "This satisfies the approval requirement only. All required status checks still have to pass before this pull request can merge.",
+                "A push by a person who is not in ALLOWLIST removes this approval.",
+              ].join("\n"),
+            });
+            core.info(`Approved #${pr.number} at ${pr.head.sha} as ${botLogin}.`);

@@ -13,22 +13,15 @@ from dataclasses import dataclass
 import pytest
 import torch
 from torch import Tensor
-from torch.export import Dim
 
 from lightly_train._export.onnx_helpers import (
-    _TORCH_DIM_HINTS_AVAILABLE,
-    _TORCH_DIM_HINTS_MIN_VERSION,
+    TORCH_DIM_HINTS_AVAILABLE,
 )
 from lightly_train._task_models.task_model_io import (
     BaseModelOutput,
     ModelInputSpec,
     RowIndexableOutput,
     TensorSpec,
-)
-
-requires_dim_hints = pytest.mark.skipif(
-    not _TORCH_DIM_HINTS_AVAILABLE,
-    reason=f"torch >= {_TORCH_DIM_HINTS_MIN_VERSION} required",
 )
 
 
@@ -58,8 +51,10 @@ def test_tensor_spec__example_tensor() -> None:
     assert tensor.dtype == torch.float32
 
 
-@requires_dim_hints
+@pytest.mark.requires(TORCH_DIM_HINTS_AVAILABLE)
 def test_model_input_spec__example_inputs_and_dynamic_batch() -> None:
+    from torch.export import Dim
+
     spec = ModelInputSpec(
         input_specs={
             "images": TensorSpec(shape=(3, 8, 8), dtype=torch.float32, is_batched=True)
@@ -73,8 +68,10 @@ def test_model_input_spec__example_inputs_and_dynamic_batch() -> None:
     assert spec.dynamic_shapes(dynamic_batch_size=False)["images"][0] == Dim.STATIC
 
 
-@requires_dim_hints
+@pytest.mark.requires(TORCH_DIM_HINTS_AVAILABLE)
 def test_model_input_spec__example_inputs_shape_overrides() -> None:
+    from torch.export import Dim
+
     spec = ModelInputSpec(
         input_specs={
             "images": TensorSpec(shape=(3, 8, 8), dtype=torch.float32, is_batched=True)
@@ -92,8 +89,10 @@ def test_model_input_spec__example_inputs_shape_overrides() -> None:
     assert spec.input_specs["images"].shape == (3, 8, 8)
 
 
-@requires_dim_hints
+@pytest.mark.requires(TORCH_DIM_HINTS_AVAILABLE)
 def test_model_input_spec__rejects_dynamic_non_batch_dimension() -> None:
+    from torch.export import Dim
+
     with pytest.raises(ValueError, match="Only the batch dimension may be dynamic"):
         ModelInputSpec(
             input_specs={
@@ -107,6 +106,10 @@ def test_model_input_spec__rejects_dynamic_non_batch_dimension() -> None:
         )
 
 
+@pytest.mark.skipif(
+    not hasattr(torch.utils._pytree, "register_pytree_node"),
+    reason="torch >= 2.2 required",
+)
 def test_base_model_output__is_registered_pytree() -> None:
     output = _Output(scores=torch.ones(2), boxes=torch.zeros(2, 4))
     values, context = torch.utils._pytree.tree_flatten(output)

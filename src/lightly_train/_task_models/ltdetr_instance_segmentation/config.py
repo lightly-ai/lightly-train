@@ -72,6 +72,19 @@ class HybridEncoderConfig(PydanticConfig):
 
 
 class LTDETRHybridEncoderConfig(ConfigsNamespace):
+    class ViTTest(HybridEncoderConfig):
+        in_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        use_encoder_idx: list[int] = [2]
+        num_encoder_layers: int = 1
+        nhead: int = 1
+        dim_feedforward: int = 32
+        dropout: float = 0.0
+        enc_act: str = "gelu"
+        expansion: float = 1.0
+        depth_mult: float = 1.0
+        act: str = "silu"
+
     class ViTTiny(HybridEncoderConfig):
         in_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -127,6 +140,13 @@ class ECSegTransformerConfig(PydanticConfig):
 
 
 class LTDETRECSegTransformerConfig(ConfigsNamespace):
+    class ViTTest(ECSegTransformerConfig):
+        feat_channels: list[int] = [8, 8, 8]
+        hidden_dim: int = 8
+        num_layers: int = 1
+        num_queries: int = 20
+        dim_feedforward: int = 32
+
     class ViTTiny(ECSegTransformerConfig):
         feat_channels: list[int] = [192, 192, 192]
         hidden_dim: int = 192
@@ -155,6 +175,11 @@ class ECSegPostProcessorConfig(PydanticConfig):
     num_top_queries: int = 300
 
 
+class LTDETRECSegPostProcessorConfig(ConfigsNamespace):
+    class ViTTest(ECSegPostProcessorConfig):
+        num_top_queries: int = 20
+
+
 class SegmentorConfig(PydanticConfig):
     backbone_name: str
     hybrid_encoder: HybridEncoderConfig
@@ -170,6 +195,14 @@ class SegmentorConfig(PydanticConfig):
 
 
 class LTDETRBaseConfig(ConfigsNamespace):
+    class ViTTest(SegmentorConfig):
+        hybrid_encoder: HybridEncoderConfig = Field(
+            default_factory=LTDETRHybridEncoderConfig.ViTTest
+        )
+        ecseg_postprocessor: ECSegPostProcessorConfig = Field(
+            default_factory=LTDETRECSegPostProcessorConfig.ViTTest
+        )
+
     class ViTTiny(SegmentorConfig):
         hybrid_encoder: HybridEncoderConfig = Field(
             default_factory=LTDETRHybridEncoderConfig.ViTTiny
@@ -188,6 +221,19 @@ class LTDETRBaseConfig(ConfigsNamespace):
 
 
 class LTDETRv2ConfigRegistry(ConfigsNamespace):
+    @LTDETR_SEG_MODEL_REGISTRY.register("edgecrafter/_ecvittest-ltdetr-seg")
+    class EdgeCrafterECViTTest(LTDETRBaseConfig.ViTTest):
+        backbone_name: str = "edgecrafter/_ecvittest-notpretrained"
+        transformer: ECSegTransformerConfig = Field(
+            default_factory=LTDETRECSegTransformerConfig.ViTTest
+        )
+        backbone_wrapper: ECViTBackboneWrapperConfig = Field(
+            default_factory=ECViTBackboneWrapperConfig
+        )
+        backbone_args: dict[str, Any] = Field(
+            default_factory=lambda: {"patch_size": 16}
+        )
+
     @LTDETR_SEG_MODEL_REGISTRY.register(
         "edgecrafter/ecvitt-ltdetr-seg",
         ModelAlias(

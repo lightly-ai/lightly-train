@@ -10,15 +10,11 @@ from __future__ import annotations
 
 import pytest
 import torch
-from lightning_utilities.core.imports import RequirementCache
-
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-
 
 from lightly_train._metrics.loss_metric_collection import LossMetricCollection
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
+
+pytestmark = pytest.mark.requires(TORCHMETRICS_GEQ_1_5)
 
 
 class TestLossMetricCollection:

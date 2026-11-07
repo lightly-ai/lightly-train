@@ -64,7 +64,11 @@ from lightly_train._debug.underflow_overflow import UnderflowOverflowMonitor
 from lightly_train._events import tracker
 from lightly_train._license import LICENSE_INFO
 from lightly_train._loggers.task_logger_args import TaskLoggerArgs
-from lightly_train._metrics.task_metric import AggregatedMetricValues, TaskMetricArgs
+from lightly_train._metrics.task_metric import (
+    TORCHMETRICS_GEQ_1_5,
+    AggregatedMetricValues,
+    TaskMetricArgs,
+)
 from lightly_train._task_checkpoint import TaskSaveCheckpointArgs
 from lightly_train._task_models.train_model import TrainModel, TrainModelArgs
 from lightly_train._torch_compile import TorchCompileArgs
@@ -72,6 +76,7 @@ from lightly_train._train_task_state import (
     TrainTaskState,
 )
 from lightly_train._training_step_timer import CUDAUtilization, TrainingStepTimer
+from lightly_train.errors import LightlyTrainError
 from lightly_train.types import PathLike
 
 logger = logging.getLogger(__name__)
@@ -1266,7 +1271,33 @@ def _train_task(
     _train_task_from_config(config=config)
 
 
+def _raise_if_torchmetrics_unsupported() -> None:
+    """Fails early if the installed torchmetrics version is too old for task metrics.
+
+    Without this check, training fails much later with a confusing TypeError about
+    unexpected keyword arguments once the metrics are instantiated.
+    """
+    if TORCHMETRICS_GEQ_1_5:
+        return
+
+    try:
+        from torchmetrics import __version__ as torchmetrics_version
+
+        found = f"Found torchmetrics {torchmetrics_version}."
+    except ImportError:
+        found = "torchmetrics is not installed."
+
+    raise LightlyTrainError(
+        f"Fine-tuning requires {TORCHMETRICS_GEQ_1_5.requirement}. {found} This "
+        "usually happens when SuperGradients is installed, as it requires "
+        "torchmetrics==0.8. Install a newer version with "
+        f"`pip install '{TORCHMETRICS_GEQ_1_5.requirement}'` or uninstall "
+        "SuperGradients."
+    )
+
+
 def _train_task_from_config(config: TrainTaskConfig) -> None:
+    _raise_if_torchmetrics_unsupported()
     initial_config = config.model_dump()
     # NOTE(Guarin, 07/25): We add callbacks and loggers later to fabric because we first
     # have to initialize the output directory and some other things. Fabric doesn't

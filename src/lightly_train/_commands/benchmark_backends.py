@@ -191,7 +191,7 @@ class TorchBackend(ObjectDetectionBackend):
     def forward(self, images: Tensor) -> ObjectDetectionBatchOutput:
         with torch.autocast(
             device_type=self.device.type,
-            dtype=self.autocast_dtype or torch.float16,
+            dtype=self.autocast_dtype,
             enabled=self.autocast_dtype is not None,
         ):
             raw_outputs = self.model(images)

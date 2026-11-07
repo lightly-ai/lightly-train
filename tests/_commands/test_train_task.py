@@ -7,17 +7,36 @@
 #
 from __future__ import annotations
 
+import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+import torch
+import yaml
 from lightning_utilities.core.imports import RequirementCache
 from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
+import lightly_train
+from lightly_train._commands import train_task
+from lightly_train._commands.train_task import (
+    ImageClassificationMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMulticlassTrainTaskConfig,
+    ImageClassificationMultiheadMultilabelTrainTaskConfig,
+    ImageClassificationMultilabelTrainTaskConfig,
+    InstanceSegmentationTrainTaskConfig,
+    ObjectDetectionTrainTaskConfig,
+    PanopticSegmentationTrainTaskConfig,
+    SemanticSegmentationMultiheadTrainTaskConfig,
+    SemanticSegmentationTrainTaskConfig,
+)
+from lightly_train._data import data_helpers as data_arg_helpers
 from lightly_train._data.coco_object_detection_dataset import (
     COCOObjectDetectionDataArgs,
 )
+from lightly_train._data.file_helpers import PYDICOM_GEQ_3_0_0
 from lightly_train._data.image_classification_dataset import (
     ImageClassificationMulticlassDataArgs,
     ImageClassificationMultilabelDataArgs,
@@ -35,46 +54,13 @@ from lightly_train._data.mask_semantic_segmentation_dataset import (
 from lightly_train._data.yolo_object_detection_dataset import (
     YOLOObjectDetectionDataArgs,
 )
-
-if RequirementCache("albumentations<1.4.0"):
-    # Skip test if albumentations version is too old. This can happen on Python 3.8.
-    pytest.skip("Old albumentations version", allow_module_level=True)
-if RequirementCache("torchmetrics<1.5"):
-    # Skip test if torchmetrics version is too old. This can happen if SuperGradients
-    # is installed which requires torchmetrics==0.8
-    pytest.skip("Old torchmetrics version", allow_module_level=True)
-if not RequirementCache("transformers"):
-    pytest.skip("Transformers not installed", allow_module_level=True)
-
-import logging
-import os
-import sys
-
-import torch
-import yaml
-
-import lightly_train
-from lightly_train._commands.train_task import (
-    ImageClassificationMulticlassTrainTaskConfig,
-    ImageClassificationMultiheadMulticlassTrainTaskConfig,
-    ImageClassificationMultiheadMultilabelTrainTaskConfig,
-    ImageClassificationMultilabelTrainTaskConfig,
-    InstanceSegmentationTrainTaskConfig,
-    ObjectDetectionTrainTaskConfig,
-    PanopticSegmentationTrainTaskConfig,
-    SemanticSegmentationMultiheadTrainTaskConfig,
-    SemanticSegmentationTrainTaskConfig,
-)
-from lightly_train._data import data_helpers as data_arg_helpers
+from lightly_train._metrics.task_metric import TORCHMETRICS_GEQ_1_5
+from lightly_train._transforms.albumentations_helpers import ALBUMENTATIONS_GEQ_2_0_0
+from lightly_train.errors import LightlyTrainError
 
 from .. import helpers
 
-is_self_hosted_docker_runner = "GH_RUNNER_NAME" in os.environ
-
-try:
-    import pydicom
-except ImportError:
-    pydicom = None  # type: ignore[assignment]
+pytestmark = pytest.mark.requires(ALBUMENTATIONS_GEQ_2_0_0, TORCHMETRICS_GEQ_1_5)
 
 
 def test_train_image_classification__multiclass(tmp_path: Path) -> None:
@@ -99,7 +85,7 @@ def test_train_image_classification__multiclass(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -147,7 +133,7 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -169,7 +155,6 @@ def test_train_image_classification__multilabel(tmp_path: Path) -> None:
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
 def test_train_image_classification_multihead(
     tmp_path: Path,
 ) -> None:
@@ -197,9 +182,9 @@ def test_train_image_classification_multihead(
         model_args={
             "lr": [0.001, 0.01, 0.1],
         },
-        steps=10,
+        steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -216,7 +201,18 @@ def test_train_image_classification_multihead(
     assert model is not None
 
 
-def test_train_object_detection_yolo(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "num_workers",
+    [
+        0,
+        # num_workers=2 exercises the real multi-worker DataLoader code path,
+        # but worker process spawn dominates its runtime (especially on
+        # Windows), so it's excluded from fast CI via long_running_test.
+        pytest.param(2, marks=pytest.mark.long_running_test),
+    ],
+    ids=["fast", "multi_worker_dataloader"],
+)
+def test_train_object_detection_yolo(tmp_path: Path, num_workers: int) -> None:
     out = tmp_path / "out"
     data = tmp_path / "data"
     # Create dataset with 4 files, including one without a label file (index 2) and
@@ -232,7 +228,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     # Check training
     lightly_train.train_object_detection(
         out=out,
-        model="_ltdetrv2-s-notpretrained",
+        model="dinov2/_vittest14-ltdetrv2",
         data={
             "path": data,
             "train": Path("train", "images"),
@@ -247,7 +243,7 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
         },
         steps=2,
         batch_size=2,
-        num_workers=2,
+        num_workers=num_workers,
         devices=1,
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
     )
@@ -283,14 +279,6 @@ def test_train_object_detection_yolo(tmp_path: Path) -> None:
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
-@pytest.mark.skipif(
-    is_self_hosted_docker_runner,
-    reason=(
-        "Fails on self-hosted CI with GPU (insufficient shared memory causes worker "
-        "bus error"
-    ),
-)
 def test_train_instance_segmentation(
     tmp_path: Path,
 ) -> None:
@@ -306,12 +294,12 @@ def test_train_instance_segmentation(
             "train": {"annotations": str(data / "train.json"), "images": "train"},
             "val": {"annotations": str(data / "val.json"), "images": "val"},
         },
-        model="_ltdetrv2-seg-s-notpretrained",
+        model="edgecrafter/_ecvittest-ltdetr-seg",
         model_args={"scheduler_name": "linear"},
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -338,14 +326,6 @@ def test_train_instance_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
-@pytest.mark.skipif(
-    is_self_hosted_docker_runner,
-    reason=(
-        "Fails on self-hosted CI with GPU (insufficient shared memory causes worker "
-        "bus error"
-    ),
-)
 def test_train_panoptic_segmentation(
     tmp_path: Path,
 ) -> None:
@@ -373,7 +353,7 @@ def test_train_panoptic_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -398,14 +378,6 @@ def test_train_panoptic_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
-@pytest.mark.skipif(
-    is_self_hosted_docker_runner,
-    reason=(
-        "Fails on self-hosted CI with GPU (insufficient shared memory causes worker "
-        "bus error"
-    ),
-)
 def test_train_panoptic_segmentation__dinov2(
     tmp_path: Path,
 ) -> None:
@@ -434,7 +406,7 @@ def test_train_panoptic_segmentation__dinov2(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
     )
     assert out.exists()
@@ -459,13 +431,6 @@ def test_train_panoptic_segmentation__dinov2(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win") or is_self_hosted_docker_runner,
-    reason=(
-        "Fails on Windows since switching to Jaccard index "
-        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
-    ),
-)
 @pytest.mark.parametrize(
     "model_name, model_args",
     [
@@ -512,7 +477,7 @@ def test_train_semantic_segmentation(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -538,8 +503,7 @@ def test_train_semantic_segmentation(
     assert (image_examples_dir / "val_predictions_0.jpg").exists()
 
 
-@pytest.mark.skipif(pydicom is None, reason="pydicom not installed")
-@pytest.mark.skipif(sys.platform.startswith("win"), reason="Slow on windows")
+@pytest.mark.requires(PYDICOM_GEQ_3_0_0)
 @pytest.mark.parametrize(
     ("data_format, num_channels, height, width"),
     [
@@ -558,10 +522,8 @@ def test_train_semantic_segmentation__dicom(
     height: int,
     width: int,
 ) -> None:
-    pydicom_examples = pytest.importorskip(
-        "pydicom.examples",
-        reason="pydicom examples not supported",
-    )
+    from pydicom import examples as pydicom_examples
+
     data_path: Path = pydicom_examples.get_path(data_format)
 
     out = tmp_path / "out"
@@ -619,7 +581,7 @@ def test_train_semantic_segmentation__dicom(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -627,13 +589,6 @@ def test_train_semantic_segmentation__dicom(
     )
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win") or is_self_hosted_docker_runner,
-    reason=(
-        "Fails on Windows since switching to Jaccard index "
-        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
-    ),
-)
 @pytest.mark.parametrize(
     "model_name, model_args",
     [
@@ -680,7 +635,7 @@ def test_train_semantic_segmentation__export(
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,
         transform_args={
             "num_channels": num_channels,
@@ -699,13 +654,6 @@ def test_train_semantic_segmentation__export(
         assert torch.equal(ckpt_model_state_dict[key], exported_model_state_dict[key])
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win") or is_self_hosted_docker_runner,
-    reason=(
-        "Fails on Windows since switching to Jaccard index "
-        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
-    ),
-)
 def test_train_semantic_segmentation__checkpoint(
     tmp_path: Path, caplog: LogCaptureFixture
 ) -> None:
@@ -810,13 +758,6 @@ def test_train_semantic_segmentation__checkpoint(
     assert "Checkpoint provides 2 classes but module expects 3." in caplog.text
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win") or is_self_hosted_docker_runner,
-    reason=(
-        "Fails on Windows since switching to Jaccard index "
-        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
-    ),
-)
 def test_train_semantic_segmentation__resume_interrupted(
     tmp_path: Path, caplog: LogCaptureFixture
 ) -> None:
@@ -892,13 +833,6 @@ def test_train_semantic_segmentation__resume_interrupted(
     assert "Resuming training from step 1/1..." in caplog.text
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("win") or is_self_hosted_docker_runner,
-    reason=(
-        "Fails on Windows since switching to Jaccard index "
-        "OR on self-hosted CI with GPU (insufficient shared memory causes worker bus error)"
-    ),
-)
 def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_heads(
     tmp_path: Path,
 ) -> None:
@@ -932,14 +866,14 @@ def test_train_semantic_segmentation_multihead__integration__runs_with_multiple_
                 1: "car",
             },
         },
-        model="dinov2/vits14",  # Use smallest standard model for fast testing
+        model="dinov2/_vittest14",  # Tiny test-only model for fast testing
         model_args={
             "lr": [0.001, 0.01],  # Test with two learning rates
         },
         accelerator="auto" if not sys.platform.startswith("darwin") else "cpu",
         devices=1,
         batch_size=2,
-        num_workers=2,
+        num_workers=0,
         steps=2,  # Minimal steps for fast test
     )
 
@@ -1446,3 +1380,19 @@ def test_train_task_config_resolve_data_paths__direct_relative_to_cwd(
     assert config.data.path == (tmp_path / "dataset").resolve()
     assert config.data.train == Path("images/train")
     assert config.data.val == Path("images/val")
+
+
+class TestRaiseIfTorchmetricsUnsupported:
+    def test_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(train_task, "TORCHMETRICS_GEQ_1_5", True, raising=True)
+        train_task._raise_if_torchmetrics_unsupported()
+
+    def test_unsupported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            train_task,
+            "TORCHMETRICS_GEQ_1_5",
+            RequirementCache("torchmetrics>=999"),
+            raising=True,
+        )
+        with pytest.raises(LightlyTrainError, match="requires torchmetrics>=999"):
+            train_task._raise_if_torchmetrics_unsupported()

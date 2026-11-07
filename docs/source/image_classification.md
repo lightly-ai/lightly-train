@@ -23,6 +23,28 @@ how to prepare your dataset.
 In multiclass classification, each image is assigned to exactly one class. This is the
 default mode and does not need to be specified explicitly.
 
+If you don't have a dataset at hand, download a small ready-to-use example dataset:
+[clothing-dataset-small](https://github.com/alexeygrigorev/clothing-dataset-small) (CC0
+licensed, 10 classes, already organized as class-subfolders):
+
+```bash
+git clone https://github.com/alexeygrigorev/clothing-dataset-small
+```
+
+After cloning, the dataset looks like this:
+
+```text
+clothing-dataset-small
+├── train
+│   ├── dress
+│   │   ├── 009b3c31-fb62-45c0-be9a-37a5c238cb88.jpg
+│   │   └── ...
+│   ├── hat
+│   └── ...
+├── validation
+└── test
+```
+
 ```python
 import lightly_train
 
@@ -31,17 +53,42 @@ if __name__ == "__main__":
         out="out/my_experiment",
         model="dinov3/vitt16",
         data={
-            "train": "my_data_dir/train/",
-            "val": "my_data_dir/val/",
+            "train": "clothing-dataset-small/train",
+            "val": "clothing-dataset-small/validation",
             "classes": {
-                0: "cat",
-                1: "car",
-                2: "dog",
-                # ...
+                0: "dress",
+                1: "hat",
+                2: "longsleeve",
+                3: "outwear",
+                4: "pants",
+                5: "shirt",
+                6: "shoes",
+                7: "shorts",
+                8: "skirt",
+                9: "t-shirt",
             },
         },
+        steps=100,  # Small number of steps for demonstration, default is 100_000.
+        batch_size=4,  # Small batch size for demonstration, default is 16.
     )
 ```
+
+`data` also accepts a path to a YAML file with the same keys. Relative paths in a YAML
+file are resolved against the folder that contains the YAML file, while relative paths
+in a dictionary are resolved against the current working directory. For example, save
+this as `clothing-dataset-small/config.yaml`:
+
+```yaml
+train: train
+val: validation
+classes:
+  0: dress
+  1: hat
+  # ... 8 more classes
+```
+
+and pass `data="clothing-dataset-small/config.yaml"`. For your own dataset, replace the
+paths and classes with your own.
 
 During training, both the
 
