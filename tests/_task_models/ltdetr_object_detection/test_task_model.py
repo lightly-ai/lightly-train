@@ -29,9 +29,6 @@ from lightly_train._models.dinov3.dinov3_package import (
     MODEL_NAME_TO_INFO as DINOV3_MODEL_NAME_TO_INFO,
 )
 from lightly_train._pre_post_processing.object_detection import ObjectDetectionOutput
-from lightly_train._task_models.dinov3_ltdetr.task_model import (
-    _RTDETRTransformerv2Config,
-)
 from lightly_train._task_models.ltdetr_object_detection.config import (
     LTDETR_MODEL_REGISTRY,
     DFINETransformerConfig,
@@ -827,7 +824,7 @@ def test_get_optimizer__linear_warns_when_warmup_exceeds_training(
 def test_rtdetr_transformer_v2_config__resolve_auto__patch_size(
     patch_size: int, feat_strides: list[int], num_levels: int
 ) -> None:
-    config = _RTDETRTransformerv2Config(
+    config = RTDETRTransformerv2Config(
         num_levels=num_levels, feat_channels=[-1] * num_levels
     )
 
