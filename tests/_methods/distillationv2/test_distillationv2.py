@@ -402,7 +402,7 @@ class TestDistillationV2:
 
         # Create distillation instance.
         distill = DistillationV2(
-            method_args=DistillationV2Args(),
+            method_args=DistillationV2Args(teacher="dinov2/_vittest14"),
             optimizer_args=DistillationV2LARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
@@ -448,7 +448,7 @@ class TestDistillationV2:
 
         # Patch get_teacher.
         mock_get_teacher = mocker.patch(
-            "lightly_train._methods.distillation.distillation.get_teacher"
+            "lightly_train._methods.distillationv2.distillationv2.get_teacher"
         )
         mock_get_teacher.return_value = teacher_model
 

@@ -505,7 +505,9 @@ class TestDistillation:
 
         # Create distillation instance.
         distill = Distillation(
-            method_args=DistillationArgs(queue_size=queue_size),
+            method_args=DistillationArgs(
+                queue_size=queue_size, teacher="dinov2/_vittest14"
+            ),
             optimizer_args=DistillationLARSArgs(),
             embedding_model=student_model,
             global_batch_size=batch_size,
