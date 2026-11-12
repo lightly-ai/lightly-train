@@ -71,6 +71,7 @@ pages):
 - [DINOv2](#models-dinov2)
 - [DINOv3](#models-dinov3)
 - [EdgeCrafter](#models-edgecrafter)
+- [LightlyViT](#models-lightlyvit)
 - [Torchvision](#models-torchvision)
 - [TIMM](#models-timm)
 - [Ultralytics](#models-ultralytics)
@@ -88,6 +89,7 @@ Overview <self>
 dinov2
 dinov3
 edgecrafter
+lightlyvit
 torchvision
 timm
 ultralytics
