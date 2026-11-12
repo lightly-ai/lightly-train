@@ -5,6 +5,25 @@ All notable changes to Lightly**Train** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.1](https://github.com/lightly-ai/lightly-train/compare/v0.18.0...v0.18.1) (2026-11-12)
+
+
+### Fixed
+
+* **benchmark:** match model and dataset classes by name ([#1005](https://github.com/lightly-ai/lightly-train/issues/1005)) ([1070e9f](https://github.com/lightly-ai/lightly-train/commit/1070e9f802862095a671d22f2a90269bc5e95763))
+* **data:** refresh classification cache after CSV edits ([#989](https://github.com/lightly-ai/lightly-train/issues/989)) ([9588fad](https://github.com/lightly-ai/lightly-train/commit/9588fadbcf269f9b274e00074c72b22c71ed9c68))
+* **dicom:** load DICOM images with pydicom 2.x ([#1001](https://github.com/lightly-ai/lightly-train/issues/1001)) ([1d61179](https://github.com/lightly-ai/lightly-train/commit/1d61179bd4333c4428ce87d6fe47998049b2f9ba))
+* **ltdetr:** compute train and val mAP with internal class ids ([#1004](https://github.com/lightly-ai/lightly-train/issues/1004)) ([61c5c4a](https://github.com/lightly-ai/lightly-train/commit/61c5c4a87e96b1ad038df933da0559a936a7e687))
+* reinitialize detection heads when class counts differ ([#983](https://github.com/lightly-ai/lightly-train/issues/983)) ([a1c6c6c](https://github.com/lightly-ai/lightly-train/commit/a1c6c6c281d76dfca01c72bc8adf62333890f288))
+* restore torch 2.1 support by importing Dim only where it is used ([#1000](https://github.com/lightly-ai/lightly-train/issues/1000)) ([5ef033f](https://github.com/lightly-ai/lightly-train/commit/5ef033f07e24bef8e0be01c8d3a573c35ec09747))
+* **timm:** add arch name prefix for cspnext models ([#1013](https://github.com/lightly-ai/lightly-train/issues/1013)) ([73f6869](https://github.com/lightly-ai/lightly-train/commit/73f6869f303db4c0e91e92590d6d7d9b00668755))
+* **timm:** add cspnext_ arch name prefix ([73f6869](https://github.com/lightly-ai/lightly-train/commit/73f6869f303db4c0e91e92590d6d7d9b00668755))
+
+
+### Changed
+
+* **eomt:** reduce instance validation mask memory ([#942](https://github.com/lightly-ai/lightly-train/issues/942)) ([b97cb7a](https://github.com/lightly-ai/lightly-train/commit/b97cb7ad8e68ea0bf5d30c38798e312464dddf23))
+
 ## [0.18.0] - 2026-10-24
 
 ### Added
